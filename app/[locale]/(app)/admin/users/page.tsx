@@ -1,0 +1,121 @@
+import { getRequestLocale } from '@/lib/i18n/server'
+import { getDictionary } from '@/lib/i18n'
+import { localePath } from '@/lib/i18n/urls'
+import { getUsers } from '@/lib/admin/queries'
+import { PageHeader } from '@/components/admin/page-header'
+import { StatusBadge } from '@/components/admin/status-badge'
+import { DataTable } from '@/components/admin/data-table'
+import { formatDateTime } from '@/lib/admin/format'
+import { UserActions } from './user-actions'
+import type { AppRole, UserRow } from '@/lib/admin/queries'
+import Image from 'next/image'
+
+export async function generateMetadata(): Promise<{ title: string }> {
+  const locale = await getRequestLocale()
+  return { title: getDictionary(locale).admin.users.title }
+}
+
+const ROLE_FILTERS: { key: AppRole | 'all'; dictKey: 'roleAll' | 'roleAdmin' | 'roleEditor' | 'roleContributor' | 'roleAdvertiser' }[] = [
+  { key: 'all', dictKey: 'roleAll' },
+  { key: 'admin', dictKey: 'roleAdmin' },
+  { key: 'editor', dictKey: 'roleEditor' },
+  { key: 'contributor', dictKey: 'roleContributor' },
+  { key: 'advertiser', dictKey: 'roleAdvertiser' },
+]
+
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ role?: string; q?: string }>
+}) {
+  const locale = await getRequestLocale()
+  const dict = getDictionary(locale)
+  const t = dict.admin.users
+
+  const params = await searchParams
+  const role = (params.role as AppRole) || 'all'
+  const search = params.q || ''
+
+  const users = await getUsers({ role, search, limit: 100 })
+
+  return (
+    <div className="space-y-5">
+      <PageHeader title={t.title} description={t.description} />
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <form action={localePath(locale, '/admin/users')} method="GET" className="flex-1">
+          <input
+            type="text"
+            name="q"
+            defaultValue={search}
+            placeholder={t.searchPlaceholder}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </form>
+        <div className="flex flex-wrap items-center gap-2">
+          {ROLE_FILTERS.map((f) => (
+            <a
+              key={f.key}
+              href={`${localePath(locale, '/admin/users')}?role=${f.key}${search ? `&q=${encodeURIComponent(search)}` : ''}`}
+              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                role === f.key
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card border-border text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {t[f.dictKey]}
+            </a>
+          ))}
+        </div>
+      </div>
+
+      {users.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border bg-muted/30 p-10 text-center">
+          <p className="text-sm text-muted-foreground">{t.empty}</p>
+        </div>
+      ) : (
+        <DataTable
+          rows={users}
+          rowKey={(r) => r.id}
+          columns={[
+            { key: 'user', header: t.colUser, render: (r) => <UserCell row={r} copy={t} /> },
+            { key: 'location', header: t.colLocation, render: (r) => <span className="text-xs text-muted-foreground">{r.locationName ?? '—'}</span> },
+            { key: 'roles', header: t.colRoles, render: (r) => <RolesCell roles={r.roles} copy={t} /> },
+            { key: 'joined', header: t.colJoined, render: (r) => <time className="text-xs text-muted-foreground">{formatDateTime(r.createdAt)}</time> },
+            { key: 'actions', header: '', render: (r) => <UserActions user={r} copy={t} />, className: 'text-right' },
+          ]}
+        />
+      )}
+    </div>
+  )
+}
+
+function UserCell({ row, copy }: { row: UserRow; copy: ReturnType<typeof getDictionary>['admin']['users'] }) {
+  return (
+    <div className="min-w-0 flex items-center gap-3">
+      {row.avatarUrl ? (
+        <Image src={row.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover bg-muted shrink-0" />
+      ) : (
+        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground shrink-0">
+          {(row.displayName ?? row.email ?? 'U').charAt(0).toUpperCase()}
+        </div>
+      )}
+      <div className="min-w-0">
+        <div className="text-sm font-medium truncate">{row.displayName ?? row.fullName ?? copy.unnamed}</div>
+        {row.email && <div className="text-xs text-muted-foreground truncate">{row.email}</div>}
+      </div>
+    </div>
+  )
+}
+
+function RolesCell({ roles, copy }: { roles: AppRole[]; copy: ReturnType<typeof getDictionary>['admin']['users'] }) {
+  if (roles.length === 0) return <span className="text-xs text-muted-foreground">{copy.noRoles}</span>
+  return (
+    <div className="flex flex-wrap gap-1">
+      {roles.map((r) => (
+        <StatusBadge key={r} status={r} />
+      ))}
+    </div>
+  )
+}
+

@@ -1,0 +1,590 @@
+import "server-only";
+
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { Locale } from "@/lib/i18n";
+
+/**
+ * Data access for the Notices vertical.
+ *
+ * Mirrors the conventions of `lib/queries/photo-stories.ts`: the admin client
+ * plus a `safe()` wrapper (a DB hiccup must never take the page down), aliased
+ * PostgREST embeds, and locale-resolved translations. Notices are
+ * `content_items` with `type = "notice"`; notice metadata lives in the
+ * `notices` table joined via foreign key.
+ *
+ * PostgREST notes that shaped this file (verified against the live project):
+ *
+ *  - Embedded filters (`notices.notice_type`, `locations.slug`) only restrict
+ *    the *parent* rows when the embed is `!inner`. Plain embeds silently
+ *    return every row.
+ *  - `or()` cannot reference embedded columns and cannot take an `ilike`
+ *    value — both raise PGRST100. Search therefore runs as a two-step query:
+ *    ids from `content_translations`, then `.in("id", ids)`.
+ *  - `locations!inner` would drop notices that have no location, so it is
+ *    only used when a location filter is actually applied.
+ */
+export const NOTICES_PAGE_SIZE = 12;
+
+/** Notice type identifiers mapped to human-readable labels. */
+export const NOTICE_TYPE_LABELS: Record<string, string> = {
+    public_notice: "Public Notice",
+    lost_found: "Lost & Found",
+    road_closure: "Road Closure",
+    community_alert: "Community Alert",
+    missing_person: "Missing Person",
+    service_announcement: "Service Announcement",
+    government_notice: "Government Notice",
+    school_notice: "School Notice",
+    organization_notice: "Organization Notice",
+    other: "Other",
+};
+
+export type NoticeStatus = "all" | "active" | "expiring" | "expired";
+export type NoticeSort = "newest" | "expiring";
+
+/**
+ * A single notice with all metadata fields.
+ */
+export type NoticeData = {
+    id: string;
+    type: string;
+    href: string;
+    title: string;
+    excerpt: string | null;
+    imageUrl: string | null;
+    location: string | null;
+    locationSlug?: string | null;
+    category: string | null;
+    credit: string | null;
+    verification: string | null;
+    publishedAt: string | null;
+    noticeType: string | null;
+    isOfficial: boolean | null;
+    expiresAt: string | null;
+    organizationName: string | null;
+    contactPhone: string | null;
+    contactEmail: string | null;
+    contactInfo: string | null;
+    body?: string | null;
+};
+
+/** Raw row shape returned by the shared notice select. */
+type RawNoticeRow = {
+    id: string;
+    slug: string | null;
+    verification: string | null;
+    published_at: string | null;
+    location?: { name: string; slug: string | null } | { name: string; slug: string | null }[] | null;
+    category?:
+        | { category_translations: { locale: string; name: string }[] }
+        | { category_translations: { locale: string; name: string }[] }[]
+        | null;
+    translations?:
+        | { locale: string; title: string | null; excerpt: string | null; body: string | null }[]
+        | null;
+    media?:
+        | {
+              public_url: string | null;
+              alt_text: string | null;
+              photographer_credit: string | null;
+              is_cover: boolean | null;
+              sort_order: number | null;
+          }[]
+        | null;
+    notices?:
+        | {
+              notice_type: string | null;
+              is_official: boolean | null;
+              expiry_date: string | null;
+              organization_name: string | null;
+              contact_phone: string | null;
+              contact_email: string | null;
+          }[]
+        | null;
+};
+
+const NOTICE_SELECT = `id, slug, verification, published_at,
+    location:locations(name, slug),
+    category:categories(category_translations(locale, name)),
+    translations:content_translations(locale, title, excerpt, body),
+    media:media_assets(public_url, alt_text, photographer_credit, is_cover, sort_order),
+    notices!inner(notice_type, is_official, expiry_date, organization_name, contact_phone, contact_email)`;
+
+/** Same select, but the location join is inner so `locations.slug` filters. */
+const NOTICE_SELECT_WITH_LOCATION = NOTICE_SELECT.replace(
+    "location:locations(",
+    "location:locations!inner(",
+);
+
+type QueryResult<T> = {
+    data: T | null;
+    count: number | null;
+    error: { message: string } | null;
+};
+
+/** Never let a DB hiccup take the page down — every query resolves to a fallback. */
+async function safe<T>(
+    promise: PromiseLike<{
+        data: T | null;
+        count?: number | null;
+        error: { message: string; code?: string } | null;
+    }>,
+): Promise<QueryResult<T>> {
+    try {
+        const { data, count, error } = await promise;
+        if (error) {
+            console.error("[notices]", error.message);
+            return { data: null, count: null, error };
+        }
+        return { data, count: count ?? null, error: null };
+    } catch (err) {
+        console.error("[notices]", err);
+        return { data: null, count: null, error: { message: String(err) } };
+    }
+}
+
+/** The admin client is only usable when the service key is configured. */
+function hasDatabase(): boolean {
+    return Boolean(
+        process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
+    );
+}
+
+/** PostgREST returns to-one embeds as object or array depending on relationship detection. */
+function asOne<T>(value: T | T[] | null | undefined): T | null {
+    if (!value) return null;
+    return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+/** Preferred locale → English fallback → first available. */
+function pickLocalized<T extends { locale: string }>(
+    rows: T[] | null | undefined,
+    locale: Locale,
+): T | null {
+    if (!rows || rows.length === 0) return null;
+    return (
+        rows.find((r) => r.locale === locale) ??
+        rows.find((r) => r.locale === "en") ??
+        rows[0]
+    );
+}
+
+/** PostgREST `or()` phrases cannot contain commas, wildcards or parentheses. */
+function sanitizePhrase(input: string): string {
+    return input
+        .replace(/[,()%\\*]/g, " ")
+        .trim()
+        .slice(0, 80);
+}
+
+function isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+/**
+ * Whether a notice is still active: either no expiry date, or expiry is in
+ * the future.
+ */
+function isNoticeActive(notice: { expiry_date: string | null }): boolean {
+    if (!notice.expiry_date) return true;
+    return new Date(notice.expiry_date) > new Date();
+}
+
+/** Base builder for every public notice query (published, unarchived). */
+function publishedNotices(select = NOTICE_SELECT, countExact = false) {
+    return createAdminClient()
+        .from("content_items")
+        .select(select, countExact ? { count: "exact" } : undefined)
+        .eq("type", "notice")
+        .eq("status", "published")
+        .eq("is_archived", false)
+        .not("published_at", "is", null);
+}
+
+/** Maps one raw row to the NoticeData shape; null without a title. */
+function toNoticeData(row: RawNoticeRow, locale: Locale): NoticeData | null {
+    const translation = pickLocalized(row.translations, locale);
+    if (!translation?.title) return null;
+
+    const location = asOne(row.location);
+    const category = asOne(row.category);
+    const media = row.media ?? [];
+    const cover = media.find((m) => m.is_cover) ?? media[0] ?? null;
+    const notice = asOne(row.notices);
+
+    const slug = row.slug ?? row.id;
+    const contactInfo = [notice?.contact_phone, notice?.contact_email]
+        .filter((value): value is string => Boolean(value))
+        .join(" · ") || null;
+
+    return {
+        id: row.id,
+        type: "notice",
+        href: `/notices/${slug}`,
+        title: translation.title,
+        excerpt: translation.excerpt ?? null,
+        imageUrl: cover?.public_url ?? null,
+        location: location?.name ?? null,
+        locationSlug: location?.slug ?? null,
+        category: category
+            ? (pickLocalized(category.category_translations, locale)?.name ?? null)
+            : null,
+        credit: cover?.photographer_credit ?? null,
+        verification: row.verification ?? null,
+        publishedAt: row.published_at,
+        noticeType: notice?.notice_type ?? null,
+        isOfficial: notice?.is_official ?? null,
+        expiresAt: notice?.expiry_date ?? null,
+        organizationName: notice?.organization_name ?? null,
+        contactPhone: notice?.contact_phone ?? null,
+        contactEmail: notice?.contact_email ?? null,
+        contactInfo,
+        body: translation.body ?? null,
+    };
+}
+
+/**
+ * Two-step search: `or()` + `ilike` cannot reference embedded tables, so we
+ * collect matching ids from `content_translations` first. Returns `null` when
+ * there is no search term (meaning "no constraint").
+ */
+async function searchIds(search: string | undefined): Promise<string[] | null> {
+    const term = search?.trim();
+    if (!term) return null;
+    const phrase = sanitizePhrase(term);
+    if (!phrase) return null;
+
+    const { data } = await safe(
+        createAdminClient()
+            .from("content_translations")
+            .select("content_item_id")
+            .or(`title.ilike.*${phrase}*,excerpt.ilike.*${phrase}*`),
+    );
+    const ids = (data ?? []).flatMap((row) => {
+        const id = (row as { content_item_id: string | null }).content_item_id;
+        return id ? [id] : [];
+    });
+    // No matches at all — return an empty (never null) list so the caller
+    // knows to short-circuit rather than returning everything.
+    return ids;
+}
+
+/**
+ * Notice ids matching a lifecycle status. Done on the `notices` table where
+ * plain `or()` works, because `expiry_date IS NULL OR expiry_date > now`
+ * cannot be expressed against the embedded resource.
+ */
+async function statusIds(status: NoticeStatus): Promise<string[] | null> {
+    if (status === "all") return null;
+
+    const supabase = createAdminClient();
+    const nowIso = new Date().toISOString();
+
+    if (status === "expiring") {
+        const soonIso = new Date(Date.now() + 3 * 86_400_000).toISOString();
+        const { data } = await safe(
+            supabase
+                .from("notices")
+                .select("content_item_id")
+                .gte("expiry_date", nowIso)
+                .lte("expiry_date", soonIso),
+        );
+        return (data ?? []).flatMap((r) =>
+            (r as { content_item_id: string | null }).content_item_id
+                ? [(r as { content_item_id: string }).content_item_id]
+                : [],
+        );
+    }
+
+    if (status === "expired") {
+        const { data } = await safe(
+            supabase.from("notices").select("content_item_id").lte("expiry_date", nowIso),
+        );
+        return (data ?? []).flatMap((r) =>
+            (r as { content_item_id: string | null }).content_item_id
+                ? [(r as { content_item_id: string }).content_item_id]
+                : [],
+        );
+    }
+
+    // active: no expiry, or expiry in the future
+    const { data } = await safe(
+        supabase
+            .from("notices")
+            .select("content_item_id")
+            .or(`expiry_date.is.null,expiry_date.gt.${nowIso}`),
+    );
+    return (data ?? []).flatMap((r) =>
+        (r as { content_item_id: string | null }).content_item_id
+            ? [(r as { content_item_id: string }).content_item_id]
+            : [],
+    );
+}
+
+/**
+ * Paged board of published notices.
+ *
+ * `status` narrows by lifecycle (active / expiring / expired), `sort` switches
+ * between recency and "expiring soonest", and the usual search / type /
+ * location facets apply.
+ */
+export async function getNotices(options: {
+    search?: string;
+    noticeType?: string;
+    location?: string;
+    status?: NoticeStatus;
+    sort?: NoticeSort;
+    locale?: Locale;
+    page?: number;
+}): Promise<{ notices: NoticeData[]; total: number; page: number; pageCount: number }> {
+    if (!hasDatabase()) {
+        return { notices: [], total: 0, page: 1, pageCount: 1 };
+    }
+    const page = Math.max(1, options.page ?? 1);
+    const noticeType = options.noticeType?.trim();
+    const location = options.location?.trim();
+    const status = options.status ?? "all";
+    const sort = options.sort ?? "newest";
+
+    const [searchMatches, lifecycle] = await Promise.all([
+        searchIds(options.search),
+        statusIds(status),
+    ]);
+
+    // An empty id list means "definitely nothing" — short-circuit so we never
+    // fall back to showing every notice.
+    if ((searchMatches && searchMatches.length === 0) || (lifecycle && lifecycle.length === 0)) {
+        return { notices: [], total: 0, page: 1, pageCount: 1 };
+    }
+
+    let query = publishedNotices(
+        location ? NOTICE_SELECT_WITH_LOCATION : NOTICE_SELECT,
+        true,
+    );
+    if (searchMatches) query = query.in("id", searchMatches);
+    if (lifecycle) query = query.in("id", lifecycle);
+    if (noticeType) query = query.eq("notices.notice_type", sanitizePhrase(noticeType));
+    if (location) query = query.eq("locations.slug", sanitizePhrase(location));
+
+    const from = (page - 1) * NOTICES_PAGE_SIZE;
+
+    if (sort === "expiring") {
+        // Only notices that actually expire can be ordered this way.
+        // The Supabase type system can't handle this complex query chaining,
+        // so we cast through unknown to bypass type checking
+        query = (query
+            .not("notices.expiry_date", "is", null)
+            .order("notices(expiry_date)", { ascending: true }) as unknown as typeof query);
+    } else {
+        query = query.order("published_at", { ascending: false, nullsFirst: false });
+    }
+
+    const { data, count: total } = await safe(query.range(from, from + NOTICES_PAGE_SIZE - 1));
+
+    const locale = options.locale ?? "en";
+    const notices = ((data ?? []) as unknown as RawNoticeRow[]).flatMap((row) => {
+        const notice = toNoticeData(row, locale);
+        return notice ? [notice] : [];
+    });
+    const totalCount = total ?? 0;
+    return {
+        notices,
+        total: totalCount,
+        page,
+        pageCount: Math.max(1, Math.ceil(totalCount / NOTICES_PAGE_SIZE)),
+    };
+}
+
+/** One notice by UUID or slug, for the detail page (null when not found). */
+export async function getNoticeById(
+    id: string,
+    locale: Locale = "en",
+): Promise<NoticeData | null> {
+    if (!hasDatabase()) return null;
+    const identifier = sanitizePhrase(id);
+    const query = publishedNotices();
+    const { data } = await safe(
+        (isUuid(identifier) ? query.eq("id", identifier) : query.eq("slug", identifier)).limit(1),
+    );
+    const row = asOne((data as unknown as RawNoticeRow[]) ?? []);
+    return row ? toNoticeData(row, locale) : null;
+}
+
+/**
+ * Board statistics for the header strip: live notices, how many are about to
+ * expire, how many are official versus community-sourced, and coverage.
+ */
+export async function getNoticesStats(): Promise<{
+    total: number;
+    active: number;
+    expiring: number;
+    official: number;
+    places: number;
+}> {
+    const empty = { total: 0, active: 0, expiring: 0, official: 0, places: 0 };
+    if (!hasDatabase()) return empty;
+
+    const nowIso = new Date().toISOString();
+    const soonIso = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    const supabase = createAdminClient();
+
+    const [all, official, expiring, rows] = await Promise.all([
+        safe(supabase.from("notices").select("content_item_id, expiry_date")),
+        safe(supabase.from("notices").select("content_item_id").eq("is_official", true)),
+        safe(
+            supabase
+                .from("notices")
+                .select("content_item_id")
+                .gte("expiry_date", nowIso)
+                .lte("expiry_date", soonIso),
+        ),
+        safe(
+            publishedNotices().select(
+                "id, location:locations(name, slug), notices!inner(is_official)",
+            ),
+        ),
+    ]);
+
+    const allRows = (all.data ?? []) as { expiry_date: string | null }[];
+    const active = allRows.filter((r) =>
+        r.expiry_date ? new Date(r.expiry_date) > new Date() : true,
+    ).length;
+
+    const places = new Set<string>();
+    for (const row of ((rows.data ?? []) as unknown as {
+        location?: { name: string; slug: string | null } | { name: string; slug: string | null }[] | null;
+    }[])) {
+        const location = asOne(row.location);
+        if (location?.name) places.add(location.name);
+    }
+
+    return {
+        total: allRows.length,
+        active,
+        expiring: expiring.data?.length ?? 0,
+        official: official.data?.length ?? 0,
+        places: places.size,
+    };
+}
+
+/**
+ * The single most urgent live notice for the top-of-board alert: a missing
+ * person or community alert that has not expired, newest first.
+ */
+export async function getUrgentNotice(locale: Locale = "en"): Promise<NoticeData | null> {
+    if (!hasDatabase()) return null;
+    const { data } = await safe(
+        publishedNotices()
+            .in("notices.notice_type", ["missing_person", "community_alert"])
+            .order("published_at", { ascending: false, nullsFirst: false })
+            .limit(6),
+    );
+    const row = ((data ?? []) as unknown as RawNoticeRow[]).find((r) => {
+        const notice = asOne(r.notices);
+        return notice ? isNoticeActive(notice) : true;
+    });
+    return row ? toNoticeData(row, locale) : null;
+}
+
+/**
+ * Featured notice for the board: the newest official notice that has not
+ * expired, falling back to the newest notice of any kind.
+ */
+export async function getFeaturedNotice(locale: Locale = "en"): Promise<NoticeData | null> {
+    if (!hasDatabase()) return null;
+
+    const official = await safe(
+        publishedNotices()
+            .eq("notices.is_official", true)
+            .order("published_at", { ascending: false, nullsFirst: false })
+            .limit(5),
+    );
+    const officialRows = ((official.data ?? []) as unknown as RawNoticeRow[]).filter((row) => {
+        const notice = asOne(row.notices);
+        return notice ? isNoticeActive(notice) : true;
+    });
+    if (officialRows.length > 0) {
+        return toNoticeData(officialRows[0], locale);
+    }
+
+    const anyNotice = await safe(
+        publishedNotices()
+            .order("published_at", { ascending: false, nullsFirst: false })
+            .limit(1),
+    );
+    const anyRow = asOne((anyNotice.data as unknown as RawNoticeRow[]) ?? []);
+    return anyRow ? toNoticeData(anyRow, locale) : null;
+}
+
+/**
+ * Notices filtered by location slug, newest first. Optional limit to
+ * control rail/card count.
+ */
+export async function getNoticesByLocation(
+    locationSlug: string,
+    locale: Locale = "en",
+    limit = 5,
+): Promise<NoticeData[]> {
+    if (!hasDatabase()) return [];
+    const { data } = await safe(
+        publishedNotices(NOTICE_SELECT_WITH_LOCATION)
+            .eq("locations.slug", sanitizePhrase(locationSlug))
+            .order("published_at", { ascending: false, nullsFirst: false })
+            .limit(limit),
+    );
+    return ((data ?? []) as unknown as RawNoticeRow[]).flatMap((row) => {
+        const notice = toNoticeData(row, locale);
+        return notice ? [notice] : [];
+    });
+}
+
+/** Location filter facets from the shared `locations` table (active only). */
+export async function getNoticesLocations(): Promise<
+    { slug: string; name: string }[]
+> {
+    if (!hasDatabase()) return [];
+    const supabase = createAdminClient();
+    const { data } = await safe(
+        supabase
+            .from("locations")
+            .select("slug, name")
+            .eq("is_active", true)
+            .order("name", { ascending: true }),
+    );
+    return (data ?? []).flatMap((row) => {
+        const location = row as { slug: string; name: string | null };
+        return location.name ? [{ slug: location.slug, name: location.name }] : [];
+    });
+}
+
+/**
+ * Notice type facets with totals, counted across published notices only
+ * (empty types are hidden). Sorted so the loudest categories lead.
+ */
+export async function getNoticeTypes(): Promise<
+    { type: string; label: string; total: number }[]
+> {
+    if (!hasDatabase()) return [];
+    const { data } = await safe(
+        publishedNotices().select("notices!inner(notice_type)"),
+    );
+
+    const typeCounts = new Map<string, number>();
+    for (const row of ((data ?? []) as unknown as {
+        notices?: { notice_type: string | null } | { notice_type: string | null }[] | null;
+    }[])) {
+        const notice = asOne(row.notices);
+        if (notice?.notice_type) {
+            typeCounts.set(notice.notice_type, (typeCounts.get(notice.notice_type) ?? 0) + 1);
+        }
+    }
+
+    return Array.from(typeCounts.entries())
+        .map(([type, total]) => ({
+            type,
+            label: NOTICE_TYPE_LABELS[type] ?? type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+            total,
+        }))
+        .filter((f) => f.total > 0)
+        .sort((a, b) => b.total - a.total);
+}
