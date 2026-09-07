@@ -3,7 +3,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getRequestLocale } from '@/lib/i18n/server'
-import { localePath } from '@/lib/i18n/urls'
+import { localePath, safeNextPath } from '@/lib/i18n/urls'
+import { SITE } from '@/lib/constants'
 
 /**
  * Signs the user out and lands them on the localized homepage.
@@ -15,4 +16,156 @@ export async function signOutAction(): Promise<void> {
   await supabase.auth.signOut()
   const locale = await getRequestLocale()
   redirect(localePath(locale, '/'))
+}
+
+/* ------------------------------------------------------------------ */
+/* Email + password auth (login / signup)                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Shared shape for the auth form actions. `error` is a stable code — the
+ * client maps it to a localized dictionary string, so raw Supabase
+ * (English-only, sometimes user-enumerating) messages never reach the UI.
+ */
+export type AuthErrorCode =
+  | 'invalid'
+  | 'invalid_credentials'
+  | 'not_confirmed'
+  | 'email_exists'
+  | 'rate_limited'
+  | 'account_disabled'
+  | 'provider_error'
+
+export type AuthState = {
+  ok: boolean
+  error?: AuthErrorCode
+  /** Signup when email confirmation is on: session is null, show check-email. */
+  checkEmail?: boolean
+  email?: string
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function str(value: FormDataEntryValue | null): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function normalizeEmail(raw: string): string {
+  return raw.trim().toLowerCase()
+}
+
+function isValidEmail(email: string): boolean {
+  return email.length >= 3 && email.length <= 254 && EMAIL_RE.test(email)
+}
+
+/** Supabase (English) error → stable code. Never surfaced to the UI. */
+function mapSupabaseError(message: string): AuthErrorCode {
+  const msg = message.toLowerCase()
+  if (msg.includes('invalid login credentials') || msg.includes('invalid email or password')) {
+    return 'invalid_credentials'
+  }
+  if (msg.includes('email not confirmed')) return 'not_confirmed'
+  if (msg.includes('already registered') || msg.includes('already exists') || msg.includes('already been registered')) {
+    return 'email_exists'
+  }
+  if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('over request rate')) {
+    return 'rate_limited'
+  }
+  return 'provider_error'
+}
+
+/** Validated `next` → the role-aware landing URL that honors it. */
+async function landingFor(rawNext: string | null): Promise<string> {
+  const locale = await getRequestLocale()
+  const nextPath = safeNextPath(rawNext, locale) ?? localePath(locale, '/account/dashboard')
+  return localePath(locale, `/auth/landing?next=${encodeURIComponent(nextPath)}`)
+}
+
+/**
+ * Email + password sign-in. Session cookies are set server-side (no
+ * client/server race), then we redirect into the role-aware landing which
+ * honors a validated `next` or falls back to the role landing.
+ */
+export async function signInWithPassword(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const email = normalizeEmail(str(formData.get('email')))
+  const password = typeof formData.get('password') === 'string'
+    ? (formData.get('password') as string)
+    : ''
+
+  if (!isValidEmail(email) || password.length < 1 || password.length > 256) {
+    return { ok: false, error: 'invalid' }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) return { ok: false, error: mapSupabaseError(error.message) }
+
+  const { data: profile } = await supabase.from('profiles').select('is_suspended, is_banned').eq('id', (await supabase.auth.getUser()).data.user?.id ?? '').single()
+  if (profile?.is_suspended || profile?.is_banned) {
+    await supabase.auth.signOut()
+    return { ok: false, error: 'account_disabled' }
+  }
+
+  redirect(await landingFor(str(formData.get('next')) || null))
+}
+
+/**
+ * Email + password sign-up. The `handle_new_user` DB trigger owns profile +
+ * default-role creation, so this action only passes the display name as auth
+ * metadata (which the trigger reads) and never writes to `profiles` itself.
+ * The confirmation link is built from the trusted server site URL.
+ */
+export async function signUpWithPassword(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const fullName = str(formData.get('fullName'))
+  const email = normalizeEmail(str(formData.get('email')))
+  const password = typeof formData.get('password') === 'string'
+    ? (formData.get('password') as string)
+    : ''
+
+  if (
+    fullName.length < 2 ||
+    fullName.length > 80 ||
+    !isValidEmail(email) ||
+    password.length < 8 ||
+    password.length > 72
+  ) {
+    return { ok: false, error: 'invalid' }
+  }
+
+  const locale = await getRequestLocale()
+  const nextPath =
+    safeNextPath(str(formData.get('next')) || null, locale) ??
+    localePath(locale, '/account/dashboard')
+  const loginHere = `/${locale}/account/login?next=${encodeURIComponent(nextPath)}`
+  const siteUrl = SITE.url.replace(/\/+$/, '')
+  const emailRedirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent(loginHere)}`
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { display_name: fullName, full_name: fullName },
+      emailRedirectTo,
+    },
+  })
+  if (error) return { ok: false, error: mapSupabaseError(error.message) }
+
+  // Confirmation-on projects return a user with no session: show check-email.
+  // Supabase also returns an empty `identities` array when the address is
+  // already registered — surface the helpful "try logging in" message.
+  if (!data.session) {
+    if ((data.user?.identities?.length ?? 1) === 0) {
+      return { ok: false, error: 'email_exists' }
+    }
+    return { ok: true, checkEmail: true, email }
+  }
+
+  redirect(await landingFor(str(formData.get('next')) || null))
 }

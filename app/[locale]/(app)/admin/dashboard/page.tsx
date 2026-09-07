@@ -1,5 +1,6 @@
 import { getDictionary } from '@/lib/i18n'
 import { getRequestLocale } from '@/lib/i18n/server'
+import { requireCapability } from '@/lib/auth/guards'
 import { getDashboardStats } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
@@ -13,6 +14,7 @@ export async function generateMetadata(): Promise<{ title: string }> {
 }
 
 export default async function Page() {
+  await requireCapability('viewDashboard', '/admin/dashboard')
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
   const t = dict.admin.dashboard

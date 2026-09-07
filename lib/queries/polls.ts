@@ -82,7 +82,7 @@ export async function getActivePolls(limit = 3): Promise<PollData[]> {
     const pollsResult = await supabase
         .from("polls")
         .select(
-            "id, question, closes_at, is_active, content_item_id, poll_options(id, label, sort_order)",
+            "id, question, closes_at, is_active, content_item_id, story:content_items(slug), poll_options(id, label, sort_order)",
         )
         .eq("is_active", true)
         .order("created_at", { ascending: false })
@@ -102,6 +102,7 @@ export async function getActivePolls(limit = 3): Promise<PollData[]> {
         question: string;
         closes_at: string | null;
         content_item_id: string | null;
+        story: { slug: string } | null;
         poll_options: { id: string; label: string; sort_order: number | null }[] | null;
     }[];
     if (rows.length === 0) return demoPolls();
@@ -137,7 +138,7 @@ export async function getActivePolls(limit = 3): Promise<PollData[]> {
             id: row.id,
             question: row.question,
             closesAt: row.closes_at,
-            href: row.content_item_id ? `/news/${row.content_item_id}` : null,
+            href: row.story?.slug ? `/news/${row.story.slug}` : null,
             options,
             totalVotes: options.reduce((sum, o) => sum + o.votes, 0),
             source: "database" as const,
@@ -207,7 +208,7 @@ export async function refreshPoll(pollId: string): Promise<PollData | null> {
 
     const pollResult = await supabase
         .from("polls")
-        .select("id, question, closes_at, content_item_id, poll_options(id, label, sort_order)")
+        .select("id, question, closes_at, content_item_id, story:content_items(slug), poll_options(id, label, sort_order)")
         .eq("id", pollId)
         .limit(1);
 
@@ -218,6 +219,7 @@ export async function refreshPoll(pollId: string): Promise<PollData | null> {
         question: string;
         closes_at: string | null;
         content_item_id: string | null;
+        story: { slug: string } | null;
         poll_options: { id: string; label: string; sort_order: number | null }[] | null;
     };
 
@@ -247,7 +249,7 @@ export async function refreshPoll(pollId: string): Promise<PollData | null> {
         id: row.id,
         question: row.question,
         closesAt: row.closes_at,
-        href: row.content_item_id ? `/news/${row.content_item_id}` : null,
+        href: row.story?.slug ? `/news/${row.story.slug}` : null,
         options,
         totalVotes: options.reduce((sum, o) => sum + o.votes, 0),
         source: "database" as const,

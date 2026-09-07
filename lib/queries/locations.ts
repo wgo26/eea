@@ -199,6 +199,21 @@ export async function getLocationBySlug(slug: string): Promise<LocationData | nu
     return row ? mapLocation(row as RawLocationRow) : null;
 }
 
+/** Returns the current slug for a renamed location, if one was recorded. */
+export async function getLocationSlugRedirect(slug: string): Promise<string | null> {
+    if (!hasDatabase()) return null;
+    const { data } = await safe(
+        createAdminClient()
+            .from("location_slug_redirects")
+            .select("location:locations!location_id(slug)")
+            .eq("old_slug", slug)
+            .limit(1),
+    );
+    const row = asOne(data) as { location?: { slug: string } | { slug: string }[] | null } | null;
+    const location = asOne(row?.location);
+    return location?.slug ?? null;
+}
+
 /** Fetches published content items for a location, optionally filtered by locale and type. */
 export async function getLocationContent(
     slug: string,

@@ -9,14 +9,18 @@ export const ROLES: AppRole[] = ["admin", "editor", "contributor", "advertiser"]
 export const STAFF_ROLES: AppRole[] = ["admin", "editor"];
 export const ADMIN_ROLES: AppRole[] = ["admin"];
 
+/**
+ * Submission lifecycle statuses. Mirrors the `submission_status` DB enum
+ * (init schema §1) so queue filters stay type-safe end to end.
+ */
 export type SubmissionStatus =
-  | "draft"
   | "pending"
+  | "in_review"
   | "approved"
-  | "scheduled"
+  | "rejected"
+  | "needs_clarification"
   | "published"
-  | "archived"
-  | "rejected";
+  | "withdrawn";
 
 export type ContentType =
   | "photo_story"

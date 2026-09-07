@@ -103,7 +103,6 @@ function sanitizePhrase(input: string): string {
         .slice(0, 80);
 }
 
-/* eslint-disable */
 type RawSearchRow = {
     id: string;
     type: string;

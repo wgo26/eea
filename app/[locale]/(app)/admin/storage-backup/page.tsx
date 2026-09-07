@@ -1,5 +1,6 @@
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
+import { requireCapability } from '@/lib/auth/guards'
 import { getStorageStats } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
@@ -12,6 +13,7 @@ export async function generateMetadata(): Promise<{ title: string }> {
 }
 
 export default async function Page() {
+  await requireCapability('manageStorage', '/admin/storage-backup')
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
   const t = dict.admin.storage

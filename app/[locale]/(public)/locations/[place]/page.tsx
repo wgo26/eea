@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import {
     ArrowRight,
     Building2,
@@ -14,12 +14,30 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatDate, resolveLocale } from "@/lib/i18n";
-import { localePath } from "@/lib/i18n/urls";
-import { getLocationBySlug, getLocationContent } from "@/lib/queries/locations";
+import { formatDate, getDictionary, resolveLocale } from "@/lib/i18n";
+import { buildAlternates, localePath } from "@/lib/i18n/urls";
+import { getLocationBySlug, getLocationContent, getLocationSlugRedirect } from "@/lib/queries/locations";
 import Image from "next/image";
+import type { Metadata } from "next";
 
-export const metadata = { title: "Location" };
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ locale: string; place: string }>;
+}): Promise<Metadata> {
+    const { locale: rawLocale, place } = await params;
+    const locale = resolveLocale(rawLocale);
+    const dict = getDictionary(locale);
+    const location = await getLocationBySlug(place);
+    const title = location
+        ? `${location.name} — ${dict.nav.locations}`
+        : dict.nav.locations;
+    return {
+        title,
+        alternates: buildAlternates(locale, `/locations/${place}`),
+        openGraph: { title, locale: locale === "fr" ? "fr_FR" : "en_GB" },
+    };
+}
 
 const TYPE_LABELS: Record<string, string> = {
     news: "News",
@@ -48,10 +66,12 @@ export default async function Page({
     const location = await getLocationBySlug(place);
 
     if (!location) {
+        const replacement = await getLocationSlugRedirect(place);
+        if (replacement) redirect(localePath(locale, `/locations/${replacement}`));
         notFound();
     }
 
-    const content = await getLocationContent(place, "en");
+    const content = await getLocationContent(place, locale);
     const grouped = {
         news: [],
         photo_story: [],
@@ -224,7 +244,7 @@ export default async function Page({
                                     {featured.publishedAt ? (
                                         <>
                                             <span>•</span>
-                                            <span>{formatDate(featured.publishedAt, "en")}</span>
+                                            <span>{formatDate(featured.publishedAt, locale)}</span>
                                         </>
                                     ) : null}
                                 </div>
@@ -359,7 +379,7 @@ export default async function Page({
                                                 {item.publishedAt ? (
                                                     <>
                                                         <span>•</span>
-                                                        <span>{formatDate(item.publishedAt, "en")}</span>
+                                                        <span>{formatDate(item.publishedAt, locale)}</span>
                                                     </>
                                                 ) : null}
                                             </div>

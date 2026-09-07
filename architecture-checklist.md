@@ -285,6 +285,10 @@ both moderation and content. Every list page also localizes its metadata title v
       sections to `en.ts`/`fr.ts`. *(P0-6)*
 - [ ] Refactor login/signup/reset/landing + dashboards + admin components to the dictionary.
 - [ ] Localize zod validation messages (message maps per locale, resolved at render).
+  (2026-09-07: N/A — `zod`/`react-hook-form` are installed but unused; all
+  forms use native validation + dictionary strings. If zod is adopted later,
+  this task reactivates. `vitest` + `lib/i18n/urls.test.ts` now cover the
+  locale/open-redirect helpers instead.)
 - [ ] Localize email templates (password reset) or at minimum send in the user's locale.
 - [ ] Add localized `not-found.tsx` + `error.tsx` boundaries. *(P0-8)*
 - [ ] Add a grep/lint check to CI: no hardcoded user-visible strings in `app/[locale]`,
@@ -562,7 +566,105 @@ below.*
   `poll_options`); `approveSubmission` no longer wipes saved internal notes when called
   without notes; migration `20260903000000_admin_polls_fundraisers.sql` adds staff RLS
   on polls/poll_options, write grants for the staff session client, and the missing
-  fundraisers UPDATE grant.
+   fundraisers UPDATE grant.
+- 2026-09-04 — **About/legal fully implemented** (`tsc --noEmit` clean,
+  bare-href audit zero findings, `npm run build` green): all five `/about/*`
+  pages ship real EN+FR copy (migration `20260905000000_about_legal.sql` seeds
+  current `policy_versions` so legal is never English-only); `/about/contact`
+  rebuilt as a real form (topic-routed, stored in `data_requests`) with
+  localized metadata; `PolicyContent` renders `###`/ordered-lists/links;
+  `PolicyPage` shows version + publish date, EN↔FR switcher, print button,
+  signed-in acceptance trail (`policy_acceptances`) and inline takedown
+  (`reports`/`copyright`) + data-request flows on copyright/privacy;
+  `/admin/policies` manager behind the new `managePolicies` capability
+  (admin + editor) with publish + rollback; global cookie-consent banner
+  (`eea-consent`) linking to privacy. Also repaired pre-existing working-tree
+  breakage: re-added the `approveSubmission` quick-approve export the Phase 3
+   rename dropped (callers still use it) and the missing `AdminContext` import.
+- 2026-09-04 — **About ↔ admin fully linked** (`tsc --noEmit` clean,
+  bare-href audit zero findings, `npm run build` green): `/admin/policies`
+  is now three tabs — Legal pages (publish + in-place edit + live preview +
+  delete with current-version guard + rollback + per-row View-public link),
+  About page (per-language heading/body/button overrides for all seven
+  `/about` index sections via the new `about_sections` table, migration
+  `20260906000000_about_admin.sql`, dictionary fallback so empty = built-in
+  copy), and Inbox (triage copyright takedowns + data/contact requests with
+  resolution notes; new `getDataRequests`/`getLegalInboxCounts` queries and
+  `resolveLegalReport`/`resolveDataRequest` actions, tab badge shows open
+  count). Public `/about` renders overrides with dict fallback; new
+  `updatePolicyContent`/`deletePolicyVersion`/`saveAboutSection` actions all
+  gate on `managePolicies` + RLS.
+- 2026-09-04 — **Phase 3 content loop shipped** (`tsc --noEmit` clean,
+  bare-href audit zero findings, `npm run build` green): migration
+  `20260904000000_phase3_content_loop.sql` (guest contact columns on
+  corrections, session-client write grants for the new mutations, queue
+  indexes, pg_cron scheduled-publishing + listing-expiry sweep with a
+  code-level `runDueContentSweep` fallback run on admin loads). New
+  moderation actions: `approveSubmissionWithContent` (approve → create the
+  real bilingual content item with photos/listing/notice extension rows and
+  publish now/schedule/draft), `saveContentItem`, `requestClarification`
+  (needs_clarification status + notes trail), `reopenSubmission`
+  (in_review), `rejectSubmission` now accepts pending/in_review/
+  needs_clarification. The moderation queue gained a Clarification tab +
+  All view; pending merges in_review rows. `/admin/moderation/[id]` review
+  screen got the full approve-with-content drawer (payload prefill,
+  location/category reference data, verification label, photo links,
+  listing price/seller/contact, notice type/organization, publish mode,
+  expiry) plus clarify/reopen. New `/admin/trust-safety` manager
+  (`moderate` capability, reports + corrections tabs, open/investigating/
+  resolved/dismissed filters, resolution notes via
+  `resolveReport`/`resolveCorrection` with moderation-log audit entries).
+  New `/admin/listings` lifecycle manager (`manageContent`, status filters
+  via a `!inner` embed, expire/relist-30d/mark-sold/remove actions with
+  `moderation_log` entries; relist refreshes `expires_at` + unarchives and
+  republishes). `getListingsAdmin` query added. Sidebar: Trust & Safety +
+  Listings entries (capability-driven, en/fr). Dictionary: full en + fr
+  sections for trustSafety/listingsAdmin and the review drawer/clarify
+  keys. StatusBadge handles investigating/needs_clarification/expired/sold.
+  Note: the legal inbox's `resolveLegalReport` is separate from the T&S
+  `resolveReport` (status-flow + audit log) by design.
+- 2026-09-06 — **Weakness sweep** (`tsc --noEmit` clean, `eslint .` clean,
+  bare-href audit zero findings, `npm run build` green): fixed locale-less
+  `detailHref` for notice/listing/search (now `/{locale}/…`); removed prod
+  `console.log` in hero-carousel; `/search` is now `noindex` with
+  locale-prefixed filter links and dropped from sitemap; `locations/[place]`
+  gained localized `generateMetadata` (canonical + hreflang + OG); all five
+  submit forms moved from static English `metadata` to localized
+  `generateMetadata`; sitemap static set adds `culture/events` + submit
+  sub-routes; `/api/uploads` gained per-IP rate limiting (20/min) + 12 MB
+  cap; `next.config.ts` adds nosniff/DENY frame/referrer/permissions
+  headers; `lib/admin/actions.ts` revalidates via `revalidateLocalized`
+  (both `/en` + `/fr` variants); `proxy.ts` drops the dead `x-app-shell`
+  header (shells are static route groups); `package.json` gains
+  `typecheck`/`check` scripts and `lint` now targets `.`; README rewritten
+  from stale CRA boilerplate to locale-first reality.
+- 2026-09-07 — **Auth emails customized** (`supabase/templates/`: confirmation,
+  recovery, invite, magic_link, email_change — branded EN+FR HTML using
+  `ConfirmationURL`/`Token`/`Email`/`NewEmail`); `supabase/config.toml` wires
+  all five templates with subjects; new `docs/auth-emails.md` covers the
+  hosted-dashboard paste step (config.toml only affects local `supabase
+  start`). App redirect targets were already locale-aware (no change needed).
+- 2026-09-07 — **Auth emails hardened**: removed `{{ .Token }}` OTP-code lines
+  (the app has no OTP-entry UI — link-only flows, button + copy-paste
+  fallback); added the forgotten `password_changed` security notification
+  template + wiring; bilingual ASCII-safe subjects; `lang="fr"` on French
+  blocks + `color-scheme: light` meta; production `/auth/callback` URLs added
+  to `additional_redirect_urls`; `docs/auth-emails.md` now covers the hosted
+  URL-Configuration + custom-SMTP steps and the `otp_expiry`/copy coupling.
+- 2026-09-07 — **Remaining-work build**: `poll_votes` integrity trigger
+  (migration `20260908000000`: rejects ballots on closed/missing polls and
+  cross-poll options — the open INSERT policy alone couldn't); sitemap now
+  emits location + public-contributor URLs; deleted unused
+  `components/ui/chart.tsx` (sole `recharts` importer — dep removed);
+  `tsconfig` target ES2017 → ES2022; `vitest` + `lib/i18n/urls.test.ts`
+  (7 tests: prefixing, `Accept-Language`, open-redirect rejection,
+  hreflang); deploy checklist callback-URL drift fixed (root
+  `/auth/callback` only); zod-validation task marked N/A (dep unused).
+  Repair note: adding `vitest` pruned the `shadcn` CLI from `node_modules`
+  (an earlier phase had dropped it from working-tree `package.json` while the
+  physical install lingered, masking the break). `globals.css` imports
+  `shadcn/tailwind.css`, so it is restored as a `devDependency` — do not
+  remove it without also removing that import.
 
 
 

@@ -4,11 +4,12 @@ import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
 import { requireCapability } from '@/lib/auth/guards'
-import { getSubmissionById, getContentItemRef } from '@/lib/admin/queries'
+import { getSubmissionById, getContentItemRef, getLocations, getCategoriesForType } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { formatRelative } from '@/lib/admin/format'
 import { ReviewActions } from './review-actions'
+import type { ContentType } from '@/lib/auth/roles'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -57,6 +58,15 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (!submission) notFound()
 
   const contentRef = submission.contentItemId ? await getContentItemRef(submission.contentItemId) : null
+
+  // Reference data for the approve-with-content drawer. buy_sell submissions
+  // become `listing` content items, so the category list uses that type.
+  const contentTypeForCategories: ContentType =
+    submission.submissionType === 'buy_sell' ? 'listing' : (submission.submissionType as ContentType)
+  const [locations, categories] = await Promise.all([
+    getLocations(),
+    getCategoriesForType(contentTypeForCategories, locale),
+  ])
 
   // Published items can be previewed on the public site; anything else
   // deep-links into the content manager filtered to its status.
@@ -149,10 +159,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           )}
 
           <ReviewActions
-            submissionId={submission.id}
-            status={submission.status}
-            initialNotes={submission.internalNotes}
+            submission={submission}
             copy={t}
+            locations={locations}
+            categories={categories}
           />
         </div>
       </div>

@@ -106,12 +106,50 @@ function FundraiserIcon() {
   )
 }
 
+function PolicyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><polyline points="9 12 11 14 15 10" />
+    </svg>
+  )
+}
+
+function TrustSafetyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  )
+}
+
+function ListingsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+      <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+    </svg>
+  )
+}
+
+function TaxonomyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <path d="M20 7h-9" /><path d="M14 17H5" /><circle cx="17" cy="17" r="3" /><circle cx="7" cy="7" r="3" />
+    </svg>
+  )
+}
+
 const ADMIN_NAV_SPECS: AdminNavItemSpec[] = [
   { key: 'dashboard', path: '/admin/dashboard', capability: 'viewDashboard', icon: DashboardIcon },
   { key: 'moderation', path: '/admin/moderation', capability: 'moderate', icon: ModerationIcon },
+  { key: 'trustSafety', path: '/admin/trust-safety', capability: 'moderate', icon: TrustSafetyIcon },
   { key: 'content', path: '/admin/content', capability: 'manageContent', icon: ContentIcon },
+  { key: 'listings', path: '/admin/listings', capability: 'manageContent', icon: ListingsIcon },
+  { key: 'taxonomy', path: '/admin/taxonomy', capability: 'manageContent', icon: TaxonomyIcon },
   { key: 'polls', path: '/admin/polls', capability: 'managePolls', icon: PollIcon },
   { key: 'fundraisers', path: '/admin/fundraisers', capability: 'manageFundraisers', icon: FundraiserIcon },
+  { key: 'policies', path: '/admin/policies', capability: 'managePolicies', icon: PolicyIcon },
   { key: 'users', path: '/admin/users', capability: 'manageUsers', icon: UsersIcon },
   { key: 'ads', path: '/admin/ads', capability: 'manageAds', icon: AdsIcon },
   { key: 'storage', path: '/admin/storage-backup', capability: 'manageStorage', icon: StorageIcon },

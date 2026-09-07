@@ -7,7 +7,11 @@ import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { SubmitForm } from "@/components/submit/submit-form";
 import { localePath } from "@/lib/i18n/urls";
 
-export const metadata: Metadata = { title: "Submit culture" };
+export async function generateMetadata(): Promise<Metadata> {
+    const locale = resolveLocale((await headers()).get("x-locale"));
+    const dict = getDictionary(locale);
+    return { title: dict.submit.types.culture.title };
+}
 
 export default async function Page() {
     const locale = resolveLocale((await headers()).get("x-locale"));

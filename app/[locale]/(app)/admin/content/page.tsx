@@ -1,13 +1,16 @@
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
-import { getContentItems, getHomepageSlots } from '@/lib/admin/queries'
+import { requireCapability } from '@/lib/auth/guards'
+import { isAdminRoles } from '@/lib/auth/roles'
+import { getContentItems, getHomepageSlots, getCategoriesAdmin, getLocations } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { Tabs } from '@/components/admin/tabs'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { DataTable } from '@/components/admin/data-table'
 import { formatRelative } from '@/lib/admin/format'
 import { ContentActions } from './content-actions'
+import { ContentCreateDialog, ContentDeleteButton, ContentEditTrigger } from './content-dialogs'
 import { HomepageCuration } from './homepage-curation'
 import type { ContentRow } from '@/lib/admin/queries'
 import Image from 'next/image'
@@ -38,6 +41,8 @@ export default async function Page({
 }: {
   searchParams: Promise<{ status?: string; type?: string; tab?: string }>
 }) {
+  const { roles } = await requireCapability('manageContent', '/admin/content')
+  const canDelete = isAdminRoles(roles)
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
   const t = dict.admin.content
@@ -48,10 +53,22 @@ export default async function Page({
   const type = (params.type as 'all' | 'photo_story' | 'news' | 'listing' | 'notice' | 'culture') || 'all'
   const activeTab = params.tab || 'content'
 
-  const [content, slots] = await Promise.all([
+  const [content, slots, categories, locations] = await Promise.all([
     getContentItems({ status, type, limit: 100 }),
     getHomepageSlots(locale),
+    getCategoriesAdmin(),
+    getLocations(),
   ])
+
+  // Group categories by content_type for the create/edit dialogs.
+  const categoriesByType: Record<string, { id: string; name: string }[]> = {}
+  for (const c of categories) {
+    if (!c.isActive) continue
+    const name = locale === 'fr' ? (c.nameFr ?? c.nameEn ?? c.slug) : (c.nameEn ?? c.slug)
+    const entry = { id: c.id, name }
+    categoriesByType[c.contentType] = [...(categoriesByType[c.contentType] ?? []), entry]
+  }
+  const locationOptions = locations.map((l) => ({ id: l.id, name: l.name }))
 
   const base = localePath(locale, '/admin/content')
   const statusHref = (key: string) => `${base}?tab=content&status=${key}&type=${type}`
@@ -106,6 +123,16 @@ export default async function Page({
             ))}
           </div>
 
+          <div className="flex justify-end">
+            <ContentCreateDialog
+              copy={t}
+              common={dict.admin.common}
+              typeFilters={tf}
+              locations={locationOptions}
+              categoriesByType={categoriesByType}
+            />
+          </div>
+
           {content.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border bg-muted/30 p-10 text-center">
               <p className="text-sm text-muted-foreground">{t.empty}</p>
@@ -119,7 +146,25 @@ export default async function Page({
                 { key: 'type', header: t.colType, render: (r) => <TypeBadge type={r.type} /> },
                 { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} /> },
                 { key: 'updated', header: t.colUpdated, render: (r) => <time className="text-xs text-muted-foreground">{formatRelative(r.createdAt)}</time> },
-                { key: 'actions', header: '', render: (r) => <ContentActions content={r} copy={t} />, className: 'text-right' },
+                {
+                  key: 'actions',
+                  header: '',
+                  render: (r) => (
+                    <div className="flex items-center justify-end gap-2">
+                      <ContentEditTrigger
+                        content={r}
+                        copy={t}
+                        common={dict.admin.common}
+                        typeFilters={tf}
+                        locations={locationOptions}
+                        categoriesByType={categoriesByType}
+                      />
+                      <ContentActions content={r} copy={t} common={dict.admin.common} />
+                      {canDelete && <ContentDeleteButton content={r} copy={t} common={dict.admin.common} />}
+                    </div>
+                  ),
+                  className: 'text-right',
+                },
               ]}
             />
           )}

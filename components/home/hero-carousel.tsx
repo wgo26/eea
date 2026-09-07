@@ -87,7 +87,6 @@ export function HeroCarousel({ stories, dict, locale }: HeroCarouselProps) {
 
     const autoPlaying =
         slides.length > 1 && !userPaused && !pointerOver && !reducedMotion && !pageHidden;
-    console.log({ autoPlaying, userPaused, pointerOver, reducedMotion, pageHidden, slidesLen: slides.length });
     // Rotate the features; `selected` in deps restarts the timer after manual
     // navigation so every slide gets a full dwell time.
     React.useEffect(() => {

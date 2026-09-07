@@ -1,5 +1,6 @@
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
+import { requireCapability } from '@/lib/auth/guards'
 import { getRecentModeration } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { DataTable } from '@/components/admin/data-table'
@@ -11,6 +12,7 @@ export async function generateMetadata(): Promise<{ title: string }> {
 }
 
 export default async function Page() {
+  await requireCapability('viewAuditLog', '/admin/audit-log')
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
   const t = dict.admin.audit

@@ -10,6 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
     const dict = getDictionary(locale);
     return {
         title: dict.footer.copyright,
+        description: dict.about.copyrightMetaDesc,
         alternates: buildAlternates(locale, "/about/copyright"),
     };
 }

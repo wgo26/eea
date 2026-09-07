@@ -221,7 +221,7 @@ export type ContentRow = {
 const CONTENT_SELECT = `id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by,
   translations:content_translations(locale, title, excerpt),
   location:locations(name),
-  category:categories:category_id(category_translations(locale, name)),
+  category:categories!category_id(category_translations(locale, name)),
   cover:media_assets!inner(public_url)`
 
 export async function getContentItems(options?: {
@@ -279,6 +279,58 @@ function mapContentRow(row: Record<string, unknown>, locale: Locale): ContentRow
     coverUrl: (cover as { public_url: string } | undefined)?.public_url ?? null,
     authorId: row.author_id as string | null,
     submittedBy: row.submitted_by as string | null,
+  }
+}
+
+export type ContentEditData = ContentRow & {
+  // Full bilingual fields for the edit drawer.
+  enTitle: string | null
+  enExcerpt: string | null
+  enBody: string | null
+  frTitle: string | null
+  frExcerpt: string | null
+  frBody: string | null
+  locationId: string | null
+  categoryId: string | null
+  photos: { id: string; url: string; caption: string | null; credit: string | null }[]
+  listing: { price: number | null; currency: string | null; contactPhone: string | null; contactEmail: string | null; whatsappNumber: string | null; sellerName: string | null } | null
+  notice: { noticeType: string; organizationName: string | null; contactPhone: string | null; isOfficial: boolean; noticeDate: string | null; expiryDate: string | null } | null
+  event: { startsAt: string | null; endsAt: string | null; venueName: string | null; ticketUrl: string | null; organizerName: string | null; organizerPhone: string | null; organizerEmail: string | null } | null
+}
+
+/** Full content item for the admin edit drawer (service-role read, all locales + type rows). */
+export async function getContentItemEditData(contentItemId: string): Promise<ContentEditData | null> {
+  const { data } = await safe(
+    db()
+      .from('content_items')
+      .select('id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by, location_id, category_id, translations:content_translations(locale, title, excerpt, body), location:locations(name), category:categories!category_id(category_translations(locale, name)), media:media_assets(id, public_url, caption, photographer_credit, sort_order), listing:listings(price, currency, contact_phone, contact_email, whatsapp_number), notice:notices(notice_type, organization_name, contact_phone, is_official, notice_date, expiry_date), event:events(starts_at, ends_at, venue_name, ticket_url, organizer_name, organizer_phone, organizer_email)')
+      .eq('id', contentItemId)
+      .limit(1),
+  )
+  const row = ((data ?? []) as unknown as Record<string, unknown>[])[0] ?? null
+  if (!row) return null
+  const base = mapContentRow(row, 'en')
+  const translations = (Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []) as { locale: string; title: string | null; excerpt: string | null; body: string | null }[]
+  const en = translations.find((t) => t.locale === 'en')
+  const fr = translations.find((t) => t.locale === 'fr')
+  const media = (Array.isArray(row.media) ? row.media : row.media ? [row.media] : []) as { id: string; public_url: string; caption: string | null; photographer_credit: string | null }[]
+  const listingRaw = (Array.isArray(row.listing) ? row.listing[0] : row.listing) as { price: number | string | null; currency: string | null; contact_phone: string | null; contact_email: string | null; whatsapp_number: string | null; seller_name?: string | null } | null | undefined
+  const noticeRaw = (Array.isArray(row.notice) ? row.notice[0] : row.notice) as { notice_type: string; organization_name: string | null; contact_phone: string | null; is_official: boolean; notice_date: string | null; expiry_date: string | null } | null | undefined
+  const eventRaw = (Array.isArray(row.event) ? row.event[0] : row.event) as { starts_at: string | null; ends_at: string | null; venue_name: string | null; ticket_url: string | null; organizer_name: string | null; organizer_phone: string | null; organizer_email: string | null } | null | undefined
+  return {
+    ...base,
+    enTitle: en?.title ?? null,
+    enExcerpt: en?.excerpt ?? null,
+    enBody: en?.body ?? null,
+    frTitle: fr?.title ?? null,
+    frExcerpt: fr?.excerpt ?? null,
+    frBody: fr?.body ?? null,
+    locationId: row.location_id as string | null,
+    categoryId: row.category_id as string | null,
+    photos: [...media].sort((a, b) => (a as unknown as { sort_order: number }).sort_order - (b as unknown as { sort_order: number }).sort_order).map((m) => ({ id: m.id, url: m.public_url, caption: m.caption, credit: m.photographer_credit })),
+    listing: listingRaw ? { price: listingRaw.price === null ? null : Number(listingRaw.price), currency: listingRaw.currency, contactPhone: listingRaw.contact_phone, contactEmail: listingRaw.contact_email, whatsappNumber: listingRaw.whatsapp_number, sellerName: (listingRaw.seller_name as string | null) ?? null } : null,
+    notice: noticeRaw ? { noticeType: noticeRaw.notice_type, organizationName: noticeRaw.organization_name, contactPhone: noticeRaw.contact_phone, isOfficial: !!noticeRaw.is_official, noticeDate: noticeRaw.notice_date, expiryDate: noticeRaw.expiry_date } : null,
+    event: eventRaw ? { startsAt: eventRaw.starts_at, endsAt: eventRaw.ends_at, venueName: eventRaw.venue_name, ticketUrl: eventRaw.ticket_url, organizerName: eventRaw.organizer_name, organizerPhone: eventRaw.organizer_phone, organizerEmail: eventRaw.organizer_email } : null,
   }
 }
 
@@ -342,19 +394,23 @@ export type UserRow = {
   avatarUrl: string | null
   isVerified: boolean
   isPublic: boolean
+  isSuspended: boolean
+  isBanned: boolean
+  contributorFeatured: boolean
+  contributorBioOverride: string | null
   locationName: string | null
   roles: AppRole[]
   createdAt: string | null
 }
 
-export async function getUsers(options?: { search?: string; role?: AppRole | 'all'; limit?: number }): Promise<UserRow[]> {
+export async function getUsers(options?: { search?: string; role?: AppRole | 'all'; status?: 'all' | 'active' | 'suspended' | 'banned'; limit?: number }): Promise<UserRow[]> {
   const search = options?.search?.trim()
   const role = options?.role ?? 'all'
   const limit = options?.limit ?? 50
 
   let query = db()
     .from('profiles')
-    .select(`id, display_name, full_name, email, phone, avatar_url, is_verified, is_public, created_at,
+    .select(`id, display_name, full_name, email, phone, avatar_url, is_verified, is_public, is_suspended, is_banned, contributor_featured, contributor_bio_override, created_at,
       location:locations(name),
       roles:user_roles(role)`)
     .order('created_at', { ascending: false })
@@ -362,6 +418,9 @@ export async function getUsers(options?: { search?: string; role?: AppRole | 'al
 
   if (search) query = query.or(`display_name.ilike.%${search}%,full_name.ilike.%${search}%,email.ilike.%${search}%`)
   if (role !== 'all') query = query.eq('roles.role', role)
+  if (options?.status === 'suspended') query = query.eq('is_suspended', true)
+  if (options?.status === 'banned') query = query.eq('is_banned', true)
+  if (options?.status === 'active') query = query.eq('is_suspended', false).eq('is_banned', false)
 
   const { data } = await safe(query)
   return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
@@ -376,6 +435,10 @@ export async function getUsers(options?: { search?: string; role?: AppRole | 'al
       avatarUrl: row.avatar_url as string | null,
       isVerified: !!row.is_verified,
       isPublic: !!row.is_public,
+      isSuspended: !!row.is_suspended,
+      isBanned: !!row.is_banned,
+      contributorFeatured: !!row.contributor_featured,
+      contributorBioOverride: row.contributor_bio_override as string | null,
       locationName: (location as { name: string } | undefined)?.name ?? null,
       roles: (roles as { role: string }[]).map((r) => r.role).filter(isRole),
       createdAt: row.created_at as string | null,
@@ -484,6 +547,35 @@ export async function getAdvertisers() {
   })
 }
 
+export type AdInquiryRow = {
+  id: string
+  name: string
+  copyText: string | null
+  createdAt: string | null
+  advertiserName: string | null
+  email: string | null
+  phone: string | null
+}
+
+export async function getPendingAdInquiries(limit = 100): Promise<AdInquiryRow[]> {
+  const { data } = await safe(
+    db().from('ad_campaigns').select(`id, name, copy_text, created_at,
+      advertiser:advertisers(company_name, email, phone)`).eq('status', 'pending').order('created_at', { ascending: false }).limit(limit),
+  )
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+    const advertiser = Array.isArray(row.advertiser) ? row.advertiser[0] : row.advertiser
+    return {
+      id: row.id as string,
+      name: row.name as string,
+      copyText: row.copy_text as string | null,
+      createdAt: row.created_at as string | null,
+      advertiserName: (advertiser as { company_name: string } | undefined)?.company_name ?? null,
+      email: (advertiser as { email: string } | undefined)?.email ?? null,
+      phone: (advertiser as { phone: string } | undefined)?.phone ?? null,
+    }
+  })
+}
+
 /* ------------------------------------------------------------------ */
 /* Audit log                                                          */
 /* ------------------------------------------------------------------ */
@@ -580,6 +672,237 @@ export async function getStorageStats(): Promise<StorageStats> {
 }
 
 /* ------------------------------------------------------------------ */
+/* Trust & safety queues (reports + corrections)                      */
+/* ------------------------------------------------------------------ */
+
+export type ReportRow = {
+  id: string
+  reportType: string
+  reporterId: string | null
+  contentItemId: string | null
+  mediaId: string | null
+  subject: string | null
+  description: string | null
+  evidenceUrl: string | null
+  status: string
+  resolution: string | null
+  createdAt: string | null
+  updatedAt: string | null
+  resolvedAt: string | null
+  contentTitle: string | null
+  contentType: string | null
+  contentSlug: string | null
+  contentStatus: string | null
+}
+
+export async function getReports(options?: { status?: string; limit?: number; reportType?: string }): Promise<ReportRow[]> {
+  const status = options?.status ?? 'all'
+  const limit = options?.limit ?? 100
+  let query = db()
+    .from('reports')
+    .select(`id, report_type, reporter_id, content_item_id, media_id, subject, description, evidence_url,
+      status, resolution, created_at, updated_at, resolved_at,
+      content:content_items(id, type, slug, status, translations:content_translations(locale, title))`)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (status !== 'all') query = query.eq('status', status)
+  if (options?.reportType) query = query.eq('report_type', options.reportType)
+
+  const { data } = await safe(query)
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+    const content = (row.content as Record<string, unknown> | null) ?? null
+    const translations =
+      content && Array.isArray(content.translations)
+        ? content.translations
+        : content?.translations
+          ? [content.translations]
+          : []
+    const t = (translations as { locale: string; title: string | null }[]).find((x) => x.locale === 'en')
+      ?? (translations[0] as { title: string | null } | undefined)
+    return {
+      id: row.id as string,
+      reportType: row.report_type as string,
+      reporterId: row.reporter_id as string | null,
+      contentItemId: row.content_item_id as string | null,
+      mediaId: row.media_id as string | null,
+      subject: row.subject as string | null,
+      description: row.description as string | null,
+      evidenceUrl: row.evidence_url as string | null,
+      status: row.status as string,
+      resolution: row.resolution as string | null,
+      createdAt: row.created_at as string | null,
+      updatedAt: row.updated_at as string | null,
+      resolvedAt: row.resolved_at as string | null,
+      contentTitle: t?.title ?? null,
+      contentType: (content?.type as string | undefined) ?? null,
+      contentSlug: (content?.slug as string | undefined) ?? null,
+      contentStatus: (content?.status as string | undefined) ?? null,
+    }
+  })
+}
+
+export type CorrectionRow = {
+  id: string
+  contentItemId: string
+  reporterId: string | null
+  reporterName: string | null
+  reporterEmail: string | null
+  correctionText: string
+  status: string
+  resolution: string | null
+  createdAt: string | null
+  resolvedAt: string | null
+  contentTitle: string | null
+  contentType: string | null
+  contentSlug: string | null
+  contentStatus: string | null
+}
+
+export async function getCorrections(options?: { status?: string; limit?: number }): Promise<CorrectionRow[]> {
+  const status = options?.status ?? 'all'
+  const limit = options?.limit ?? 100
+  let query = db()
+    .from('corrections')
+    .select(`id, content_item_id, reporter_id, reporter_name, reporter_email, correction_text,
+      status, resolution, created_at, resolved_at,
+      content:content_items(id, type, slug, status, translations:content_translations(locale, title))`)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (status !== 'all') query = query.eq('status', status)
+
+  const { data } = await safe(query)
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+    const content = (row.content as Record<string, unknown> | null) ?? null
+    const translations =
+      content && Array.isArray(content.translations)
+        ? content.translations
+        : content?.translations
+          ? [content.translations]
+          : []
+    const t = (translations as { locale: string; title: string | null }[]).find((x) => x.locale === 'en')
+      ?? (translations[0] as { title: string | null } | undefined)
+    return {
+      id: row.id as string,
+      contentItemId: row.content_item_id as string,
+      reporterId: row.reporter_id as string | null,
+      reporterName: row.reporter_name as string | null,
+      reporterEmail: row.reporter_email as string | null,
+      correctionText: row.correction_text as string,
+      status: row.status as string,
+      resolution: row.resolution as string | null,
+      createdAt: row.created_at as string | null,
+      resolvedAt: row.resolved_at as string | null,
+      contentTitle: t?.title ?? null,
+      contentType: (content?.type as string | undefined) ?? null,
+      contentSlug: (content?.slug as string | undefined) ?? null,
+      contentStatus: (content?.status as string | undefined) ?? null,
+    }
+  })
+}
+
+/**
+ * Code-level fallback for the pg_cron job (migration
+ * 20260904000000_phase3_content_loop.sql): flips due `scheduled` items to
+ * `published` and expires overdue active listings. Called on admin loads —
+ * cheap (indexed updates) and idempotent.
+ */
+export async function runDueContentSweep(): Promise<void> {
+  const nowIso = new Date().toISOString()
+  await safe(
+    db()
+      .from('content_items')
+      .update({ status: 'published', published_at: nowIso })
+      .eq('status', 'scheduled')
+      .not('scheduled_for', 'is', null)
+      .lte('scheduled_for', nowIso),
+  )
+  const { data: dueListings } = await safe(
+    db()
+      .from('content_items')
+      .select('id')
+      .eq('is_archived', false)
+      .not('expires_at', 'is', null)
+      .lte('expires_at', nowIso)
+      .limit(500),
+  )
+  const dueIds = ((dueListings ?? []) as { id: string }[]).map((r) => r.id)
+  if (dueIds.length > 0) {
+    await safe(
+      db()
+        .from('listings')
+        .update({ listing_status: 'expired' })
+        .in('content_item_id', dueIds)
+        .eq('listing_status', 'active'),
+    )
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Listings lifecycle queue (Phase 3 buy & sell manager)              */
+/* ------------------------------------------------------------------ */
+
+export type AdminListingRow = {
+  contentItemId: string
+  slug: string | null
+  title: string | null
+  price: number | null
+  currency: string | null
+  listingStatus: string
+  contentStatus: string
+  isFeatured: boolean
+  expiresAt: string | null
+  publishedAt: string | null
+  sellerName: string | null
+  contactPhone: string | null
+}
+
+/**
+ * Listing rows for the lifecycle manager: content item joined with its
+ * listings extension row. When a listing status filter is applied the embed
+ * becomes an inner join so the filter runs in SQL, not after the limit.
+ */
+export async function getListingsAdmin(options?: { status?: string; limit?: number }): Promise<AdminListingRow[]> {
+  const status = options?.status ?? 'all'
+  const limit = options?.limit ?? 100
+
+  const select = `id, slug, status, is_featured, expires_at, published_at,
+    translations:content_translations(locale, title),
+    listing:listings${status !== 'all' ? '!inner' : ''}(price, currency, listing_status, seller_name, contact_phone)`
+
+  let query = db()
+    .from('content_items')
+    .select(select)
+    .eq('type', 'listing')
+    .order('published_at', { ascending: false, nullsFirst: false })
+    .limit(limit)
+  if (status !== 'all') query = query.eq('listing.listing_status', status)
+
+  const { data } = await safe(query)
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+    const translations = Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []
+    const t =
+      (translations as { locale: string; title: string | null }[]).find((x) => x.locale === 'en')
+      ?? (translations[0] as { title: string | null } | undefined)
+    const listing = Array.isArray(row.listing) ? row.listing[0] : row.listing
+    const l = (listing as Record<string, unknown> | null) ?? null
+    return {
+      contentItemId: row.id as string,
+      slug: (row.slug as string | null) ?? null,
+      title: t?.title ?? null,
+      price: l && l.price != null ? Number(l.price) : null,
+      currency: (l ? (l.currency as string | null) : null) ?? null,
+      listingStatus: (l ? ((l.listing_status as string) ?? 'active') : 'active'),
+      contentStatus: row.status as string,
+      isFeatured: !!row.is_featured,
+      expiresAt: (row.expires_at as string | null) ?? null,
+      publishedAt: (row.published_at as string | null) ?? null,
+      sellerName: (l ? (l.seller_name as string | null) : null) ?? null,
+      contactPhone: (l ? (l.contact_phone as string | null) : null) ?? null,
+    }
+  })
+}
+
+/* ------------------------------------------------------------------ */
 /* Reference data (for forms)                                         */
 /* ------------------------------------------------------------------ */
 
@@ -601,6 +924,120 @@ export async function getCategoriesForType(type: ContentType, locale: Locale = '
     const trans = Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []
     const t = (trans as { locale: string; name: string }[]).find((x) => x.locale === locale) ?? (trans[0] as { name: string } | undefined)
     return { id: row.id, slug: row.slug, name: t?.name ?? row.slug }
+  })
+}
+
+/* ------------------------------------------------------------------ */
+/* Taxonomy & places (Phase 1 command center: full back-office lists)  */
+/* ------------------------------------------------------------------ */
+
+export type AdminCategoryRow = {
+  id: string
+  contentType: string
+  slug: string
+  sortOrder: number
+  isActive: boolean
+  nameEn: string | null
+  nameFr: string | null
+  itemCount: number
+}
+
+type RawCategoryAdminRow = {
+  id: string
+  slug: string
+  content_type: string
+  sort_order: number
+  is_active: boolean
+  translations: { locale: string; name: string }[] | { locale: string; name: string } | null
+  items: { count: number }[] | { count: number } | null
+}
+
+/** Every category with both names + live usage count (service-role read). */
+export async function getCategoriesAdmin(): Promise<AdminCategoryRow[]> {
+  const { data } = await safe(
+    db()
+      .from('categories')
+      .select(
+        'id, slug, content_type, sort_order, is_active, translations:category_translations(locale, name), items:content_items(count)',
+      )
+      .order('content_type', { ascending: true })
+      .order('sort_order', { ascending: true }),
+  )
+  return ((data ?? []) as RawCategoryAdminRow[]).map((row) => {
+    const trans = Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []
+    const items = Array.isArray(row.items) ? row.items[0] : row.items
+    return {
+      id: row.id,
+      contentType: row.content_type,
+      slug: row.slug,
+      sortOrder: row.sort_order,
+      isActive: row.is_active,
+      nameEn: trans.find((t) => t.locale === 'en')?.name ?? null,
+      nameFr: trans.find((t) => t.locale === 'fr')?.name ?? null,
+      itemCount: items?.count ?? 0,
+    }
+  })
+}
+
+export type AdminLocationRow = {
+  id: string
+  name: string
+  slug: string
+  locationType: string | null
+  description: string | null
+  latitude: number | null
+  longitude: number | null
+  isActive: boolean
+  parentId: string | null
+  parentName: string | null
+  contentCount: number
+  profileCount: number
+}
+
+type RawLocationAdminRow = {
+  id: string
+  name: string
+  slug: string
+  location_type: string | null
+  description: string | null
+  latitude: number | string | null
+  longitude: number | string | null
+  is_active: boolean
+  parent_id: string | null
+  items: { count: number }[] | { count: number } | null
+  residents: { count: number }[] | { count: number } | null
+}
+
+/** Every location with parent + live usage counts (service-role read). */
+export async function getLocationsAdmin(): Promise<AdminLocationRow[]> {
+  const { data } = await safe(
+    db()
+      .from('locations')
+      .select(
+        'id, name, slug, location_type, description, latitude, longitude, is_active, parent_id, items:content_items(count), residents:profiles(count)',
+      )
+      .order('name', { ascending: true }),
+  )
+  const rows = (data ?? []) as RawLocationAdminRow[]
+  // Parent names via a second id→name pass (no self-join FK-hint dependence).
+  const nameById = new Map(rows.map((r) => [r.id, r.name] as const))
+  return rows.map((row) => {
+    const items = Array.isArray(row.items) ? row.items[0] : row.items
+    const residents = Array.isArray(row.residents) ? row.residents[0] : row.residents
+    return {
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      locationType: row.location_type,
+      description: row.description,
+      latitude: row.latitude === null ? null : Number(row.latitude),
+      longitude: row.longitude === null ? null : Number(row.longitude),
+      isActive: row.is_active,
+      parentId: row.parent_id,
+      parentName: row.parent_id ? (nameById.get(row.parent_id) ?? null) : null,
+      contentCount: items?.count ?? 0,
+      profileCount: residents?.count ?? 0,
+    }
   })
 }
 
@@ -701,6 +1138,9 @@ export type AdminFundraiserRow = {
   organizerPhone: string | null
   organizerEmail: string | null
   donationUrl: string | null
+  payoutMethod: string | null
+  payoutAccount: string | null
+  payoutAccountName: string | null
   verificationNotes: string | null
   closedAt: string | null
   deadlineAt: string | null
@@ -715,7 +1155,7 @@ export async function getFundraisersAdmin(limit = 100): Promise<AdminFundraiserR
     db()
       .from('fundraisers')
       .select(`content_item_id, goal_amount, currency, raised_amount, organizer_name,
-        organizer_phone, organizer_email, donation_url, verification_notes, closed_at,
+        organizer_phone, organizer_email, donation_url, payout_method, payout_account, payout_account_name, verification_notes, closed_at,
         story:content_items(id, slug, type, status, expires_at,
           translations:content_translations(locale, title))`)
       .limit(limit),
@@ -739,11 +1179,208 @@ export async function getFundraisersAdmin(limit = 100): Promise<AdminFundraiserR
       organizerPhone: row.organizer_phone,
       organizerEmail: row.organizer_email,
       donationUrl: row.donation_url,
+      payoutMethod: row.payout_method,
+      payoutAccount: row.payout_account,
+      payoutAccountName: row.payout_account_name,
       verificationNotes: row.verification_notes,
       closedAt: row.closed_at,
       deadlineAt: story?.expires_at ?? null,
     }
   })
+}
+
+/* ------------------------------------------------------------------ */
+/* Legal policies (admin management)                                */
+/* ------------------------------------------------------------------ */
+
+export type AdminPolicyRow = {
+  id: string
+  policyType: string
+  locale: string
+  version: string
+  isCurrent: boolean
+  publishedAt: string | null
+  content: string | null
+  excerpt: string | null
+}
+
+/** Every policy version, newest first — the /about/* source of truth. */
+export async function getPoliciesAdmin(limit = 100): Promise<AdminPolicyRow[]> {
+  const { data } = await safe(
+    db()
+      .from('policy_versions')
+      .select('id, policy_type, locale, version, is_current, published_at, content')
+      .order('published_at', { ascending: false })
+      .limit(limit),
+  )
+  return ((data ?? []) as {
+    id: string
+    policy_type: string
+    locale: string
+    version: string
+    is_current: boolean
+    published_at: string | null
+    content: string | null
+  }[]).map((row) => ({
+    id: row.id,
+    policyType: row.policy_type,
+    locale: row.locale,
+    version: row.version,
+    isCurrent: row.is_current,
+    publishedAt: row.published_at,
+    content: row.content,
+    excerpt: row.content ? row.content.slice(0, 140) : null,
+  }))
+}
+
+/* ------------------------------------------------------------------ */
+/* About index overrides (admin-editable copy, dict fallback)         */
+/* ------------------------------------------------------------------ */
+
+export const ABOUT_SECTION_KEYS = [
+  'hero',
+  'loop',
+  'stats',
+  'pipeline',
+  'values',
+  'charter',
+  'closing',
+] as const
+
+export type AboutSectionKey = (typeof ABOUT_SECTION_KEYS)[number]
+
+export type AboutSectionRow = {
+  id: string
+  sectionKey: string
+  locale: string
+  heading: string | null
+  body: string | null
+  ctaLabel: string | null
+  ctaHref: string | null
+  isActive: boolean
+  updatedAt: string | null
+}
+
+/** All overrides (both locales) for the admin editor. */
+export async function getAboutSectionsAdmin(): Promise<AboutSectionRow[]> {
+  const { data } = await safe(
+    db()
+      .from('about_sections')
+      .select('id, section_key, locale, heading, body, cta_label, cta_href, is_active, updated_at')
+      .order('section_key', { ascending: true }),
+  )
+  return ((data ?? []) as {
+    id: string
+    section_key: string
+    locale: string
+    heading: string | null
+    body: string | null
+    cta_label: string | null
+    cta_href: string | null
+    is_active: boolean
+    updated_at: string | null
+  }[]).map((row) => ({
+    id: row.id,
+    sectionKey: row.section_key,
+    locale: row.locale,
+    heading: row.heading,
+    body: row.body,
+    ctaLabel: row.cta_label,
+    ctaHref: row.cta_href,
+    isActive: row.is_active,
+    updatedAt: row.updated_at,
+  }))
+}
+
+/** Active overrides for one locale — the public /about page merges these
+ *  over the dictionary (empty table = dictionary defaults, never blank). */
+export async function getAboutOverrides(
+  locale: Locale,
+): Promise<Partial<Record<AboutSectionKey, AboutSectionRow>>> {
+  const rows = await getAboutSectionsAdmin()
+  const map: Partial<Record<AboutSectionKey, AboutSectionRow>> = {}
+  for (const row of rows) {
+    if (row.locale === locale && row.isActive) {
+      map[row.sectionKey as AboutSectionKey] = row
+    }
+  }
+  return map
+}
+
+/* ------------------------------------------------------------------ */
+/* Legal inbox (takedown reports + data/contact requests)             */
+/* ------------------------------------------------------------------ */
+
+export type DataRequestRow = {
+  id: string
+  requesterEmail: string | null
+  requestType: string
+  description: string | null
+  status: string
+  resolution: string | null
+  createdAt: string | null
+  resolvedAt: string | null
+}
+
+export async function getDataRequests(options?: {
+  status?: string
+  limit?: number
+}): Promise<DataRequestRow[]> {
+  const status = options?.status ?? 'all'
+  const limit = options?.limit ?? 100
+  let query = db()
+    .from('data_requests')
+    .select('id, requester_email, request_type, description, status, resolution, created_at, resolved_at')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (status !== 'all') query = query.eq('status', status)
+
+  const { data } = await safe(query)
+  return ((data ?? []) as {
+    id: string
+    requester_email: string | null
+    request_type: string
+    description: string | null
+    status: string
+    resolution: string | null
+    created_at: string | null
+    resolved_at: string | null
+  }[]).map((row) => ({
+    id: row.id,
+    requesterEmail: row.requester_email,
+    requestType: row.request_type,
+    description: row.description,
+    status: row.status,
+    resolution: row.resolution,
+    createdAt: row.created_at,
+    resolvedAt: row.resolved_at,
+  }))
+}
+
+/** Open-item counts driving the inbox tab badges. */
+export async function getLegalInboxCounts(): Promise<{
+  openTakedowns: number
+  openDataRequests: number
+}> {
+  const [takedowns, requests] = await Promise.all([
+    safe(
+      db()
+        .from('reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('report_type', 'copyright')
+        .eq('status', 'open'),
+    ),
+    safe(
+      db()
+        .from('data_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'open'),
+    ),
+  ])
+  return {
+    openTakedowns: takedowns.count ?? 0,
+    openDataRequests: requests.count ?? 0,
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -767,5 +1404,123 @@ export async function getContentItemRef(id: string): Promise<ContentItemRef | nu
   )
   const row = (data ?? [])[0] as { id: string; type: string; slug: string | null; status: string } | undefined
   return row ? { id: row.id, type: row.type, slug: row.slug, status: row.status } : null
+}
+
+/* ------------------------------------------------------------------ */
+/* Content editor (Phase 3 drawer)                                    */
+/* ------------------------------------------------------------------ */
+
+export type ContentTranslationInput = {
+  locale: 'en' | 'fr'
+  title: string
+  excerpt: string
+  body: string
+}
+
+export type ContentItemFull = {
+  id: string
+  type: ContentType
+  slug: string | null
+  status: string
+  verification: string | null
+  locationId: string | null
+  locationName: string | null
+  categoryId: string | null
+  categoryName: string | null
+  authorId: string | null
+  submittedBy: string | null
+  publishedAt: string | null
+  scheduledFor: string | null
+  expiresAt: string | null
+  translations: ContentTranslationInput[]
+  media: { id: string; publicUrl: string | null; caption: string | null; photographerCredit: string | null; isCover: boolean }[]
+  listing: { price: number | null; currency: string | null; listingStatus: string; contactPhone: string | null; sellerName: string | null } | null
+  notice: { noticeType: string; organizationName: string | null; isOfficial: boolean; contactPhone: string | null; noticeDate: string | null; expiryDate: string | null } | null
+}
+
+/**
+ * Full content-item shape for the moderation edit drawer: translations,
+ * media, location/category and the type-specific extension row (listing or
+ * notice) in a single embed.
+ */
+export async function getContentItemFull(id: string): Promise<ContentItemFull | null> {
+  const { data } = await safe(
+    db()
+      .from('content_items')
+      .select(`id, type, slug, status, verification, location_id, category_id, author_id, submitted_by,
+        published_at, scheduled_for, expires_at,
+        location:locations(id, name),
+        category:categories(id, slug),
+        translations:content_translations(locale, title, excerpt, body),
+        media:media_assets(id, public_url, caption, photographer_credit, is_cover, sort_order),
+        listing:listings(price, currency, listing_status, contact_phone, seller_name),
+        notice:notices(notice_type, organization_name, is_official, contact_phone, notice_date, expiry_date)`)
+      .eq('id', id)
+      .limit(1),
+  )
+  const row = (data ?? [])[0] as Record<string, unknown> | undefined
+  if (!row) return null
+
+  const location = Array.isArray(row.location) ? row.location[0] : row.location
+  const category = Array.isArray(row.category) ? row.category[0] : row.category
+  const translations = Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []
+  const media = Array.isArray(row.media) ? row.media : []
+  const listing = Array.isArray(row.listing) ? row.listing[0] : row.listing
+  const notice = Array.isArray(row.notice) ? row.notice[0] : row.notice
+
+  const trFor = (locale: 'en' | 'fr') =>
+    (translations as { locale: string; title: string | null; excerpt: string | null; body: string | null }[]).find((t) => t.locale === locale)
+
+  return {
+    id: row.id as string,
+    type: row.type as ContentType,
+    slug: (row.slug as string | null) ?? null,
+    status: row.status as string,
+    verification: (row.verification as string | null) ?? null,
+    locationId: (row.location_id as string | null) ?? null,
+    locationName: (location as { name: string } | undefined)?.name ?? null,
+    categoryId: (row.category_id as string | null) ?? null,
+    categoryName: (category as { slug: string } | undefined)?.slug ?? null,
+    authorId: (row.author_id as string | null) ?? null,
+    submittedBy: (row.submitted_by as string | null) ?? null,
+    publishedAt: (row.published_at as string | null) ?? null,
+    scheduledFor: (row.scheduled_for as string | null) ?? null,
+    expiresAt: (row.expires_at as string | null) ?? null,
+    translations: (['en', 'fr'] as const).map((locale) => {
+      const t = trFor(locale)
+      return {
+        locale,
+        title: t?.title ?? '',
+        excerpt: t?.excerpt ?? '',
+        body: t?.body ?? '',
+      }
+    }),
+    media: (media as Record<string, unknown>[]).map((m) => ({
+      id: m.id as string,
+      publicUrl: (m.public_url as string | null) ?? null,
+      caption: (m.caption as string | null) ?? null,
+      photographerCredit: (m.photographer_credit as string | null) ?? null,
+      isCover: !!m.is_cover,
+    })),
+    listing: listing
+      ? {
+          price: (listing.price as number | null) ?? null,
+          currency: (listing.currency as string | null) ?? null,
+          listingStatus: (listing.listing_status as string) ?? 'active',
+          contactPhone: (listing.contact_phone as string | null) ?? null,
+          sellerName: (listing.seller_name as string | null) ?? null,
+        }
+      : null,
+    notice: notice
+      ? {
+          noticeType: (notice.notice_type as string) ?? 'other',
+          organizationName: (notice.organization_name as string | null) ?? null,
+          isOfficial: !!notice.is_official,
+          contactPhone: (notice.contact_phone as string | null) ?? null,
+          noticeDate: (notice.notice_date as string | null) ?? null,
+          expiryDate: (notice.expiry_date as string | null) ?? null,
+        }
+      : null,
+  }
 }
 

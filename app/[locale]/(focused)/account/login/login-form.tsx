@@ -1,13 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import type { Dictionary, Locale } from "@/lib/i18n";
+import { signInWithPassword, type AuthState } from "@/lib/auth/actions";
+import type { Dictionary } from "@/lib/i18n";
 
 type Props = {
-    locale: Locale;
     copy: Dictionary["auth"]["login"];
     /** Validated, locale-prefixed destination carried through the flow. */
     nextPath: string;
@@ -15,31 +13,28 @@ type Props = {
     signupHref: string;
 };
 
-export function LoginForm({ locale, copy, nextPath, resetHref, signupHref }: Props) {
-    const router = useRouter();
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    async function handleLogin(event: React.FormEvent) {
-        event.preventDefault();
-        setLoading(true);
-        setError(null);
-
-        const supabase = createClient();
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-        if (error) {
-            setError(error.message);
-            setLoading(false);
-            return;
-        }
-
-        // Role-aware landing; the `next` target survives via the query string.
-        router.push(`/${locale}/auth/landing?next=${encodeURIComponent(nextPath)}`);
-        router.refresh();
+function errorMessage(code: NonNullable<AuthState["error"]>, copy: Props["copy"]): string {
+    switch (code) {
+        case "invalid":
+            return copy.errorInvalid;
+        case "invalid_credentials":
+            return copy.errorCredentials;
+        case "not_confirmed":
+            return copy.errorNotConfirmed;
+        case "rate_limited":
+            return copy.errorRateLimited;
+        case "account_disabled":
+            return copy.errorAccountDisabled;
+        default:
+            return copy.errorGeneric;
     }
+}
+
+export function LoginForm({ copy, nextPath, resetHref, signupHref }: Props) {
+    const [state, formAction, pending] = useActionState<AuthState, FormData>(
+        signInWithPassword,
+        { ok: false },
+    );
 
     return (
         <div className="space-y-8">
@@ -48,13 +43,14 @@ export function LoginForm({ locale, copy, nextPath, resetHref, signupHref }: Pro
                 <p className="mt-2 text-sm text-muted-foreground">{copy.subtitle}</p>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-6">
-                {error && (
+            <form action={formAction} className="space-y-6">
+                <input type="hidden" name="next" value={nextPath} />
+                {state.error && (
                     <div
                         role="alert"
                         className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
                     >
-                        {error}
+                        {errorMessage(state.error, copy)}
                     </div>
                 )}
 
@@ -67,11 +63,11 @@ export function LoginForm({ locale, copy, nextPath, resetHref, signupHref }: Pro
                     </label>
                     <input
                         id="email"
+                        name="email"
                         type="email"
                         required
                         autoComplete="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        maxLength={254}
                         placeholder={copy.emailPlaceholder}
                         className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     />
@@ -86,11 +82,11 @@ export function LoginForm({ locale, copy, nextPath, resetHref, signupHref }: Pro
                     </label>
                     <input
                         id="password"
+                        name="password"
                         type="password"
                         required
                         autoComplete="current-password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        maxLength={256}
                         placeholder={copy.passwordPlaceholder}
                         className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     />
@@ -98,10 +94,11 @@ export function LoginForm({ locale, copy, nextPath, resetHref, signupHref }: Pro
 
                 <button
                     type="submit"
-                    disabled={loading}
+                    disabled={pending}
+                    aria-busy={pending}
                     className="inline-flex min-h-[44px] w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
                 >
-                    {loading ? copy.submitting : copy.submit}
+                    {pending ? copy.submitting : copy.submit}
                 </button>
             </form>
 

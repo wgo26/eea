@@ -1,6 +1,7 @@
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { requireCapability } from '@/lib/auth/guards'
+import { isAdminRoles } from '@/lib/auth/roles'
 import { getPollsAdmin } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { StatusBadge } from '@/components/admin/status-badge'
@@ -14,9 +15,11 @@ export async function generateMetadata(): Promise<{ title: string }> {
 
 export default async function Page() {
   const locale = await getRequestLocale()
-  await requireCapability('managePolls', '/admin/polls')
+  const { roles } = await requireCapability('managePolls', '/admin/polls')
+  const canDelete = isAdminRoles(roles)
   const dict = getDictionary(locale)
   const t = dict.admin.polls
+  const common = dict.admin.common
 
   const polls = await getPollsAdmin()
 
@@ -51,7 +54,7 @@ export default async function Page() {
                     {poll.totalVotes} {t.votes}
                   </p>
                 </div>
-                <PollRowActions poll={poll} copy={t} />
+                <PollRowActions poll={poll} copy={t} common={common} canDelete={canDelete} />
               </div>
 
               {poll.options.length === 0 ? (

@@ -2,11 +2,12 @@ import Link from 'next/link'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { requireCapability } from '@/lib/auth/guards'
+import { isAdminRoles } from '@/lib/auth/roles'
 import { getFundraisersAdmin } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { StatusBadge } from '@/components/admin/status-badge'
 import { formatRelative, formatPrice } from '@/lib/admin/format'
-import { FundraiserCard } from './fundraiser-actions'
+import { FundraiserCard, FundraiserCreateForm } from './fundraiser-actions'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -29,15 +30,19 @@ function storyHref(locale: string, type: string | null, id: string, slug: string
 
 export default async function Page() {
   const locale = await getRequestLocale()
-  await requireCapability('manageFundraisers', '/admin/fundraisers')
+  const { roles } = await requireCapability('manageFundraisers', '/admin/fundraisers')
+  const canDelete = isAdminRoles(roles)
   const dict = getDictionary(locale)
   const t = dict.admin.fundraisers
+  const common = dict.admin.common
 
   const fundraisers = await getFundraisersAdmin()
 
   return (
     <div className="space-y-6">
       <PageHeader title={t.title} description={t.description} />
+
+      <FundraiserCreateForm copy={t} common={common} />
 
       {fundraisers.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-muted/30 p-10 text-center">
@@ -65,7 +70,7 @@ export default async function Page() {
                       </Link>
                     </p>
                   </div>
-                  <FundraiserCard row={f} copy={t} />
+                  <FundraiserCard row={f} copy={t} common={common} canDelete={canDelete} />
                 </div>
 
                 <div className="mt-3 flex items-center justify-between text-xs">

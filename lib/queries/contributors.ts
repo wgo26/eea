@@ -91,11 +91,11 @@ function detailHref(locale: Locale, type: string, slug: string | null, id: strin
         case "culture":
             return `${base}/culture/${key}`;
         case "notice":
-            return `/notices/${id}`;
+            return `${base}/notices/${id}`;
         case "listing":
-            return `/buy-sell/${id}`;
+            return `${base}/buy-sell/${id}`;
         default:
-            return `/search`;
+            return `${base}/search`;
     }
 }
 

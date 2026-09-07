@@ -1,6 +1,7 @@
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
+import { requireCapability } from '@/lib/auth/guards'
 import { getUsers } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { StatusBadge } from '@/components/admin/status-badge'
@@ -28,6 +29,7 @@ export default async function Page({
 }: {
   searchParams: Promise<{ role?: string; q?: string }>
 }) {
+  await requireCapability('manageUsers', '/admin/users')
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
   const t = dict.admin.users
@@ -82,7 +84,7 @@ export default async function Page({
             { key: 'location', header: t.colLocation, render: (r) => <span className="text-xs text-muted-foreground">{r.locationName ?? '—'}</span> },
             { key: 'roles', header: t.colRoles, render: (r) => <RolesCell roles={r.roles} copy={t} /> },
             { key: 'joined', header: t.colJoined, render: (r) => <time className="text-xs text-muted-foreground">{formatDateTime(r.createdAt)}</time> },
-            { key: 'actions', header: '', render: (r) => <UserActions user={r} copy={t} />, className: 'text-right' },
+            { key: 'actions', header: '', render: (r) => <UserActions user={r} copy={t} common={dict.admin.common} />, className: 'text-right' },
           ]}
         />
       )}

@@ -1,5 +1,4 @@
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
 
 const routes = [
   // [path, title, description, planned[]]

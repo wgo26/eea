@@ -3,10 +3,12 @@
 import { useState } from 'react'
 import { setUserRole } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
+import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import type { Dictionary } from '@/lib/i18n'
 import type { AppRole, UserRow } from '@/lib/admin/queries'
 
 type Copy = Dictionary['admin']['users']
+type CommonCopy = Dictionary['admin']['common']
 
 const ALL_ROLES: AppRole[] = ['admin', 'editor', 'contributor', 'advertiser']
 
@@ -17,26 +19,46 @@ const ROLE_LABEL_KEY: Record<AppRole, keyof Copy> = {
   advertiser: 'roleAdvertiser',
 }
 
-export function UserActions({ user, copy }: { user: UserRow; copy: Copy }) {
+export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy; common: CommonCopy }) {
   const { addToast } = useToast()
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
+  const [pendingRemoval, setPendingRemoval] = useState<AppRole | null>(null)
 
-  async function handleToggleRole(role: AppRole) {
+  async function runToggleRole(role: AppRole, assign: boolean) {
     setLoading(true)
-    const hasRole = user.roles.includes(role)
-    const result = await setUserRole(user.id, role, !hasRole)
+    const result = await setUserRole(user.id, role, assign)
     setLoading(false)
     if (result.ok) {
       const label = String(copy[ROLE_LABEL_KEY[role]])
       addToast(
-        hasRole ? copy.toastRoleRemoved.replace('{role}', label) : copy.toastRoleAssigned.replace('{role}', label),
+        assign ? copy.toastRoleAssigned.replace('{role}', label) : copy.toastRoleRemoved.replace('{role}', label),
         'success',
       )
-    } else {
-      addToast(result.error, 'error')
+      return true
     }
+    addToast(result.error, 'error')
+    return false
   }
+
+  async function handleToggleRole(role: AppRole) {
+    const hasRole = user.roles.includes(role)
+    // Assigning is harmless; removing a role cuts access at once — confirm.
+    if (hasRole) {
+      setOpen(false)
+      setPendingRemoval(role)
+      return
+    }
+    await runToggleRole(role, true)
+  }
+
+  async function handleConfirmRemoval() {
+    if (!pendingRemoval) return
+    const ok = await runToggleRole(pendingRemoval, false)
+    if (ok) setPendingRemoval(null)
+  }
+
+  const pendingLabel = pendingRemoval ? String(copy[ROLE_LABEL_KEY[pendingRemoval]]) : ''
 
   return (
     <div className="relative inline-block">
@@ -72,6 +94,18 @@ export function UserActions({ user, copy }: { user: UserRow; copy: Copy }) {
           </div>
         </>
       )}
+      <ConfirmDialog
+        open={pendingRemoval !== null}
+        onOpenChange={(v) => {
+          if (!v) setPendingRemoval(null)
+        }}
+        title={copy.removeRoleConfirmTitle}
+        description={copy.removeRoleConfirmBody.replace('{role}', pendingLabel)}
+        confirmLabel={copy.remove}
+        cancelLabel={common.cancel}
+        loading={loading}
+        onConfirm={handleConfirmRemoval}
+      />
     </div>
   )
 }

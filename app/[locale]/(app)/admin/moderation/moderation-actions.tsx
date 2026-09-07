@@ -14,7 +14,7 @@ export function ModerationActions({ submission, copy }: { submission: Submission
   const [reason, setReason] = useState('')
   const [loading, setLoading] = useState(false)
 
-  if (submission.status !== 'pending') {
+  if (submission.status !== 'pending' && submission.status !== 'in_review') {
     return (
       <div className="text-xs text-muted-foreground">
         {submission.reviewedAt ? copy.reviewed : submission.status}

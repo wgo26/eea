@@ -30,7 +30,6 @@ export default async function LoginPage({ searchParams }: Props) {
     return (
         <div className="w-full max-w-md">
             <LoginForm
-                locale={locale}
                 copy={dict.auth.login}
                 nextPath={nextPath}
                 resetHref={localePath(locale, "/account/reset-password")}

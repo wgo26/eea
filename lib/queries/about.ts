@@ -14,10 +14,13 @@ export const POLICY_TYPES = [
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
 export type PolicyContent = {
+    id: string | null;
     policyType: string;
     /** Active-locale body text (markdown-ish), with English fallback. */
     content: string | null;
     locale: Locale;
+    version: string | null;
+    publishedAt: string | null;
     /** Locales for which a current policy row exists. */
     availableLocales: Locale[];
 };
@@ -71,15 +74,18 @@ export async function getPolicy(
     const { data } = await safe(
         createAdminClient()
             .from("policy_versions")
-            .select("policy_type, locale, content")
+            .select("id, policy_type, locale, content, version, published_at")
             .eq("policy_type", policyType)
             .eq("is_current", true),
     );
 
     const rows = (data ?? []) as {
+        id: string;
         policy_type: string;
         locale: string;
         content: string | null;
+        version: string | null;
+        published_at: string | null;
     }[];
     if (rows.length === 0) return null;
 
@@ -92,9 +98,12 @@ export async function getPolicy(
     const chosen = requested ?? english ?? rows[0];
 
     return {
+        id: chosen.id ?? null,
         policyType: chosen.policy_type,
         content: chosen.content ?? null,
         locale: (chosen.locale as Locale) ?? "en",
+        version: chosen.version ?? null,
+        publishedAt: chosen.published_at ?? null,
         availableLocales: Array.from(new Set(availableLocales)),
     };
 }

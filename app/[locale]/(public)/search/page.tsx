@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { buildAlternates, localePath } from "@/lib/i18n/urls";
+import { localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { CalendarDays, MapPin, Search as SearchIcon } from "lucide-react";
@@ -15,7 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
     const dict = getDictionary(locale);
     return {
         title: dict.search.title,
-        alternates: buildAlternates(locale, "/search"),
+        robots: { index: false, follow: true },
     };
 }
 
@@ -170,9 +170,12 @@ export default async function SearchPage({
             <nav aria-label={dict.search.filterType} className="mt-4 flex flex-wrap gap-1.5">
                 {TYPE_TABS.map((tab) => {
                     const active = (tab.value ?? "") === typeParam;
-                    const href = tab.value
-                        ? `/search?q=${encodeURIComponent(q)}&type=${tab.value}`
-                        : `/search?q=${encodeURIComponent(q)}`;
+                    const href = localePath(
+                        locale,
+                        tab.value
+                            ? `/search?q=${encodeURIComponent(q)}&type=${tab.value}`
+                            : `/search?q=${encodeURIComponent(q)}`,
+                    );
                     const label =
                         tab.label === "allTypes"
                             ? dict.search.allTypes

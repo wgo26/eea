@@ -17,14 +17,14 @@ const variantStyles: Record<StatusVariant, string> = {
 
 function normalizeStatus(status: string): StatusVariant {
   const s = status.toLowerCase()
-  if (s.includes('pend')) return 'pending'
-  if (s.includes('approv')) return 'approved'
+  if (s.includes('pend') || s === 'open' || s.includes('clarification')) return 'pending'
+  if (s.includes('approv') || s.includes('resolved')) return 'approved'
   if (s.includes('reject')) return 'rejected'
   if (s.includes('publish')) return 'published'
   if (s.includes('draft')) return 'draft'
-  if (s.includes('schedul')) return 'scheduled'
+  if (s.includes('schedul') || s.includes('investigat')) return 'scheduled'
   if (s.includes('active')) return 'active'
-  if (s.includes('inactive') || s.includes('expired') || s.includes('ended')) return 'inactive'
+  if (s.includes('inactive') || s.includes('expired') || s.includes('ended') || s.includes('dismissed')) return 'inactive'
   if (s.includes('archiv')) return 'archived'
   return 'default'
 }

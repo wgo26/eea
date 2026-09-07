@@ -1,0 +1,17 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "git remote": true,
+        "Get-Command": true,
+        "/^if \\(Get-Command bash -ErrorAction SilentlyContinue\\) \\{ bash -n deploy/vps/provision-ubuntu\\.sh; Write-Output \"BASH_EXIT=\\$LASTEXITCODE\" \\} else \\{ Write-Output \"BASH_NOT_AVAILABLE\" \\}$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "ForEach-Object": true,
+        "git check-ignore": true,
+        "supabase": true,
+        "/^node scripts/find-bare-hrefs\\.mjs$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

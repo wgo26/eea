@@ -1,23 +1,35 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { headers } from "next/headers";
-import { Geist, Geist_Mono, Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { themeInitScript } from "@/lib/theme";
-import { resolveLocale } from "@/lib/i18n";
+import { getDictionary, resolveLocale } from "@/lib/i18n";
+import { CookieBanner } from "@/components/system/cookie-banner";
 import { SITE } from "@/lib/constants";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
-
-const geistSans = Geist({
-    variable: "--font-geist-sans",
-    subsets: ["latin"],
+// Self-hosted via next/font/local (app/fonts/*.woff2) so dev/build never
+// hits fonts.googleapis.com — no network dependency, no proxy config needed.
+const inter = localFont({
+    src: "./fonts/Inter-Variable.woff2",
+    variable: "--font-sans",
+    weight: "100 900",
+    display: "swap",
 });
 
-const geistMono = Geist_Mono({
+const geistSans = localFont({
+    src: "./fonts/Geist-Variable.woff2",
+    variable: "--font-geist-sans",
+    weight: "100 900",
+    display: "swap",
+});
+
+const geistMono = localFont({
+    src: "./fonts/GeistMono-Variable.woff2",
     variable: "--font-geist-mono",
-    subsets: ["latin"],
+    weight: "100 900",
+    display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -39,6 +51,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     // proxy.ts resolves the active locale (URL prefix → cookie → Accept-Language)
     // and exposes it via the x-locale request header.
     const locale = resolveLocale((await headers()).get("x-locale"));
+    const dict = getDictionary(locale);
 
     return (
         <html
@@ -61,6 +74,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                     dangerouslySetInnerHTML={{ __html: themeInitScript }}
                 />
                 {children}
+                <CookieBanner locale={locale} dict={dict} />
             </body>
         </html>
     );

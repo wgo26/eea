@@ -4,11 +4,32 @@ import { uploadMedia } from '@/lib/storage/upload'
 import { StorageValidationError } from '@/lib/storage/types'
 import type { StorageDestination } from '@/lib/storage/types'
 
-// TODO before production: rate-limit this route (see the auth hardening
-// runbook's list of endpoints needing stricter limits) and add CAPTCHA on
-// the anonymous submission path — this handler only covers the storage
-// side of the flow, not abuse prevention.
+// Basic in-memory rate limit (per-IP, best-effort on single instance).
+// For multi-instance production, move this to Redis/Upstash.
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 20;
+const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
+const hits = new Map<string, { count: number; resetAt: number }>();
+
+function rateLimited(ip: string): boolean {
+    const now = Date.now();
+    const entry = hits.get(ip);
+    if (!entry || now > entry.resetAt) {
+        hits.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+        return false;
+    }
+    entry.count += 1;
+    if (entry.count > RATE_LIMIT_MAX) return true;
+    return false;
+}
+
 export async function POST(request: Request) {
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (rateLimited(ip)) {
+    return NextResponse.json({ error: "Too many uploads. Try again later." }, { status: 429 });
+  }
+
   const { supabase, user } = await getAuthedContext()
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 })
@@ -29,6 +50,13 @@ export async function POST(request: Request) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer())
+
+  if (buffer.byteLength === 0) {
+    return NextResponse.json({ error: 'Empty file.' }, { status: 400 })
+  }
+  if (buffer.byteLength > MAX_UPLOAD_BYTES) {
+    return NextResponse.json({ error: 'File too large (max 12 MB).' }, { status: 413 })
+  }
 
   try {
     const result = await uploadMedia(supabase, {

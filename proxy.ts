@@ -12,8 +12,8 @@ import { LOCALE_COOKIE, type Locale } from "@/lib/i18n/config";
  *    Root paths never render content; localized routes under app/[locale] are
  *    the only canonical homes of pages.
  * 2. Refreshes the Supabase auth session cookie on every request.
- * 3. Resolves the active locale and UI shell and exposes them via the
- *    x-locale / x-app-shell request headers.
+ * 3. Resolves the active locale and exposes it via the x-locale header.
+ *    (Shells are static route-group decisions — no runtime shell header.)
  *
  * Exemptions (never locale-redirected): /api/*, /auth/callback (Supabase
  * email links — the route handler redirects into the cookie's locale itself),
@@ -69,17 +69,9 @@ export async function proxy(request: NextRequest) {
     // 2./3. Session refresh + locale/shell headers for the matched route.
     const prefix = /^\/(en|fr)(?=\/|$)/.exec(pathname);
     const locale: Locale = prefix ? (prefix[1] as Locale) : negotiated;
-    const routePath = prefix ? pathname.replace(/^\/(?:en|fr)/, "") || "/" : pathname;
-
-    const shell = routePath.startsWith("/admin")
-        ? "admin"
-        : routePath.startsWith("/account") || routePath.startsWith("/auth")
-            ? "auth"
-            : "public";
 
     const response = await updateSession(request);
     response.headers.set("x-locale", locale);
-    response.headers.set("x-app-shell", shell);
 
     return response;
 }

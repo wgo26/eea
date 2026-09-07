@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getSessionUser } from "@/lib/auth/guards";
 import type { SubmitState } from "@/lib/public/types";
 
 /** Field names that make up a submission's `payload` JSON (per type). */
@@ -161,6 +162,160 @@ export async function submitAdvertiseInquiry(
         return { ok: true };
     } catch (err) {
         console.error("[advertise]", err);
+        return { ok: false, error: "db" };
+    }
+}
+
+function isEmail(value: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+/**
+ * Contact inquiry — stored as a `data_requests` row (request_type 'contact')
+ * so the editorial queue in the admin area can triage it alongside privacy
+ * requests. No account required.
+ */
+export async function submitContactRequest(
+    _prev: SubmitState,
+    formData: FormData,
+): Promise<SubmitState> {
+    const name = str(formData.get("name"));
+    const email = str(formData.get("email"));
+    const topic = str(formData.get("topic")) || "other";
+    const message = str(formData.get("message"));
+
+    if (!name || !isEmail(email) || !message) {
+        return { ok: false, error: "invalid" };
+    }
+
+    try {
+        const supabase = createAdminClient();
+        const { error } = await supabase.from("data_requests").insert({
+            requester_email: email,
+            request_type: `contact:${topic}`,
+            description: `From: ${name}\nTopic: ${topic}\n\n${message}`.slice(0, 4000),
+            status: "open",
+        });
+        if (error) {
+            console.error("[contact]", error.message);
+            return { ok: false, error: "db" };
+        }
+        return { ok: true };
+    } catch (err) {
+        console.error("[contact]", err);
+        return { ok: false, error: "db" };
+    }
+}
+
+/**
+ * Copyright takedown request — a dedicated flow separate from generic abuse
+ * reports (features.md Gap-Fill §19). Stored as a `reports` row with
+ * report_type 'copyright' so it lands in the trust & safety queue without
+ * requiring a media_id up front (takedown_requests.media_id is NOT NULL).
+ */
+export async function submitTakedownReport(
+    _prev: SubmitState,
+    formData: FormData,
+): Promise<SubmitState> {
+    const name = str(formData.get("name"));
+    const email = str(formData.get("email"));
+    const contentUrl = str(formData.get("contentUrl"));
+    const basis = str(formData.get("basis"));
+    const details = str(formData.get("details"));
+
+    if (!name || !basis) {
+        return { ok: false, error: "invalid" };
+    }
+
+    try {
+        const supabase = createAdminClient();
+        const { error } = await supabase.from("reports").insert({
+            report_type: "copyright",
+            subject: `Takedown — ${name}`.slice(0, 200),
+            description: [
+                `Claimant: ${name}`,
+                email ? `Email: ${email}` : null,
+                contentUrl ? `URL: ${contentUrl}` : null,
+                `Rights basis: ${basis}`,
+                details ? `\n${details}` : null,
+            ]
+                .filter(Boolean)
+                .join("\n")
+                .slice(0, 4000),
+            evidence_url: contentUrl?.startsWith("http") ? contentUrl : null,
+            status: "open",
+        });
+        if (error) {
+            console.error("[takedown]", error.message);
+            return { ok: false, error: "db" };
+        }
+        return { ok: true };
+    } catch (err) {
+        console.error("[takedown]", err);
+        return { ok: false, error: "db" };
+    }
+}
+
+/**
+ * Privacy / data request — access, deletion or contact follow-up. Stored in
+ * `data_requests` with the requester's email so logged-out visitors can use
+ * it (the "Own data requests" RLS policy permits email-scoped rows).
+ */
+export async function submitDataRequest(
+    _prev: SubmitState,
+    formData: FormData,
+): Promise<SubmitState> {
+    const email = str(formData.get("email"));
+    const type = str(formData.get("type")) || "access";
+    const details = str(formData.get("details"));
+
+    if (!isEmail(email) || !details) {
+        return { ok: false, error: "invalid" };
+    }
+
+    try {
+        const supabase = createAdminClient();
+        const { error } = await supabase.from("data_requests").insert({
+            requester_email: email,
+            request_type: type,
+            description: details.slice(0, 4000),
+            status: "open",
+        });
+        if (error) {
+            console.error("[data-request]", error.message);
+            return { ok: false, error: "db" };
+        }
+        return { ok: true };
+    } catch (err) {
+        console.error("[data-request]", err);
+        return { ok: false, error: "db" };
+    }
+}
+
+/**
+ * Acceptance trail for logged-in users: records that the current user
+ * accepted the given policy version. Guests are covered instead by the
+ * consent booleans stored on their `submissions` row — policy_acceptances
+ * requires a user_id.
+ */
+export async function recordPolicyAcceptance(
+    policyVersionId: string,
+): Promise<SubmitState> {
+    try {
+        const { supabase, user } = await getSessionUser();
+        if (!user) return { ok: false, error: "auth" };
+        const { error } = await supabase.from("policy_acceptances").insert({
+            user_id: user.id,
+            policy_version_id: policyVersionId,
+        });
+        // Unique violations just mean "already accepted" — treat as success.
+        if (error && !/duplicate|unique/i.test(error.message)) {
+            console.error("[policy-accept]", error.message);
+            return { ok: false, error: "db" };
+        }
+        return { ok: true };
+    } catch (err) {
+        console.error("[policy-accept]", err);
         return { ok: false, error: "db" };
     }
 }

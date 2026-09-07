@@ -1,0 +1,24 @@
+[Unit]
+Description=Eagle Eye Africa Next.js application
+After=network.target
+
+[Service]
+Type=simple
+User=eea-deploy
+Group=www-data
+WorkingDirectory=/var/www/eea/current
+Environment=NODE_ENV=production
+EnvironmentFile=/var/www/eea/shared/.env/production.env
+ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 3000
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/www/eea
+
+[Install]
+WantedBy=multi-user.target

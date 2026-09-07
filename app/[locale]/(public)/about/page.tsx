@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getCommunityStats } from "@/lib/queries/about";
+import { getAboutOverrides } from "@/lib/admin/queries";
 import { formatMoneyCompact } from "@/lib/format";
 import { ApertureMark } from "@/components/system/page-skeletons";
 
@@ -68,7 +69,25 @@ export default async function AboutPage() {
     const locale = resolveLocale((await headers()).get("x-locale"));
     const dict = getDictionary(locale);
     const a = dict.about;
-    const stats = await getCommunityStats();
+    const [stats, overrides] = await Promise.all([getCommunityStats(), getAboutOverrides(locale)]);
+    // Admin overrides (managed at /admin/policies → About page) win over the
+    // dictionary; empty table = built-in copy renders, never a blank.
+    const text = (key: keyof typeof overrides, field: "heading" | "body" | "ctaLabel", fallback: string) =>
+        overrides[key]?.[field]?.trim() || fallback;
+    const heroTitle = text("hero", "heading", a.heroTitle);
+    const heroBody = text("hero", "body", a.heroBody);
+    const loopTitle = text("loop", "heading", a.loopTitle);
+    const loopHint = text("loop", "body", a.loopHint);
+    const statsTitle = text("stats", "heading", a.statsTitle);
+    const statsHint = text("stats", "body", a.statsHint);
+    const pipelineTitle = text("pipeline", "heading", a.pipelineTitle);
+    const pipelineHint = text("pipeline", "body", a.pipelineHint);
+    const valuesTitle = text("values", "heading", a.valuesTitle);
+    const charterTitle = text("charter", "heading", a.charterTitle);
+    const charterHint = text("charter", "body", a.charterHint);
+    const closingTitle = text("closing", "heading", a.closingTitle);
+    const closingBody = text("closing", "body", a.closingBody);
+    const closingCta = text("closing", "ctaLabel", a.closingCta);
 
     return (
         <div className="mx-auto w-full max-w-6xl space-y-16 px-4 py-10 md:px-6 md:py-14">
@@ -84,10 +103,10 @@ export default async function AboutPage() {
                         {a.heroKicker}
                     </p>
                     <h1 className="mt-5 text-4xl font-extrabold leading-[1.05] tracking-tight md:text-6xl">
-                        {a.heroTitle}
+                        {heroTitle}
                     </h1>
                     <p className="mt-6 max-w-xl text-base leading-relaxed opacity-80 md:text-lg">
-                        {a.heroBody}
+                        {heroBody}
                     </p>
                     <div className="mt-8 flex flex-wrap items-center gap-3">
                         <Button render={<Link href={localePath(locale, "/submit")} />} size="lg">
@@ -104,9 +123,9 @@ export default async function AboutPage() {
             {/* --------------------------------- The core loop, as a journey */}
             <section>
                 <header className="max-w-2xl">
-                    <h2 className="text-2xl font-extrabold tracking-tight md:text-3xl">{a.loopTitle}</h2>
+                    <h2 className="text-2xl font-extrabold tracking-tight md:text-3xl">{loopTitle}</h2>
                     <p className="mt-2 text-sm leading-relaxed text-muted-foreground md:text-base">
-                        {a.loopHint}
+                        {loopHint}
                     </p>
                 </header>
                 <ol className="mt-8 flex snap-x gap-3 overflow-x-auto pb-4">
@@ -127,8 +146,8 @@ export default async function AboutPage() {
             {/* ------------------------------------- Live proof band (DB-fed) */}
             <section className="rounded-[2rem] border bg-muted/40 p-8 md:p-10">
                 <header>
-                    <h2 className="text-xl font-extrabold tracking-tight md:text-2xl">{a.statsTitle}</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">{a.statsHint}</p>
+                    <h2 className="text-xl font-extrabold tracking-tight md:text-2xl">{statsTitle}</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">{statsHint}</p>
                 </header>
                 <div className="mt-8 grid grid-cols-2 gap-8 lg:grid-cols-4">
                     <StatBlock value={stats.storiesPublished.toLocaleString()} label={a.statStories} accent />
@@ -141,9 +160,9 @@ export default async function AboutPage() {
             {/* ----------------------------- Trust pipeline: sighting → story */}
             <section>
                 <header className="max-w-2xl">
-                    <h2 className="text-2xl font-extrabold tracking-tight md:text-3xl">{a.pipelineTitle}</h2>
+                    <h2 className="text-2xl font-extrabold tracking-tight md:text-3xl">{pipelineTitle}</h2>
                     <p className="mt-2 text-sm leading-relaxed text-muted-foreground md:text-base">
-                        {a.pipelineHint}
+                        {pipelineHint}
                     </p>
                 </header>
                 <ol className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -169,7 +188,7 @@ export default async function AboutPage() {
 
             {/* ------------------------------------------------------ Values */}
             <section>
-                <h2 className="text-2xl font-extrabold tracking-tight md:text-3xl">{a.valuesTitle}</h2>
+                <h2 className="text-2xl font-extrabold tracking-tight md:text-3xl">{valuesTitle}</h2>
                 <div className="mt-8 grid gap-4 sm:grid-cols-2">
                     {VALUES.map((value) => {
                         const Icon = value.icon;
@@ -193,9 +212,9 @@ export default async function AboutPage() {
             {/* ---------------------------------- Charter (policies, upgraded) */}
             <section>
                 <header className="max-w-2xl">
-                    <h2 className="text-2xl font-extrabold tracking-tight md:text-3xl">{a.charterTitle}</h2>
+                    <h2 className="text-2xl font-extrabold tracking-tight md:text-3xl">{charterTitle}</h2>
                     <p className="mt-2 text-sm leading-relaxed text-muted-foreground md:text-base">
-                        {a.charterHint}
+                        {charterHint}
                     </p>
                 </header>
                 <div className="mt-8 grid gap-3">
@@ -228,9 +247,9 @@ export default async function AboutPage() {
             <section className="relative overflow-hidden rounded-[2rem] bg-primary px-6 py-12 text-primary-foreground md:px-12 md:py-16">
                 <ApertureMark className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 opacity-20" />
                 <div className="relative max-w-xl">
-                    <h2 className="text-2xl font-extrabold tracking-tight md:text-4xl">{a.closingTitle}</h2>
+                    <h2 className="text-2xl font-extrabold tracking-tight md:text-4xl">{closingTitle}</h2>
                     <p className="mt-3 text-sm font-medium leading-relaxed opacity-90 md:text-base">
-                        {a.closingBody}
+                        {closingBody}
                     </p>
                     <Button
                         render={<Link href={localePath(locale, "/submit")} />}
@@ -238,7 +257,7 @@ export default async function AboutPage() {
                         variant="secondary"
                         className="mt-6"
                     >
-                        {a.closingCta}
+                        {closingCta}
                         <ArrowRight aria-hidden />
                     </Button>
                 </div>

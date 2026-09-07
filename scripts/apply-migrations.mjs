@@ -8,7 +8,6 @@
  * Run: node scripts/apply-migrations.mjs
  */
 import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
 
 const env = readFileSync(new URL("../.env", import.meta.url), "utf8");
 const get = (k) => env.match(new RegExp(`^${k}=(\\S+)`, "m"))?.[1];

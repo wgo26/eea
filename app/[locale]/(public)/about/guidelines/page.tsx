@@ -10,6 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
     const dict = getDictionary(locale);
     return {
         title: dict.footer.guidelines,
+        description: dict.about.guidelinesMetaDesc,
         alternates: buildAlternates(locale, "/about/guidelines"),
     };
 }

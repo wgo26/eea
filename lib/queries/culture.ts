@@ -177,6 +177,11 @@ function sanitizePhrase(input: string): string {
         .slice(0, 80);
 }
 
+/** Detail resolvers accept the raw id or the public slug (mirrors notices). */
+function isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 /** Maps one raw row to the shared card shape (+ culture extras); null without a title. */
 function toCard(row: RawCultureRow, locale: Locale): CultureArticle | null {
     const translation = pickLocalized(row.translations, locale);
@@ -347,22 +352,22 @@ export async function getUpcomingEvents(
     });
 }
 
-/** Single event by id (null when not found). */
+/** Single event by UUID or slug, for the detail page (null when not found). */
 export async function getEventById(
     id: string,
     locale: Locale = "en",
 ): Promise<EventData | null> {
     if (!hasDatabase()) return null;
+    const identifier = sanitizePhrase(id);
+    const query = createAdminClient()
+        .from("content_items")
+        .select(CULTURE_SELECT)
+        .eq("type", "culture")
+        .eq("status", "published")
+        .eq("is_archived", false)
+        .not("events.starts_at", "is", null);
     const { data } = await safe(
-        createAdminClient()
-            .from("content_items")
-            .select(CULTURE_SELECT)
-            .eq("type", "culture")
-            .eq("status", "published")
-            .eq("is_archived", false)
-            .eq("id", id)
-            .not("events.starts_at", "is", null)
-            .limit(1),
+        (isUuid(identifier) ? query.eq("id", identifier) : query.eq("slug", identifier)).limit(1),
     );
     const row = asOne(data);
     return row ? toEventCard(row, locale) : null;

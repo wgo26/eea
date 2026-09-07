@@ -82,7 +82,7 @@ export function SubmitForm({ type, dict }: { type: SubmitType; dict: Dictionary 
 
     React.useEffect(() => {
         if (state.ok) router.push(localePath(locale, "/submit/confirmation"));
-    }, [state.ok, router]);
+    }, [state.ok, router, locale]);
 
     if (state.ok) {
         return (

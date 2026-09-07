@@ -1,75 +1,104 @@
 'use client'
 
-import { useState } from 'react'
-import { cn } from '@/lib/utils'
+import { useCallback, useState } from 'react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { useToast } from '@/components/admin/toast'
 
-type ConfirmDialogProps = {
-  trigger: React.ReactNode
-  title: string
-  description?: string
-  confirmLabel?: string
-  cancelLabel?: string
-  variant?: 'default' | 'destructive'
-  onConfirm: () => void | Promise<void>
-  disabled?: boolean
-}
-
+/**
+ * Shared destructive-action confirmation + mutation feedback for the admin
+ * section (Phase 0 foundation). Every irreversible admin action (archive,
+ * remove, delete, role removal, …) renders this instead of `window.confirm`
+ * so copy stays localized and the UX stays consistent.
+ */
 export function ConfirmDialog({
-  trigger,
+  open,
+  onOpenChange,
   title,
   description,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
-  variant = 'default',
+  confirmLabel,
+  cancelLabel,
   onConfirm,
-  disabled = false,
-}: ConfirmDialogProps) {
-  const [open, setOpen] = useState(false)
+  loading = false,
+  tone = 'danger',
+  children,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: string
+  description: string
+  confirmLabel: string
+  cancelLabel: string
+  onConfirm: () => void
+  loading?: boolean
+  tone?: 'danger' | 'default'
+  children?: React.ReactNode
+}) {
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent size="sm">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+          {children}
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={loading}>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogAction
+            variant={tone === 'danger' ? 'destructive' : 'default'}
+            disabled={loading}
+            onClick={(e) => {
+              e.preventDefault()
+              onConfirm()
+            }}
+          >
+            {confirmLabel}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+type MutationResult = { ok: true } | { ok: false; error: string }
+
+/**
+ * Shared admin mutation pattern: runs a server action, toasts the localized
+ * success copy or the returned error, and exposes the busy flag. Replaces the
+ * ad-hoc `useState + try/result + addToast` blocks in admin row actions.
+ */
+export function useAdminMutation() {
+  const { addToast } = useToast()
   const [loading, setLoading] = useState(false)
 
-  async function handleConfirm() {
-    setLoading(true)
-    try {
-      await onConfirm()
-      setOpen(false)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="relative inline-block">
-      <div onClick={() => !disabled && setOpen(true)}>{trigger}</div>
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => !loading && setOpen(false)} />
-          <div className="relative z-10 w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-xl">
-            <h3 className="text-lg font-semibold">{title}</h3>
-            {description && <p className="mt-2 text-sm text-muted-foreground">{description}</p>}
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                disabled={loading}
-                className="inline-flex items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
-              >
-                {cancelLabel}
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirm}
-                disabled={loading}
-                className={cn(
-                  'inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50',
-                  variant === 'destructive' ? 'bg-destructive hover:bg-destructive/90' : 'bg-primary hover:bg-primary/90',
-                )}
-              >
-                {loading ? 'Working...' : confirmLabel}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+  const run = useCallback(
+    async (action: () => Promise<MutationResult>, successToast: string): Promise<boolean> => {
+      setLoading(true)
+      try {
+        const result = await action()
+        if (result.ok) {
+          addToast(successToast, 'success')
+          return true
+        }
+        addToast(result.error, 'error')
+        return false
+      } catch (e) {
+        addToast(e instanceof Error ? e.message : 'Operation failed', 'error')
+        return false
+      } finally {
+        setLoading(false)
+      }
+    },
+    [addToast],
   )
+
+  return { run, loading }
 }

@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
+import { isRole } from '@/lib/auth/roles'
 import type { AppRole } from '@/lib/auth/types'
 
 type AuthContextValue = {
@@ -40,8 +41,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let active = true
 
     async function loadRoles(userId: string) {
-      const { data } = await supabase.from('user_roles').select('role').eq('user_id', userId)
-      if (active) setRoles((data ?? []).map((r) => r.role as AppRole))
+      try {
+        const { data, error } = await supabase.from('user_roles').select('role').eq('user_id', userId)
+        if (error || !active) return
+        setRoles((data ?? []).map((r) => r.role).filter(isRole))
+      } catch {
+        // UI convenience only — a failed role fetch degrades to signed-out
+        // chrome; server guards + RLS remain the real enforcement.
+      }
     }
 
     supabase.auth.getUser().then(({ data: { user } }) => {

@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<{ title: string }> {
   return { title: getDictionary(locale).admin.moderation.title }
 }
 
-const STATUS_KEYS: (SubmissionStatus | 'all')[] = ['pending', 'approved', 'rejected']
+const STATUS_KEYS: (SubmissionStatus | 'all')[] = ['pending', 'needs_clarification', 'approved', 'rejected', 'all']
 
 const TYPE_FILTERS: { key: 'all' | 'photo_story' | 'news' | 'listing' | 'notice' | 'culture'; dictKey: 'all' | 'photoStory' | 'news' | 'listings' | 'notices' | 'culture' }[] = [
   { key: 'all', dictKey: 'all' },
@@ -27,6 +27,15 @@ const TYPE_FILTERS: { key: 'all' | 'photo_story' | 'news' | 'listing' | 'notice'
   { key: 'notice', dictKey: 'notices' },
   { key: 'culture', dictKey: 'culture' },
 ]
+
+/** Queue label for a tab key (clarification tab shows the needs_clarification rows). */
+const TAB_LABELS: Record<string, keyof ReturnType<typeof getDictionary>['admin']['moderation']> = {
+  pending: 'tabPending',
+  needs_clarification: 'tabClarification',
+  approved: 'tabApproved',
+  rejected: 'tabRejected',
+  all: 'tabAll',
+}
 
 export default async function Page({
   searchParams,
@@ -39,25 +48,44 @@ export default async function Page({
   const tf = dict.admin.typeFilters
 
   const params = await searchParams
-  const status = (params.status as SubmissionStatus) || 'pending'
+  const status = (params.status as SubmissionStatus | 'all') || 'pending'
   const type = (params.type as 'all' | 'photo_story' | 'news' | 'listing' | 'notice' | 'culture') || 'all'
 
-  const [submissions, pendingItems, approvedItems, rejectedItems] = await Promise.all([
-    getSubmissions({ status, type, limit: 100 }),
+  // The pending queue also covers reopened rows (in_review) — merge both.
+  const [pendingItems, inReviewItems, clarificationItems, approvedItems, rejectedItems] = await Promise.all([
     getSubmissions({ status: 'pending', type: 'all', limit: 1000 }),
+    getSubmissions({ status: 'in_review', type: 'all', limit: 1000 }),
+    getSubmissions({ status: 'needs_clarification', type: 'all', limit: 1000 }),
     getSubmissions({ status: 'approved', type: 'all', limit: 1000 }),
     getSubmissions({ status: 'rejected', type: 'all', limit: 1000 }),
   ])
 
+  const queueFor = (): SubmissionRow[] => {
+    const merged = [...pendingItems, ...inReviewItems].sort((a, b) =>
+      (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''),
+    )
+    if (status === 'pending') return merged.filter((r) => type === 'all' || r.submissionType === type)
+    if (status === 'all') return [...merged, ...clarificationItems, ...approvedItems, ...rejectedItems]
+      .filter((r) => type === 'all' || r.submissionType === type)
+      .sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''))
+      .slice(0, 100)
+    return (
+      status === 'needs_clarification' ? clarificationItems : status === 'approved' ? approvedItems : rejectedItems
+    ).filter((r) => type === 'all' || r.submissionType === type)
+  }
+  const submissions = queueFor()
+
   const counts: Record<string, number> = {
-    pending: pendingItems.length,
+    pending: pendingItems.length + inReviewItems.length,
+    needs_clarification: clarificationItems.length,
     approved: approvedItems.length,
     rejected: rejectedItems.length,
+    all: pendingItems.length + inReviewItems.length + clarificationItems.length + approvedItems.length + rejectedItems.length,
   }
 
   const tabs = STATUS_KEYS.map((key) => ({
     key,
-    label: key === 'pending' ? t.tabPending : key === 'approved' ? t.tabApproved : t.tabRejected,
+    label: t[TAB_LABELS[key]],
     count: counts[key] ?? 0,
   }))
 
@@ -69,7 +97,11 @@ export default async function Page({
     `${localePath(locale, '/admin/moderation')}?status=${status}&type=${key}`
 
   const statusWord =
-    status === 'pending' ? t.tabPending : status === 'approved' ? t.tabApproved : t.tabRejected
+    status === 'pending' ? t.tabPending
+    : status === 'needs_clarification' ? t.tabClarification
+    : status === 'approved' ? t.tabApproved
+    : status === 'rejected' ? t.tabRejected
+    : t.tabAll
 
   return (
     <div className="space-y-5">

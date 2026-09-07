@@ -2,16 +2,17 @@
 
 import { useState } from 'react'
 import { updateContentStatus, setContentFeatured, archiveContent } from '@/lib/admin/actions'
-import { useToast } from '@/components/admin/toast'
+import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import type { Dictionary } from '@/lib/i18n'
 import type { ContentRow } from '@/lib/admin/queries'
 
 type Copy = Dictionary['admin']['content']
+type CommonCopy = Dictionary['admin']['common']
 
-export function ContentActions({ content, copy }: { content: ContentRow; copy: Copy }) {
-  const { addToast } = useToast()
-  const [loading, setLoading] = useState(false)
+export function ContentActions({ content, copy, common }: { content: ContentRow; copy: Copy; common: CommonCopy }) {
+  const { run, loading } = useAdminMutation()
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [confirmArchive, setConfirmArchive] = useState(false)
 
   /** Status transitions, labels localized via the dictionary. */
   const transitions: { key: string; label: string; toast: string }[] = (
@@ -27,37 +28,22 @@ export function ContentActions({ content, copy }: { content: ContentRow; copy: C
   )
 
   async function handleStatusChange(status: string, toast: string) {
-    setLoading(true)
-    const result = await updateContentStatus(content.id, status)
-    setLoading(false)
-    setDropdownOpen(false)
-    if (result.ok) {
-      addToast(toast, 'success')
-    } else {
-      addToast(result.error, 'error')
-    }
+    const ok = await run(() => updateContentStatus(content.id, status), toast)
+    if (ok) setDropdownOpen(false)
   }
 
   async function handleToggleFeatured() {
-    setLoading(true)
-    const result = await setContentFeatured(content.id, !content.isFeatured)
-    setLoading(false)
-    if (result.ok) {
-      addToast(content.isFeatured ? copy.toastFeaturedOff : copy.toastFeaturedOn, 'success')
-    } else {
-      addToast(result.error, 'error')
-    }
+    await run(
+      () => setContentFeatured(content.id, !content.isFeatured),
+      content.isFeatured ? copy.toastFeaturedOff : copy.toastFeaturedOn,
+    )
   }
 
   async function handleArchive() {
-    setLoading(true)
-    const result = await archiveContent(content.id)
-    setLoading(false)
-    setDropdownOpen(false)
-    if (result.ok) {
-      addToast(copy.toastArchived, 'success')
-    } else {
-      addToast(result.error, 'error')
+    const ok = await run(() => archiveContent(content.id), copy.toastArchived)
+    if (ok) {
+      setConfirmArchive(false)
+      setDropdownOpen(false)
     }
   }
 
@@ -85,7 +71,7 @@ export function ContentActions({ content, copy }: { content: ContentRow; copy: C
             disabled={loading}
             className="inline-flex items-center rounded-md border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
-            {loading ? '…' : copy.actions}
+            {loading ? common.working : copy.actions}
           </button>
           {dropdownOpen && (
             <>
@@ -104,7 +90,10 @@ export function ContentActions({ content, copy }: { content: ContentRow; copy: C
                 <div className="border-t border-border my-1" />
                 <button
                   type="button"
-                  onClick={handleArchive}
+                  onClick={() => {
+                    setDropdownOpen(false)
+                    setConfirmArchive(true)
+                  }}
                   className="w-full px-3 py-1.5 text-left text-sm text-destructive hover:bg-muted transition-colors"
                 >
                   {copy.archive}
@@ -114,6 +103,17 @@ export function ContentActions({ content, copy }: { content: ContentRow; copy: C
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmArchive}
+        onOpenChange={setConfirmArchive}
+        title={copy.archiveConfirmTitle}
+        description={copy.archiveConfirmBody}
+        confirmLabel={copy.archive}
+        cancelLabel={common.cancel}
+        loading={loading}
+        onConfirm={handleArchive}
+      />
     </div>
   )
 }

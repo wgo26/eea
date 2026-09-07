@@ -1,32 +1,54 @@
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
-import { getAdSlots, getAdvertisers } from '@/lib/admin/queries'
+import { requireCapability } from '@/lib/auth/guards'
+import { getAdSlots, getAdvertisers, getPendingAdInquiries } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { DataTable } from '@/components/admin/data-table'
 import { formatDate, formatPrice, formatPercent } from '@/lib/admin/format'
 import { AdSlotActions } from './ad-slot-actions'
 import type { AdSlotRow } from '@/lib/admin/queries'
+import { InquiryActions } from './inquiry-actions'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
   return { title: getDictionary(locale).admin.ads.title }
 }
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  await requireCapability('manageAds', '/admin/ads')
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
   const t = dict.admin.ads
 
-  const [slots, advertisers] = await Promise.all([
+  const [slots, advertisers, inquiries] = await Promise.all([
     getAdSlots(),
     getAdvertisers(),
+    getPendingAdInquiries(),
   ])
 
   return (
     <div className="space-y-6">
       <PageHeader title={t.title} description={t.description} />
 
-      <section>
+      <nav className="flex gap-2 border-b border-border pb-2">
+        <a href="?tab=inquiries" className="rounded-md border border-border px-3 py-1.5 text-xs font-medium">{t.inquiriesTab} ({inquiries.length})</a>
+        <a href="?tab=operations" className="rounded-md border border-border px-3 py-1.5 text-xs font-medium">{t.operationsTab}</a>
+      </nav>
+
+      {(await searchParams).tab === 'inquiries' && (
+        <section>
+          <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">{t.inquiriesHeading}</h2>
+          {inquiries.length === 0 ? <p className="text-sm text-muted-foreground">{t.emptyInquiries}</p> : (
+            <DataTable rows={inquiries} rowKey={(r) => r.id} columns={[
+              { key: 'company', header: t.colCompany, render: (r) => <div><div className="text-sm font-medium">{r.advertiserName ?? r.name}</div><div className="text-xs text-muted-foreground">{r.email} {r.phone}</div></div> },
+              { key: 'message', header: t.inquiryMessage, render: (r) => <span className="whitespace-pre-wrap text-xs text-muted-foreground">{r.copyText ?? '—'}</span> },
+              { key: 'actions', header: '', render: (r) => <InquiryActions inquiry={r} slots={slots} copy={t} />, className: 'text-right' },
+            ]} />
+          )}
+        </section>
+      )}
+
+      {(await searchParams).tab !== 'inquiries' && <><section>
         <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.slotsHeading}</h2>
         {slots.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
@@ -120,7 +142,7 @@ export default async function Page() {
             ]}
           />
         )}
-      </section>
+      </section></>}
     </div>
   )
 }

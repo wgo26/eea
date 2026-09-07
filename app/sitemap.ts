@@ -19,8 +19,13 @@ const STATIC_PATHS = [
     "/buy-sell",
     "/notices",
     "/culture",
+    "/culture/events",
     "/submit",
-    "/search",
+    "/submit/news",
+    "/submit/photo-story",
+    "/submit/buy-sell",
+    "/submit/notices",
+    "/submit/culture",
     "/locations",
     "/contributors",
     "/advertise",
@@ -49,22 +54,40 @@ async function fetchDynamicEntries(): Promise<DynamicEntry[]> {
         if (!supabaseUrl || !serviceKey) return [];
 
         const supabase = createAdminClient();
-        const { data, error } = await supabase
-            .from("content_items")
-            .select("type, id, slug, published_at")
-            .eq("status", "published");
-        if (error || !data) return [];
-
-        return (data as { type: string; id: string; slug: string | null; published_at: string | null }[]).flatMap(
-            (row): DynamicEntry[] => {
-                const segment = SEGMENT_BY_TYPE[row.type];
-                if (!segment) return [];
-                const identifier = row.slug ?? row.id;
-                const entry: DynamicEntry = { path: `${segment}/${identifier}` };
-                if (row.published_at) entry.lastModified = new Date(row.published_at);
-                return [entry];
-            },
-        );
+        const [content, locations, contributors] = await Promise.all([
+            supabase
+                .from("content_items")
+                .select("type, id, slug, published_at")
+                .eq("status", "published"),
+            supabase.from("locations").select("slug").eq("is_active", true),
+            supabase.from("profiles").select("id").eq("is_public", true),
+        ]);
+        const entries: DynamicEntry[] = [];
+        const rows = (content.error ? [] : (content.data ?? [])) as {
+            type: string;
+            id: string;
+            slug: string | null;
+            published_at: string | null;
+        }[];
+        for (const row of rows) {
+            const segment = SEGMENT_BY_TYPE[row.type];
+            if (!segment) continue;
+            const identifier = row.slug ?? row.id;
+            const entry: DynamicEntry = { path: `${segment}/${identifier}` };
+            if (row.published_at) entry.lastModified = new Date(row.published_at);
+            entries.push(entry);
+        }
+        if (!locations.error) {
+            for (const row of (locations.data ?? []) as { slug: string | null }[]) {
+                if (row.slug) entries.push({ path: `/locations/${row.slug}` });
+            }
+        }
+        if (!contributors.error) {
+            for (const row of (contributors.data ?? []) as { id: string }[]) {
+                entries.push({ path: `/contributors/${row.id}` });
+            }
+        }
+        return entries;
     } catch {
         return [];
     }

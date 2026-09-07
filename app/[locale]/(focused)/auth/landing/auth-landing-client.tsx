@@ -19,8 +19,7 @@ export function AuthLandingClient({ destination, copy }: Props) {
     const isAdminWorkspace = destination.includes("/admin");
 
     useEffect(() => {
-        const timer = window.setTimeout(() => router.replace(destination), 1200);
-        return () => window.clearTimeout(timer);
+        router.replace(destination);
     }, [destination, router]);
 
     return (
