@@ -66,7 +66,7 @@ export default async function ListingPage({ params }: ListingPageProps) {
     const listing = await getListingDetail(id, locale);
     if (!listing) notFound();
 
-    const shareUrl = `${SITE.url}/buy-sell/${listing.id}`;
+    const shareUrl = `${SITE.url}${localePath(locale, `/buy-sell/${listing.id}`)}`;
     const similar = await getSimilarListings(
         listing.id,
         { category: listing.category ?? undefined, locationSlug: listing.locationSlug },

@@ -67,7 +67,7 @@ export default async function NoticePage({ params }: NoticePageProps) {
         : [];
 
     const badge = verificationBadgeInfo(notice.verification ?? null, dict);
-    const shareUrl = `${SITE.url}/notices/${id}`;
+    const shareUrl = `${SITE.url}${localePath(locale, `/notices/${id}`)}`;
 
     const isExpired = notice.expiresAt
         ? new Date(notice.expiresAt) < new Date()

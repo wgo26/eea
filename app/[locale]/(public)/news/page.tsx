@@ -90,8 +90,6 @@ export default async function NewsPage({
 }) {
     const locale = resolveLocale((await headers()).get("x-locale"));
     const dict = getDictionary(locale);
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-
     const params = await searchParams;
     const search = firstParam(params.q)?.trim() || undefined;
     const category = firstParam(params.category)?.trim() || undefined;
@@ -229,7 +227,6 @@ export default async function NewsPage({
                         dict={dict}
                         locale={locale}
                         stats={fundraiserStats}
-                        siteUrl={siteUrl}
                     />
                 </div>
             ) : null}

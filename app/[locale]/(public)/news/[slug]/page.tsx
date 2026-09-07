@@ -61,7 +61,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
     ).filter((n) => n.id !== article.id);
 
     const badge = verificationBadgeInfo(article.verification ?? null, dict);
-    const shareUrl = `${SITE.url}/news/${article.slug}`;
+    const shareUrl = `${SITE.url}${localePath(locale, `/news/${article.slug}`)}`;
     const paragraphs = (article.body ?? "")
         .split(/\n\n+/)
         .map((p) => p.trim())

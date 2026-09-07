@@ -71,7 +71,7 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
         getAdjacentPhotoStories(story.id, story.publishedAt ?? new Date().toISOString(), locale),
     ]);
     const badge = verificationBadgeInfo(story.verification ?? null, dict);
-    const shareUrl = `${SITE.url}/photo-stories/${story.slug}`;
+    const shareUrl = `${SITE.url}${localePath(locale, `/photo-stories/${story.slug}`)}`;
 
     return (
         <article className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">

@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { ArrowLeft, CalendarDays, Clock, Landmark, MapPin, Tag, User } from "lucide-react";
 
 import { ShareButtons } from "@/components/share-buttons";
+import { SITE } from "@/lib/constants";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getCultureBySlug, getCultureArticles } from "@/lib/queries/culture";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
@@ -33,8 +34,7 @@ export default async function CultureDetailPage({ params }: Props) {
     const article = await getCultureBySlug(slug, locale);
     if (!article) notFound();
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://eagleeyeafrica.com";
-    const shareUrl = `${siteUrl}/culture/${article.slug}`;
+    const shareUrl = `${SITE.url}${localePath(locale, `/culture/${article.slug}`)}`;
 
     const { articles: related } = await getCultureArticles({
         category: undefined,

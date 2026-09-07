@@ -31,7 +31,6 @@ export function FundraiserCard({
     const badge = verificationBadgeInfo(campaign.verification ?? null, dict);
     const countdown = countdownLabel(campaign.deadlineAt, dict);
     const goalReached = campaign.percent >= 100;
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
 
     return (
         <article
@@ -179,7 +178,7 @@ export function FundraiserCard({
                     ) : null}
                     <a
                         href={whatsappHref(
-                            shareUrl.startsWith("http") ? shareUrl : `${siteUrl}${shareUrl}`,
+                            shareUrl,
                             `${campaign.title} —`,
                         )}
                         target="_blank"

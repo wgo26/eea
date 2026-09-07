@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { ArrowLeft, CalendarDays, Clock, Landmark, MapPin, Tag, User } from "lucide-react";
 
 import { ShareButtons } from "@/components/share-buttons";
+import { SITE } from "@/lib/constants";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { getEventById } from "@/lib/queries/culture";
@@ -33,8 +34,7 @@ export default async function EventDetailPage({ params }: Props) {
     const event = await getEventById(id, locale);
     if (!event) notFound();
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://eagleeyeafrica.com";
-    const shareUrl = `${siteUrl}/culture/events/${event.slug}`;
+    const shareUrl = `${SITE.url}${localePath(locale, `/culture/events/${event.slug}`)}`;
 
     return (
         <div className="mx-auto w-full max-w-4xl px-4 py-8 md:px-6 lg:px-8">

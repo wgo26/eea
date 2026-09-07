@@ -4,6 +4,8 @@ import { Building2, Mail, MapPin, Phone, Share2 } from "lucide-react";
 import { PrintButton } from "@/components/notices/print-button";
 import { cn } from "@/lib/utils";
 import { expiryLabel, whatsappHref } from "@/lib/format";
+import { SITE } from "@/lib/constants";
+import { localePath } from "@/lib/i18n/urls";
 import { isExpiringSoon, isExpired, noticeTypeLabel, noticeTypeMeta } from "@/lib/notice-types";
 import { verificationBadgeInfo } from "@/lib/verification";
 import { formatDate, type Dictionary, type Locale } from "@/lib/i18n";
@@ -13,7 +15,6 @@ type NoticeCardProps = {
     notice: NoticeData;
     dict: Dictionary;
     locale: Locale;
-    siteUrl: string;
     className?: string;
 };
 
@@ -25,7 +26,7 @@ type NoticeCardProps = {
  * stops being true. Official notices are visually louder than community
  * submissions (spec §5 + Differentiator #5).
  */
-export function NoticeCard({ notice, dict, locale, siteUrl, className }: NoticeCardProps) {
+export function NoticeCard({ notice, dict, locale, className }: NoticeCardProps) {
     const meta = noticeTypeMeta(notice.noticeType);
     const TypeIcon = meta.icon;
     const badge = verificationBadgeInfo(
@@ -35,7 +36,7 @@ export function NoticeCard({ notice, dict, locale, siteUrl, className }: NoticeC
 
     const expired = isExpired(notice.expiresAt);
     const soon = isExpiringSoon(notice.expiresAt);
-    const shareUrl = `${siteUrl}${notice.href}`;
+    const shareUrl = `${SITE.url}${localePath(locale, notice.href)}`;
 
     return (
         <article

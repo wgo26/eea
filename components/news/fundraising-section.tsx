@@ -5,6 +5,7 @@ import { FundraiserCard } from "@/components/news/fundraiser-card";
 import { SectionHeader } from "@/components/home/section-header";
 import { Button } from "@/components/ui/button";
 import { formatMoneyCompact, percentRaised } from "@/lib/format";
+import { SITE } from "@/lib/constants";
 import { localePath } from "@/lib/i18n/urls";
 import { cn } from "@/lib/utils";
 import type { Dictionary, Locale } from "@/lib/i18n";
@@ -15,7 +16,6 @@ type FundraisingSectionProps = {
     dict: Dictionary;
     locale: Locale;
     stats: { active: number; totalRaised: number; totalGoal: number; currency: string; completed: number };
-    siteUrl: string;
 };
 
 /** Headline figures above the campaign grid. */
@@ -49,7 +49,6 @@ export function FundraisingSection({
     dict,
     locale,
     stats,
-    siteUrl,
 }: FundraisingSectionProps) {
     const fundedPercent = percentRaised(stats.totalRaised, stats.totalGoal);
 
@@ -113,7 +112,7 @@ export function FundraisingSection({
                                         campaign={campaign}
                                         dict={dict}
                                         locale={locale}
-                                        shareUrl={`${siteUrl}${campaign.href}`}
+                                        shareUrl={`${SITE.url}${localePath(locale, campaign.href)}`}
                                     />
                                 ))}
                             </div>
