@@ -1,5 +1,3 @@
-'use client'
-
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
@@ -13,16 +11,19 @@ type TabsProps = {
   tabs: Tab[]
   active: string
   /**
-   * Preferred: give each tab a locale-prefixed href and the tab renders as a
-   * Next.js Link (prefetched, no full reload). Falls back to onChange +
-   * window navigation only for callers that cannot build hrefs.
+   * Server Component (no 'use client'): every admin page renders Tabs from a
+   * Server Component and passes an `hrefFor` closure. If this file were a
+   * Client Component, that function prop would cross the server/client
+   * boundary → production React #441 ("An error occurred in the Server
+   * Components render") on every tabbed admin page. Link-only tabs need no
+   * client JS, so this stays a Server Component. Do NOT add 'use client' or
+   * an onChange callback without switching callers to precomputed hrefs.
    */
-  hrefFor?: (key: string) => string
-  onChange?: (key: string) => void
+  hrefFor: (key: string) => string
   className?: string
 }
 
-export function Tabs({ tabs, active, hrefFor, onChange, className }: TabsProps) {
+export function Tabs({ tabs, active, hrefFor, className }: TabsProps) {
   return (
     <div className={cn('flex items-center gap-1 border-b border-border overflow-x-auto', className)}>
       {tabs.map((tab) => {
@@ -47,24 +48,14 @@ export function Tabs({ tabs, active, hrefFor, onChange, className }: TabsProps) 
         )
         return (
           <span key={tab.key} className="relative">
-            {hrefFor ? (
-              <Link
-                href={hrefFor(tab.key)}
-                aria-current={active === tab.key ? 'page' : undefined}
-                scroll={false}
-                className={state}
-              >
-                {inner}
-              </Link>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onChange?.(tab.key)}
-                className={state}
-              >
-                {inner}
-              </button>
-            )}
+            <Link
+              href={hrefFor(tab.key)}
+              aria-current={active === tab.key ? 'page' : undefined}
+              scroll={false}
+              className={state}
+            >
+              {inner}
+            </Link>
             {active === tab.key && (
               <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t" />
             )}
