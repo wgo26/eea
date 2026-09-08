@@ -15,8 +15,8 @@ const variantStyles: Record<StatusVariant, string> = {
   default: 'bg-slate-100 text-slate-600 border-slate-200',
 }
 
-function normalizeStatus(status: string): StatusVariant {
-  const s = status.toLowerCase()
+function normalizeStatus(status: string | null | undefined): StatusVariant {
+  const s = (status ?? '').toLowerCase()
   if (s.includes('pend') || s === 'open' || s.includes('clarification')) return 'pending'
   if (s.includes('approv') || s.includes('resolved')) return 'approved'
   if (s.includes('reject')) return 'rejected'
@@ -29,7 +29,7 @@ function normalizeStatus(status: string): StatusVariant {
   return 'default'
 }
 
-export function StatusBadge({ status, className }: { status: string; className?: string }) {
+export function StatusBadge({ status, className }: { status: string | null | undefined; className?: string }) {
   const variant = normalizeStatus(status)
   return (
     <span className={cn(
@@ -37,18 +37,18 @@ export function StatusBadge({ status, className }: { status: string; className?:
       variantStyles[variant],
       className,
     )}>
-      {status}
+      {status ?? '—'}
     </span>
   )
 }
 
-export function TypeBadge({ type, className }: { type: string; className?: string }) {
+export function TypeBadge({ type, className }: { type: string | null | undefined; className?: string }) {
   return (
     <span className={cn(
       'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground',
       className,
     )}>
-      {type.replace(/_/g, ' ')}
+      {(type ?? '—').replace(/_/g, ' ')}
     </span>
   )
 }

@@ -1,18 +1,24 @@
+'use client'
+
 import Link from 'next/link'
 import { getDictionary } from '@/lib/i18n'
-import { getRequestLocale } from '@/lib/i18n/server'
 import { localePath } from '@/lib/i18n/urls'
 import { signOutAction } from '@/lib/auth/actions'
 import type { AppRole } from '@/lib/auth/types'
+import { useLocaleFromPath } from '@/components/site-header'
 import { AdminMobileNav } from './admin-mobile-nav'
 import { buildAdminNavItems } from './nav-items'
 
 /**
- * Admin topbar (AppShell). Sticky, localized, with the mobile drawer trigger
- * (item 8), the pending-moderation shortcut, the staff identity area and a
- * sign-out control on every admin page (item 11).
+ * Admin topbar (AppShell). Client component so the capability-filtered nav
+ * items (which carry icon component references) are built on the client.
+ * Building them in a Server Component and passing to AdminMobileNav would
+ * pass functions across the server/client boundary → React #441.
+ * Sticky, localized, with the mobile drawer trigger (item 8), the
+ * pending-moderation shortcut, the staff identity area and a sign-out
+ * control on every admin page (item 11).
  */
-export async function AdminTopbar({
+export function AdminTopbar({
   pendingCount,
   roles,
   displayName,
@@ -23,7 +29,7 @@ export async function AdminTopbar({
   displayName: string
   email: string
 }) {
-  const locale = await getRequestLocale()
+  const locale = useLocaleFromPath()
   const dict = getDictionary(locale)
   const items = buildAdminNavItems(locale, dict, roles, pendingCount)
   const isAdmin = roles.includes('admin')
