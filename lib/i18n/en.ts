@@ -488,6 +488,8 @@ export const en = {
       'Thank you! Your submission is now in our editorial queue. We will review it and publish it if it meets our guidelines. You will be credited if it is published.',
     errorGeneric: 'Something went wrong. Please try again.',
     errorRequired: 'Please fill in all required fields.',
+    errorRateLimited: 'Too many submissions from your network right now. Please try again in a few minutes.',
+    errorCaptcha: 'Please complete the human-verification step and try again.',
   },
   advertise: {
     title: 'Advertise with Eagle Eye Africa',
@@ -531,6 +533,9 @@ export const en = {
     successBody:
       'Thanks for your interest! Our advertising team will review your inquiry and get back to you with availability and a quote.',
     errorGeneric: 'Something went wrong. Please try again.',
+    errorRateLimited: 'Too many inquiries from your network right now. Please try again later.',
+    errorDuplicate: 'We already have a pending inquiry with this email — our team will reply; no need to resend.',
+    errorCaptcha: 'Please complete the human-verification step and try again.',
   },
   about: {
     title: 'About Eagle Eye Africa',
@@ -630,6 +635,8 @@ export const en = {
       successTitle: 'Message received.',
       successBody: 'Thank you — the editorial team will reply within two working days.',
       error: 'Please fill in your name, a valid email and a message.',
+      errorRateLimited: 'Too many messages from your network right now. Please try again later.',
+      errorCaptcha: 'Please complete the human-verification step and try again.',
     },
     takedownForm: {
       title: 'Request a takedown',
@@ -649,6 +656,8 @@ export const en = {
       successTitle: 'Takedown request received.',
       successBody: 'The editorial team will review it and reply by email.',
       error: 'Please fill in your name and what right is affected.',
+      errorRateLimited: 'Too many requests from your network right now. Please try again later.',
+      errorCaptcha: 'Please complete the human-verification step and try again.',
     },
     dataForm: {
       title: 'Privacy & data requests',
@@ -666,6 +675,8 @@ export const en = {
       successTitle: 'Request received.',
       successBody: 'We will respond by email within 30 days.',
       error: 'Please provide a valid email and details.',
+      errorRateLimited: 'Too many requests from your network right now. Please try again later.',
+      errorCaptcha: 'Please complete the human-verification step and try again.',
     },
     cookie: {
       body: 'We use a single preference cookie plus the cookies Supabase auth needs. No ad trackers.',

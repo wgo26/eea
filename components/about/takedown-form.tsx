@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { submitTakedownReport } from "@/lib/public/actions";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import type { SubmitState } from "@/lib/public/types";
 import type { Dictionary } from "@/lib/i18n";
 
@@ -61,7 +62,25 @@ export function TakedownForm({ dict }: { dict: Dictionary }) {
                     <Label htmlFor="takedown-details">{f.details}</Label>
                     <Textarea id="takedown-details" name="details" placeholder={f.detailsPh} rows={3} />
                 </div>
-                {state.error ? <p className="text-sm text-destructive">{f.error}</p> : null}
+                {state.error ? (
+                    <p className="text-sm text-destructive">
+                        {state.error === "rate_limited"
+                            ? f.errorRateLimited
+                            : state.error === "captcha"
+                              ? f.errorCaptcha
+                              : f.error}
+                    </p>
+                ) : null}
+                {/* Bot trap: hidden from humans; a filled field silently drops the row. */}
+                <input
+                    type="text"
+                    name="website"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    aria-hidden="true"
+                    className="hidden"
+                />
+                <TurnstileWidget />
                 <Button type="submit" disabled={pending} className="w-full">
                     {pending ? (
                         <>

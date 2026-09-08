@@ -1,3 +1,4 @@
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { getSessionUser } from '@/lib/auth/guards'
 import { getUserRoles, isAdminRoles, isStaffRoles } from '@/lib/auth/roles'
 import { hasCapability, type Capability } from '@/lib/auth/capabilities'
@@ -46,5 +47,28 @@ export async function assertCapability(capability: Capability): Promise<AdminCon
   if (!hasCapability(ctx.roles, capability)) {
     throw new Error('You do not have permission to perform this action.')
   }
+  return ctx
+}
+
+/**
+ * Step-up verification for sensitive admin actions (suspend/ban, delete,
+ * admin-role changes): the acting admin re-enters their password, which is
+ * verified against Supabase Auth through a session-less client — no cookies
+ * are touched, so the acting session stays intact (Phase 5 hardening:
+ * "require reauthentication for suspension, ban, deletion, and role changes").
+ */
+export async function assertReauth(password: string | null | undefined): Promise<AdminContext> {
+  const ctx = await assertAdmin()
+  const email = ctx.user.email
+  if (!password || !email) {
+    throw new Error('Confirm your password to perform this action.')
+  }
+  const verify = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  )
+  const { error } = await verify.auth.signInWithPassword({ email, password })
+  if (error) throw new Error('Password confirmation failed.')
   return ctx
 }

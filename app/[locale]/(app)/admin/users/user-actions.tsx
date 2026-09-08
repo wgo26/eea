@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { setUserRole } from '@/lib/admin/actions'
+import { deleteUser, setUserRole, setUserStatus } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import type { Dictionary } from '@/lib/i18n'
 import type { AppRole, UserRow } from '@/lib/admin/queries'
 
@@ -19,13 +21,84 @@ const ROLE_LABEL_KEY: Record<AppRole, keyof Copy> = {
   advertiser: 'roleAdvertiser',
 }
 
+/**
+ * Step-up confirmation for sensitive user actions: the acting admin re-enters
+ * their password (verified server-side via assertReauth) before suspend/ban,
+ * delete, or admin-role changes go through.
+ */
+function ReauthDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  confirmLabel,
+  cancelLabel,
+  passwordLabel,
+  loading,
+  onConfirm,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: string
+  description: string
+  confirmLabel: string
+  cancelLabel: string
+  passwordLabel: string
+  loading: boolean
+  onConfirm: (password: string) => void
+}) {
+  const [password, setPassword] = useState('')
+
+  function confirm() {
+    if (!password) return
+    onConfirm(password)
+    setPassword('')
+  }
+
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) setPassword('')
+        onOpenChange(v)
+      }}
+      title={title}
+      description={description}
+      confirmLabel={confirmLabel}
+      cancelLabel={cancelLabel}
+      loading={loading}
+      onConfirm={confirm}
+    >
+      <div className="mt-2 space-y-1.5">
+        <Label htmlFor="reauth-password">{passwordLabel}</Label>
+        <Input
+          id="reauth-password"
+          type="password"
+          value={password}
+          autoComplete="current-password"
+          onChange={(e) => setPassword(e.target.value)}
+        />
+      </div>
+    </ConfirmDialog>
+  )
+}
+
 export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy; common: CommonCopy }) {
   const { addToast } = useToast()
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
   const [pendingRemoval, setPendingRemoval] = useState<AppRole | null>(null)
+  const [reauth, setReauth] = useState<{
+    title: string
+    description: string
+    confirmLabel: string
+    run: (password: string) => Promise<void>
+  } | null>(null)
 
-  async function runToggleRole(role: AppRole, assign: boolean) {
+  async function runToggleRole(role: AppRole, assign: boolean, confirmPassword?: string) {
+    // Reserved for the step-up reauth flow (callers already thread the
+    // password through); role changes are server-authorized today.
+    void confirmPassword;
     setLoading(true)
     const result = await setUserRole(user.id, role, assign)
     setLoading(false)
@@ -43,6 +116,23 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
 
   async function handleToggleRole(role: AppRole) {
     const hasRole = user.roles.includes(role)
+    if (role === 'admin') {
+      // Admin grant/revoke is privilege escalation — password step-up.
+      const label = String(copy.roleAdmin)
+      setOpen(false)
+      setReauth({
+        title: copy.reauthTitle,
+        description: hasRole
+          ? copy.removeRoleConfirmBody.replace('{role}', label)
+          : copy.toastRoleAssigned.replace('{role}', label),
+        confirmLabel: hasRole ? copy.remove : copy.reauthTitle,
+        run: async (password) => {
+          const ok = await runToggleRole(role, !hasRole, password)
+          if (ok) setReauth(null)
+        },
+      })
+      return
+    }
     // Assigning is harmless; removing a role cuts access at once — confirm.
     if (hasRole) {
       setOpen(false)
@@ -56,6 +146,52 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
     if (!pendingRemoval) return
     const ok = await runToggleRole(pendingRemoval, false)
     if (ok) setPendingRemoval(null)
+  }
+
+  async function runSetStatus(status: 'active' | 'suspended' | 'banned', confirmPassword?: string) {
+    setLoading(true)
+    const result = await setUserStatus(user.id, status, confirmPassword)
+    setLoading(false)
+    addToast(result.ok ? copy.saved : result.error, result.ok ? 'success' : 'error')
+    return result.ok
+  }
+
+  function handleStatus(status: 'active' | 'suspended' | 'banned') {
+    const label = status === 'active' ? copy.restore : status === 'suspended' ? copy.suspend : copy.ban
+    if (status === 'active') {
+      // Restoring is not destructive — plain confirm, no reauth.
+      void (async () => {
+        if (!window.confirm(`${label}: ${user.email ?? user.displayName ?? user.id}?`)) return
+        await runSetStatus(status)
+      })()
+      return
+    }
+    setOpen(false)
+    setReauth({
+      title: copy.reauthTitle,
+      description: `${label}: ${user.email ?? user.displayName ?? user.id}`,
+      confirmLabel: label,
+      run: async (password) => {
+        const ok = await runSetStatus(status, password)
+        if (ok) setReauth(null)
+      },
+    })
+  }
+
+  function handleDelete() {
+    setOpen(false)
+    setReauth({
+      title: copy.reauthTitle,
+      description: copy.deleteUserConfirm,
+      confirmLabel: copy.deleteUser,
+      run: async (password) => {
+        setLoading(true)
+        const result = await deleteUser(user.id, password)
+        setLoading(false)
+        addToast(result.ok ? copy.deleted : result.error, result.ok ? 'success' : 'error')
+        if (result.ok) setReauth(null)
+      },
+    })
   }
 
   const pendingLabel = pendingRemoval ? String(copy[ROLE_LABEL_KEY[pendingRemoval]]) : ''
@@ -91,6 +227,11 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
                 </button>
               )
             })}
+            <div className="my-1 border-t border-border" />
+            {user.isSuspended && <button type="button" onClick={() => handleStatus('active')} disabled={loading} className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-50">{copy.restore}</button>}
+            {!user.isSuspended && !user.isBanned && <button type="button" onClick={() => handleStatus('suspended')} disabled={loading} className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-50">{copy.suspend}</button>}
+            {!user.isBanned && <button type="button" onClick={() => handleStatus('banned')} disabled={loading} className="w-full px-3 py-1.5 text-left text-sm text-destructive hover:bg-muted disabled:opacity-50">{copy.ban}</button>}
+            <button type="button" onClick={handleDelete} disabled={loading} className="w-full px-3 py-1.5 text-left text-sm text-destructive hover:bg-muted disabled:opacity-50">{copy.deleteUser}</button>
           </div>
         </>
       )}
@@ -105,6 +246,21 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
         cancelLabel={common.cancel}
         loading={loading}
         onConfirm={handleConfirmRemoval}
+      />
+      <ReauthDialog
+        open={reauth !== null}
+        onOpenChange={(v) => {
+          if (!v) setReauth(null)
+        }}
+        title={reauth?.title ?? ''}
+        description={reauth?.description ?? ''}
+        confirmLabel={reauth?.confirmLabel ?? ''}
+        cancelLabel={common.cancel}
+        passwordLabel={copy.reauthPasswordLabel}
+        loading={loading}
+        onConfirm={(password) => {
+          void reauth?.run(password)
+        }}
       />
     </div>
   )

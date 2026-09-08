@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { signInWithPassword, type AuthState } from "@/lib/auth/actions";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import type { Dictionary } from "@/lib/i18n";
 
 type Props = {
@@ -23,6 +24,8 @@ function errorMessage(code: NonNullable<AuthState["error"]>, copy: Props["copy"]
             return copy.errorNotConfirmed;
         case "rate_limited":
             return copy.errorRateLimited;
+        case "captcha":
+            return copy.errorCaptcha;
         case "account_disabled":
             return copy.errorAccountDisabled;
         default:
@@ -92,11 +95,13 @@ export function LoginForm({ copy, nextPath, resetHref, signupHref }: Props) {
                     />
                 </div>
 
+                <TurnstileWidget />
+
                 <button
                     type="submit"
                     disabled={pending}
                     aria-busy={pending}
-                    className="inline-flex min-h-[44px] w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                    className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
                 >
                     {pending ? copy.submitting : copy.submit}
                 </button>

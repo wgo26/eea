@@ -15,6 +15,15 @@ import { TrendingList } from "@/components/home/trending-list";
 type LocaleHomePageProps = { params: Promise<{ locale: string }> };
 
 /**
+ * Phase 4.1 (audit §4.1) — ISR. The homepage reads no request-time APIs
+ * (locale comes from the [locale] segment; the header/footer self-localize
+ * from the URL client-side), so the route is statically prerendered and
+ * revalidated on this window or on demand via revalidateTag('home', 'max').
+ * The literal is required by the static-analyzability rule for segment config.
+ */
+export const revalidate = 300;
+
+/**
  * Homepage metadata: the page's own localized canonical + hreflang pair
  * (checklist item 10) — the old layout-level canonical (`/en` for every
  * nested page) was removed, so each page owns its alternates now.

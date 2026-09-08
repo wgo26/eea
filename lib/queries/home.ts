@@ -1,4 +1,7 @@
+import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/observability/logger";
+import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 
 export type StoryCardData = {
@@ -144,19 +147,16 @@ function mapItem(item: RawItem, locale: Locale): StoryCardData | null {
 
 type QueryResult<T> = { data: T | null; error: { message: string } | null };
 
-/** Never let a DB hiccup take the page down — every query resolves to a fallback. */
-async function safe<T>(promise: PromiseLike<QueryResult<T>>): Promise<T | null> {
-    try {
-        const { data, error } = await promise;
-        if (error) {
-            console.error("[home]", error.message);
-            return null;
-        }
-        return data;
-    } catch (err) {
-        console.error("[home]", err);
-        return null;
-    }
+/**
+ * Phase 4.1 — cached-query error policy: inside the `unstable_cache` scope a
+ * failed query THROWS so a transient outage is never baked into the cache.
+ * The exported `getHomeData` wrapper catches and falls back to the empty
+ * dataset at the call boundary, so the page still renders its placeholders.
+ */
+async function must<T>(promise: PromiseLike<QueryResult<T>>): Promise<T | null> {
+    const { data, error } = await promise;
+    if (error) throw new Error(error.message);
+    return data;
 }
 
 type SlotRow = { slot_key: string; content_item_id: string | null };
@@ -167,26 +167,32 @@ type CampaignRow = {
     slot?: { slot_key: string } | { slot_key: string }[] | null;
 };
 
-export async function getHomeData(locale: Locale): Promise<HomeData> {
-    const empty: HomeData = {
-        hero: null,
-        featured: [],
-        secondary: [],
-        photoStories: [],
-        news: [],
-        notices: [],
-        listings: [],
-        culture: [],
-        trending: [],
-        ads: { banner: null, rail: null, inlineMid: null, inlineBottom: null },
-    };
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-        return empty;
-    }
-    const supabase = createAdminClient();
+const emptyHomeData: HomeData = {
+    hero: null,
+    featured: [],
+    secondary: [],
+    photoStories: [],
+    news: [],
+    notices: [],
+    listings: [],
+    culture: [],
+    trending: [],
+    ads: { banner: null, rail: null, inlineMid: null, inlineBottom: null },
+};
 
-    const [rawItems, slotRows, campaignRows] = await Promise.all([
-        safe(
+/**
+ * Phase 4.1 (audit §4.1) — the assembled homepage dataset, cached under the
+ * `home` + `news` tags with a 5-minute window. The homepage is statically
+ * prerendered/ISR'd; editorial publish and curation actions invalidate the
+ * tags so changes land immediately, and the window is the backstop for
+ * out-of-band edits.
+ */
+const getCachedHomeData = unstable_cache(
+    async (locale: Locale): Promise<HomeData> => {
+        const supabase = createAdminClient();
+
+        const [rawItems, slotRows, campaignRows] = await Promise.all([
+            must(
             supabase
                 .from("content_items")
                 .select(
@@ -204,14 +210,14 @@ export async function getHomeData(locale: Locale): Promise<HomeData> {
                 .order("published_at", { ascending: false })
                 .limit(120)
         ),
-        safe(
+        must(
             supabase
                 .from("homepage_slots")
                 .select("slot_key, content_item_id")
                 .eq("is_active", true)
                 .in("slot_key", ["hero", "secondary"])
         ),
-        safe(
+        must(
             supabase
                 .from("ad_campaigns")
                 .select("name, copy_text, destination_url, slot:ad_slots(slot_key)")
@@ -222,7 +228,7 @@ export async function getHomeData(locale: Locale): Promise<HomeData> {
     const items = (rawItems ?? [])
         .map((i) => mapItem(i as RawItem, locale))
         .filter((i): i is StoryCardData => i !== null);
-    if (items.length === 0) return empty;
+    if (items.length === 0) return emptyHomeData;
 
     const byType = (t: string) => items.filter((i) => i.type === t);
     const photoStories = byType("photo_story").slice(0, LIMITS.photo);
@@ -318,4 +324,29 @@ export async function getHomeData(locale: Locale): Promise<HomeData> {
             inlineBottom: assigned["homepage-inline-bottom"] ?? null,
         },
     };
+    },
+    ["home-data"],
+    {
+        tags: [CACHE_TAGS.home, CACHE_TAGS.news],
+        revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS,
+    },
+);
+
+/**
+ * Homepage dataset for `(public)/page.tsx`. Falls back to the empty dataset
+ * when the database is not configured or a query fails — the page renders
+ * its empty-section placeholders instead of crashing (safe() semantics).
+ */
+export async function getHomeData(locale: Locale): Promise<HomeData> {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        return emptyHomeData;
+    }
+    try {
+        return await getCachedHomeData(locale);
+    } catch (err) {
+        logger.error("home", "cached query failed", {
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return emptyHomeData;
+    }
 }

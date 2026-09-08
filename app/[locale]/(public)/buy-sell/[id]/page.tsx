@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { headers } from "next/headers";
 import {
     ArrowLeft,
     CalendarDays,
@@ -26,13 +25,22 @@ import {
     type ListingData,
 } from "@/lib/queries/buy-sell";
 
-type ListingPageProps = { params: Promise<{ id: string }> };
+type ListingPageProps = { params: Promise<{ locale: string; id: string }> };
+
+/**
+ * Phase 4.1 (audit §4.1) — ISR for the listing page. Locale comes from the
+ * [locale] segment (no headers()/cookies() read), the detail data is cached
+ * under the `listings` tag, and the full route is revalidated on this window
+ * or on demand via revalidateTag('listings', 'max'). The literal is required
+ * by the static-analyzability rule for segment config.
+ */
+export const revalidate = 300;
 
 export async function generateMetadata({
     params,
 }: ListingPageProps): Promise<Metadata> {
-    const { id } = await params;
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { id, locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const listing = await getListingDetail(id, locale);
     if (!listing) return { title: "Listing not found" };
     return {
@@ -59,8 +67,8 @@ function toCardData(listing: ListingData, locale: Locale) {
 }
 
 export default async function ListingPage({ params }: ListingPageProps) {
-    const { id } = await params;
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { id, locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
 
     const listing = await getListingDetail(id, locale);

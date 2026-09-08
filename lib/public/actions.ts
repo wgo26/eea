@@ -1,10 +1,31 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/observability/logger";
 import { getSessionUser } from "@/lib/auth/guards";
 import type { SubmitState } from "@/lib/public/types";
+import { checkRateLimit, type RateLimitOptions } from "@/lib/security/rate-limit";
+import { verifyTurnstileToken } from "@/lib/security/turnstile";
+import { honeypotTripped } from "@/lib/security/honeypot";
 
-/** Field names that make up a submission's `payload` JSON (per type). */
+/** Per-action abuse budgets (per IP, fixed window — migration 20260918000000). */
+const RATE_LIMITS = {
+    story: { max: 5, windowMs: 10 * 60_000 },
+    advertise: { max: 5, windowMs: 60 * 60_000 },
+    contact: { max: 5, windowMs: 60 * 60_000 },
+    takedown: { max: 5, windowMs: 60 * 60_000 },
+    dataRequest: { max: 5, windowMs: 60 * 60_000 },
+    revealContact: { max: 10, windowMs: 10 * 60_000 },
+} satisfies Record<string, RateLimitOptions>;
+
+/**
+ * Field names that make up a submission's `payload` JSON (per type).
+ *
+ * Phase 4.3: this list is mirrored — field-for-field — by the DB trigger
+ * `enforce_submission_payload_shape()` (migration 20260921000000), which
+ * rejects unknown/oversized fields for every writer, service_role included.
+ * Keep the two lists in sync when adding a form field.
+ */
 const PAYLOAD_FIELDS = [
     "headline",
     "description",
@@ -40,6 +61,29 @@ function str(value: FormDataEntryValue | null): string {
 }
 
 /**
+ * Shared abuse gate for anonymous public forms, checked before any write:
+ *   1. honeypot — bots get a fake success (nothing is written);
+ *   2. durable per-IP fixed-window rate limit (migration 20260918000000);
+ *   3. Turnstile verification — enforced only when TURNSTILE_SECRET_KEY is
+ *      set (features.md: "CAPTCHA or equivalent at submission").
+ * Returns the SubmitState to return when blocked, or null to continue.
+ */
+async function guardPublicSubmission(
+    scope: string,
+    limits: RateLimitOptions,
+    formData: FormData,
+): Promise<SubmitState | null> {
+    if (honeypotTripped(formData)) return { ok: true };
+    const limited = await checkRateLimit(scope, limits);
+    if (!limited.ok) return { ok: false, error: "rate_limited" };
+    const tokenValue = formData.get("cf-turnstile-response");
+    if (!(await verifyTurnstileToken(typeof tokenValue === "string" ? tokenValue : null))) {
+        return { ok: false, error: "captcha" };
+    }
+    return null;
+}
+
+/**
  * Public "Submit a Story" funnel. No account required: guests' details and
  * the full form payload land in `submissions` for the editorial queue. Uses
  * the service-role client so unauthenticated visitors can write.
@@ -48,6 +92,9 @@ export async function submitStory(
     _prev: SubmitState,
     formData: FormData,
 ): Promise<SubmitState> {
+    const blocked = await guardPublicSubmission("public:story", RATE_LIMITS.story, formData);
+    if (blocked) return blocked;
+
     const submissionType = str(formData.get("submissionType"));
     if (!SUBMISSION_TYPES.includes(submissionType as (typeof SUBMISSION_TYPES)[number])) {
         return { ok: false, error: "invalid_type" };
@@ -98,12 +145,12 @@ export async function submitStory(
             status: "pending",
         });
         if (error) {
-            console.error("[submitStory]", error.message);
+            logger.error("submitStory", "insert failed", { error: error.message });
             return { ok: false, error: "db" };
         }
         return { ok: true };
     } catch (err) {
-        console.error("[submitStory]", err);
+        logger.error("submitStory", "insert exception", { error: err instanceof Error ? err.message : String(err) });
         return { ok: false, error: "db" };
     }
 }
@@ -116,6 +163,9 @@ export async function submitAdvertiseInquiry(
     _prev: SubmitState,
     formData: FormData,
 ): Promise<SubmitState> {
+    const blocked = await guardPublicSubmission("public:advertise", RATE_LIMITS.advertise, formData);
+    if (blocked) return blocked;
+
     const companyName = str(formData.get("company"));
     const contactName = str(formData.get("contactName"));
     const email = str(formData.get("email"));
@@ -130,6 +180,28 @@ export async function submitAdvertiseInquiry(
     try {
         const supabase = createAdminClient();
 
+        // Duplicate-inquiry detection (Phase 4 omission): one pending campaign
+        // per contact email per week — retries within the window are rejected
+        // instead of piling identical rows into the admin ads queue.
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString();
+        const { data: existingAdvertiser } = await supabase
+            .from("advertisers")
+            .select("id")
+            .eq("email", email)
+            .limit(1);
+        if (existingAdvertiser && existingAdvertiser.length > 0) {
+            const { data: pendingCampaign } = await supabase
+                .from("ad_campaigns")
+                .select("id")
+                .eq("advertiser_id", existingAdvertiser[0].id)
+                .eq("status", "pending")
+                .gte("created_at", sevenDaysAgo)
+                .limit(1);
+            if (pendingCampaign && pendingCampaign.length > 0) {
+                return { ok: false, error: "duplicate" };
+            }
+        }
+
         const { data: advertiser, error: advError } = await supabase
             .from("advertisers")
             .insert({
@@ -143,7 +215,7 @@ export async function submitAdvertiseInquiry(
             .single();
 
         if (advError) {
-            console.error("[advertise] advertiser", advError.message);
+            logger.error("advertise", "advertiser insert failed", { error: advError.message });
             return { ok: false, error: "db" };
         }
 
@@ -156,12 +228,12 @@ export async function submitAdvertiseInquiry(
                 .join("\n\n"),
         });
         if (campError) {
-            console.error("[advertise] campaign", campError.message);
+            logger.error("advertise", "campaign insert failed", { error: campError.message });
             return { ok: false, error: "db" };
         }
         return { ok: true };
     } catch (err) {
-        console.error("[advertise]", err);
+        logger.error("advertise", "insert exception", { error: err instanceof Error ? err.message : String(err) });
         return { ok: false, error: "db" };
     }
 }
@@ -179,6 +251,9 @@ export async function submitContactRequest(
     _prev: SubmitState,
     formData: FormData,
 ): Promise<SubmitState> {
+    const blocked = await guardPublicSubmission("public:contact", RATE_LIMITS.contact, formData);
+    if (blocked) return blocked;
+
     const name = str(formData.get("name"));
     const email = str(formData.get("email"));
     const topic = str(formData.get("topic")) || "other";
@@ -197,12 +272,12 @@ export async function submitContactRequest(
             status: "open",
         });
         if (error) {
-            console.error("[contact]", error.message);
+            logger.error("contact", "insert failed", { error: error.message });
             return { ok: false, error: "db" };
         }
         return { ok: true };
     } catch (err) {
-        console.error("[contact]", err);
+        logger.error("contact", "insert exception", { error: err instanceof Error ? err.message : String(err) });
         return { ok: false, error: "db" };
     }
 }
@@ -217,6 +292,9 @@ export async function submitTakedownReport(
     _prev: SubmitState,
     formData: FormData,
 ): Promise<SubmitState> {
+    const blocked = await guardPublicSubmission("public:takedown", RATE_LIMITS.takedown, formData);
+    if (blocked) return blocked;
+
     const name = str(formData.get("name"));
     const email = str(formData.get("email"));
     const contentUrl = str(formData.get("contentUrl"));
@@ -246,12 +324,12 @@ export async function submitTakedownReport(
             status: "open",
         });
         if (error) {
-            console.error("[takedown]", error.message);
+            logger.error("takedown", "insert failed", { error: error.message });
             return { ok: false, error: "db" };
         }
         return { ok: true };
     } catch (err) {
-        console.error("[takedown]", err);
+        logger.error("takedown", "insert exception", { error: err instanceof Error ? err.message : String(err) });
         return { ok: false, error: "db" };
     }
 }
@@ -265,6 +343,9 @@ export async function submitDataRequest(
     _prev: SubmitState,
     formData: FormData,
 ): Promise<SubmitState> {
+    const blocked = await guardPublicSubmission("public:data-request", RATE_LIMITS.dataRequest, formData);
+    if (blocked) return blocked;
+
     const email = str(formData.get("email"));
     const type = str(formData.get("type")) || "access";
     const details = str(formData.get("details"));
@@ -282,12 +363,80 @@ export async function submitDataRequest(
             status: "open",
         });
         if (error) {
-            console.error("[data-request]", error.message);
+            logger.error("data-request", "insert failed", { error: error.message });
             return { ok: false, error: "db" };
         }
         return { ok: true };
     } catch (err) {
-        console.error("[data-request]", err);
+        logger.error("data-request", "insert exception", { error: err instanceof Error ? err.message : String(err) });
+        return { ok: false, error: "db" };
+    }
+}
+
+/**
+ * Article correction submission. Stores the factual correction report in
+ * `public.corrections` linked to the target article.
+ */
+export async function submitArticleCorrection(
+    _prev: SubmitState,
+    formData: FormData,
+): Promise<SubmitState> {
+    const blocked = await guardPublicSubmission("public:correction", RATE_LIMITS.takedown, formData);
+    if (blocked) return blocked;
+
+    const slug = str(formData.get("slug"));
+    const reporterName = str(formData.get("name"));
+    const reporterEmail = str(formData.get("email"));
+    const wrong = str(formData.get("wrong"));
+    const suggested = str(formData.get("suggested"));
+
+    if (!slug || !wrong || !reporterEmail) {
+        return { ok: false, error: "missing_required" };
+    }
+
+    if (!isEmail(reporterEmail)) {
+        return { ok: false, error: "invalid" };
+    }
+
+    try {
+        const supabase = createAdminClient();
+        const { data: item, error: itemError } = await supabase
+            .from("content_items")
+            .select("id")
+            .or(`id.eq.${slug},slug.eq.${slug}`)
+            .limit(1)
+            .maybeSingle();
+
+        if (itemError || !item) {
+            return { ok: false, error: "not_found" };
+        }
+
+        const { user } = await getSessionUser();
+
+        const fullCorrection = [
+            `What is wrong:\n${wrong}`,
+            suggested ? `\nSuggested correction:\n${suggested}` : "",
+        ]
+            .filter(Boolean)
+            .join("\n");
+
+        const { error: insertError } = await supabase.from("corrections").insert({
+            content_item_id: item.id,
+            reporter_name: reporterName || null,
+            reporter_email: reporterEmail,
+            reporter_id: user?.id ?? null,
+            correction_text: fullCorrection.slice(0, 4000),
+            status: "open",
+        });
+
+        if (insertError) {
+            logger.error("submitArticleCorrection", "insert failed", { error: insertError.message });
+            return { ok: false, error: "db" };
+        }
+
+        return { ok: true };
+    } catch (err) {
+        logger.error("submitArticleCorrection", "insert exception", { error: err instanceof Error ? err.message : String(err) });
         return { ok: false, error: "db" };
     }
 }
@@ -310,12 +459,117 @@ export async function recordPolicyAcceptance(
         });
         // Unique violations just mean "already accepted" — treat as success.
         if (error && !/duplicate|unique/i.test(error.message)) {
-            console.error("[policy-accept]", error.message);
+            logger.error("policy-accept", "insert failed", { error: error.message });
             return { ok: false, error: "db" };
         }
         return { ok: true };
     } catch (err) {
-        console.error("[policy-accept]", err);
+        logger.error("policy-accept", "insert exception", { error: err instanceof Error ? err.message : String(err) });
         return { ok: false, error: "db" };
     }
 }
+
+export type RevealContactResult =
+    | {
+          ok: true;
+          contact: {
+              phone: string | null;
+              email: string | null;
+              whatsapp: string | null;
+          };
+      }
+    | {
+          ok: false;
+          error: "rate_limited" | "not_found" | "db";
+      };
+
+/**
+ * On-demand, rate-limited server action for retrieving seller contact details.
+ * Prevents raw PII (phone, email, WhatsApp) from being serialized into the initial
+ * server-rendered HTML of Buy & Sell listings.
+ *
+ * Production hardening (audit §1.1):
+ *   - identifier is sanitized (PostgREST `or()` metacharacters stripped);
+ *   - only live listings are revealable (published, unarchived, listing_status
+ *     'active', not expired);
+ *   - every reveal attempt is logged best-effort to `moderation_log`
+ *     (action 'contact_reveal') for anti-scraping anomaly detection — a logging
+ *     failure never blocks the response.
+ */
+export async function revealSellerContact(listingId: string): Promise<RevealContactResult> {
+    if (!listingId || typeof listingId !== "string") {
+        return { ok: false, error: "not_found" };
+    }
+    const identifier = listingId.replace(/[,()%\\]/g, " ").trim().slice(0, 80);
+    if (!identifier) {
+        return { ok: false, error: "not_found" };
+    }
+
+    const limited = await checkRateLimit("public:reveal_contact", RATE_LIMITS.revealContact);
+    if (!limited.ok) {
+        return { ok: false, error: "rate_limited" };
+    }
+
+    try {
+        const supabase = createAdminClient();
+        const { data: item, error: itemError } = await supabase
+            .from("content_items")
+            .select("id, slug, status, is_archived, expires_at, listings(listing_status, contact_phone, contact_email, whatsapp_number)")
+            .eq("type", "listing")
+            .eq("status", "published")
+            .eq("is_archived", false)
+            .or(`id.eq.${identifier},slug.eq.${identifier}`)
+            .limit(1)
+            .maybeSingle();
+
+        if (itemError || !item) {
+            return { ok: false, error: "not_found" };
+        }
+
+        // Expired or non-active listings must not reveal seller PII.
+        if (item.expires_at && new Date(item.expires_at).getTime() <= Date.now()) {
+            return { ok: false, error: "not_found" };
+        }
+        const row = item as {
+            id: string;
+            expires_at?: string | null;
+            listings?: unknown;
+        };
+        const listing = (Array.isArray(row.listings) ? row.listings[0] : row.listings) as {
+            listing_status?: string | null;
+            contact_phone?: string | null;
+            contact_email?: string | null;
+            whatsapp_number?: string | null;
+        } | null;
+        if (!listing || listing.listing_status !== "active") {
+            return { ok: false, error: "not_found" };
+        }
+
+        // Best-effort anti-scraping trail (moderation_log is staff-read-only;
+        // the insert uses the service-role client and must never fail the reveal).
+        try {
+            await supabase.from("moderation_log").insert({
+                content_item_id: row.id,
+                action: "contact_reveal",
+                notes: "seller contact revealed via rate-limited action",
+            });
+        } catch (logErr) {
+            logger.warn("revealSellerContact", "audit log insert failed", {
+                error: logErr instanceof Error ? logErr.message : String(logErr),
+            });
+        }
+
+        return {
+            ok: true,
+            contact: {
+                phone: listing?.contact_phone?.trim() || null,
+                email: listing?.contact_email?.trim() || null,
+                whatsapp: listing?.whatsapp_number?.trim() || null,
+            },
+        };
+    } catch (err) {
+        logger.error("revealSellerContact", "lookup exception", { error: err instanceof Error ? err.message : String(err) });
+        return { ok: false, error: "db" };
+    }
+}
+

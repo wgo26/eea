@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/observability/logger";
 import { DEMO_POLLS } from "@/lib/polls-demo";
 import type { Locale } from "@/lib/i18n";
 
@@ -93,7 +94,7 @@ export async function getActivePolls(limit = 3): Promise<PollData[]> {
             // Expected until the migration is applied — not worth a console error.
             return demoPolls();
         }
-        console.error("[polls]", pollsResult.error.message);
+        logger.error("polls", "active polls query failed", { error: pollsResult.error.message });
         return demoPolls();
     }
 
@@ -177,7 +178,7 @@ export async function castPollVote(
 
     if (optionResult.error) {
         if (isMissingTable(optionResult.error)) return { ok: false, reason: "unavailable" };
-        console.error("[polls] option lookup", optionResult.error.message);
+        logger.error("polls", "option lookup failed", { error: optionResult.error.message });
         return { ok: false, reason: "error" };
     }
     if (!optionResult.data || optionResult.data.length === 0) {
@@ -192,7 +193,7 @@ export async function castPollVote(
         // 23505 = unique_violation → this reader already voted.
         if (insertResult.error.code === "23505") return { ok: false, reason: "already_voted" };
         if (isMissingTable(insertResult.error)) return { ok: false, reason: "unavailable" };
-        console.error("[polls] vote", insertResult.error.message);
+        logger.error("polls", "vote insert failed", { error: insertResult.error.message });
         return { ok: false, reason: "error" };
     }
 

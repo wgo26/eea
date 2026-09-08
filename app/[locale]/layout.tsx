@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { getDictionary, isLocale, locales, resolveLocale } from "@/lib/i18n";
 import { HtmlLang } from "@/components/html-lang";
+import { CookieBanner } from "@/components/system/cookie-banner";
 
 type LocaleLayoutProps = {
     children: ReactNode;
@@ -36,11 +37,18 @@ export async function generateMetadata({ params }: LocaleLayoutProps): Promise<M
 export default async function LocaleLayout({ children, params }: LocaleLayoutProps) {
     const { locale: raw } = await params;
     if (!isLocale(raw)) notFound();
+    const locale = resolveLocale(raw);
+    const dict = getDictionary(locale);
 
     return (
         <>
             <HtmlLang locale={raw} />
             <div className="flex-1">{children}</div>
+            {/* Localized cookie banner (moved from the static root layout —
+                Phase 4.1): every user-facing route lives under [locale]
+                (checklist item 1), so coverage is unchanged while the root
+                shell stays request-API-free and ISR becomes possible. */}
+            <CookieBanner locale={locale} dict={dict} />
         </>
     );
 }

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { ShoppingBag, Search, MapPin, Tag, DollarSign, Plus } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
@@ -24,8 +23,13 @@ import {
     getListings,
 } from "@/lib/queries/buy-sell";
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
     return {
         title: dict.buySell.title,
@@ -91,11 +95,14 @@ function formatPrice(amount: number | null | undefined, currency: string | null 
 }
 
 export default async function BuySellPage({
+    params,
     searchParams,
 }: {
+    params: Promise<{ locale: string }>;
     searchParams: Promise<BuySellSearchParams>;
 }) {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
 
     const params = await searchParams;

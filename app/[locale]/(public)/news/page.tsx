@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
-import { headers } from "next/headers";
 import {
     CalendarClock,
     Eye,
@@ -43,8 +42,13 @@ import {
     getNewsStats,
 } from "@/lib/queries/news";
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
     return {
         title: dict.news.title,
@@ -84,20 +88,23 @@ function buildHref(params: {
 }
 
 export default async function NewsPage({
+    params,
     searchParams,
 }: {
+    params: Promise<{ locale: string }>;
     searchParams: Promise<NewsSearchParams>;
 }) {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
-    const params = await searchParams;
-    const search = firstParam(params.q)?.trim() || undefined;
-    const category = firstParam(params.category)?.trim() || undefined;
-    const location = firstParam(params.location)?.trim() || undefined;
-    const sortParam = firstParam(params.sort)?.trim();
+    const searchParamsResolved = await searchParams;
+    const search = firstParam(searchParamsResolved.q)?.trim() || undefined;
+    const category = firstParam(searchParamsResolved.category)?.trim() || undefined;
+    const location = firstParam(searchParamsResolved.location)?.trim() || undefined;
+    const sortParam = firstParam(searchParamsResolved.sort)?.trim();
     const sort: "newest" | "most_read" =
         sortParam === "most_read" ? "most_read" : "newest";
-    const page = Math.max(1, Number.parseInt(firstParam(params.page) ?? "1", 10) || 1);
+    const page = Math.max(1, Number.parseInt(firstParam(searchParamsResolved.page) ?? "1", 10) || 1);
 
     const isFiltered = Boolean(search || category || location);
     const browseMode = !isFiltered && page === 1;

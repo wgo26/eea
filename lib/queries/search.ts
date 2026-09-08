@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/observability/logger";
 import type { Locale } from "@/lib/i18n";
 
 export type SearchResultItem = {
@@ -40,12 +41,12 @@ async function safe<T>(
     try {
         const { data, count, error } = await promise;
         if (error) {
-            console.error("[search]", error.message);
+            logger.error("search", "query failed", { error: error.message });
             return { data: null, count: null, error };
         }
         return { data, count: count ?? null, error: null };
     } catch (err) {
-        console.error("[search]", err);
+        logger.error("search", "query exception", { error: err instanceof Error ? err.message : String(err) });
         return { data: null, count: null, error: { message: String(err) } };
     }
 }

@@ -1,7 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { DESTINATION_PROVIDER, storageConfig } from './config'
 import { validateUpload } from './validate'
 import { uploadToR2 } from './providers/r2'
+import { logger } from '@/lib/observability/logger'
 import { StorageValidationError } from './types'
 import type { UploadInput, UploadResult } from './types'
 
@@ -12,6 +14,7 @@ import type { UploadInput, UploadResult } from './types'
  *   - admin_asset  → Supabase Storage
  * Validation (size, sniffed type, image re-encode) happens before any
  * provider is touched, so a rejected file never leaves the server.
+ * Transactionally records a media_assets row for every upload.
  */
 export async function uploadMedia(
   supabase: SupabaseClient,
@@ -26,42 +29,74 @@ export async function uploadMedia(
   const provider = DESTINATION_PROVIDER[input.destination]
   const storageKey = buildStorageKey(input, validated.mimeType)
 
+  let publicUrl: string | null = null
+
   if (provider === 'r2') {
-    const publicUrl = await uploadToR2(storageKey, validated.buffer, validated.mimeType)
-    return {
-      provider,
-      destination: input.destination,
-      kind: validated.kind,
-      storageKey,
-      publicUrl,
-      mimeType: validated.mimeType,
-      fileSizeBytes: validated.buffer.byteLength,
-      width: validated.width,
-      height: validated.height,
+    publicUrl = await uploadToR2(storageKey, validated.buffer, validated.mimeType)
+  } else {
+    // admin_asset → Supabase Storage
+    const { error } = await supabase.storage
+      .from(storageConfig.supabase.bucket)
+      .upload(storageKey, validated.buffer, {
+        contentType: validated.mimeType,
+        cacheControl: '3600',
+        upsert: false,
+      })
+
+    if (error) {
+      throw new StorageValidationError(`Supabase storage upload failed: ${error.message}`)
     }
+
+    const { data } = supabase.storage.from(storageConfig.supabase.bucket).getPublicUrl(storageKey)
+    publicUrl = data.publicUrl
   }
 
-  // admin_asset → Supabase Storage
-  const { error } = await supabase.storage
-    .from(storageConfig.supabase.bucket)
-    .upload(storageKey, validated.buffer, {
-      contentType: validated.mimeType,
-      cacheControl: '3600',
-      upsert: false,
-    })
+  // Record asset in media_assets table transactionally.
+  // Column names must match public.media_assets (init schema): provider (not
+  // storage_provider), kind (not media_kind).
+  // Fail-closed: if the row can't be recorded, the upload is rejected so the
+  // object never becomes untracked/orphaned storage (audit §1.2). The caller
+  // surfaces a 500; storage-side cleanup of the orphaned key is a follow-up
+  // best-effort (logged with the key).
+  let assetId: string | undefined = undefined
+  try {
+    const adminDb = createAdminClient()
+    const { data: asset, error: insertError } = await adminDb
+      .from('media_assets')
+      .insert({
+        content_item_id: input.contentItemId ?? null,
+        uploaded_by: input.uploadedBy ?? null,
+        provider,
+        destination: input.destination,
+        kind: validated.kind,
+        storage_key: storageKey,
+        public_url: publicUrl,
+        mime_type: validated.mimeType,
+        file_size_bytes: validated.buffer.byteLength,
+        width: validated.width ?? null,
+        height: validated.height ?? null,
+      })
+      .select('id')
+      .single()
 
-  if (error) {
-    throw new StorageValidationError(`Supabase storage upload failed: ${error.message}`)
+    if (insertError || !asset) {
+      logger.error('uploadMedia', 'Failed to create media_assets row (fail-closed)', { error: insertError?.message ?? 'empty', storageKey, provider })
+      throw new StorageValidationError('Upload could not be recorded. Please retry.')
+    }
+    assetId = asset.id
+  } catch (dbErr) {
+    if (dbErr instanceof StorageValidationError) throw dbErr
+    logger.error('uploadMedia', 'Failed to insert media_asset', { error: dbErr instanceof Error ? dbErr.message : String(dbErr), storageKey })
+    throw new StorageValidationError('Upload could not be recorded. Please retry.')
   }
-
-  const { data } = supabase.storage.from(storageConfig.supabase.bucket).getPublicUrl(storageKey)
 
   return {
+    assetId,
     provider,
     destination: input.destination,
     kind: validated.kind,
     storageKey,
-    publicUrl: data.publicUrl,
+    publicUrl,
     mimeType: validated.mimeType,
     fileSizeBytes: validated.buffer.byteLength,
     width: validated.width,

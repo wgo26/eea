@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { submitStory } from "@/lib/public/actions";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import type { SubmitState } from "@/lib/public/types";
 import { localePath } from "@/lib/i18n/urls";
 import { useLocaleFromPath } from "@/components/site-header";
@@ -332,8 +333,25 @@ export function SubmitForm({ type, dict }: { type: SubmitType; dict: Dictionary 
             </div>
 
             {state.error ? (
-                <p className="text-sm text-destructive">{dict.submit.errorGeneric}</p>
+                <p className="text-sm text-destructive">
+                    {state.error === "rate_limited"
+                        ? dict.submit.errorRateLimited
+                        : state.error === "captcha"
+                          ? dict.submit.errorCaptcha
+                          : dict.submit.errorGeneric}
+                </p>
             ) : null}
+
+            {/* Bot trap: hidden from humans; a filled field silently drops the row. */}
+            <input
+                type="text"
+                name="website"
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden="true"
+                className="hidden"
+            />
+            <TurnstileWidget />
 
             <Button type="submit" disabled={pending} className="w-full">
                 {pending ? (

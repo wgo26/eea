@@ -532,6 +532,8 @@ export const fr: typeof en = {
       'Merci ! Votre soumission est maintenant dans notre file éditoriale. Nous l\'examinerons et la publierons si elle respecte nos règles. Vous serez crédité si elle est publiée.',
     errorGeneric: 'Une erreur est survenue. Veuillez réessayer.',
     errorRequired: 'Veuillez remplir tous les champs obligatoires.',
+    errorRateLimited: 'Trop de soumissions depuis votre réseau pour le moment. Réessayez dans quelques minutes.',
+    errorCaptcha: 'Veuillez compléter la vérification humaine puis réessayer.',
   },
   advertise: {
     title: 'Annoncez avec Eagle Eye Africa',
@@ -575,6 +577,9 @@ export const fr: typeof en = {
     successBody:
       'Merci pour votre intérêt ! Notre équipe publicitaire examinera votre demande et vous recontactera avec la disponibilité et un devis.',
     errorGeneric: 'Une erreur est survenue. Veuillez réessayer.',
+    errorRateLimited: 'Trop de demandes depuis votre réseau pour le moment. Réessayez plus tard.',
+    errorDuplicate: 'Une demande est déjà en attente avec cet e-mail — notre équipe vous répondra ; inutile de renvoyer.',
+    errorCaptcha: 'Veuillez compléter la vérification humaine puis réessayer.',
   },
   about: {
     title: 'À propos d\'Eagle Eye Africa',
@@ -674,6 +679,8 @@ export const fr: typeof en = {
       successTitle: 'Message reçu.',
       successBody: 'Merci — l’équipe éditoriale répondra sous deux jours ouvrés.',
       error: 'Veuillez indiquer votre nom, un e-mail valide et un message.',
+      errorRateLimited: 'Trop de messages depuis votre réseau pour le moment. Réessayez plus tard.',
+      errorCaptcha: 'Veuillez compléter la vérification humaine puis réessayer.',
     },
     takedownForm: {
       title: 'Demander un retrait',
@@ -693,6 +700,8 @@ export const fr: typeof en = {
       successTitle: 'Demande de retrait reçue.',
       successBody: 'L’équipe éditoriale l’examinera et répondra par e-mail.',
       error: 'Veuillez indiquer votre nom et le droit concerné.',
+      errorRateLimited: 'Trop de demandes depuis votre réseau pour le moment. Réessayez plus tard.',
+      errorCaptcha: 'Veuillez compléter la vérification humaine puis réessayer.',
     },
     dataForm: {
       title: 'Confidentialité & données',
@@ -710,6 +719,8 @@ export const fr: typeof en = {
       successTitle: 'Demande reçue.',
       successBody: 'Nous répondrons par e-mail sous 30 jours.',
       error: 'Veuillez fournir un e-mail valide et des détails.',
+      errorRateLimited: 'Trop de demandes depuis votre réseau pour le moment. Réessayez plus tard.',
+      errorCaptcha: 'Veuillez compléter la vérification humaine puis réessayer.',
     },
     cookie: {
       body: 'Nous utilisons un seul cookie de préférence plus ceux requis par l’authentification Supabase. Aucun traqueur publicitaire.',

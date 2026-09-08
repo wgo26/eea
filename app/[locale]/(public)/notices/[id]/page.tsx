@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { headers } from "next/headers";
 import {
     ArrowLeft,
     CalendarDays,
@@ -26,13 +25,23 @@ import { verificationBadgeInfo } from "@/lib/verification";
 import { getNoticeById, getNotices, NOTICE_TYPE_LABELS } from "@/lib/queries/notices";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 
-type NoticePageProps = { params: Promise<{ id: string }> };
+type NoticePageProps = { params: Promise<{ locale: string; id: string }> };
+
+/**
+ * Phase 4.1 (audit §4.1) — ISR for the detail page. Locale comes from the
+ * [locale] segment (no headers()/cookies() read), the notice data is cached
+ * under the `notices` tag, and the full route is revalidated on this window
+ * or on demand via revalidateTag('notices', 'max') from the editorial
+ * actions. The literal is required by the static-analyzability rule for
+ * segment config.
+ */
+export const revalidate = 300;
 
 export async function generateMetadata({
     params,
 }: NoticePageProps): Promise<Metadata> {
-    const { id } = await params;
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { id, locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const notice = await getNoticeById(id, locale);
     if (!notice) return { title: "Notice not found" };
     return {
@@ -49,8 +58,8 @@ export async function generateMetadata({
 }
 
 export default async function NoticePage({ params }: NoticePageProps) {
-    const { id } = await params;
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { id, locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
 
     const notice = await getNoticeById(id, locale);

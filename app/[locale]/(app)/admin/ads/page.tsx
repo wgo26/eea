@@ -8,6 +8,8 @@ import { formatDate, formatPrice, formatPercent } from '@/lib/admin/format'
 import { AdSlotActions } from './ad-slot-actions'
 import type { AdSlotRow } from '@/lib/admin/queries'
 import { InquiryActions } from './inquiry-actions'
+import { AdvertiserActions } from './advertiser-actions'
+import { CampaignActions } from './campaign-actions'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -108,6 +110,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
                   <span>{formatPercent(r.activeCampaign.clicks, r.activeCampaign.impressions)} CTR</span>
                 </div>
               ) },
+              { key: 'actions', header: '', render: (r) => <CampaignActions campaign={r.activeCampaign} copy={t} />, className: 'text-right' },
             ]}
           />
         )}
@@ -139,6 +142,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
               { key: 'campaigns', header: t.colCampaigns, render: (r) => (
                 <span className="text-xs">{t.campaignsCount.replace('{active}', String(r.activeCampaigns)).replace('{total}', String(r.totalCampaigns))}</span>
               ) },
+              { key: 'actions', header: '', render: (r) => <AdvertiserActions advertiser={r} copy={t} />, className: 'text-right' },
             ]}
           />
         )}

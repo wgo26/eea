@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { AlertTriangle, MapPin, Search } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
@@ -28,8 +27,13 @@ import {
     NOTICE_TYPE_LABELS,
 } from "@/lib/queries/notices";
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
     return {
         title: dict.notices.title,
@@ -65,20 +69,23 @@ function buildHref(params: {
 }
 
 export default async function NoticesPage({
+    params,
     searchParams,
 }: {
+    params: Promise<{ locale: string }>;
     searchParams: Promise<NoticesSearchParams>;
 }) {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
 
-    const params = await searchParams;
-    const search = firstParam(params.q)?.trim() || undefined;
-    const noticeType = firstParam(params.type)?.trim() || undefined;
-    const location = firstParam(params.location)?.trim() || undefined;
+    const searchParamsResolved = await searchParams;
+    const search = firstParam(searchParamsResolved.q)?.trim() || undefined;
+    const noticeType = firstParam(searchParamsResolved.type)?.trim() || undefined;
+    const location = firstParam(searchParamsResolved.location)?.trim() || undefined;
     const page = Math.max(
         1,
-        Number.parseInt(firstParam(params.page) ?? "1", 10) || 1,
+        Number.parseInt(firstParam(searchParamsResolved.page) ?? "1", 10) || 1,
     );
     const isFiltered = Boolean(search || noticeType || location);
     const browseMode = !isFiltered && page === 1;

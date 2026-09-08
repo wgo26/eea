@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { headers } from "next/headers";
 import { ArrowLeft, CalendarDays, Clock, Landmark, MapPin, Tag, User } from "lucide-react";
 
 import { ShareButtons } from "@/components/share-buttons";
@@ -11,12 +10,21 @@ import { getCultureBySlug, getCultureArticles } from "@/lib/queries/culture";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 
 type Props = {
-    params: Promise<{ slug: string }>;
+    params: Promise<{ locale: string; slug: string }>;
 };
 
+/**
+ * Phase 4.1 (audit §4.1) — ISR for the article page. Locale comes from the
+ * [locale] segment (no headers()/cookies() read), the article data is cached
+ * under the `culture` tag, and the route revalidates on this window or on
+ * demand via revalidateTag('culture', 'max'). The literal is required by the
+ * static-analyzability rule for segment config.
+ */
+export const revalidate = 300;
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-    const { slug } = await params;
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { slug, locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const article = await getCultureBySlug(slug, locale);
     if (!article) return { title: "Culture Story" };
     return {
@@ -27,8 +35,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function CultureDetailPage({ params }: Props) {
-    const { slug } = await params;
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { slug, locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
 
     const article = await getCultureBySlug(slug, locale);

@@ -456,6 +456,7 @@ export type AdSlotRow = {
   name: string
   placement: string
   dimensions: string
+  capacity: number
   basePrice: number | null
   currency: string | null
   isActive: boolean
@@ -482,7 +483,7 @@ export async function getAdSlots(): Promise<AdSlotRow[]> {
   const { data } = await safe(
     db()
       .from('ad_slots')
-      .select(`id, slot_key, name, placement, dimensions, base_price, currency, is_active,
+      .select(`id, slot_key, name, placement, dimensions, capacity, base_price, currency, is_active,
         campaigns:ad_campaigns(id, name, status, destination_url, copy_text, starts_at, ends_at, agreed_price, currency, payment_status,
           advertiser:advertisers(company_name),
           events:ad_events(id, event_type))`)
@@ -501,6 +502,7 @@ export async function getAdSlots(): Promise<AdSlotRow[]> {
       name: row.name,
       placement: row.placement,
       dimensions: row.dimensions,
+      capacity: row.capacity ?? 1,
       basePrice: row.base_price,
       currency: row.currency,
       isActive: row.is_active,
@@ -593,16 +595,18 @@ export type ModerationEntry = {
   submissionId: string | null
 }
 
-export async function getRecentModeration(limit = 20): Promise<ModerationEntry[]> {
-  const { data } = await safe(
-    db()
+export async function getRecentModeration(limit = 20, filters?: { actor?: string; action?: string; entityType?: string }): Promise<ModerationEntry[]> {
+  let query = db()
       .from('moderation_log')
-      .select(`id, action, from_status, to_status, notes, created_at, submission_id,
+      .select(`id, action, from_status, to_status, notes, created_at, submission_id, entity_type,
         actor:profiles(display_name, full_name),
         content:content_items(type, translations:content_translations(locale, title))`)
       .order('created_at', { ascending: false })
-      .limit(limit),
-  )
+      .limit(limit)
+  if (filters?.action) query = query.eq('action', filters.action)
+  if (filters?.entityType) query = query.eq('entity_type', filters.entityType)
+  if (filters?.actor) query = query.eq('actor_id', filters.actor)
+  const { data } = await safe(query)
   return (data ?? []).map((row) => {
     const actor = Array.isArray(row.actor) ? row.actor[0] : row.actor
     const content = Array.isArray(row.content) ? row.content[0] : row.content
@@ -634,13 +638,15 @@ export type StorageStats = {
   byDestination: { destination: string; count: number; bytes: number }[]
   byKind: { kind: string; count: number }[]
   pendingBackup: number
+  pendingVerification: number
   lastBackupAt: string | null
 }
 
 export async function getStorageStats(): Promise<StorageStats> {
-  const [assetsRes, pendingRes] = await Promise.all([
+  const [assetsRes, pendingRes, verificationRes] = await Promise.all([
     safe(db().from('media_assets').select('provider, destination, kind, file_size_bytes')),
     safe(db().from('media_assets').select('id', { count: 'exact', head: true }).eq('provider', 'r2').is('backed_up_at', null)),
+    safe(db().from('media_assets').select('id', { count: 'exact', head: true }).eq('verification_status', 'pending')),
   ])
 
   const rows = (assetsRes.data ?? []) as { provider: string; destination: string; kind: string; file_size_bytes: number | null }[]
@@ -667,6 +673,7 @@ export async function getStorageStats(): Promise<StorageStats> {
     byDestination: [...byDestination.entries()].map(([destination, v]) => ({ destination, ...v })),
     byKind: [...byKind.entries()].map(([kind, count]) => ({ kind, count })),
     pendingBackup: pendingRes.count ?? 0,
+    pendingVerification: verificationRes.count ?? 0,
     lastBackupAt: null,
   }
 }

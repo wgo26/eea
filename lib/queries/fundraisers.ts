@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/observability/logger";
 import type { Locale } from "@/lib/i18n";
 
 /**
@@ -68,7 +69,6 @@ type RawFundraiserRow = {
               raised_amount: number | string | null;
               organizer_name: string | null;
               organizer_phone: string | null;
-              organizer_email: string | null;
               donation_url: string | null;
               verification_notes: string | null;
               closed_at: string | null;
@@ -80,7 +80,7 @@ const FUNDRAISER_SELECT = `id, slug, verification, published_at, expires_at,
     location:locations(name, slug),
     translations:content_translations(locale, title, excerpt, body),
     media:media_assets(public_url, alt_text, photographer_credit, is_cover),
-    fundraisers!inner(goal_amount, currency, raised_amount, organizer_name, organizer_phone, organizer_email, donation_url, verification_notes, closed_at)`;
+    fundraisers!inner(goal_amount, currency, raised_amount, organizer_name, organizer_phone, donation_url, verification_notes, closed_at)`;
 
 function hasDatabase(): boolean {
     return Boolean(
@@ -142,7 +142,7 @@ function toFundraiser(row: RawFundraiserRow, locale: Locale): FundraiserData | n
         currency: (fundraiser.currency ?? "XAF").toString().trim() || "XAF",
         organizerName: fundraiser.organizer_name ?? null,
         organizerPhone: fundraiser.organizer_phone ?? null,
-        organizerEmail: fundraiser.organizer_email ?? null,
+        organizerEmail: null,
         donationUrl: fundraiser.donation_url ?? null,
         verificationNotes: fundraiser.verification_notes ?? null,
         closedAt,
@@ -183,7 +183,7 @@ export async function getFundraisers(options: {
             .limit(limit * 3);
 
         if (error) {
-            console.error("[fundraisers]", error.message);
+            logger.error("fundraisers", "query failed", { error: error.message });
             return [];
         }
 
@@ -202,7 +202,7 @@ export async function getFundraisers(options: {
             })
             .slice(0, limit);
     } catch (err) {
-        console.error("[fundraisers]", err);
+        logger.error("fundraisers", "query exception", { error: err instanceof Error ? err.message : String(err) });
         return [];
     }
 }
@@ -221,7 +221,7 @@ export async function getFundraiserStats(): Promise<{
     try {
         const { data, error } = await publishedFundraisers();
         if (error) {
-            console.error("[fundraisers:stats]", error.message);
+            logger.error("fundraisers:stats", "query failed", { error: error.message });
             return empty;
         }
 
@@ -246,7 +246,7 @@ export async function getFundraiserStats(): Promise<{
 
         return { active, totalRaised: raised, totalGoal: goal, currency, completed };
     } catch (err) {
-        console.error("[fundraisers:stats]", err);
+        logger.error("fundraisers:stats", "query exception", { error: err instanceof Error ? err.message : String(err) });
         return empty;
     }
 }

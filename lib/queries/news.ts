@@ -1,6 +1,9 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/observability/logger";
+import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 import type { StoryCardData } from "@/lib/queries/home";
 
@@ -84,14 +87,26 @@ async function safe<T>(
     try {
         const { data, count, error } = await promise;
         if (error) {
-            console.error("[news]", error.message);
+            logger.error("news", "query failed", { error: error.message });
             return { data: null, count: null, error };
         }
         return { data, count: count ?? null, error: null };
     } catch (err) {
-        console.error("[news]", err);
+        logger.error("news", "query exception", { error: err instanceof Error ? err.message : String(err) });
         return { data: null, count: null, error: { message: String(err) } };
     }
+}
+
+/**
+ * Phase 4.1 — cached-query error policy: inside an `unstable_cache` scope a
+ * failed query THROWS instead of resolving to a fallback, so a transient
+ * outage is never baked into the cache. The exported wrappers catch, log, and
+ * fall back (the safe() semantics) at the call boundary.
+ */
+function logCacheFailure(fn: string, err: unknown): void {
+    logger.error("news", `cached query failed (${fn})`, {
+        error: err instanceof Error ? err.message : String(err),
+    });
 }
 
 /** The admin client is only usable when the service key is configured. */
@@ -232,23 +247,22 @@ function prettifyCategory(slug: string): string {
         .join(" ");
 }
 
-/** Filter facets, derived from the shared `categories` table scoped to `news`. */
-export async function getNewsCategories(): Promise<
-    { id: string; slug: string; name: string; total: number }[]
-> {
-    if (!hasDatabase()) return [];
-    const supabase = createAdminClient();
+/**
+ * Filter facets, derived from the shared `categories` table scoped to `news`.
+ * Phase 4.1: cached (tag `news`) — the facet list only changes on editorial
+ * taxonomy/publish events, which call revalidateTag('news', 'max').
+ */
+const getCachedNewsCategories = unstable_cache(
+    async (): Promise<{ id: string; slug: string; name: string; total: number }[]> => {
+        const supabase = createAdminClient();
 
-    const [categoriesResult, countsResult] = await Promise.all([
-        safe(
+        const [categoriesResult, countsResult] = await Promise.all([
             supabase
                 .from("categories")
                 .select("id, slug, category_translations(locale, name)")
                 .eq("content_type", "news")
                 .eq("is_active", true)
                 .order("sort_order", { ascending: true }),
-        ),
-        safe(
             supabase
                 .from("content_items")
                 .select("category_id")
@@ -256,78 +270,146 @@ export async function getNewsCategories(): Promise<
                 .eq("status", "published")
                 .eq("is_archived", false)
                 .not("published_at", "is", null),
-        ),
-    ]);
+        ]);
+        if (categoriesResult.error) throw new Error(categoriesResult.error.message);
+        if (countsResult.error) throw new Error(countsResult.error.message);
 
-    const totals = new Map<string, number>();
-    for (const row of countsResult.data ?? []) {
-        const raw = row as { category_id: string | null };
-        if (raw.category_id) {
-            totals.set(raw.category_id, (totals.get(raw.category_id) ?? 0) + 1);
+        const totals = new Map<string, number>();
+        for (const row of countsResult.data ?? []) {
+            const raw = row as { category_id: string | null };
+            if (raw.category_id) {
+                totals.set(raw.category_id, (totals.get(raw.category_id) ?? 0) + 1);
+            }
         }
-    }
 
-    return (categoriesResult.data ?? []).flatMap((category) => {
-        const raw = category as {
-            id: string;
-            slug: string;
-            category_translations?: { locale: string; name: string }[] | null;
-        };
-        const total = totals.get(raw.id) ?? 0;
-        if (total === 0) return [];
-        const name =
-            pickLocalized(raw.category_translations, "en")?.name ?? prettifyCategory(raw.slug);
-        return [{ id: raw.id, slug: raw.slug, name, total }];
-    });
+        return (categoriesResult.data ?? []).flatMap((category) => {
+            const raw = category as {
+                id: string;
+                slug: string;
+                category_translations?: { locale: string; name: string }[] | null;
+            };
+            const total = totals.get(raw.id) ?? 0;
+            if (total === 0) return [];
+            const name =
+                pickLocalized(raw.category_translations, "en")?.name ?? prettifyCategory(raw.slug);
+            return [{ id: raw.id, slug: raw.slug, name, total }];
+        });
+    },
+    ["news-categories"],
+    { tags: [CACHE_TAGS.news], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getNewsCategories(): Promise<
+    { id: string; slug: string; name: string; total: number }[]
+> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedNewsCategories();
+    } catch (err) {
+        logCacheFailure("getNewsCategories", err);
+        return [];
+    }
 }
 
-/** Location filter facets from the shared `locations` table (active only). */
-export async function getNewsLocations(): Promise<{ slug: string; name: string }[]> {
-    if (!hasDatabase()) return [];
-    const supabase = createAdminClient();
-    const { data } = await safe(
-        supabase
+/**
+ * Location filter facets from the shared `locations` table (active only).
+ * Phase 4.1: cached (tag `news`).
+ */
+const getCachedNewsLocations = unstable_cache(
+    async (): Promise<{ slug: string; name: string }[]> => {
+        const { data, error } = await createAdminClient()
             .from("locations")
             .select("slug, name")
             .eq("is_active", true)
-            .order("name", { ascending: true }),
-    );
-    return (data ?? []).flatMap((row) => {
-        const location = row as { slug: string; name: string | null };
-        return location.name ? [{ slug: location.slug, name: location.name }] : [];
-    });
+            .order("name", { ascending: true });
+        if (error) throw new Error(error.message);
+        return (data ?? []).flatMap((row) => {
+            const location = row as { slug: string; name: string | null };
+            return location.name ? [{ slug: location.slug, name: location.name }] : [];
+        });
+    },
+    ["news-locations"],
+    { tags: [CACHE_TAGS.news], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getNewsLocations(): Promise<{ slug: string; name: string }[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedNewsLocations();
+    } catch (err) {
+        logCacheFailure("getNewsLocations", err);
+        return [];
+    }
 }
 
-/** Neighbouring articles for the detail-page prev/next navigation. */
+/**
+ * Neighbouring articles for the detail-page prev/next navigation.
+ * Phase 4.1: cached (tag `news`); the `published_at` cursor keeps the cache
+ * key stable per article.
+ */
+const getCachedAdjacentNews = unstable_cache(
+    async (
+        currentId: string,
+        publishedAt: string,
+        locale: Locale,
+    ): Promise<{ prev: NewsArticle | null; next: NewsArticle | null }> => {
+        const [nextResult, prevResult] = await Promise.all([
+            publishedNews()
+                .gt("published_at", publishedAt)
+                .order("published_at", { ascending: true })
+                .limit(1),
+            publishedNews()
+                .lt("published_at", publishedAt)
+                .order("published_at", { ascending: false })
+                .limit(1),
+        ]);
+        if (nextResult.error) throw new Error(nextResult.error.message);
+        if (prevResult.error) throw new Error(prevResult.error.message);
+
+        const nextRow = asOne((nextResult.data ?? []) as unknown as RawStoryRow[]);
+        const prevRow = asOne((prevResult.data ?? []) as unknown as RawStoryRow[]);
+        return {
+            prev: prevRow ? toCard(prevRow, locale) : null,
+            next: nextRow && nextRow.id !== currentId ? toCard(nextRow, locale) : null,
+        };
+    },
+    ["news-adjacent"],
+    { tags: [CACHE_TAGS.news], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
 export async function getAdjacentNews(
     currentId: string,
     publishedAt: string,
     locale: Locale = "en",
 ): Promise<{ prev: NewsArticle | null; next: NewsArticle | null }> {
     if (!hasDatabase()) return { prev: null, next: null };
-
-    const [nextResult, prevResult] = await Promise.all([
-        safe(
-            publishedNews()
-                .gt("published_at", publishedAt)
-                .order("published_at", { ascending: true })
-                .limit(1),
-        ),
-        safe(
-            publishedNews()
-                .lt("published_at", publishedAt)
-                .order("published_at", { ascending: false })
-                .limit(1),
-        ),
-    ]);
-
-    const nextRow = asOne((nextResult.data ?? []) as unknown as RawStoryRow[]);
-    const prevRow = asOne((prevResult.data ?? []) as unknown as RawStoryRow[]);
-    return {
-        prev: prevRow ? toCard(prevRow, locale) : null,
-        next: nextRow && nextRow.id !== currentId ? toCard(nextRow, locale) : null,
-    };
+    try {
+        return await getCachedAdjacentNews(currentId, publishedAt, locale);
+    } catch (err) {
+        logCacheFailure("getAdjacentNews", err);
+        return { prev: null, next: null };
+    }
 }
+
+/**
+ * Most-viewed published news articles — sidebar rail.
+ * Phase 4.1: cached (tag `news`); view_count is an ornament so a 5-minute
+ * window is an accepted trade for taking this query off the hot path.
+ */
+const getCachedMostViewedNews = unstable_cache(
+    async (locale: Locale, limit: number): Promise<NewsArticle[]> => {
+        const { data, error } = await publishedNews()
+            .order("view_count", { ascending: false, nullsFirst: false })
+            .limit(limit);
+        if (error) throw new Error(error.message);
+        return ((data ?? []) as unknown as RawStoryRow[]).flatMap((row) => {
+            const card = toCard(row, locale);
+            return card ? [card] : [];
+        });
+    },
+    ["news-most-viewed"],
+    { tags: [CACHE_TAGS.news], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
 
 /** Most-viewed published news articles — sidebar rail. */
 export async function getMostViewedNews(
@@ -335,16 +417,60 @@ export async function getMostViewedNews(
     limit = 5,
 ): Promise<NewsArticle[]> {
     if (!hasDatabase()) return [];
-    const { data } = await safe(
-        publishedNews()
-            .order("view_count", { ascending: false, nullsFirst: false })
-            .limit(limit),
-    );
-    return ((data ?? []) as unknown as RawStoryRow[]).flatMap((row) => {
-        const card = toCard(row, locale);
-        return card ? [card] : [];
-    });
+    try {
+        return await getCachedMostViewedNews(locale, limit);
+    } catch (err) {
+        logCacheFailure("getMostViewedNews", err);
+        return [];
+    }
 }
+
+/**
+ * Archive stats for the landing band: articles, places, contributors, weekly
+ * volume. Phase 4.1: cached (tag `news`); the "this week" count is computed
+ * once per cache window, which is fine for a stat band.
+ */
+const getCachedNewsStats = unstable_cache(
+    async (): Promise<{
+        articles: number;
+        places: number;
+        contributors: number;
+        thisWeek: number;
+    }> => {
+        const { data, error } = await createAdminClient()
+            .from("content_items")
+            .select("author:profiles!content_items_author_id_fkey(id), location:locations(name), published_at")
+            .eq("type", "news")
+            .eq("status", "published")
+            .eq("is_archived", false);
+        if (error) throw new Error(error.message);
+
+        const rows = (data ?? []) as {
+            author?: { id: string } | { id: string }[] | null;
+            location?: { name: string } | { name: string }[] | null;
+            published_at?: string | null;
+        }[];
+
+        const places = new Set<string>();
+        const authors = new Set<string>();
+        let thisWeek = 0;
+        const weekAgo = Date.now() - 7 * 86_400_000;
+
+        for (const row of rows) {
+            const location = asOne(row.location);
+            if (location?.name) places.add(location.name);
+            const author = asOne(row.author);
+            if (author?.id) authors.add(author.id);
+            if (row.published_at && new Date(row.published_at).getTime() >= weekAgo) {
+                thisWeek += 1;
+            }
+        }
+
+        return { articles: rows.length, places: places.size, contributors: authors.size, thisWeek };
+    },
+    ["news-stats"],
+    { tags: [CACHE_TAGS.news], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
 
 /** Archive stats for the landing band: articles, places, contributors, weekly volume. */
 export async function getNewsStats(): Promise<{
@@ -355,49 +481,22 @@ export async function getNewsStats(): Promise<{
 }> {
     const empty = { articles: 0, places: 0, contributors: 0, thisWeek: 0 };
     if (!hasDatabase()) return empty;
-
-    const { data } = await safe(
-        createAdminClient()
-            .from("content_items")
-            .select("author:profiles!content_items_author_id_fkey(id), location:locations(name), published_at")
-            .eq("type", "news")
-            .eq("status", "published")
-            .eq("is_archived", false),
-    );
-
-    const rows = (data ?? []) as {
-        author?: { id: string } | { id: string }[] | null;
-        location?: { name: string } | { name: string }[] | null;
-        published_at?: string | null;
-    }[];
-
-    const places = new Set<string>();
-    const authors = new Set<string>();
-    let thisWeek = 0;
-    const weekAgo = Date.now() - 7 * 86_400_000;
-
-    for (const row of rows) {
-        const location = asOne(row.location);
-        if (location?.name) places.add(location.name);
-        const author = asOne(row.author);
-        if (author?.id) authors.add(author.id);
-        if (row.published_at && new Date(row.published_at).getTime() >= weekAgo) {
-            thisWeek += 1;
-        }
+    try {
+        return await getCachedNewsStats();
+    } catch (err) {
+        logCacheFailure("getNewsStats", err);
+        return empty;
     }
-
-    return { articles: rows.length, places: places.size, contributors: authors.size, thisWeek };
 }
 
 /**
  * Full-bleed featured article for the news landing page: the newest
  * published article with a cover image, falling back to any newest article.
+ * Phase 4.1: cached (tag `news`).
  */
-export async function getFeaturedNews(locale: Locale = "en"): Promise<NewsArticle | null> {
-    if (!hasDatabase()) return null;
-
-    const withMedia = await safe(
-        createAdminClient()
+const getCachedFeaturedNews = unstable_cache(
+    async (locale: Locale): Promise<NewsArticle | null> => {
+        const withMedia = await createAdminClient()
             .from("content_items")
             .select(STORY_SELECT)
             .eq("type", "news")
@@ -405,39 +504,66 @@ export async function getFeaturedNews(locale: Locale = "en"): Promise<NewsArticl
             .eq("is_archived", false)
             .not("published_at", "is", null)
             .order("published_at", { ascending: false, nullsFirst: false })
-            .limit(1),
-    );
-    const withMediaRow = asOne((withMedia.data ?? []) as unknown as RawStoryRow[]);
-    if (withMediaRow) return toCard(withMediaRow, locale);
+            .limit(1);
+        if (withMedia.error) throw new Error(withMedia.error.message);
 
-    const anyArticle = await safe(
-        publishedNews()
+        const withMediaRow = asOne((withMedia.data ?? []) as unknown as RawStoryRow[]);
+        if (withMediaRow) return toCard(withMediaRow, locale);
+
+        const anyArticle = await publishedNews()
             .order("published_at", { ascending: false, nullsFirst: false })
-            .limit(1),
-    );
-    const anyRow = asOne((anyArticle.data ?? []) as unknown as RawStoryRow[]);
-    return anyRow ? toCard(anyRow, locale) : null;
+            .limit(1);
+        if (anyArticle.error) throw new Error(anyArticle.error.message);
+        const anyRow = asOne((anyArticle.data ?? []) as unknown as RawStoryRow[]);
+        return anyRow ? toCard(anyRow, locale) : null;
+    },
+    ["news-featured"],
+    { tags: [CACHE_TAGS.news], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getFeaturedNews(locale: Locale = "en"): Promise<NewsArticle | null> {
+    if (!hasDatabase()) return null;
+    try {
+        return await getCachedFeaturedNews(locale);
+    } catch (err) {
+        logCacheFailure("getFeaturedNews", err);
+        return null;
+    }
 }
 
 /**
  * Stories still being verified — the "Live & Developing" rail on the news
  * page. Ordered newest first so the freshest update leads.
+ * Phase 4.1: cached (tag `news`) — the rail refreshes on publish events or
+ * at the 5-minute window, never per request.
  */
+const getCachedDevelopingNews = unstable_cache(
+    async (locale: Locale, limit: number): Promise<NewsArticle[]> => {
+        const { data, error } = await publishedNews()
+            .eq("verification", "developing")
+            .order("published_at", { ascending: false, nullsFirst: false })
+            .limit(limit);
+        if (error) throw new Error(error.message);
+        return ((data ?? []) as unknown as RawStoryRow[]).flatMap((row) => {
+            const card = toCard(row, locale);
+            return card ? [card] : [];
+        });
+    },
+    ["news-developing"],
+    { tags: [CACHE_TAGS.news], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
 export async function getDevelopingNews(
     locale: Locale = "en",
     limit = 3,
 ): Promise<NewsArticle[]> {
     if (!hasDatabase()) return [];
-    const { data } = await safe(
-        publishedNews()
-            .eq("verification", "developing")
-            .order("published_at", { ascending: false, nullsFirst: false })
-            .limit(limit),
-    );
-    return ((data ?? []) as unknown as RawStoryRow[]).flatMap((row) => {
-        const card = toCard(row, locale);
-        return card ? [card] : [];
-    });
+    try {
+        return await getCachedDevelopingNews(locale, limit);
+    } catch (err) {
+        logCacheFailure("getDevelopingNews", err);
+        return [];
+    }
 }
 
 /**
@@ -509,20 +635,61 @@ export async function getNewsArticles(options: {
     };
 }
 
-/** One news article by slug, for the detail page (null when not found). */
+/**
+ * One news article by slug, for the detail page (null when not found).
+ * Phase 4.1: cached (tag `news`) — this is the hot read behind the ISR'd
+ * article pages; a published/unpublished article is invalidated via
+ * revalidateTag('news', 'max') from the admin actions.
+ */
+const getCachedNewsBySlug = unstable_cache(
+    async (slug: string, locale: Locale): Promise<NewsArticle | null> => {
+        const { data, error } = await publishedNews()
+            .eq("slug", slug)
+            .limit(1);
+        if (error) throw new Error(error.message);
+        const row = asOne((data ?? []) as unknown as RawStoryRow[]);
+        return row ? toCard(row, locale) : null;
+    },
+    ["news-by-slug"],
+    { tags: [CACHE_TAGS.news], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
 export async function getNewsBySlug(
     slug: string,
     locale: Locale = "en",
 ): Promise<NewsArticle | null> {
     if (!hasDatabase()) return null;
-    const { data } = await safe(
-        publishedNews()
-            .eq("slug", sanitizePhrase(slug))
-            .limit(1),
-    );
-    const row = asOne((data ?? []) as unknown as RawStoryRow[]);
-    return row ? toCard(row, locale) : null;
+    // Sanitize before both the cache key and the query so one canonical
+    // string serves every raw spelling of the same URL segment.
+    const sanitized = sanitizePhrase(slug);
+    if (!sanitized) return null;
+    try {
+        return await getCachedNewsBySlug(sanitized, locale);
+    } catch (err) {
+        logCacheFailure("getNewsBySlug", err);
+        return null;
+    }
 }
+
+/**
+ * Newest news articles excluding one — the detail page's "related stories" rail.
+ * Phase 4.1: cached (tag `news`).
+ */
+const getCachedOtherNews = unstable_cache(
+    async (excludeId: string, locale: Locale, limit: number): Promise<NewsArticle[]> => {
+        const { data, error } = await publishedNews()
+            .neq("id", excludeId)
+            .order("published_at", { ascending: false, nullsFirst: false })
+            .limit(limit);
+        if (error) throw new Error(error.message);
+        return ((data ?? []) as unknown as RawStoryRow[]).flatMap((row) => {
+            const card = toCard(row, locale);
+            return card ? [card] : [];
+        });
+    },
+    ["news-other"],
+    { tags: [CACHE_TAGS.news], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
 
 /** Newest news articles excluding one — the detail page's "related stories" rail. */
 export async function getOtherNews(
@@ -531,14 +698,10 @@ export async function getOtherNews(
     limit = 3,
 ): Promise<NewsArticle[]> {
     if (!hasDatabase()) return [];
-    const { data } = await safe(
-        publishedNews()
-            .neq("id", excludeId)
-            .order("published_at", { ascending: false, nullsFirst: false })
-            .limit(limit),
-    );
-    return ((data ?? []) as unknown as RawStoryRow[]).flatMap((row) => {
-        const card = toCard(row, locale);
-        return card ? [card] : [];
-    });
+    try {
+        return await getCachedOtherNews(excludeId, locale, limit);
+    } catch (err) {
+        logCacheFailure("getOtherNews", err);
+        return [];
+    }
 }

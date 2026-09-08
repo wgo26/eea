@@ -27,7 +27,7 @@ const ROLE_FILTERS: { key: AppRole | 'all'; dictKey: 'roleAll' | 'roleAdmin' | '
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ role?: string; q?: string }>
+  searchParams: Promise<{ role?: string; status?: string; q?: string }>
 }) {
   await requireCapability('manageUsers', '/admin/users')
   const locale = await getRequestLocale()
@@ -36,9 +36,10 @@ export default async function Page({
 
   const params = await searchParams
   const role = (params.role as AppRole) || 'all'
+  const status = (params.status as 'all' | 'active' | 'suspended' | 'banned') || 'all'
   const search = params.q || ''
 
-  const users = await getUsers({ role, search, limit: 100 })
+  const users = await getUsers({ role, status, search, limit: 100 })
 
   return (
     <div className="space-y-5">
@@ -69,6 +70,14 @@ export default async function Page({
             </a>
           ))}
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {(['all', 'active', 'suspended', 'banned'] as const).map((value) => (
+          <a key={value} href={`${localePath(locale, '/admin/users')}?status=${value}${params.role ? `&role=${role}` : ''}${search ? `&q=${encodeURIComponent(search)}` : ''}`} className={`rounded-full border px-3 py-1 text-xs font-medium ${status === value ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-muted-foreground'}`}>
+            {t[value === 'all' ? 'statusAll' : value === 'active' ? 'statusActive' : value === 'suspended' ? 'statusSuspended' : 'statusBanned']}
+          </a>
+        ))}
       </div>
 
       {users.length === 0 ? (

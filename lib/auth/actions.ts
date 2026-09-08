@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { localePath, safeNextPath } from '@/lib/i18n/urls'
+import { checkRateLimit } from '@/lib/security/rate-limit'
+import { verifyTurnstileToken } from '@/lib/security/turnstile'
 import { SITE } from '@/lib/constants'
 
 /**
@@ -33,6 +35,7 @@ export type AuthErrorCode =
   | 'not_confirmed'
   | 'email_exists'
   | 'rate_limited'
+  | 'captcha'
   | 'account_disabled'
   | 'provider_error'
 
@@ -99,6 +102,15 @@ export async function signInWithPassword(
     return { ok: false, error: 'invalid' }
   }
 
+  // Abuse gate (durable per-IP limiter + Turnstile when configured) — brute
+  // force is also throttled by Supabase's own auth rate limits.
+  const limited = await checkRateLimit('auth:login', { max: 10, windowMs: 10 * 60_000 })
+  if (!limited.ok) return { ok: false, error: 'rate_limited' }
+  const turnstileToken = formData.get('cf-turnstile-response')
+  if (!(await verifyTurnstileToken(typeof turnstileToken === 'string' ? turnstileToken : null))) {
+    return { ok: false, error: 'captcha' }
+  }
+
   const supabase = await createClient()
   const { error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) return { ok: false, error: mapSupabaseError(error.message) }
@@ -136,6 +148,15 @@ export async function signUpWithPassword(
     password.length > 72
   ) {
     return { ok: false, error: 'invalid' }
+  }
+
+  // Abuse gate: durable per-IP limiter + Turnstile when configured. Signup
+  // floods also burn Supabase SMTP quota, so this gate runs before signUp().
+  const limited = await checkRateLimit('auth:signup', { max: 5, windowMs: 60 * 60_000 })
+  if (!limited.ok) return { ok: false, error: 'rate_limited' }
+  const turnstileToken = formData.get('cf-turnstile-response')
+  if (!(await verifyTurnstileToken(typeof turnstileToken === 'string' ? turnstileToken : null))) {
+    return { ok: false, error: 'captcha' }
   }
 
   const locale = await getRequestLocale()

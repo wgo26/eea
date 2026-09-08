@@ -1,7 +1,8 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
-import { assertStaff, assertAdmin, assertCapability, type AdminContext } from '@/lib/admin/auth'
+import { revalidatePath, revalidateTag } from 'next/cache'
+import { assertStaff, assertAdmin, assertCapability, assertReauth, type AdminContext } from '@/lib/admin/auth'
+import { CACHE_TAGS } from '@/lib/cache/tags'
 import { getContentItemEditData as fetchContentEditData } from '@/lib/admin/queries'
 import type { AppRole } from '@/lib/admin/queries'
 import { deleteFromR2 } from '@/lib/storage/providers/r2'
@@ -26,6 +27,20 @@ const LOCALES = ['en', 'fr'] as const;
 /** Revalidate a locale-free path in both locales (routes live under /[locale]). */
 function revalidateLocalized(path: string) {
     for (const locale of LOCALES) revalidatePath('/'+locale+path);
+}
+
+/**
+ * Phase 4.1 (audit §4.1) — on-demand invalidation of the public content cache.
+ * The hot news reads and the homepage dataset are cached under the `news` /
+ * `home` tags (lib/queries/news.ts, lib/queries/home.ts); every editorial
+ * mutation that changes public content calls this so changes land without
+ * waiting for the 5-minute ISR window. Uses the two-argument revalidateTag
+ * form (single-arg is deprecated in Next 16); profile 'max' serves the cached
+ * render while the fresh one regenerates (stale-while-revalidate).
+ */
+function revalidatePublicContentCache() {
+    revalidateTag(CACHE_TAGS.news, 'max')
+    revalidateTag(CACHE_TAGS.home, 'max')
 }
 
 function fail(e: unknown): ActionResult {
@@ -344,6 +359,7 @@ export async function approveSubmissionWithContent(input: {
       actor_id: user.id,
     })
 
+    if (input.publish !== 'draft') revalidatePublicContentCache()
     revalidateLocalized('/admin/moderation')
     revalidateLocalized('/admin/moderation/[id]')
     revalidateLocalized('/admin/content')
@@ -443,6 +459,7 @@ export async function saveContentItem(contentItemId: string, draft: ContentDraft
       actor_id: user.id,
     })
 
+    revalidatePublicContentCache()
     revalidateLocalized('/admin/content')
     revalidateLocalized('/admin/moderation/[id]')
     return { ok: true }
@@ -567,6 +584,7 @@ export async function createContentItem(input: {
       notes: `${type}/${slug}`,
     })
 
+    if (input.publish !== 'draft') revalidatePublicContentCache()
     revalidateLocalized('/admin/content')
     revalidateLocalized('/admin/dashboard')
     return { ok: true }
@@ -603,6 +621,7 @@ export async function deleteContentItem(contentItemId: string): Promise<ActionRe
     })
     if (error) return { ok: false, error: error.message }
 
+    revalidatePublicContentCache()
     revalidateLocalized('/admin/content')
     revalidateLocalized('/admin/dashboard')
     revalidateLocalized('/admin/listings')
@@ -757,6 +776,7 @@ export async function updateContentStatus(contentId: string, status: string, sch
       action: `status:${status}`, to_status: status, content_item_id: contentId, actor_id: user.id,
     })
 
+    revalidatePublicContentCache()
     revalidateLocalized('/admin/content')
     revalidateLocalized('/admin/dashboard')
     return { ok: true }
@@ -775,6 +795,7 @@ export async function setContentFeatured(contentId: string, isFeatured: boolean)
       contentItemId: contentId,
       toStatus: isFeatured ? 'featured' : 'unfeatured',
     })
+    revalidatePublicContentCache()
     revalidateLocalized('/admin/content')
     return { ok: true }
   } catch (e) {
@@ -788,6 +809,7 @@ export async function archiveContent(contentId: string): Promise<ActionResult> {
     const { error } = await supabase.from('content_items').update({ is_archived: true, is_featured: false }).eq('id', contentId)
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'content:archive', contentItemId: contentId })
+    revalidatePublicContentCache()
     revalidateLocalized('/admin/content')
     return { ok: true }
   } catch (e) {
@@ -808,6 +830,7 @@ export async function assignHomepageSlot(slotId: string, contentItemId: string |
       action: 'slot:assign',
       notes: `slot=${slotId} content=${contentItemId ?? 'none'}`,
     })
+    revalidatePublicContentCache()
     revalidateLocalized('/admin/content')
     revalidateLocalized('/admin/dashboard')
     return { ok: true }
@@ -826,6 +849,7 @@ export async function toggleSlotActive(slotId: string, isActive: boolean): Promi
       toStatus: isActive ? 'active' : 'inactive',
       notes: `slot=${slotId}`,
     })
+    revalidatePublicContentCache()
     revalidateLocalized('/admin/content')
     return { ok: true }
   } catch (e) {
@@ -833,13 +857,55 @@ export async function toggleSlotActive(slotId: string, isActive: boolean): Promi
   }
 }
 
+export async function createHomepageSlot(input: { slotKey: string; sortOrder?: number; startsAt?: string | null; endsAt?: string | null }): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageContent')
+    const slotKey = input.slotKey.trim()
+    if (!slotKey) return { ok: false, error: 'A slot key is required.' }
+    if (input.startsAt && input.endsAt && new Date(input.endsAt) <= new Date(input.startsAt)) return { ok: false, error: 'Slot end must be after its start.' }
+    const { error } = await supabase.from('homepage_slots').insert({ slot_key: slotKey, sort_order: input.sortOrder ?? 0, starts_at: input.startsAt || null, ends_at: input.endsAt || null, created_by: user.id })
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: 'slot:create', entityType: 'homepage_slot', notes: slotKey })
+    revalidatePublicContentCache()
+    revalidateLocalized('/admin/content')
+    revalidateLocalized('/')
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+export async function queueStorageVerification(mediaId?: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertAdmin()
+    let query = supabase.from('media_assets').select('id').eq('verification_status', 'pending')
+    if (mediaId) query = query.eq('id', mediaId)
+    const { data, error } = await query
+    if (error) return { ok: false, error: error.message }
+    if (data?.length) {
+      const { error: taskError } = await supabase.from('storage_tasks').insert(data.map((row) => ({ media_id: row.id, task_type: 'verify' })))
+      if (taskError) return { ok: false, error: taskError.message }
+    }
+    await audit(supabase, user.id, { action: 'storage:verify:queue', notes: `count=${data?.length ?? 0}` })
+    revalidateLocalized('/admin/storage-backup')
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
 /* ------------------------------------------------------------------ */
 /* User roles (admin only)                                             */
 /* ------------------------------------------------------------------ */
 
-export async function setUserRole(userId: string, role: AppRole, assign: boolean): Promise<ActionResult> {
+export async function setUserRole(
+  userId: string,
+  role: AppRole,
+  assign: boolean,
+  confirmPassword?: string,
+): Promise<ActionResult> {
   try {
-    const { supabase, user } = await assertAdmin()
+    // Granting or revoking admin is privilege escalation in both directions —
+    // require password re-confirmation (Phase 5: reauth for role changes).
+    const { supabase, user } = role === 'admin'
+      ? await assertReauth(confirmPassword)
+      : await assertAdmin()
     if (!assign && userId === user.id && role === 'admin') return { ok: false, error: 'You cannot remove your own admin role.' }
     if (!assign && role === 'admin') {
       const { count } = await supabase.from('user_roles').select('user_id', { count: 'exact', head: true }).eq('role', 'admin')
@@ -863,9 +929,17 @@ export async function setUserRole(userId: string, role: AppRole, assign: boolean
   }
 }
 
-export async function setUserStatus(userId: string, status: 'active' | 'suspended' | 'banned'): Promise<ActionResult> {
+export async function setUserStatus(
+  userId: string,
+  status: 'active' | 'suspended' | 'banned',
+  confirmPassword?: string,
+): Promise<ActionResult> {
   try {
-    const { supabase, user } = await assertAdmin()
+    // Suspending or banning someone cuts their access — reconfirm the acting
+    // admin's password first (Phase 5: reauth for suspension/ban).
+    const { supabase, user } = status === 'active'
+      ? await assertAdmin()
+      : await assertReauth(confirmPassword)
     if (userId === user.id) return { ok: false, error: 'You cannot change your own account status.' }
     const { data: targetRoles } = await supabase.from('user_roles').select('role').eq('user_id', userId)
     if ((status !== 'active') && (targetRoles ?? []).some((row) => row.role === 'admin')) {
@@ -874,15 +948,25 @@ export async function setUserStatus(userId: string, status: 'active' | 'suspende
     }
     const { error } = await supabase.from('profiles').update({ is_suspended: status === 'suspended', is_banned: status === 'banned' }).eq('id', userId)
     if (error) return { ok: false, error: error.message }
+    // Mirror the status into Supabase Auth (Phase 5: session/token revocation):
+    // banning revokes all of the user's refresh tokens, so a banned user's
+    // live session dies when their short-lived access token expires instead of
+    // surviving indefinitely. Restoring lifts any auth-level ban. Suspension
+    // stays a soft profile flag by design (blocks the next login only).
+    const { error: authError } = await createAdminClient().auth.admin.updateUserById(userId, {
+      ban_duration: status === 'banned' ? '876000h' : 'none',
+    })
+    if (authError) return { ok: false, error: authError.message }
     await audit(supabase, user.id, { action: `user:${status}`, entityType: 'profile', entityId: userId })
     revalidateLocalized('/admin/users')
     return { ok: true }
   } catch (e) { return fail(e) }
 }
 
-export async function deleteUser(userId: string): Promise<ActionResult> {
+export async function deleteUser(userId: string, confirmPassword?: string): Promise<ActionResult> {
   try {
-    const { supabase, user } = await assertAdmin()
+    // Account deletion is irreversible (GDPR erasure path) — reconfirm first.
+    const { supabase, user } = await assertReauth(confirmPassword)
     if (userId === user.id) return { ok: false, error: 'You cannot delete your own account.' }
     const { data: adminRole } = await supabase.from('user_roles').select('user_id').eq('user_id', userId).eq('role', 'admin').limit(1)
     if (adminRole?.length) {
@@ -1033,14 +1117,103 @@ export async function rejectAdInquiry(campaignId: string, reason: string): Promi
   } catch (e) { return fail(e) }
 }
 
-export async function updateAdSlot(slotId: string, input: { name?: string; placement?: string | null; dimensions?: string | null; basePrice?: number | null; currency?: string | null; isActive?: boolean }): Promise<ActionResult> {
+export async function updateAdSlot(slotId: string, input: { name?: string; placement?: string | null; dimensions?: string | null; capacity?: number; basePrice?: number | null; currency?: string | null; isActive?: boolean }): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertCapability('manageAds')
-    const patch = { name: input.name?.trim(), placement: input.placement?.trim() || null, dimensions: input.dimensions?.trim() || null, base_price: input.basePrice ?? null, currency: input.currency?.toUpperCase() || null, is_active: input.isActive }
+    if (input.capacity != null && (!Number.isInteger(input.capacity) || input.capacity < 1)) return { ok: false, error: 'Capacity must be a positive whole number.' }
+    const patch = { name: input.name?.trim(), placement: input.placement?.trim() || null, dimensions: input.dimensions?.trim() || null, capacity: input.capacity, base_price: input.basePrice ?? null, currency: input.currency?.toUpperCase() || null, is_active: input.isActive }
     if (patch.name === '') return { ok: false, error: 'Slot name is required.' }
     const { error } = await supabase.from('ad_slots').update(patch).eq('id', slotId)
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'ad:slot:update', notes: `slot=${slotId}` })
+    revalidateLocalized('/admin/ads')
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+export async function updateAdvertiser(advertiserId: string, input: { companyName: string; contactName?: string; email?: string; phone?: string }): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageAds')
+    const companyName = input.companyName.trim()
+    if (!companyName) return { ok: false, error: 'Company name is required.' }
+    if (input.email && !/^\S+@\S+\.\S+$/.test(input.email.trim())) return { ok: false, error: 'Enter a valid advertiser email.' }
+    const { error } = await supabase.from('advertisers').update({
+      company_name: companyName,
+      contact_name: input.contactName?.trim() || null,
+      email: input.email?.trim().toLowerCase() || null,
+      phone: input.phone?.trim() || null,
+    }).eq('id', advertiserId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: 'advertiser:update', entityType: 'advertiser', entityId: advertiserId })
+    revalidateLocalized('/admin/ads')
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+export async function deleteAdvertiser(advertiserId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageAds')
+    const { count } = await supabase.from('ad_campaigns').select('id', { count: 'exact', head: true }).eq('advertiser_id', advertiserId)
+    if ((count ?? 0) > 0) return { ok: false, error: 'Delete or reassign this advertiser\'s campaigns first.' }
+    const { error } = await supabase.from('advertisers').delete().eq('id', advertiserId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: 'advertiser:delete', entityType: 'advertiser', entityId: advertiserId })
+    revalidateLocalized('/admin/ads')
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+export async function updateAdCampaign(campaignId: string, input: { name?: string; slotId?: string | null; destinationUrl?: string | null; copyText?: string | null; startsAt?: string | null; endsAt?: string | null; agreedPrice?: number | null; currency?: string | null; budgetLimit?: number | null; impressionLimit?: number | null; clickLimit?: number | null }): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageAds')
+    if (input.destinationUrl && !/^https:\/\//i.test(input.destinationUrl.trim())) return { ok: false, error: 'Ad destination must use https://.' }
+    if (input.startsAt && input.endsAt && new Date(input.endsAt) <= new Date(input.startsAt)) return { ok: false, error: 'Campaign end must be after its start.' }
+    if (input.agreedPrice != null && input.agreedPrice < 0) return { ok: false, error: 'Price cannot be negative.' }
+    const { error } = await supabase.from('ad_campaigns').update({
+      name: input.name?.trim(), ad_slot_id: input.slotId, destination_url: input.destinationUrl?.trim() || null,
+      copy_text: input.copyText?.trim() || null, starts_at: input.startsAt || null, ends_at: input.endsAt || null,
+      agreed_price: input.agreedPrice ?? null, currency: input.currency?.toUpperCase() || null,
+      budget_limit: input.budgetLimit ?? null, impression_limit: input.impressionLimit ?? null, click_limit: input.clickLimit ?? null,
+    }).eq('id', campaignId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: 'ad:campaign:update', entityType: 'ad_campaign', entityId: campaignId })
+    revalidateLocalized('/admin/ads')
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+export async function deleteAdCampaign(campaignId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageAds')
+    const { error } = await supabase.from('ad_campaigns').delete().eq('id', campaignId).in('status', ['pending', 'rejected', 'ended', 'paused'])
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: 'ad:campaign:delete', entityType: 'ad_campaign', entityId: campaignId })
+    revalidateLocalized('/admin/ads')
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+export async function createAdSlot(input: { slotKey: string; name: string; placement?: string; dimensions?: string; capacity?: number; basePrice?: number; currency?: string }): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageAds')
+    const slotKey = input.slotKey.trim().toLowerCase()
+    if (!/^[a-z0-9_-]+$/.test(slotKey) || !input.name.trim()) return { ok: false, error: 'Slot key and name are required.' }
+    const { error } = await supabase.from('ad_slots').insert({ slot_key: slotKey, name: input.name.trim(), placement: input.placement?.trim() || null, dimensions: input.dimensions?.trim() || null, capacity: input.capacity ?? 1, base_price: input.basePrice ?? null, currency: input.currency?.toUpperCase() || null })
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: 'ad:slot:create', entityType: 'ad_slot', notes: slotKey })
+    revalidateLocalized('/admin/ads')
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+export async function deleteAdSlot(slotId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageAds')
+    const { count } = await supabase.from('ad_campaigns').select('id', { count: 'exact', head: true }).eq('ad_slot_id', slotId).eq('status', 'active')
+    if ((count ?? 0) > 0) return { ok: false, error: 'An active campaign still uses this slot.' }
+    const { error } = await supabase.from('ad_slots').delete().eq('id', slotId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: 'ad:slot:delete', entityType: 'ad_slot', entityId: slotId })
     revalidateLocalized('/admin/ads')
     return { ok: true }
   } catch (e) { return fail(e) }
@@ -1876,6 +2049,7 @@ export async function expireListing(contentItemId: string): Promise<ActionResult
       actor_id: user.id,
     })
 
+    revalidatePublicContentCache()
     revalidateLocalized('/admin/listings')
     revalidateLocalized('/admin/content')
     return { ok: true }
@@ -1919,6 +2093,7 @@ export async function relistListing(contentItemId: string, days = 30): Promise<A
       actor_id: user.id,
     })
 
+    revalidatePublicContentCache()
     revalidateLocalized('/admin/listings')
     revalidateLocalized('/admin/content')
     return { ok: true }
@@ -1961,6 +2136,7 @@ export async function moderateListing(contentItemId: string, action: 'sold' | 'r
       actor_id: user.id,
     })
 
+    revalidatePublicContentCache()
     revalidateLocalized('/admin/listings')
     revalidateLocalized('/admin/content')
     return { ok: true }
@@ -1984,6 +2160,8 @@ function validSlug(value: string): boolean {
 function revalidateTaxonomy() {
   revalidateLocalized('/admin/taxonomy')
   revalidateLocalized('/admin/moderation/[id]')
+  // Category/location renames surface on cached public news cards and facets.
+  revalidatePublicContentCache()
 }
 
 /** Create a category with its English (+ optional French) name. */

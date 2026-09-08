@@ -665,6 +665,46 @@ below.*
   physical install lingered, masking the break). `globals.css` imports
   `shadcn/tailwind.css`, so it is restored as a `devDependency` — do not
   remove it without also removing that import.
+- 2026-09-08 — **Phase 4: performance, caching & DB hardening** (audit §4.1–§4.3;
+  project runs WITHOUT `cacheComponents`, so `unstable_cache` is the sanctioned
+  data-cache API and route-segment `revalidate` the sanctioned ISR mechanism —
+  per the bundled Next 16 docs; single-arg `revalidateTag` is deprecated, always
+  pass the profile):
+  - **4.1 ISR + cache tags** — `lib/cache/tags.ts` defines the `news`/`home`
+    tags and the 300 s window. Hot news reads (`getNewsBySlug`, `getOtherNews`,
+    `getAdjacentNews`, `getMostViewedNews`, `getNewsStats`, `getFeaturedNews`,
+    `getDevelopingNews`, `getNewsCategories`, `getNewsLocations`) and
+    `getHomeData` are wrapped in `unstable_cache` (tags + 5-minute revalidate);
+    inside a cached scope a failed query THROWS so transient DB outages are
+    never cached, and the exported wrappers keep the safe()-style fallback.
+    `/news/[slug]` and the homepage are ISR'd (`export const revalidate = 300`;
+    literal — segment config must be statically analyzable) after switching
+    them (and the `/news` listing page) from `headers()` to the `[locale]`
+    params; the shell/header/footer were already request-API-free (client-side
+    URL self-localization). `/news` keeps per-request rendering by design
+    (searchParams). `lib/admin/actions.ts` gains `revalidatePublicContentCache()`
+    → `revalidateTag(tag,'max')` (stale-while-revalidate), called from all 13
+    content-affecting mutations (create/publish, save, delete, status,
+    featured, archive, homepage slots, taxonomy, listing lifecycle).
+  - **4.2 DB maintenance** — migration `20260921000000_db_maintenance.sql`:
+    autovacuum/fillfactor tuning on `rate_limit_hits` (VACUUM cannot run in an
+    RPC; autovacuum is the automated mechanism), a service-role-only
+    `db_maintenance_report(p_purge_older_than_seconds)` RPC that deep-purges
+    stale rate-limit buckets, reports dead-tuple/autovacuum telemetry, and
+    verifies the schema objects every earlier migration relies on (plus the
+    `supabase_migrations` trail); new `CRON_SECRET`-guarded
+    `/api/cron/db-maintenance` route (fail-closed in production, mirrors
+    storage-backup) scheduled in `vercel.json` at 02:30 — returns 500 when
+    verification finds missing objects so uptime monitors alert.
+  - **4.3 Submission payload constraints** — same migration: CHECKs
+    (`payload` must be a JSON object; guest name/phone length + email format
+    — NOT VALID so legacy rows can't fail the migration) and a
+    `before insert or update of payload` trigger
+    `enforce_submission_payload_shape()` that whitelists the 18 intake fields
+    (mirror of `PAYLOAD_FIELDS` in `lib/public/actions.ts` — keep in sync),
+    caps strings at 4000 chars (photos 8000) and rejects non-string values.
+    Triggers fire for service_role too, closing the service-role-bypass gap
+    for the public intake.
 
 
 

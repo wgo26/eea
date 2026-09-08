@@ -1,6 +1,9 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/observability/logger";
+import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 
 /**
@@ -20,7 +23,11 @@ export type ListingPhoto = {
     alt: string | null;
 };
 
-/** Full listing shape for public consumption. */
+/** Full listing shape for public consumption.
+ * NOTE: this shape never carries raw seller PII. `sellerContact` is a
+ * deprecated always-null field kept for type compatibility — contact details
+ * are only available on demand via the rate-limited `revealSellerContact`
+ * server action, never in SSR HTML or list payloads. */
 export type ListingData = {
     id: string;
     type: string;
@@ -37,6 +44,7 @@ export type ListingData = {
     price: number | null;
     currency: string | null;
     sellerName: string | null;
+    /** @deprecated Always null — use `revealSellerContact` for gated access. */
     sellerContact: string | null;
     listingStatus: string | null;
     expiresAt: string | null;
@@ -44,7 +52,10 @@ export type ListingData = {
     body?: string | null;
 };
 
-/** Raw row shape returned by the shared listing select. */
+/** Raw row shape returned by the shared listing select.
+ * Grid/list selects NEVER include contact PII columns (phone/email/whatsapp)
+ * — presence flags for the detail page come from LISTING_DETAIL_SELECT and
+ * are reduced to booleans in `toListingDetail` before leaving the server. */
 type RawListingRow = {
     id: string;
     slug: string | null;
@@ -73,17 +84,13 @@ type RawListingRow = {
               price: number | null;
               currency: string | null;
               listing_status: string | null;
-              contact_phone?: string | null;
-              contact_email?: string | null;
-              whatsapp_number?: string | null;
+              seller_name?: string | null;
           }
         | {
               price: number | null;
               currency: string | null;
               listing_status: string | null;
-              contact_phone?: string | null;
-              contact_email?: string | null;
-              whatsapp_number?: string | null;
+              seller_name?: string | null;
           }[]
         | null;
 };
@@ -93,7 +100,7 @@ const LISTING_SELECT = `id, slug, verification, published_at, expires_at,
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title, excerpt, body),
     media:media_assets(public_url, alt_text, is_cover, sort_order, photographer_credit),
-    listing:listings(price, currency, listing_status, contact_phone)`;
+    listing:listings(price, currency, listing_status, seller_name)`;
 
 type QueryResult<T> = {
     data: T | null;
@@ -112,12 +119,12 @@ async function safe<T>(
     try {
         const { data, count, error } = await promise;
         if (error) {
-            console.error("[buy-sell]", error.message);
+            logger.error("buy-sell", "query failed", { error: error.message });
             return { data: null, count: null, error };
         }
         return { data, count: count ?? null, error: null };
     } catch (err) {
-        console.error("[buy-sell]", err);
+        logger.error("buy-sell", "query exception", { error: err instanceof Error ? err.message : String(err) });
         return { data: null, count: null, error: { message: String(err) } };
     }
 }
@@ -127,6 +134,18 @@ function hasDatabase(): boolean {
     return Boolean(
         process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
     );
+}
+
+/**
+ * Phase 4.1 — cached-query error policy: inside an `unstable_cache` scope a
+ * failed query THROWS instead of resolving to a fallback, so a transient
+ * outage is never baked into the cache. The exported wrappers catch, log, and
+ * fall back (the safe() semantics) at the call boundary.
+ */
+function logCacheFailure(fn: string, err: unknown): void {
+    logger.error("buy-sell", `cached query failed (${fn})`, {
+        error: err instanceof Error ? err.message : String(err),
+    });
 }
 
 /** PostgREST returns to-one embeds as object or array depending on relationship detection. */
@@ -206,8 +225,10 @@ function toListing(row: RawListingRow, locale: Locale): ListingData | null {
         publishedAt: row.published_at,
         price: listing?.price ?? null,
         currency: listing?.currency ?? null,
-        sellerName: null,
-        sellerContact: listing?.contact_phone ?? null,
+        sellerName: listing?.seller_name?.trim() || null,
+        // Deprecated field: never populated from the database. Raw contact
+        // values must not enter list payloads or SSR HTML (audit §1.1).
+        sellerContact: null,
         listingStatus: listing?.listing_status ?? null,
         expiresAt: row.expires_at,
         photos,
@@ -219,7 +240,74 @@ function toListing(row: RawListingRow, locale: Locale): ListingData | null {
  * Paged grid of published listings, newest first. Search matches title/excerpt
  * in any locale; category narrows by slug or translated name; location narrows
  * by slug.
+ * Phase 4.1: cached (tag `listings`). Inputs are sanitized BEFORE the cache
+ * call so the cache key is canonical; DB errors throw inside the cached scope
+ * (never cached) and the wrapper falls back to the empty grid.
  */
+const getCachedListings = unstable_cache(
+    async (
+        search: string | undefined,
+        category: string | undefined,
+        location: string | undefined,
+        sort: "newest" | "price_asc" | "price_desc",
+        locale: Locale,
+        page: number,
+    ): Promise<{ listings: ListingData[]; total: number; page: number; pageCount: number }> => {
+        let query = publishedListings(true);
+        if (search) {
+            query = query.or(
+                `content_translations.title.ilike.*${search}*,` +
+                    `content_translations.excerpt.ilike.*${search}*`,
+            );
+        }
+        if (category) {
+            query = query.or(
+                `categories.slug.eq.${category},` +
+                    `categories.category_translations.name.ilike.*${category}*`,
+            );
+        }
+        if (location) {
+            query = query.eq("locations.slug", location);
+        }
+
+        // Exclude expired listings
+        const now = new Date().toISOString();
+        query = query.or(`expires_at.is.null,expires_at.gt.${now}`);
+
+        const from = (page - 1) * PAGE_SIZE;
+
+        switch (sort) {
+            case 'price_asc':
+                query = query.order("listing.price", { ascending: true, nullsFirst: true });
+                break;
+            case 'price_desc':
+                query = query.order("listing.price", { ascending: false, nullsFirst: false });
+                break;
+            case 'newest':
+            default:
+                query = query.order("published_at", { ascending: false, nullsFirst: false });
+                break;
+        }
+
+        const { data, count: total, error } = await query.range(from, from + PAGE_SIZE - 1);
+        if (error) throw new Error(error.message);
+
+        const listings = (data ?? []).flatMap((row) => {
+            const listing = toListing(row, locale);
+            return listing ? [listing] : [];
+        });
+        const totalCount = total ?? 0;
+        return {
+            listings,
+            total: totalCount,
+            page,
+            pageCount: Math.max(1, Math.ceil(totalCount / PAGE_SIZE)),
+        };
+    },
+    ["listings-grid"],
+    { tags: [CACHE_TAGS.listings], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
 export async function getListings(options: {
     search?: string;
     category?: string;
@@ -231,64 +319,22 @@ export async function getListings(options: {
     if (!hasDatabase()) {
         return { listings: [], total: 0, page: 1, pageCount: 1 };
     }
+    // Sanitize before the cache call so the cache key is canonical.
     const page = Math.max(1, options.page ?? 1);
-    const search = options.search?.trim();
-    const category = options.category?.trim();
-    const location = options.location?.trim();
-    const sort = options.sort ?? 'newest';
-
-    let query = publishedListings(true);
-    if (search) {
-        query = query.or(
-            `content_translations.title.ilike.*${sanitizePhrase(search)}*,` +
-                `content_translations.excerpt.ilike.*${sanitizePhrase(search)}*`,
-        );
-    }
-    if (category) {
-        query = query.or(
-            `categories.slug.eq.${sanitizePhrase(category)},` +
-                `categories.category_translations.name.ilike.*${sanitizePhrase(category)}*`,
-        );
-    }
-    if (location) {
-        query = query.eq("locations.slug", sanitizePhrase(location));
-    }
-
-    // Exclude expired listings
-    const now = new Date().toISOString();
-    query = query.or(`expires_at.is.null,expires_at.gt.${now}`);
-
-    const from = (page - 1) * PAGE_SIZE;
-
-    switch (sort) {
-        case 'price_asc':
-            query = query.order("listing.price", { ascending: true, nullsFirst: true });
-            break;
-        case 'price_desc':
-            query = query.order("listing.price", { ascending: false, nullsFirst: false });
-            break;
-        case 'newest':
-        default:
-            query = query.order("published_at", { ascending: false, nullsFirst: false });
-            break;
-    }
-
-    const { data, count: total } = await safe(
-        query.range(from, from + PAGE_SIZE - 1),
-    );
-
+    const search = sanitizePhrase(options.search?.trim() ?? "") || undefined;
+    const category = sanitizePhrase(options.category?.trim() ?? "") || undefined;
+    const location = sanitizePhrase(options.location?.trim() ?? "") || undefined;
+    const sort =
+        options.sort === "price_asc" || options.sort === "price_desc"
+            ? options.sort
+            : "newest";
     const locale = options.locale ?? "en";
-    const listings = (data ?? []).flatMap((row) => {
-        const listing = toListing(row, locale);
-        return listing ? [listing] : [];
-    });
-    const totalCount = total ?? 0;
-    return {
-        listings,
-        total: totalCount,
-        page,
-        pageCount: Math.max(1, Math.ceil(totalCount / PAGE_SIZE)),
-    };
+    try {
+        return await getCachedListings(search, category, location, sort, locale, page);
+    } catch (err) {
+        logCacheFailure("getListings", err);
+        return { listings: [], total: 0, page: 1, pageCount: 1 };
+    }
 }
 
 /** One listing by id, for the detail page (null when not found). */
@@ -318,17 +364,57 @@ export async function getListingBySlugOrId(slugOrId: string, locale: Locale = "e
     return getListingById(slugOrId, locale);
 }
 
+/**
+ * Full-bleed featured listing for the landing page: newest published listing.
+ * Phase 4.1: cached (tag `listings`).
+ */
+const getCachedFeaturedListing = unstable_cache(
+    async (locale: Locale): Promise<ListingData | null> => {
+        const { data, error } = await publishedListings()
+            .order("published_at", { ascending: false, nullsFirst: false })
+            .limit(1);
+        if (error) throw new Error(error.message);
+        const row = asOne(data);
+        return row ? toListing(row, locale) : null;
+    },
+    ["listings-featured"],
+    { tags: [CACHE_TAGS.listings], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
 /** Full-bleed featured listing for the landing page: newest published listing. */
 export async function getFeaturedListing(locale: Locale = "en"): Promise<ListingData | null> {
     if (!hasDatabase()) return null;
-    const { data } = await safe(
-        publishedListings()
-            .order("published_at", { ascending: false, nullsFirst: false })
-            .limit(1),
-    );
-    const row = asOne(data);
-    return row ? toListing(row, locale) : null;
+    try {
+        return await getCachedFeaturedListing(locale);
+    } catch (err) {
+        logCacheFailure("getFeaturedListing", err);
+        return null;
+    }
 }
+
+/**
+ * Listings by location slug, newest first.
+ * Phase 4.1: cached (tag `listings`).
+ */
+const getCachedListingsByLocation = unstable_cache(
+    async (
+        locationSlug: string,
+        locale: Locale,
+        limit: number,
+    ): Promise<ListingData[]> => {
+        const { data, error } = await publishedListings()
+            .eq("locations.slug", locationSlug)
+            .order("published_at", { ascending: false, nullsFirst: false })
+            .limit(limit);
+        if (error) throw new Error(error.message);
+        return (data ?? []).flatMap((row) => {
+            const listing = toListing(row, locale);
+            return listing ? [listing] : [];
+        });
+    },
+    ["listings-by-location"],
+    { tags: [CACHE_TAGS.listings], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
 
 /** Listings by location slug, newest first. */
 export async function getListingsByLocation(
@@ -337,28 +423,27 @@ export async function getListingsByLocation(
     limit = 6,
 ): Promise<ListingData[]> {
     if (!hasDatabase()) return [];
-    const { data } = await safe(
-        publishedListings()
-            .eq("locations.slug", sanitizePhrase(locationSlug))
-            .order("published_at", { ascending: false, nullsFirst: false })
-            .limit(limit),
-    );
-    return (data ?? []).flatMap((row) => {
-        const listing = toListing(row, locale);
-        return listing ? [listing] : [];
-    });
+    // Sanitize before the cache call so the cache key is canonical.
+    const sanitized = sanitizePhrase(locationSlug);
+    if (!sanitized) return [];
+    try {
+        return await getCachedListingsByLocation(sanitized, locale, limit);
+    } catch (err) {
+        logCacheFailure("getListingsByLocation", err);
+        return [];
+    }
 }
 
 /**
  * Full detail shape for the Buy & Sell detail page. Extends `ListingData`
- * with the gated seller contact fields (phone / email / WhatsApp) that the
- * "reveal contact" control toggles. The columns live on `listings` per the
- * schema.
+ * with presence flags for the seller contact methods (phone / email / WhatsApp).
+ * Raw PII contact values are never exposed in this public query and must be
+ * requested on-demand via the `revealSellerContact` server action.
  */
 export type ListingDetailData = ListingData & {
-    contactPhone: string | null;
-    contactEmail: string | null;
-    whatsappNumber: string | null;
+    hasPhone: boolean;
+    hasEmail: boolean;
+    hasWhatsapp: boolean;
     sellerIsVerified: boolean;
 };
 
@@ -367,30 +452,53 @@ const LISTING_DETAIL_SELECT = `id, slug, verification, published_at, expires_at,
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title, excerpt, body),
     media:media_assets(public_url, alt_text, is_cover, sort_order, photographer_credit),
-    listing:listings(price, currency, listing_status, contact_phone, contact_email, whatsapp_number)`;
+    listing:listings(price, currency, listing_status, seller_name, seller_is_verified, contact_phone, contact_email, whatsapp_number)`;
 
-/** One listing by id or slug, with gated contact fields (null when not found). */
-export async function getListingDetail(
-    slugOrId: string,
-    locale: Locale = "en",
-): Promise<ListingDetailData | null> {
-    if (!hasDatabase()) return null;
-    const { data } = await safe(
-        createAdminClient()
+/**
+ * One listing by id or slug, with contact presence flags (null when not found).
+ * Phase 4.1: cached (tag `listings`) — the hot read behind the ISR'd detail
+ * pages; invalidated via revalidateTag('listings', 'max') from admin actions.
+ * The cached value carries only hasPhone/hasEmail/hasWhatsapp booleans —
+ * raw contact PII never enters the cache (see `toListingDetail`).
+ */
+const getCachedListingDetail = unstable_cache(
+    async (slugOrId: string, locale: Locale): Promise<ListingDetailData | null> => {
+        const { data, error } = await createAdminClient()
             .from("content_items")
             .select(LISTING_DETAIL_SELECT)
             .eq("type", "listing")
             .eq("status", "published")
             .eq("is_archived", false)
-            .or(`id.eq.${sanitizePhrase(slugOrId)},slug.eq.${sanitizePhrase(slugOrId)}`)
-            .limit(1),
-    );
-    const row = asOne(data);
-    if (!row) return null;
-    return toListingDetail(row, locale);
+            .or(`id.eq.${slugOrId},slug.eq.${slugOrId}`)
+            .limit(1);
+        if (error) throw new Error(error.message);
+        const row = asOne(data);
+        if (!row) return null;
+        return toListingDetail(row, locale);
+    },
+    ["listings-detail"],
+    { tags: [CACHE_TAGS.listings], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+/** One listing by id or slug, with contact presence flags (null when not found). */
+export async function getListingDetail(
+    slugOrId: string,
+    locale: Locale = "en",
+): Promise<ListingDetailData | null> {
+    if (!hasDatabase()) return null;
+    // Sanitize before both the cache key and the query so one canonical
+    // string serves every raw spelling of the same URL segment.
+    const sanitized = sanitizePhrase(slugOrId);
+    if (!sanitized) return null;
+    try {
+        return await getCachedListingDetail(sanitized, locale);
+    } catch (err) {
+        logCacheFailure("getListingDetail", err);
+        return null;
+    }
 }
 
-/** Maps a raw row to the detail shape, falling back to the card shape. */
+/** Maps a raw row to the detail shape, omitting raw PII strings. */
 function toListingDetail(row: RawListingRow, locale: Locale): ListingDetailData | null {
     const base = toListing(row, locale);
     if (!base) return null;
@@ -399,6 +507,8 @@ function toListingDetail(row: RawListingRow, locale: Locale): ListingDetailData 
               price: number | null;
               currency: string | null;
               listing_status: string | null;
+              seller_name?: string | null;
+              seller_is_verified?: boolean | null;
               contact_phone?: string | null;
               contact_email?: string | null;
               whatsapp_number?: string | null;
@@ -406,10 +516,11 @@ function toListingDetail(row: RawListingRow, locale: Locale): ListingDetailData 
         | null;
     return {
         ...base,
-        contactPhone: listing?.contact_phone ?? null,
-        contactEmail: listing?.contact_email ?? null,
-        whatsappNumber: listing?.whatsapp_number ?? null,
-        sellerIsVerified: false,
+        sellerName: listing?.seller_name?.trim() || base.sellerName,
+        hasPhone: Boolean(listing?.contact_phone?.trim()),
+        hasEmail: Boolean(listing?.contact_email?.trim()),
+        hasWhatsapp: Boolean(listing?.whatsapp_number?.trim()),
+        sellerIsVerified: listing?.seller_is_verified ?? false,
     };
 }
 
@@ -417,7 +528,47 @@ function toListingDetail(row: RawListingRow, locale: Locale): ListingDetailData 
  * "Similar listings" rail: same category and/or location, excluding the
  * current listing, newest first. Falls back to any recent listing when the
  * strict match returns nothing so the rail is never empty.
+ * Phase 4.1: cached (tag `listings`); filter inputs are sanitized before the
+ * cache call so the cache key is canonical.
  */
+const getCachedSimilarListings = unstable_cache(
+    async (
+        excludeId: string,
+        category: string | undefined,
+        locationSlug: string | undefined,
+        locale: Locale,
+        limit: number,
+    ): Promise<ListingData[]> => {
+        const match = async (locationOnly: boolean): Promise<ListingData[]> => {
+            let query = publishedListings().neq("id", excludeId);
+            if (locationSlug) {
+                query = query.eq("locations.slug", locationSlug);
+            }
+            if (!locationOnly && category) {
+                query = query.eq("categories.slug", category);
+            }
+            const { data, error } = await query
+                .order("published_at", { ascending: false, nullsFirst: false })
+                .limit(limit);
+            if (error) throw new Error(error.message);
+            return (data ?? []).flatMap((row) => {
+                const listing = toListing(row, locale);
+                return listing ? [listing] : [];
+            });
+        };
+
+        const sameCategory = category ? await match(false) : [];
+        if (sameCategory.length >= limit) return sameCategory;
+        const sameLocation = locationSlug ? await match(true) : [];
+        const merged = [...sameCategory, ...sameLocation].filter(
+            (l, index, all) => all.findIndex((x) => x.id === l.id) === index,
+        );
+        return merged.slice(0, limit);
+    },
+    ["listings-similar"],
+    { tags: [CACHE_TAGS.listings], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
 export async function getSimilarListings(
     excludeId: string,
     filters: { category?: string | null; locationSlug?: string | null },
@@ -425,29 +576,21 @@ export async function getSimilarListings(
     limit = 3,
 ): Promise<ListingData[]> {
     if (!hasDatabase()) return [];
-
-    const match = async (locationOnly: boolean): Promise<ListingData[]> => {
-        let query = publishedListings().neq("id", excludeId);
-        if (filters.locationSlug) {
-            query = query.eq("locations.slug", sanitizePhrase(filters.locationSlug));
-        }
-        if (!locationOnly && filters.category) {
-            query = query.eq("categories.slug", sanitizePhrase(filters.category));
-        }
-        const { data } = await safe(
-            query.order("published_at", { ascending: false, nullsFirst: false }).limit(limit),
+    // Sanitize before the cache call so the cache key is canonical.
+    const sanitizedExclude = sanitizePhrase(excludeId);
+    if (!sanitizedExclude) return [];
+    const category = sanitizePhrase(filters.category ?? "") || undefined;
+    const locationSlug = sanitizePhrase(filters.locationSlug ?? "") || undefined;
+    try {
+        return await getCachedSimilarListings(
+            sanitizedExclude,
+            category,
+            locationSlug,
+            locale,
+            limit,
         );
-        return (data ?? []).flatMap((row) => {
-            const listing = toListing(row, locale);
-            return listing ? [listing] : [];
-        });
-    };
-
-    const sameCategory = filters.category ? await match(false) : [];
-    if (sameCategory.length >= limit) return sameCategory;
-    const sameLocation = filters.locationSlug ? await match(true) : [];
-    const merged = [...sameCategory, ...sameLocation].filter(
-        (l, index, all) => all.findIndex((x) => x.id === l.id) === index,
-    );
-    return merged.slice(0, limit);
+    } catch (err) {
+        logCacheFailure("getSimilarListings", err);
+        return [];
+    }
 }

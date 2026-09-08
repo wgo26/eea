@@ -1,6 +1,9 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/observability/logger";
+import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 import type { StoryCardData } from "@/lib/queries/home";
 
@@ -113,12 +116,12 @@ async function safe<T>(
     try {
         const { data, count, error } = await promise;
         if (error) {
-            console.error("[culture]", error.message);
+            logger.error("culture", "query failed", { error: error.message });
             return { data: null, count: null, error };
         }
         return { data, count: count ?? null, error: null };
     } catch (err) {
-        console.error("[culture]", err);
+        logger.error("culture", "query exception", { error: err instanceof Error ? err.message : String(err) });
         return { data: null, count: null, error: { message: String(err) } };
     }
 }
@@ -128,6 +131,18 @@ function hasDatabase(): boolean {
     return Boolean(
         process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
     );
+}
+
+/**
+ * Phase 4.1 — cached-query error policy: inside an `unstable_cache` scope a
+ * failed query THROWS instead of resolving to a fallback, so a transient
+ * outage is never baked into the cache. The exported wrappers catch, log, and
+ * fall back (the safe() semantics) at the call boundary.
+ */
+function logCacheFailure(fn: string, err: unknown): void {
+    logger.error("culture", `cached query failed (${fn})`, {
+        error: err instanceof Error ? err.message : String(err),
+    });
 }
 
 /** PostgREST returns to-one embeds as object or array depending on relationship detection. */
@@ -240,7 +255,60 @@ function toEventCard(row: RawCultureRow, locale: Locale): EventData | null {
  * Paged grid of published culture articles, newest first. Search and category
  * match a phrase across title/excerpt in any locale; location narrows to
  * the item's `locations` row.
+ * Phase 4.1: cached (tag `culture`). Inputs are sanitized in the wrapper so
+ * the cache key is canonical.
  */
+const getCachedCultureArticles = unstable_cache(
+    async (
+        search: string | undefined,
+        category: string | undefined,
+        location: string | undefined,
+        locale: Locale,
+        page: number,
+    ): Promise<{ articles: CultureArticle[]; total: number; page: number; pageCount: number }> => {
+        let query = publishedCulture(true);
+        if (search) {
+            query = query.or(
+                `content_translations.title.ilike.*${search}*,` +
+                    `content_translations.excerpt.ilike.*${search}*`,
+            );
+        }
+        if (category) {
+            query = query.or(
+                `categories.slug.eq.${category},` +
+                    `categories.category_translations.name.ilike.*${category}*`,
+            );
+        }
+        if (location) {
+            query = query.eq("locations.slug", location);
+        }
+
+        const from = (page - 1) * CULTURE_PAGE_SIZE;
+        const {
+            data,
+            count: total,
+            error,
+        } = await query
+            .order("published_at", { ascending: false, nullsFirst: false })
+            .range(from, from + CULTURE_PAGE_SIZE - 1);
+        if (error) throw new Error(error.message);
+
+        const articles = ((data ?? []) as unknown as RawCultureRow[]).flatMap((row) => {
+            const card = toCard(row, locale);
+            return card ? [card] : [];
+        });
+        const totalCount = total ?? 0;
+        return {
+            articles,
+            total: totalCount,
+            page,
+            pageCount: Math.max(1, Math.ceil(totalCount / CULTURE_PAGE_SIZE)),
+        };
+    },
+    ["culture-articles"],
+    { tags: [CACHE_TAGS.culture], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
 export async function getCultureArticles(options: {
     search?: string;
     category?: string;
@@ -252,68 +320,66 @@ export async function getCultureArticles(options: {
         return { articles: [], total: 0, page: 1, pageCount: 1 };
     }
     const page = Math.max(1, options.page ?? 1);
-    const search = options.search?.trim();
-    const category = options.category?.trim();
-    const location = options.location?.trim();
-
-    let query = publishedCulture(true);
-    if (search) {
-        query = query.or(
-            `content_translations.title.ilike.*${sanitizePhrase(search)}*,` +
-                `content_translations.excerpt.ilike.*${sanitizePhrase(search)}*`,
-        );
-    }
-    if (category) {
-        query = query.or(
-            `categories.slug.eq.${sanitizePhrase(category)},` +
-                `categories.category_translations.name.ilike.*${sanitizePhrase(category)}*`,
-        );
-    }
-    if (location) {
-        query = query.eq("locations.slug", sanitizePhrase(location));
-    }
-
-    const from = (page - 1) * CULTURE_PAGE_SIZE;
-    const { data, count: total } = await safe(
-        query
-            .order("published_at", { ascending: false, nullsFirst: false })
-            .range(from, from + CULTURE_PAGE_SIZE - 1),
-    );
-
     const locale = options.locale ?? "en";
-    const articles = (data ?? []).flatMap((row) => {
-        const card = toCard(row, locale);
-        return card ? [card] : [];
-    });
-    const totalCount = total ?? 0;
-    return {
-        articles,
-        total: totalCount,
-        page,
-        pageCount: Math.max(1, Math.ceil(totalCount / CULTURE_PAGE_SIZE)),
-    };
+    // Sanitize before the cache call so one canonical string serves every
+    // raw spelling of the same filter value.
+    const search = options.search?.trim() ? sanitizePhrase(options.search.trim()) || undefined : undefined;
+    const category = options.category?.trim()
+        ? sanitizePhrase(options.category.trim()) || undefined
+        : undefined;
+    const location = options.location?.trim()
+        ? sanitizePhrase(options.location.trim()) || undefined
+        : undefined;
+    try {
+        return await getCachedCultureArticles(search, category, location, locale, page);
+    } catch (err) {
+        logCacheFailure("getCultureArticles", err);
+        return { articles: [], total: 0, page, pageCount: 1 };
+    }
 }
 
-/** One culture article by slug, for the detail page (null when not found). */
+/**
+ * One culture article by slug, for the detail page (null when not found).
+ * Phase 4.1: cached (tag `culture`) — this is the hot read behind the ISR'd
+ * article pages; publish events invalidate via revalidateTag('culture', 'max').
+ */
+const getCachedCultureBySlug = unstable_cache(
+    async (slug: string, locale: Locale): Promise<CultureArticle | null> => {
+        const { data, error } = await publishedCulture()
+            .eq("slug", slug)
+            .limit(1);
+        if (error) throw new Error(error.message);
+        const row = asOne((data ?? []) as unknown as RawCultureRow[]);
+        return row ? toCard(row, locale) : null;
+    },
+    ["culture-by-slug"],
+    { tags: [CACHE_TAGS.culture], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
 export async function getCultureBySlug(
     slug: string,
     locale: Locale = "en",
 ): Promise<CultureArticle | null> {
     if (!hasDatabase()) return null;
-    const { data } = await safe(
-        publishedCulture()
-            .eq("slug", sanitizePhrase(slug))
-            .limit(1),
-    );
-    const row = asOne(data);
-    return row ? toCard(row, locale) : null;
+    // Sanitize before both the cache key and the query so one canonical
+    // string serves every raw spelling of the same URL segment.
+    const sanitized = sanitizePhrase(slug);
+    if (!sanitized) return null;
+    try {
+        return await getCachedCultureBySlug(sanitized, locale);
+    } catch (err) {
+        logCacheFailure("getCultureBySlug", err);
+        return null;
+    }
 }
 
-/** Full-bleed featured culture article for the landing page. */
-export async function getFeaturedCulture(locale: Locale = "en"): Promise<CultureArticle | null> {
-    if (!hasDatabase()) return null;
-    const { data } = await safe(
-        createAdminClient()
+/**
+ * Full-bleed featured culture article for the landing page.
+ * Phase 4.1: cached (tag `culture`).
+ */
+const getCachedFeaturedCulture = unstable_cache(
+    async (locale: Locale): Promise<CultureArticle | null> => {
+        const { data, error } = await createAdminClient()
             .from("content_items")
             .select(CULTURE_SELECT_LEFT)
             .eq("type", "culture")
@@ -321,20 +387,33 @@ export async function getFeaturedCulture(locale: Locale = "en"): Promise<Culture
             .eq("is_archived", false)
             .not("published_at", "is", null)
             .order("published_at", { ascending: false, nullsFirst: false })
-            .limit(1),
-    );
-    const row = asOne(data);
-    return row ? toCard(row, locale) : null;
+            .limit(1);
+        if (error) throw new Error(error.message);
+        const row = asOne((data ?? []) as unknown as RawCultureRow[]);
+        return row ? toCard(row, locale) : null;
+    },
+    ["culture-featured"],
+    { tags: [CACHE_TAGS.culture], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getFeaturedCulture(locale: Locale = "en"): Promise<CultureArticle | null> {
+    if (!hasDatabase()) return null;
+    try {
+        return await getCachedFeaturedCulture(locale);
+    } catch (err) {
+        logCacheFailure("getFeaturedCulture", err);
+        return null;
+    }
 }
 
-/** Upcoming events with a future or current start time, newest first. */
-export async function getUpcomingEvents(
-    locale: Locale = "en",
-    limit = 10,
-): Promise<EventData[]> {
-    if (!hasDatabase()) return [];
-    const { data } = await safe(
-        createAdminClient()
+/**
+ * Upcoming events with a future or current start time, newest first.
+ * Phase 4.1: cached (tag `culture`); the "now" cursor is evaluated once per
+ * cache window, which is fine for a 5-minute revalidate backstop.
+ */
+const getCachedUpcomingEvents = unstable_cache(
+    async (locale: Locale, limit: number): Promise<EventData[]> => {
+        const { data, error } = await createAdminClient()
             .from("content_items")
             .select(CULTURE_SELECT)
             .eq("type", "culture")
@@ -344,50 +423,110 @@ export async function getUpcomingEvents(
             .not("events.starts_at", "is", null)
             .gte("events.starts_at", new Date().toISOString())
             .order("events.starts_at", { ascending: true })
-            .limit(limit),
-    );
-    return (data ?? []).flatMap((row) => {
-        const card = toEventCard(row, locale);
-        return card ? [card] : [];
-    });
+            .limit(limit);
+        if (error) throw new Error(error.message);
+        return ((data ?? []) as unknown as RawCultureRow[]).flatMap((row) => {
+            const card = toEventCard(row, locale);
+            return card ? [card] : [];
+        });
+    },
+    ["culture-upcoming-events"],
+    { tags: [CACHE_TAGS.culture], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getUpcomingEvents(
+    locale: Locale = "en",
+    limit = 10,
+): Promise<EventData[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedUpcomingEvents(locale, limit);
+    } catch (err) {
+        logCacheFailure("getUpcomingEvents", err);
+        return [];
+    }
 }
 
-/** Single event by UUID or slug, for the detail page (null when not found). */
+/**
+ * Single event by UUID or slug, for the detail page (null when not found).
+ * Phase 4.1: cached (tag `culture`) — this is the hot read behind the ISR'd
+ * event pages.
+ */
+const getCachedEventById = unstable_cache(
+    async (identifier: string, locale: Locale): Promise<EventData | null> => {
+        const query = createAdminClient()
+            .from("content_items")
+            .select(CULTURE_SELECT)
+            .eq("type", "culture")
+            .eq("status", "published")
+            .eq("is_archived", false)
+            .not("events.starts_at", "is", null);
+        const { data, error } = await (
+            isUuid(identifier) ? query.eq("id", identifier) : query.eq("slug", identifier)
+        ).limit(1);
+        if (error) throw new Error(error.message);
+        const row = asOne((data ?? []) as unknown as RawCultureRow[]);
+        return row ? toEventCard(row, locale) : null;
+    },
+    ["culture-event-by-id"],
+    { tags: [CACHE_TAGS.culture], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
 export async function getEventById(
     id: string,
     locale: Locale = "en",
 ): Promise<EventData | null> {
     if (!hasDatabase()) return null;
+    // Sanitize before the cache key so one canonical string serves every raw
+    // spelling of the same URL segment.
     const identifier = sanitizePhrase(id);
-    const query = createAdminClient()
-        .from("content_items")
-        .select(CULTURE_SELECT)
-        .eq("type", "culture")
-        .eq("status", "published")
-        .eq("is_archived", false)
-        .not("events.starts_at", "is", null);
-    const { data } = await safe(
-        (isUuid(identifier) ? query.eq("id", identifier) : query.eq("slug", identifier)).limit(1),
-    );
-    const row = asOne(data);
-    return row ? toEventCard(row, locale) : null;
+    if (!identifier) return null;
+    try {
+        return await getCachedEventById(identifier, locale);
+    } catch (err) {
+        logCacheFailure("getEventById", err);
+        return null;
+    }
 }
 
-/** Culture articles for a specific location, newest first. */
+/**
+ * Culture articles for a specific location, newest first.
+ * Phase 4.1: cached (tag `culture`).
+ */
+const getCachedCultureByLocation = unstable_cache(
+    async (
+        locationSlug: string,
+        locale: Locale,
+        limit: number,
+    ): Promise<CultureArticle[]> => {
+        const { data, error } = await publishedCulture()
+            .eq("locations.slug", locationSlug)
+            .order("published_at", { ascending: false, nullsFirst: false })
+            .limit(limit);
+        if (error) throw new Error(error.message);
+        return ((data ?? []) as unknown as RawCultureRow[]).flatMap((row) => {
+            const card = toCard(row, locale);
+            return card ? [card] : [];
+        });
+    },
+    ["culture-by-location"],
+    { tags: [CACHE_TAGS.culture], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
 export async function getCultureByLocation(
     locationSlug: string,
     locale: Locale = "en",
     limit = 10,
 ): Promise<CultureArticle[]> {
     if (!hasDatabase()) return [];
-    const { data } = await safe(
-        publishedCulture()
-            .eq("locations.slug", sanitizePhrase(locationSlug))
-            .order("published_at", { ascending: false, nullsFirst: false })
-            .limit(limit),
-    );
-    return (data ?? []).flatMap((row) => {
-        const card = toCard(row, locale);
-        return card ? [card] : [];
-    });
+    // Sanitize before the cache key so one canonical string serves every raw
+    // spelling of the same location slug.
+    const sanitized = sanitizePhrase(locationSlug);
+    if (!sanitized) return [];
+    try {
+        return await getCachedCultureByLocation(sanitized, locale, limit);
+    } catch (err) {
+        logCacheFailure("getCultureByLocation", err);
+        return [];
+    }
 }

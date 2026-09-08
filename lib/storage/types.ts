@@ -19,6 +19,7 @@ export interface UploadInput {
 }
 
 export interface UploadResult {
+  assetId?: string
   provider: StorageProvider
   destination: StorageDestination
   kind: MediaKind

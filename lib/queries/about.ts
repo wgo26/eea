@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/observability/logger";
 import type { Locale } from "@/lib/i18n";
 
 export const POLICY_TYPES = [
@@ -43,12 +44,12 @@ async function safe<T>(
     try {
         const { data, error, count } = await promise;
         if (error) {
-            console.error("[about]", error.message);
+            logger.error("about", "query failed", { error: error.message });
             return { data: null, error, count: count ?? null };
         }
         return { data, error: null, count: count ?? null };
     } catch (err) {
-        console.error("[about]", err);
+        logger.error("about", "query exception", { error: err instanceof Error ? err.message : String(err) });
         return { data: null, error: { message: String(err) }, count: null };
     }
 }

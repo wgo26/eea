@@ -11,17 +11,25 @@ export async function generateMetadata(): Promise<{ title: string }> {
   return { title: getDictionary(locale).admin.audit.title }
 }
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ action?: string; entity?: string }> }) {
   await requireCapability('viewAuditLog', '/admin/audit-log')
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
   const t = dict.admin.audit
 
-  const entries = await getRecentModeration(50)
+  const params = await searchParams
+  const entries = await getRecentModeration(100, { action: params.action, entityType: params.entity })
 
   return (
     <div className="space-y-6">
       <PageHeader title={t.title} description={t.description} />
+
+      <form method="GET" className="flex flex-wrap items-center gap-2">
+        <input name="action" defaultValue={params.action} placeholder={t.actionPlaceholder} className="rounded-md border border-border bg-background px-3 py-2 text-sm" />
+        <input name="entity" defaultValue={params.entity} placeholder={t.entityPlaceholder} className="rounded-md border border-border bg-background px-3 py-2 text-sm" />
+        <button type="submit" className="rounded-md border border-border px-3 py-2 text-sm">{t.filter}</button>
+        <a href="export" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">{t.exportCsv}</a>
+      </form>
 
       <DataTable
         rows={entries}

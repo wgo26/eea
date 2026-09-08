@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/admin/page-header'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
 import { formatBytes, formatPercent } from '@/lib/admin/format'
 import { BackupActions } from './backup-actions'
+import { VerificationActions } from './verification-actions'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -32,6 +33,7 @@ export default async function Page() {
           value={stats.pendingBackup}
           hint={stats.pendingBackup > 0 ? t.needsAttention : t.allBackedUp}
         />
+        <StatCard label={t.pendingVerification} value={stats.pendingVerification} />
       </StatGrid>
 
       <section>
@@ -81,6 +83,12 @@ export default async function Page() {
             </p>
           </div>
           <BackupActions copy={t} />
+        </div>
+      </section>
+      <section className="rounded-lg border border-border bg-card p-4">
+        <div className="flex items-center justify-between">
+          <div><h3 className="text-sm font-medium">{t.verification}</h3><p className="text-xs text-muted-foreground mt-1">{t.verificationBody}</p></div>
+          <VerificationActions copy={t} />
         </div>
       </section>
     </div>

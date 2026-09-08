@@ -1,6 +1,7 @@
 import { fileTypeFromBuffer } from 'file-type'
 import sharp from 'sharp'
 import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, mimeToKind } from './config'
+import { logger } from '@/lib/observability/logger'
 import { StorageValidationError } from './types'
 import type { MediaKind, StorageDestination } from './types'
 
@@ -63,7 +64,7 @@ export async function validateUpload(
   // useful signal to log even though it isn't itself a rejection reason —
   // the sniffed type is what's trusted and used from here on.
   if (declaredMimeType && !declaredMimeType.startsWith(kind) && declaredMimeType !== sniffed.mime) {
-    console.warn(`Declared type "${declaredMimeType}" did not match sniffed type "${sniffed.mime}".`)
+    logger.warn('validateUpload', 'declared MIME mismatch (trusting sniffed bytes)', { declaredMimeType, sniffed: sniffed.mime })
   }
 
   if (kind === 'image') {

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { submitAdvertiseInquiry } from "@/lib/public/actions";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import type { SubmitState } from "@/lib/public/types";
 import type { Dictionary } from "@/lib/i18n";
 
@@ -85,8 +86,27 @@ export function AdvertiseForm({ dict }: { dict: Dictionary }) {
             </div>
 
             {state.error ? (
-                <p className="text-sm text-destructive">{dict.advertise.errorGeneric}</p>
+                <p className="text-sm text-destructive">
+                    {state.error === "rate_limited"
+                        ? dict.advertise.errorRateLimited
+                        : state.error === "duplicate"
+                          ? dict.advertise.errorDuplicate
+                          : state.error === "captcha"
+                            ? dict.advertise.errorCaptcha
+                            : dict.advertise.errorGeneric}
+                </p>
             ) : null}
+
+            {/* Bot trap: hidden from humans; a filled field silently drops the row. */}
+            <input
+                type="text"
+                name="website"
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden="true"
+                className="hidden"
+            />
+            <TurnstileWidget />
 
             <Button type="submit" disabled={pending} className="w-full">
                 {pending ? (

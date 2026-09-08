@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
 import { storageConfig } from '../config'
 
 let client: S3Client | null = null
@@ -31,4 +31,25 @@ export async function uploadToB2(storageKey: string, buffer: Buffer, mimeType: s
       ContentType: mimeType,
     })
   )
+}
+
+/** Downloads a mirrored object back from B2 (verify path + restore drills). */
+export async function downloadFromB2(storageKey: string): Promise<{ buffer: Buffer; mimeType: string }> {
+  const result = await getClient().send(
+    new GetObjectCommand({ Bucket: storageConfig.b2.bucket, Key: storageKey })
+  )
+  const bytes = await result.Body!.transformToByteArray()
+  return { buffer: Buffer.from(bytes), mimeType: result.ContentType ?? 'application/octet-stream' }
+}
+
+/** Lightweight existence check for readiness probes (no body download). */
+export async function headBackupObject(storageKey: string): Promise<boolean> {
+  try {
+    await getClient().send(
+      new HeadObjectCommand({ Bucket: storageConfig.b2.bucket, Key: storageKey })
+    )
+    return true
+  } catch {
+    return false
+  }
 }

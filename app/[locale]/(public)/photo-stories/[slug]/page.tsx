@@ -32,17 +32,27 @@ import {
     getPhotoStoryBySlug,
 } from "@/lib/queries/photo-stories";
 
-type PhotoStoryPageProps = { params: Promise<{ slug: string }> };
+type PhotoStoryPageProps = { params: Promise<{ locale: string; slug: string }> };
 
 export async function generateStaticParams(): Promise<{ slug: string }[]> {
     return generateStaticSlugs();
 }
 
+/**
+ * Phase 4.1 (audit §4.1) — ISR for the essay page. Locale comes from the
+ * [locale] segment (no headers()/cookies() read), the essay data is cached
+ * under the `stories` tag, and the full route is revalidated on this window
+ * or on demand via revalidateTag('stories', 'max') from the editorial
+ * actions. The literal is required by the static-analyzability rule for
+ * segment config.
+ */
+export const revalidate = 300;
+
 export async function generateMetadata({
     params,
 }: PhotoStoryPageProps): Promise<Metadata> {
-    const { slug } = await params;
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { slug, locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const story = await getPhotoStoryBySlug(slug, locale);
     if (!story) return { title: "Photo story not found" };
     return {
@@ -59,8 +69,8 @@ export async function generateMetadata({
 }
 
 export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
-    const { slug } = await params;
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { slug, locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
 
     const story = await getPhotoStoryBySlug(slug, locale);

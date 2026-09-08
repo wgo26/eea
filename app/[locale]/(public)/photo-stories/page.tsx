@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { Camera, Eye, Images, MapPin, Search } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
@@ -29,8 +28,13 @@ import {
     getPhotoStoriesStats,
 } from "@/lib/queries/photo-stories";
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
     return {
         title: dict.photoStories.title,
@@ -67,11 +71,14 @@ function buildHref(params: {
 }
 
 export default async function PhotoStoriesPage({
+    params,
     searchParams,
 }: {
+    params: Promise<{ locale: string }>;
     searchParams: Promise<PhotoStoriesSearchParams>;
 }) {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
 
     const params = await searchParams;

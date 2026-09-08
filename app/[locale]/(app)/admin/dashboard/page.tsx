@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/admin/page-header'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { formatBytes, formatRelative } from '@/lib/admin/format'
+import { localePath } from '@/lib/i18n/urls'
 import type { ModerationEntry } from '@/lib/admin/queries'
 
 export async function generateMetadata(): Promise<{ title: string }> {
@@ -31,7 +32,7 @@ export default async function Page() {
       <section>
         <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.submissions}</h2>
         <StatGrid>
-          <StatCard label={t.pending} value={stats.pendingSubmissions} hint={t.hintAwaitingReview} />
+          <a href={localePath(locale, '/admin/moderation')}><StatCard label={t.pending} value={stats.pendingSubmissions} hint={t.hintAwaitingReview} /></a>
           <StatCard label={t.publishedToday} value={stats.publishedToday} />
           <StatCard label={t.scheduled} value={stats.scheduled} />
           <StatCard label={t.drafts} value={stats.draftCount} />
@@ -54,9 +55,9 @@ export default async function Page() {
       <section>
         <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.operations}</h2>
         <StatGrid>
-          <StatCard label={t.activeAds} value={stats.activeAds} />
+          <a href={localePath(locale, '/admin/ads')}><StatCard label={t.activeAds} value={stats.activeAds} /></a>
           <StatCard label={t.activeListings} value={stats.expiringListings} />
-          <StatCard label={t.storageUsed} value={formatBytes(stats.storageUsed)} />
+          <a href={localePath(locale, '/admin/storage-backup')}><StatCard label={t.storageUsed} value={formatBytes(stats.storageUsed)} /></a>
         </StatGrid>
       </section>
 

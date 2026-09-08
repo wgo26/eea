@@ -1,6 +1,9 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/observability/logger";
+import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 
 /**
@@ -133,12 +136,12 @@ async function safe<T>(
     try {
         const { data, count, error } = await promise;
         if (error) {
-            console.error("[notices]", error.message);
+            logger.error("notices", "query failed", { error: error.message });
             return { data: null, count: null, error };
         }
         return { data, count: count ?? null, error: null };
     } catch (err) {
-        console.error("[notices]", err);
+        logger.error("notices", "query exception", { error: err instanceof Error ? err.message : String(err) });
         return { data: null, count: null, error: { message: String(err) } };
     }
 }
@@ -148,6 +151,18 @@ function hasDatabase(): boolean {
     return Boolean(
         process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
     );
+}
+
+/**
+ * Phase 4.1 — cached-query error policy: inside an `unstable_cache` scope a
+ * failed query THROWS instead of resolving to a fallback, so a transient
+ * outage is never baked into the cache. The exported wrappers catch, log, and
+ * fall back (the safe() semantics) at the call boundary.
+ */
+function logCacheFailure(fn: string, err: unknown): void {
+    logger.error("notices", `cached query failed (${fn})`, {
+        error: err instanceof Error ? err.message : String(err),
+    });
 }
 
 /** PostgREST returns to-one embeds as object or array depending on relationship detection. */
@@ -327,7 +342,81 @@ async function statusIds(status: NoticeStatus): Promise<string[] | null> {
  * `status` narrows by lifecycle (active / expiring / expired), `sort` switches
  * between recency and "expiring soonest", and the usual search / type /
  * location facets apply.
+ *
+ * Phase 4.1: the whole result is cached (tag `notices`). The two-step id
+ * lookups (`searchIds`/`statusIds`) stay uncached — they return null-vs-empty
+ * with distinct semantics — and run inside the cached scope; the outer result
+ * is what's cached.
  */
+type CachedNoticesArgs = {
+    search?: string;
+    noticeType?: string;
+    location?: string;
+    status: NoticeStatus;
+    sort: NoticeSort;
+    locale: Locale;
+    page: number;
+};
+
+const getCachedNotices = unstable_cache(
+    async (args: CachedNoticesArgs): Promise<{
+        notices: NoticeData[];
+        total: number;
+        page: number;
+        pageCount: number;
+    }> => {
+        const [searchMatches, lifecycle] = await Promise.all([
+            searchIds(args.search),
+            statusIds(args.status),
+        ]);
+
+        // An empty id list means "definitely nothing" — short-circuit so we never
+        // fall back to showing every notice.
+        if ((searchMatches && searchMatches.length === 0) || (lifecycle && lifecycle.length === 0)) {
+            return { notices: [], total: 0, page: 1, pageCount: 1 };
+        }
+
+        let query = publishedNotices(
+            args.location ? NOTICE_SELECT_WITH_LOCATION : NOTICE_SELECT,
+            true,
+        );
+        if (searchMatches) query = query.in("id", searchMatches);
+        if (lifecycle) query = query.in("id", lifecycle);
+        if (args.noticeType) query = query.eq("notices.notice_type", sanitizePhrase(args.noticeType));
+        if (args.location) query = query.eq("locations.slug", sanitizePhrase(args.location));
+
+        const from = (args.page - 1) * NOTICES_PAGE_SIZE;
+
+        if (args.sort === "expiring") {
+            // Only notices that actually expire can be ordered this way.
+            // The Supabase type system can't handle this complex query chaining,
+            // so we cast through unknown to bypass type checking
+            query = (query
+                .not("notices.expiry_date", "is", null)
+                .order("notices(expiry_date)", { ascending: true }) as unknown as typeof query);
+        } else {
+            query = query.order("published_at", { ascending: false, nullsFirst: false });
+        }
+
+        const { data, count: total, error } = await query.range(from, from + NOTICES_PAGE_SIZE - 1);
+        if (error) throw new Error(error.message);
+
+        const notices = ((data ?? []) as unknown as RawNoticeRow[]).flatMap((row) => {
+            const notice = toNoticeData(row, args.locale);
+            return notice ? [notice] : [];
+        });
+        const totalCount = total ?? 0;
+        return {
+            notices,
+            total: totalCount,
+            page: args.page,
+            pageCount: Math.max(1, Math.ceil(totalCount / NOTICES_PAGE_SIZE)),
+        };
+    },
+    ["notices-board"],
+    { tags: [CACHE_TAGS.notices], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
 export async function getNotices(options: {
     search?: string;
     noticeType?: string;
@@ -340,80 +429,124 @@ export async function getNotices(options: {
     if (!hasDatabase()) {
         return { notices: [], total: 0, page: 1, pageCount: 1 };
     }
-    const page = Math.max(1, options.page ?? 1);
-    const noticeType = options.noticeType?.trim();
-    const location = options.location?.trim();
-    const status = options.status ?? "all";
-    const sort = options.sort ?? "newest";
-
-    const [searchMatches, lifecycle] = await Promise.all([
-        searchIds(options.search),
-        statusIds(status),
-    ]);
-
-    // An empty id list means "definitely nothing" — short-circuit so we never
-    // fall back to showing every notice.
-    if ((searchMatches && searchMatches.length === 0) || (lifecycle && lifecycle.length === 0)) {
+    // Sanitize before the cache call so the cache key is canonical.
+    const searchTerm = options.search?.trim();
+    const noticeTypeTerm = options.noticeType?.trim();
+    const locationTerm = options.location?.trim();
+    const args: CachedNoticesArgs = {
+        search: searchTerm ? sanitizePhrase(searchTerm) || undefined : undefined,
+        noticeType: noticeTypeTerm ? sanitizePhrase(noticeTypeTerm) || undefined : undefined,
+        location: locationTerm ? sanitizePhrase(locationTerm) || undefined : undefined,
+        status: options.status ?? "all",
+        sort: options.sort ?? "newest",
+        locale: options.locale ?? "en",
+        page: Math.max(1, options.page ?? 1),
+    };
+    try {
+        return await getCachedNotices(args);
+    } catch (err) {
+        logCacheFailure("getNotices", err);
         return { notices: [], total: 0, page: 1, pageCount: 1 };
     }
-
-    let query = publishedNotices(
-        location ? NOTICE_SELECT_WITH_LOCATION : NOTICE_SELECT,
-        true,
-    );
-    if (searchMatches) query = query.in("id", searchMatches);
-    if (lifecycle) query = query.in("id", lifecycle);
-    if (noticeType) query = query.eq("notices.notice_type", sanitizePhrase(noticeType));
-    if (location) query = query.eq("locations.slug", sanitizePhrase(location));
-
-    const from = (page - 1) * NOTICES_PAGE_SIZE;
-
-    if (sort === "expiring") {
-        // Only notices that actually expire can be ordered this way.
-        // The Supabase type system can't handle this complex query chaining,
-        // so we cast through unknown to bypass type checking
-        query = (query
-            .not("notices.expiry_date", "is", null)
-            .order("notices(expiry_date)", { ascending: true }) as unknown as typeof query);
-    } else {
-        query = query.order("published_at", { ascending: false, nullsFirst: false });
-    }
-
-    const { data, count: total } = await safe(query.range(from, from + NOTICES_PAGE_SIZE - 1));
-
-    const locale = options.locale ?? "en";
-    const notices = ((data ?? []) as unknown as RawNoticeRow[]).flatMap((row) => {
-        const notice = toNoticeData(row, locale);
-        return notice ? [notice] : [];
-    });
-    const totalCount = total ?? 0;
-    return {
-        notices,
-        total: totalCount,
-        page,
-        pageCount: Math.max(1, Math.ceil(totalCount / NOTICES_PAGE_SIZE)),
-    };
 }
 
-/** One notice by UUID or slug, for the detail page (null when not found). */
+/**
+ * One notice by UUID or slug, for the detail page (null when not found).
+ * Phase 4.1: cached (tag `notices`) — this is the hot read behind the ISR'd
+ * detail pages; publish/unpublish invalidates via revalidateTag('notices', 'max')
+ * from the admin actions.
+ */
+const getCachedNoticeById = unstable_cache(
+    async (identifier: string, locale: Locale): Promise<NoticeData | null> => {
+        const query = publishedNotices();
+        const { data, error } = await (
+            isUuid(identifier) ? query.eq("id", identifier) : query.eq("slug", identifier)
+        ).limit(1);
+        if (error) throw new Error(error.message);
+        const row = asOne((data as unknown as RawNoticeRow[]) ?? []);
+        return row ? toNoticeData(row, locale) : null;
+    },
+    ["notice-by-id"],
+    { tags: [CACHE_TAGS.notices], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
 export async function getNoticeById(
     id: string,
     locale: Locale = "en",
 ): Promise<NoticeData | null> {
     if (!hasDatabase()) return null;
+    // Sanitize before both the cache key and the query so one canonical
+    // string serves every raw spelling of the same URL segment.
     const identifier = sanitizePhrase(id);
-    const query = publishedNotices();
-    const { data } = await safe(
-        (isUuid(identifier) ? query.eq("id", identifier) : query.eq("slug", identifier)).limit(1),
-    );
-    const row = asOne((data as unknown as RawNoticeRow[]) ?? []);
-    return row ? toNoticeData(row, locale) : null;
+    if (!identifier) return null;
+    try {
+        return await getCachedNoticeById(identifier, locale);
+    } catch (err) {
+        logCacheFailure("getNoticeById", err);
+        return null;
+    }
 }
 
 /**
  * Board statistics for the header strip: live notices, how many are about to
  * expire, how many are official versus community-sourced, and coverage.
+ * Phase 4.1: cached (tag `notices`); the "expiring soon" window is computed
+ * once per cache window, which is fine for a stat strip.
  */
+const getCachedNoticesStats = unstable_cache(
+    async (): Promise<{
+        total: number;
+        active: number;
+        expiring: number;
+        official: number;
+        places: number;
+    }> => {
+        const nowIso = new Date().toISOString();
+        const soonIso = new Date(Date.now() + 3 * 86_400_000).toISOString();
+        const supabase = createAdminClient();
+
+        const [all, official, expiring, rows] = await Promise.all([
+            supabase.from("notices").select("content_item_id, expiry_date"),
+            supabase.from("notices").select("content_item_id").eq("is_official", true),
+            supabase
+                .from("notices")
+                .select("content_item_id")
+                .gte("expiry_date", nowIso)
+                .lte("expiry_date", soonIso),
+            publishedNotices().select(
+                "id, location:locations(name, slug), notices!inner(is_official)",
+            ),
+        ]);
+        if (all.error) throw new Error(all.error.message);
+        if (official.error) throw new Error(official.error.message);
+        if (expiring.error) throw new Error(expiring.error.message);
+        if (rows.error) throw new Error(rows.error.message);
+
+        const allRows = (all.data ?? []) as { expiry_date: string | null }[];
+        const active = allRows.filter((r) =>
+            r.expiry_date ? new Date(r.expiry_date) > new Date() : true,
+        ).length;
+
+        const places = new Set<string>();
+        for (const row of ((rows.data ?? []) as unknown as {
+            location?: { name: string; slug: string | null } | { name: string; slug: string | null }[] | null;
+        }[])) {
+            const location = asOne(row.location);
+            if (location?.name) places.add(location.name);
+        }
+
+        return {
+            total: allRows.length,
+            active,
+            expiring: expiring.data?.length ?? 0,
+            official: official.data?.length ?? 0,
+            places: places.size,
+        };
+    },
+    ["notices-stats"],
+    { tags: [CACHE_TAGS.notices], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
 export async function getNoticesStats(): Promise<{
     total: number;
     active: number;
@@ -423,168 +556,200 @@ export async function getNoticesStats(): Promise<{
 }> {
     const empty = { total: 0, active: 0, expiring: 0, official: 0, places: 0 };
     if (!hasDatabase()) return empty;
-
-    const nowIso = new Date().toISOString();
-    const soonIso = new Date(Date.now() + 3 * 86_400_000).toISOString();
-    const supabase = createAdminClient();
-
-    const [all, official, expiring, rows] = await Promise.all([
-        safe(supabase.from("notices").select("content_item_id, expiry_date")),
-        safe(supabase.from("notices").select("content_item_id").eq("is_official", true)),
-        safe(
-            supabase
-                .from("notices")
-                .select("content_item_id")
-                .gte("expiry_date", nowIso)
-                .lte("expiry_date", soonIso),
-        ),
-        safe(
-            publishedNotices().select(
-                "id, location:locations(name, slug), notices!inner(is_official)",
-            ),
-        ),
-    ]);
-
-    const allRows = (all.data ?? []) as { expiry_date: string | null }[];
-    const active = allRows.filter((r) =>
-        r.expiry_date ? new Date(r.expiry_date) > new Date() : true,
-    ).length;
-
-    const places = new Set<string>();
-    for (const row of ((rows.data ?? []) as unknown as {
-        location?: { name: string; slug: string | null } | { name: string; slug: string | null }[] | null;
-    }[])) {
-        const location = asOne(row.location);
-        if (location?.name) places.add(location.name);
+    try {
+        return await getCachedNoticesStats();
+    } catch (err) {
+        logCacheFailure("getNoticesStats", err);
+        return empty;
     }
-
-    return {
-        total: allRows.length,
-        active,
-        expiring: expiring.data?.length ?? 0,
-        official: official.data?.length ?? 0,
-        places: places.size,
-    };
 }
 
 /**
  * The single most urgent live notice for the top-of-board alert: a missing
  * person or community alert that has not expired, newest first.
+ * Phase 4.1: cached (tag `notices`).
  */
-export async function getUrgentNotice(locale: Locale = "en"): Promise<NoticeData | null> {
-    if (!hasDatabase()) return null;
-    const { data } = await safe(
-        publishedNotices()
+const getCachedUrgentNotice = unstable_cache(
+    async (locale: Locale): Promise<NoticeData | null> => {
+        const { data, error } = await publishedNotices()
             .in("notices.notice_type", ["missing_person", "community_alert"])
             .order("published_at", { ascending: false, nullsFirst: false })
-            .limit(6),
-    );
-    const row = ((data ?? []) as unknown as RawNoticeRow[]).find((r) => {
-        const notice = asOne(r.notices);
-        return notice ? isNoticeActive(notice) : true;
-    });
-    return row ? toNoticeData(row, locale) : null;
+            .limit(6);
+        if (error) throw new Error(error.message);
+        const row = ((data ?? []) as unknown as RawNoticeRow[]).find((r) => {
+            const notice = asOne(r.notices);
+            return notice ? isNoticeActive(notice) : true;
+        });
+        return row ? toNoticeData(row, locale) : null;
+    },
+    ["notices-urgent"],
+    { tags: [CACHE_TAGS.notices], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getUrgentNotice(locale: Locale = "en"): Promise<NoticeData | null> {
+    if (!hasDatabase()) return null;
+    try {
+        return await getCachedUrgentNotice(locale);
+    } catch (err) {
+        logCacheFailure("getUrgentNotice", err);
+        return null;
+    }
 }
 
 /**
  * Featured notice for the board: the newest official notice that has not
  * expired, falling back to the newest notice of any kind.
+ * Phase 4.1: cached (tag `notices`).
  */
-export async function getFeaturedNotice(locale: Locale = "en"): Promise<NoticeData | null> {
-    if (!hasDatabase()) return null;
-
-    const official = await safe(
-        publishedNotices()
+const getCachedFeaturedNotice = unstable_cache(
+    async (locale: Locale): Promise<NoticeData | null> => {
+        const { data: officialData, error: officialError } = await publishedNotices()
             .eq("notices.is_official", true)
             .order("published_at", { ascending: false, nullsFirst: false })
-            .limit(5),
-    );
-    const officialRows = ((official.data ?? []) as unknown as RawNoticeRow[]).filter((row) => {
-        const notice = asOne(row.notices);
-        return notice ? isNoticeActive(notice) : true;
-    });
-    if (officialRows.length > 0) {
-        return toNoticeData(officialRows[0], locale);
-    }
+            .limit(5);
+        if (officialError) throw new Error(officialError.message);
+        const officialRows = ((officialData ?? []) as unknown as RawNoticeRow[]).filter((row) => {
+            const notice = asOne(row.notices);
+            return notice ? isNoticeActive(notice) : true;
+        });
+        if (officialRows.length > 0) {
+            return toNoticeData(officialRows[0], locale);
+        }
 
-    const anyNotice = await safe(
-        publishedNotices()
+        const { data: anyData, error: anyError } = await publishedNotices()
             .order("published_at", { ascending: false, nullsFirst: false })
-            .limit(1),
-    );
-    const anyRow = asOne((anyNotice.data as unknown as RawNoticeRow[]) ?? []);
-    return anyRow ? toNoticeData(anyRow, locale) : null;
+            .limit(1);
+        if (anyError) throw new Error(anyError.message);
+        const anyRow = asOne((anyData as unknown as RawNoticeRow[]) ?? []);
+        return anyRow ? toNoticeData(anyRow, locale) : null;
+    },
+    ["notices-featured"],
+    { tags: [CACHE_TAGS.notices], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getFeaturedNotice(locale: Locale = "en"): Promise<NoticeData | null> {
+    if (!hasDatabase()) return null;
+    try {
+        return await getCachedFeaturedNotice(locale);
+    } catch (err) {
+        logCacheFailure("getFeaturedNotice", err);
+        return null;
+    }
 }
 
 /**
  * Notices filtered by location slug, newest first. Optional limit to
  * control rail/card count.
+ * Phase 4.1: cached (tag `notices`).
  */
+const getCachedNoticesByLocation = unstable_cache(
+    async (locationSlug: string, locale: Locale, limit: number): Promise<NoticeData[]> => {
+        const { data, error } = await publishedNotices(NOTICE_SELECT_WITH_LOCATION)
+            .eq("locations.slug", locationSlug)
+            .order("published_at", { ascending: false, nullsFirst: false })
+            .limit(limit);
+        if (error) throw new Error(error.message);
+        return ((data ?? []) as unknown as RawNoticeRow[]).flatMap((row) => {
+            const notice = toNoticeData(row, locale);
+            return notice ? [notice] : [];
+        });
+    },
+    ["notices-by-location"],
+    { tags: [CACHE_TAGS.notices], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
 export async function getNoticesByLocation(
     locationSlug: string,
     locale: Locale = "en",
     limit = 5,
 ): Promise<NoticeData[]> {
     if (!hasDatabase()) return [];
-    const { data } = await safe(
-        publishedNotices(NOTICE_SELECT_WITH_LOCATION)
-            .eq("locations.slug", sanitizePhrase(locationSlug))
-            .order("published_at", { ascending: false, nullsFirst: false })
-            .limit(limit),
-    );
-    return ((data ?? []) as unknown as RawNoticeRow[]).flatMap((row) => {
-        const notice = toNoticeData(row, locale);
-        return notice ? [notice] : [];
-    });
+    // Sanitize before the cache call so the cache key is canonical.
+    const slug = sanitizePhrase(locationSlug);
+    if (!slug) return [];
+    try {
+        return await getCachedNoticesByLocation(slug, locale, limit);
+    } catch (err) {
+        logCacheFailure("getNoticesByLocation", err);
+        return [];
+    }
 }
 
-/** Location filter facets from the shared `locations` table (active only). */
+/**
+ * Location filter facets from the shared `locations` table (active only).
+ * Phase 4.1: cached (tag `notices`).
+ */
+const getCachedNoticesLocations = unstable_cache(
+    async (): Promise<{ slug: string; name: string }[]> => {
+        const { data, error } = await createAdminClient()
+            .from("locations")
+            .select("slug, name")
+            .eq("is_active", true)
+            .order("name", { ascending: true });
+        if (error) throw new Error(error.message);
+        return (data ?? []).flatMap((row) => {
+            const location = row as { slug: string; name: string | null };
+            return location.name ? [{ slug: location.slug, name: location.name }] : [];
+        });
+    },
+    ["notices-locations"],
+    { tags: [CACHE_TAGS.notices], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
 export async function getNoticesLocations(): Promise<
     { slug: string; name: string }[]
 > {
     if (!hasDatabase()) return [];
-    const supabase = createAdminClient();
-    const { data } = await safe(
-        supabase
-            .from("locations")
-            .select("slug, name")
-            .eq("is_active", true)
-            .order("name", { ascending: true }),
-    );
-    return (data ?? []).flatMap((row) => {
-        const location = row as { slug: string; name: string | null };
-        return location.name ? [{ slug: location.slug, name: location.name }] : [];
-    });
+    try {
+        return await getCachedNoticesLocations();
+    } catch (err) {
+        logCacheFailure("getNoticesLocations", err);
+        return [];
+    }
 }
 
 /**
  * Notice type facets with totals, counted across published notices only
  * (empty types are hidden). Sorted so the loudest categories lead.
+ * Phase 4.1: cached (tag `notices`) — the facet list only changes on
+ * editorial publish events, which call revalidateTag('notices', 'max').
  */
+const getCachedNoticeTypes = unstable_cache(
+    async (): Promise<{ type: string; label: string; total: number }[]> => {
+        const { data, error } = await publishedNotices().select("notices!inner(notice_type)");
+        if (error) throw new Error(error.message);
+
+        const typeCounts = new Map<string, number>();
+        for (const row of ((data ?? []) as unknown as {
+            notices?: { notice_type: string | null } | { notice_type: string | null }[] | null;
+        }[])) {
+            const notice = asOne(row.notices);
+            if (notice?.notice_type) {
+                typeCounts.set(notice.notice_type, (typeCounts.get(notice.notice_type) ?? 0) + 1);
+            }
+        }
+
+        return Array.from(typeCounts.entries())
+            .map(([type, total]) => ({
+                type,
+                label: NOTICE_TYPE_LABELS[type] ?? type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+                total,
+            }))
+            .filter((f) => f.total > 0)
+            .sort((a, b) => b.total - a.total);
+    },
+    ["notices-types"],
+    { tags: [CACHE_TAGS.notices], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
 export async function getNoticeTypes(): Promise<
     { type: string; label: string; total: number }[]
 > {
     if (!hasDatabase()) return [];
-    const { data } = await safe(
-        publishedNotices().select("notices!inner(notice_type)"),
-    );
-
-    const typeCounts = new Map<string, number>();
-    for (const row of ((data ?? []) as unknown as {
-        notices?: { notice_type: string | null } | { notice_type: string | null }[] | null;
-    }[])) {
-        const notice = asOne(row.notices);
-        if (notice?.notice_type) {
-            typeCounts.set(notice.notice_type, (typeCounts.get(notice.notice_type) ?? 0) + 1);
-        }
+    try {
+        return await getCachedNoticeTypes();
+    } catch (err) {
+        logCacheFailure("getNoticeTypes", err);
+        return [];
     }
-
-    return Array.from(typeCounts.entries())
-        .map(([type, total]) => ({
-            type,
-            label: NOTICE_TYPE_LABELS[type] ?? type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-            total,
-        }))
-        .filter((f) => f.total > 0)
-        .sort((a, b) => b.total - a.total);
 }

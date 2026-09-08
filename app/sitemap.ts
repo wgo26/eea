@@ -24,7 +24,7 @@ const STATIC_PATHS = [
     "/submit/news",
     "/submit/photo-story",
     "/submit/buy-sell",
-    "/submit/notices",
+    "/submit/notice",
     "/submit/culture",
     "/locations",
     "/contributors",
@@ -54,15 +54,36 @@ async function fetchDynamicEntries(): Promise<DynamicEntry[]> {
         if (!supabaseUrl || !serviceKey) return [];
 
         const supabase = createAdminClient();
-        const [content, locations, contributors] = await Promise.all([
+        const nowIso = new Date().toISOString();
+        const [content, notices, locations, contributors] = await Promise.all([
             supabase
                 .from("content_items")
-                .select("type, id, slug, published_at")
-                .eq("status", "published"),
+                .select("type, id, slug, published_at, expires_at")
+                .eq("status", "published")
+                .eq("is_archived", false)
+                .lte("published_at", nowIso)
+                // Expired listings must not be indexed (audit §3.2).
+                .or(`expires_at.is.null,expires_at.gt.${nowIso}`),
+            // Notice expiry lives on notices.expiry_date, not content_items.
+            supabase
+                .from("notices")
+                .select("content_item_id, expiry_date")
+                .not("expiry_date", "is", null)
+                .lte("expiry_date", nowIso),
             supabase.from("locations").select("slug").eq("is_active", true),
-            supabase.from("profiles").select("id").eq("is_public", true),
+            supabase
+                .from("profiles")
+                .select("id")
+                .eq("is_public", true)
+                .eq("is_banned", false)
+                .eq("is_suspended", false),
         ]);
         const entries: DynamicEntry[] = [];
+        const expiredNoticeIds = new Set(
+            ((notices.error ? [] : (notices.data ?? [])) as { content_item_id: string | null }[])
+                .map((r) => r.content_item_id)
+                .filter((id): id is string => Boolean(id)),
+        );
         const rows = (content.error ? [] : (content.data ?? [])) as {
             type: string;
             id: string;
@@ -72,6 +93,8 @@ async function fetchDynamicEntries(): Promise<DynamicEntry[]> {
         for (const row of rows) {
             const segment = SEGMENT_BY_TYPE[row.type];
             if (!segment) continue;
+            // Skip expired notices (covered by the notices.expiry_date query).
+            if (row.type === "notice" && expiredNoticeIds.has(row.id)) continue;
             const identifier = row.slug ?? row.id;
             const entry: DynamicEntry = { path: `${segment}/${identifier}` };
             if (row.published_at) entry.lastModified = new Date(row.published_at);
