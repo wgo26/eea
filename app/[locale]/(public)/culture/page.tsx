@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { CalendarDays, Landmark, Music, Palette, Search, Video, Utensils } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
@@ -85,13 +84,13 @@ export default async function CulturePage({
     const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
 
-    const params = await searchParams;
-    const search = firstParam(params.q)?.trim() || undefined;
-    const category = firstParam(params.category)?.trim() || undefined;
-    const location = firstParam(params.location)?.trim() || undefined;
+    const sp = await searchParams;
+    const search = firstParam(sp.q)?.trim() || undefined;
+    const category = firstParam(sp.category)?.trim() || undefined;
+    const location = firstParam(sp.location)?.trim() || undefined;
     const page = Math.max(
         1,
-        Number.parseInt(firstParam(params.page) ?? "1", 10) || 1,
+        Number.parseInt(firstParam(sp.page) ?? "1", 10) || 1,
     );
     const isFiltered = Boolean(search || category || location);
     const browseMode = !isFiltered && page === 1;

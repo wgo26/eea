@@ -307,7 +307,3 @@ graph LR
 ```
 
 ---
-
-## Next Steps
-
-We can proceed to execute this plan systematically starting with **Phase 1: Security, PII Leakage & Upload Hardening**. Let me know if you would like to begin with Phase 1 immediately or adjust any priorities!

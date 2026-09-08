@@ -187,10 +187,11 @@ export default async function ListingPage({ params }: ListingPageProps) {
                             {dict.buySell.sellerInfo}
                         </h2>
                         <RevealContact
+                            listingId={listing.id}
                             sellerName={listing.sellerName}
-                            contactPhone={listing.contactPhone}
-                            contactEmail={listing.contactEmail}
-                            whatsappNumber={listing.whatsappNumber}
+                            hasPhone={listing.hasPhone}
+                            hasEmail={listing.hasEmail}
+                            hasWhatsapp={listing.hasWhatsapp}
                             title={listing.title}
                             labels={{
                                 reveal: dict.buySell.revealContact,

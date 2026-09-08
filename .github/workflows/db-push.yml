@@ -1,0 +1,61 @@
+# Production migration push (deploy/hostinger-business.md → Supabase migrations).
+#
+# Runs `supabase db push` from GitHub's runners — useful when the local
+# network stalls the Postgres startup exchange (TCP connects but the CLI
+# times out on the startup message; see the troubleshooting note in the
+# deploy doc). Never runs automatically: workflow_dispatch only, dry-run by
+# default, and pushes only after the confirmation input is set to APPLY.
+#
+# Required repo secret:
+#   SUPABASE_DB_URL — session-pooler URI, format:
+#   postgresql://postgres.<project-ref>:<db-password>@aws-<region>.pooler.supabase.com:5432/postgres
+#   (Dashboard → Project Settings → Database → Connection string → Session pooler)
+
+name: Database migrations (db push)
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - apply
+
+permissions: {}
+
+concurrency:
+  group: db-push
+  cancel-in-progress: false
+
+jobs:
+  push:
+    name: supabase db push (${{ inputs.action }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Guard — apply only when explicitly requested
+        if: ${{ inputs.action == 'apply' }}
+        run: echo "Applying pending migrations to the production database."
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: List pending migrations (dry run)
+        if: ${{ inputs.action == 'dry-run' }}
+        run: supabase db push --dry-run --db-url "$SUPABASE_DB_URL"
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+      - name: Apply migrations
+        if: ${{ inputs.action == 'apply' }}
+        run: supabase db push --db-url "$SUPABASE_DB_URL"
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}

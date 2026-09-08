@@ -1,6 +1,9 @@
 import 'server-only'
 
+import { unstable_cache } from 'next/cache'
+
 import { createAdminClient } from '@/lib/supabase/admin'
+import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from '@/lib/cache/tags'
 import type { Locale } from '@/lib/i18n'
 import type { ContentType, SubmissionStatus } from '@/lib/auth/roles'
 import { isRole } from '@/lib/auth/roles'
@@ -28,6 +31,13 @@ async function safe<T>(
 
 function db() {
   return createAdminClient()
+}
+
+/** The admin client is only usable when the service key is configured. */
+function hasDatabase(): boolean {
+  return Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
+  )
 }
 
 export type AppRole = 'admin' | 'editor' | 'contributor' | 'advertiser'
@@ -1312,6 +1322,147 @@ export async function getAboutOverrides(
     }
   }
   return map
+}
+
+/* ------------------------------------------------------------------ */
+/* Advertise page overrides (admin-editable copy, dict fallback)      */
+/* ------------------------------------------------------------------ */
+
+export const ADVERTISE_SECTION_KEYS = [
+  'title',
+  'tagline',
+  'intro',
+  'placements',
+  'audience',
+  'pricing',
+] as const
+
+export type AdvertiseSectionKey = (typeof ADVERTISE_SECTION_KEYS)[number]
+
+export type AdvertiseSectionRow = {
+  id: string
+  sectionKey: string
+  locale: string
+  heading: string | null
+  body: string | null
+  isActive: boolean
+  updatedAt: string | null
+}
+
+/** All overrides (both locales) for the admin editor. */
+export async function getAdvertiseSectionsAdmin(): Promise<AdvertiseSectionRow[]> {
+  const { data } = await safe(
+    db()
+      .from('advertise_sections')
+      .select('id, section_key, locale, heading, body, is_active, updated_at')
+      .order('section_key', { ascending: true }),
+  )
+  return ((data ?? []) as {
+    id: string
+    section_key: string
+    locale: string
+    heading: string | null
+    body: string | null
+    is_active: boolean
+    updated_at: string | null
+  }[]).map((row) => ({
+    id: row.id,
+    sectionKey: row.section_key,
+    locale: row.locale,
+    heading: row.heading,
+    body: row.body,
+    isActive: row.is_active,
+    updatedAt: row.updated_at,
+  }))
+}
+
+/** Active overrides for one locale — the public /advertise page merges these
+ *  over the dictionary (empty table = dictionary defaults, never blank). */
+export async function getAdvertiseOverrides(
+  locale: Locale,
+): Promise<Partial<Record<AdvertiseSectionKey, AdvertiseSectionRow>>> {
+  const rows = await getAdvertiseSectionsAdmin()
+  const map: Partial<Record<AdvertiseSectionKey, AdvertiseSectionRow>> = {}
+  for (const row of rows) {
+    if (row.locale === locale && row.isActive) {
+      map[row.sectionKey as AdvertiseSectionKey] = row
+    }
+  }
+  return map
+}
+
+/* ------------------------------------------------------------------ */
+/* Site settings (public, non-secret key-value config)                */
+/* ------------------------------------------------------------------ */
+
+export const SITE_SETTING_KEYS = [
+  'social_facebook_url',
+  'social_youtube_url',
+] as const
+
+export type SiteSettingKey = (typeof SITE_SETTING_KEYS)[number]
+
+export type SiteSettings = {
+  facebookUrl: string | null
+  youtubeUrl: string | null
+}
+
+const EMPTY_SITE_SETTINGS: SiteSettings = { facebookUrl: null, youtubeUrl: null }
+
+function toSiteSettings(rows: { key: string; value: string | null }[]): SiteSettings {
+  const map: SiteSettings = { ...EMPTY_SITE_SETTINGS }
+  for (const row of rows) {
+    if (row.key === 'social_facebook_url') map.facebookUrl = row.value?.trim() || null
+    if (row.key === 'social_youtube_url') map.youtubeUrl = row.value?.trim() || null
+  }
+  return map
+}
+
+/** All configured settings for the admin editor. */
+export async function getSiteSettingsAdmin(): Promise<
+  Record<SiteSettingKey, string | null>
+> {
+  const { data } = await safe(
+    db().from('site_settings').select('key, value').in('key', [...SITE_SETTING_KEYS]),
+  )
+  const rows = (data ?? []) as { key: string; value: string | null }[]
+  const result: Record<SiteSettingKey, string | null> = {
+    social_facebook_url: null,
+    social_youtube_url: null,
+  }
+  for (const row of rows) {
+    if (row.key === 'social_facebook_url') result.social_facebook_url = row.value
+    if (row.key === 'social_youtube_url') result.social_youtube_url = row.value
+  }
+  return result
+}
+
+/**
+ * Footer social links for the public shell — read on every public page, so
+ * Phase 4.1 cached (tag `site`): the admin mutation invalidates on save and
+ * the 5-minute window is the direct-SQL backstop. DB hiccup → nulls (icons
+ * hide; the page never breaks).
+ */
+const getCachedSiteSettings = unstable_cache(
+  async (): Promise<SiteSettings> => {
+    const { data, error } = await db()
+      .from('site_settings')
+      .select('key, value')
+      .in('key', [...SITE_SETTING_KEYS])
+    if (error) throw new Error(error.message)
+    return toSiteSettings((data ?? []) as { key: string; value: string | null }[])
+  },
+  ['site-settings'],
+  { tags: [CACHE_TAGS.site], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+)
+
+export async function getPublicSiteSettings(): Promise<SiteSettings> {
+  if (!hasDatabase()) return EMPTY_SITE_SETTINGS
+  try {
+    return await getCachedSiteSettings()
+  } catch {
+    return EMPTY_SITE_SETTINGS
+  }
 }
 
 /* ------------------------------------------------------------------ */

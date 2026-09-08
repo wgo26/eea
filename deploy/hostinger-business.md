@@ -57,7 +57,11 @@ B2_KEY_ID=<production value>
 B2_APPLICATION_KEY=<production value>
 B2_BACKUP_BUCKET=<production value>
 SUPABASE_ADMIN_ASSET_BUCKET=admin-asset
+CRON_SECRET=<long random value — guards /api/cron/*, fail-closed>
 ```
+
+Optional: `TURNSTILE_SECRET_KEY` (enables Cloudflare Turnstile verification
+when set — feature switch, safe to omit at launch).
 
 ## Domain and HTTPS
 
@@ -126,6 +130,74 @@ repository alone:
 - [ ] R2 production credentials work for an upload.
 - [ ] B2 endpoint includes the correct `https://` scheme and backup credentials work.
 - [ ] `media_assets.backed_up_at` exists after migrations.
+
+## Scheduled jobs (cron)
+
+`vercel.json` declares two nightly jobs, but Vercel crons only fire on Vercel —
+**not** on Hostinger Business Node.js hosting. Schedule both endpoints
+externally:
+
+| Endpoint | Schedule (UTC) | Purpose |
+|---|---|---|
+| `POST/GET https://eagleeyeafrica.org/api/cron/storage-backup?batch=100` | 02:00 daily | R2 + Supabase Storage → Backblaze B2 delta backup |
+| `POST/GET https://eagleeyeafrica.org/api/cron/db-maintenance` | 02:30 daily | Rate-limit purge, DB telemetry, schema integrity verification (500 = alert) |
+
+Authentication: send `Authorization: Bearer <CRON_SECRET>` (the value from
+hPanel's env vars). Missing/wrong secret → 401; the endpoints fail closed in
+production.
+
+Options, in order of preference:
+
+1. **GitHub Actions scheduled workflow — already in this repo:**
+   `.github/workflows/scheduled-jobs.yml` fires both endpoints nightly
+   (02:00 / 02:30 UTC) once the `CRON_SECRET` repo secret is set, and supports
+   manual runs from the Actions tab. Zero extra infrastructure, auditable
+   runs, and it works even when no one is pushing.
+2. **External cron service** (e.g. cron-job.org) hitting both URLs with the
+   bearer header. Simple, but the secret lives with a third party.
+3. **Upgrade to a VPS** — real crontab/systemd timers, plus full control of
+   the runtime. Choose this if the Business plan pre-flight below fails.
+
+## Supabase migrations
+
+Apply all 23 migrations from `supabase/migrations/` in filename order:
+
+- Preferred: Supabase CLI — `supabase link --project-ref <ref>`, then
+  `supabase db push` (records applied versions in `supabase_migrations`).
+- Fallback: Supabase dashboard → SQL Editor, pasting each file in order.
+  Every migration is idempotent (create-if-not-exists / drop-policy-if-exists),
+  so a half-finished run can be resumed safely.
+- Do **not** use `scripts/apply-migrations.mjs` for production — it is a local
+  convenience script, not the controlled migration path.
+- **Never reuse a migration version prefix.** `supabase_migrations` PK is
+  `(version)`, so two files sharing a timestamp can never both be recorded —
+  `db push` fails with a duplicate-key violation after running the second
+  migration's statements (which then roll back). The original
+  `20260921000000_production_phase1_3_fixes.sql` hit this (same version as
+  `20260921000000_db_maintenance.sql`) and was renumbered to
+  `20260921120000_production_phase1_3_fixes.sql`.
+- Verify afterwards: all tables/indexes/RLS present, the `pg_cron`
+  scheduled-publishing + listing-expiry jobs exist, and the `admin-asset`
+  Storage bucket was created by `20260907000000_admin_asset_storage.sql`.
+
+Troubleshooting `supabase db push` timing out locally with
+`failed to write startup message (i/o timeout)`: the TCP handshake succeeds
+but the Postgres startup exchange stalls — a VPN/proxy/AV intercepting
+outbound traffic or ISP-level filtering, not a credentials problem. Try in
+order: disable VPN/proxy/antivirus and retry; test from a different network
+(mobile hotspot); skip the CLI login-role machinery entirely with
+`supabase db push --db-url "postgresql://postgres.<project-ref>:<password>@aws-1-eu-west-1.pooler.supabase.com:5432/postgres"`;
+or run **Actions → Database migrations (db push)** from this repository —
+GitHub's runners have unfiltered egress, so the local network never enters
+the path (requires the `SUPABASE_DB_URL` secret; defaults to a dry run).
+
+`db push` also refuses, by default, to apply local migrations whose timestamp
+is older than the remote's newest applied migration ("Found local migration
+files to be inserted before the last migration on remote database") — an
+out-of-order guard against stale branches. When a back-dated repair migration
+is intentional (e.g. `20260920000001_remote_drift_repair.sql`), rerun with
+`supabase db push --include-all` after confirming the pending list is exactly
+what you expect.
 
 ## Smoke test after deployment
 

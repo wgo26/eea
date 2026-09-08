@@ -16,7 +16,8 @@
 -- 1. Integrity columns on media_assets (backed_up_at already exists in init schema).
 alter table public.media_assets
   add column if not exists backup_sha256 text,
-  add column if not exists backup_verified_at timestamptz;
+  add column if not exists backup_verified_at timestamptz,
+  add column if not exists backed_up_at timestamptz;
 
 -- 2. Named job lease table.
 create table if not exists public.backup_jobs (

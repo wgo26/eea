@@ -105,14 +105,14 @@ export default async function BuySellPage({
     const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
 
-    const params = await searchParams;
-    const search = firstParam(params.q)?.trim() || undefined;
-    const category = firstParam(params.category)?.trim() || undefined;
-    const location = firstParam(params.location)?.trim() || undefined;
-    const sort = (firstParam(params.sort)?.trim() as "newest" | "price_asc" | "price_desc") || "newest";
+    const sp = await searchParams;
+    const search = firstParam(sp.q)?.trim() || undefined;
+    const category = firstParam(sp.category)?.trim() || undefined;
+    const location = firstParam(sp.location)?.trim() || undefined;
+    const sort = (firstParam(sp.sort)?.trim() as "newest" | "price_asc" | "price_desc") || "newest";
     const page = Math.max(
         1,
-        Number.parseInt(firstParam(params.page) ?? "1", 10) || 1,
+        Number.parseInt(firstParam(sp.page) ?? "1", 10) || 1,
     );
     const isFiltered = Boolean(search || category || location || sort !== "newest");
 

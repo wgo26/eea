@@ -1958,6 +1958,127 @@ export async function saveAboutSection(input: {
 }
 
 /* ------------------------------------------------------------------ */
+/* Advertise page overrides + site settings (footer social links)     */
+/* ------------------------------------------------------------------ */
+
+const ADVERTISE_SECTION_KEYS = [
+  'title',
+  'tagline',
+  'intro',
+  'placements',
+  'audience',
+  'pricing',
+] as const
+
+/** Upsert one locale's override for an /advertise section. Empty fields
+ *  fall back to the dictionary at render; clearing all fields removes the
+ *  override row so the dictionary shines through untouched. */
+export async function saveAdvertiseSection(input: {
+  sectionKey: string
+  locale: 'en' | 'fr'
+  heading?: string | null
+  body?: string | null
+}): Promise<ActionResult> {
+  try {
+    if (!ADVERTISE_SECTION_KEYS.includes(input.sectionKey as (typeof ADVERTISE_SECTION_KEYS)[number])) {
+      return { ok: false, error: 'Unknown section.' }
+    }
+    const { supabase, user } = await assertCapability('manageSiteContent')
+    const patch = {
+      heading: input.heading?.trim() || null,
+      body: input.body?.trim() || null,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    }
+    if (!patch.heading && !patch.body) {
+      const { error } = await supabase
+        .from('advertise_sections')
+        .delete()
+        .eq('section_key', input.sectionKey)
+        .eq('locale', input.locale)
+      if (error) return { ok: false, error: error.message }
+    } else {
+      const { error } = await supabase.from('advertise_sections').upsert(
+        {
+          section_key: input.sectionKey,
+          locale: input.locale,
+          ...patch,
+        },
+        { onConflict: 'section_key,locale' },
+      )
+      if (error) return { ok: false, error: error.message }
+    }
+    await audit(supabase, user.id, {
+      action: 'advertise:section:save',
+      notes: `${input.sectionKey} ${input.locale}`,
+    })
+    revalidateLocalized('/admin/site-content')
+    revalidateLocalized('/advertise')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+const SITE_SETTING_KEYS = [
+  'social_facebook_url',
+  'social_youtube_url',
+] as const
+
+const SITE_SETTING_MAX_LENGTH = 500
+
+/** Validate a user-supplied public URL: absolute http(s) only — the footer
+ *  renders this in an <a href>, so anything else (javascript:, data:, …) is
+ *  rejected before it can reach the DOM. */
+function validatePublicUrl(value: string): string | null {
+  if (value.length > SITE_SETTING_MAX_LENGTH) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
+/** Upsert one site setting (footer social links). An empty value deletes the
+ *  row — the footer hides that icon and the defaults return. */
+export async function saveSiteSetting(input: {
+  key: string
+  value: string | null
+}): Promise<ActionResult> {
+  try {
+    if (!SITE_SETTING_KEYS.includes(input.key as (typeof SITE_SETTING_KEYS)[number])) {
+      return { ok: false, error: 'Unknown setting.' }
+    }
+    const { supabase, user } = await assertCapability('manageSiteContent')
+    const value = input.value?.trim() || null
+    if (value) {
+      const valid = validatePublicUrl(value)
+      if (!valid) return { ok: false, error: 'Enter a full URL starting with https://.' }
+      const { error } = await supabase
+        .from('site_settings')
+        .upsert(
+          { key: input.key, value: valid, updated_at: new Date().toISOString() },
+          { onConflict: 'key' },
+        )
+      if (error) return { ok: false, error: error.message }
+    } else {
+      const { error } = await supabase.from('site_settings').delete().eq('key', input.key)
+      if (error) return { ok: false, error: error.message }
+    }
+    await audit(supabase, user.id, {
+      action: 'site:setting:save',
+      notes: input.key,
+    })
+    revalidateTag(CACHE_TAGS.site, 'max')
+    revalidateLocalized('/admin/site-content')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Legal inbox (takedown reports + data/contact requests)              */
 /* ------------------------------------------------------------------ */
 

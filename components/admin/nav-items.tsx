@@ -114,6 +114,14 @@ function PolicyIcon() {
   )
 }
 
+function SiteContentIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  )
+}
+
 function TrustSafetyIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
@@ -150,6 +158,7 @@ const ADMIN_NAV_SPECS: AdminNavItemSpec[] = [
   { key: 'polls', path: '/admin/polls', capability: 'managePolls', icon: PollIcon },
   { key: 'fundraisers', path: '/admin/fundraisers', capability: 'manageFundraisers', icon: FundraiserIcon },
   { key: 'policies', path: '/admin/policies', capability: 'managePolicies', icon: PolicyIcon },
+  { key: 'siteContent', path: '/admin/site-content', capability: 'manageSiteContent', icon: SiteContentIcon },
   { key: 'users', path: '/admin/users', capability: 'manageUsers', icon: UsersIcon },
   { key: 'ads', path: '/admin/ads', capability: 'manageAds', icon: AdsIcon },
   { key: 'storage', path: '/admin/storage-backup', capability: 'manageStorage', icon: StorageIcon },

@@ -6,9 +6,24 @@ import { Separator } from "@/components/ui/separator";
 import { getDictionary } from "@/lib/i18n";
 import { localeHref, useLocaleFromPath } from "@/components/site-header";
 
-export function SiteFooter() {
+type SocialLinks = { facebook: string | null; youtube: string | null };
+
+/** Only an absolute http(s) link renders — defense against a bad setting. */
+function safeSocialHref(value: string | null): string | null {
+    if (!value) return null;
+    try {
+        const url = new URL(value);
+        return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+    } catch {
+        return null;
+    }
+}
+
+export function SiteFooter({ socialLinks }: { socialLinks?: SocialLinks }) {
     const locale = useLocaleFromPath();
     const dict = getDictionary(locale);
+    const facebookHref = safeSocialHref(socialLinks?.facebook ?? null);
+    const youtubeHref = safeSocialHref(socialLinks?.youtube ?? null);
 
     const sections = [
         { href: "/photo-stories", label: dict.nav.photoStories },
@@ -47,24 +62,28 @@ export function SiteFooter() {
                             {dict.footer.aboutText}
                         </p>
                         <div className="mt-4 flex items-center gap-2">
-                            <Link
-                                href="https://facebook.com"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                aria-label="Facebook"
-                                className="flex h-9 w-9 items-center justify-center rounded-full border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                            >
-                                <FacebookIcon className="h-4 w-4" />
-                            </Link>
-                            <Link
-                                href="https://youtube.com"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                aria-label="YouTube"
-                                className="flex h-9 w-9 items-center justify-center rounded-full border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                            >
-                                <YoutubeIcon className="h-4 w-4" />
-                            </Link>
+                            {facebookHref ? (
+                                <Link
+                                    href={facebookHref}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    aria-label="Facebook"
+                                    className="flex h-9 w-9 items-center justify-center rounded-full border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                >
+                                    <FacebookIcon className="h-4 w-4" />
+                                </Link>
+                            ) : null}
+                            {youtubeHref ? (
+                                <Link
+                                    href={youtubeHref}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    aria-label="YouTube"
+                                    className="flex h-9 w-9 items-center justify-center rounded-full border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                >
+                                    <YoutubeIcon className="h-4 w-4" />
+                                </Link>
+                            ) : null}
                             <Link
                                 href={localeHref(locale, "/about/contact")}
                                 aria-label={dict.footer.contact}

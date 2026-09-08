@@ -99,33 +99,6 @@ const CULTURE_SELECT_LEFT = `id, slug, verification, published_at, view_count,
     author:profiles!content_items_author_id_fkey(id, display_name),
     events(starts_at, ends_at, venue_name, ticket_url, organizer_name)`;
 
-type QueryResult<T> = {
-    data: T | null;
-    count: number | null;
-    error: { message: string } | null;
-};
-
-/** Never let a DB hiccup take the page down — every query resolves to a fallback. */
-async function safe<T>(
-    promise: PromiseLike<{
-        data: T | null;
-        count?: number | null;
-        error: { message: string } | null;
-    }>,
-): Promise<QueryResult<T>> {
-    try {
-        const { data, count, error } = await promise;
-        if (error) {
-            logger.error("culture", "query failed", { error: error.message });
-            return { data: null, count: null, error };
-        }
-        return { data, count: count ?? null, error: null };
-    } catch (err) {
-        logger.error("culture", "query exception", { error: err instanceof Error ? err.message : String(err) });
-        return { data: null, count: null, error: { message: String(err) } };
-    }
-}
-
 /** The admin client is only usable when the service key is configured. */
 function hasDatabase(): boolean {
     return Boolean(

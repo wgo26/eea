@@ -1,0 +1,70 @@
+# Scheduled production jobs (deploy/hostinger-business.md → Scheduled jobs).
+#
+# Business Node.js hosting cannot fire the vercel.json crons, so this workflow
+# is the scheduler: it calls the two CRON_SECRET-guarded endpoints nightly.
+# Requires repo secrets: CRON_SECRET (Bearer token). Optional repo variable:
+# PRODUCTION_URL (defaults to the production domain below).
+#
+# GitHub emails the repo's watch settings recipients when a run fails — treat
+# a failed run as a backup/maintenance outage, not noise.
+
+name: Scheduled jobs
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # 02:00 UTC — storage backup
+    - cron: "30 2 * * *"  # 02:30 UTC — db maintenance
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Which job to run
+        required: true
+        default: both
+        type: choice
+        options:
+          - storage-backup
+          - db-maintenance
+          - both
+
+permissions: {}
+
+concurrency:
+  group: scheduled-jobs
+  cancel-in-progress: false
+
+jobs:
+  storage-backup:
+    name: Storage backup (R2 + Supabase Storage → B2)
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '0 2 * * *')
+      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'storage-backup' || inputs.job == 'both'))
+    steps:
+      - name: Call storage-backup endpoint
+        run: |
+          set -euo pipefail
+          url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/storage-backup?batch=100"
+          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "$url")
+          echo "HTTP $code from $url"
+          cat /tmp/out.txt
+          test "$code" = "200"
+
+  db-maintenance:
+    name: DB maintenance (purge + telemetry + integrity)
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '30 2 * * *')
+      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'db-maintenance' || inputs.job == 'both'))
+    steps:
+      - name: Call db-maintenance endpoint
+        run: |
+          set -euo pipefail
+          url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/db-maintenance"
+          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "$url")
+          echo "HTTP $code from $url"
+          cat /tmp/out.txt
+          test "$code" = "200"

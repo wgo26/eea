@@ -705,6 +705,52 @@ below.*
     caps strings at 4000 chars (photos 8000) and rejects non-string values.
     Triggers fire for service_role too, closing the service-role-bypass gap
     for the public intake.
+- 2026-09-08 — **Phase 5: CI/CD pipeline & two-locale sign-off** (audit §6.1 +
+  roadmap §5.1–5.3; workflow upgraded from the first-pass `ci.yml`):
+  - **5.1 CI workflow** — `.github/workflows/ci.yml` (push/PR → main):
+    `permissions: contents: read`, `concurrency` cancel-in-progress, Node 22
+    (matches `engines: >=22 <23`), `npm ci`, then explicit gates: typecheck,
+    lint, bare-href audit, sitemap route verification, migration manifest
+    verification (`scripts/verify-migrations.mjs` — filename format, empty
+    files; duplicate timestamps WARN-only, e.g. the intentional
+    `20260921000000_*` pair), unit tests, and a dry-run `next build` with
+    dummy Supabase envs (guarded queries fall back; no real backend touched).
+    `supabase db lint` runs conditionally via `SUPABASE_DB_URL` secret, else
+    skips with a notice (needs a live database).
+  - **5.2 Automated bare-href + sitemap verification** — surfaced as named CI
+    steps (also chained in local `npm run check`, which now ends with
+    `verify-migrations.mjs`). The best-effort backup verify step is
+    secret-guarded (`scripts/verify-backup.mjs` exits 2 without env — it skips
+    cleanly instead of failing-continuing) and stays advisory.
+  - **5.3 EN/FR edge-case matrix** — `lib/i18n/parity.test.ts` (runs in
+    `npm test`/CI): runtime dictionary key parity at every depth, no
+    empty/whitespace strings in either locale, equal array lengths,
+    two-locale sitemap emission with full hreflang alternates, and
+    `buildAlternates` canonical/x-default coverage. The manual part of the
+    two-locale sign-off (visual/UX review of EN+FR pages) remains a release
+    checklist item — automation covers everything mechanically checkable.
+- 2026-09-08 — **Site content admin: /advertise overrides + footer social
+  links** (`tsc --noEmit` clean, eslint clean, bare-href audit zero findings,
+  tests green, `npm run build` green): the last two developer-edited surfaces
+  moved behind the command center. New `manageSiteContent` capability
+  (admin + editor) driving the `/admin/site-content` nav entry and guards;
+  migration `20260922000000_site_content.sql` adds `advertise_sections`
+  (per-locale heading/body overrides for the /advertise hero + placements/
+  audience/pricing cards — same empty-table = dictionary-defaults semantics as
+  `about_sections`) and `site_settings` (public, non-secret key-value config;
+  RLS: everyone reads, staff writes). `/advertise` merges
+  `getAdvertiseOverrides(locale)` over the dictionary; the footer's Facebook/
+  YouTube icons now render only when staff set real URLs via
+  `saveSiteSetting` (empty value = icon hidden; `javascript:`/data: URLs
+  rejected both in the action and again at render — absolute http(s) only).
+  Public footer settings read through `unstable_cache` tagged `site`
+  (new `CACHE_TAGS.site`, 300 s backstop, invalidated by the save action);
+  `getPublicSiteSettings` resolves to nulls when no DB is configured (icons
+  hide, page never breaks). Editor UI: `/admin/site-content` (EN/FR toggle,
+  live-default panel per section, "Not set" chips) with
+  `saveAdvertiseSection`/`saveSiteSetting` actions (capability-gated, audit
+  logged, revalidating `/en`+`/fr` /advertise and the admin page) — unit
+  covered in `lib/admin/actions-site.test.ts`.
 
 
 

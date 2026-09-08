@@ -1,5 +1,12 @@
--- Migration: 20260921000000_production_phase1_3_fixes.sql
+-- Migration: 20260921120000_production_phase1_3_fixes.sql
 -- Description: Production hardening follow-up for audit Phases 1-3.
+--
+-- Renumber note (2026-09-08): this file was originally 20260921000000_…, the
+-- same version as 20260921000000_db_maintenance.sql. supabase_migrations'
+-- primary key is (version), so a second migration with that version can never
+-- be recorded — `db push` failed with a duplicate-key error AFTER running the
+-- statements (which then rolled back). The file has never successfully
+-- applied, so renumbering it is safe. Never reuse a version prefix.
 --
 -- Problems fixed:
 --   1. public.public_profiles exposed full_name (tighten to the audit's safe
@@ -19,7 +26,8 @@
 -- ---------------------------------------------------------------------------
 -- 1. Tighten the safe public profiles view (audit §2.1 remediation).
 -- ---------------------------------------------------------------------------
-create or replace view public.public_profiles as
+drop view if exists public.public_profiles;
+create view public.public_profiles as
 select
     id,
     display_name,
