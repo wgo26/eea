@@ -712,8 +712,8 @@ below.*
     (matches `engines: >=22 <23`), `npm ci`, then explicit gates: typecheck,
     lint, bare-href audit, sitemap route verification, migration manifest
     verification (`scripts/verify-migrations.mjs` — filename format, empty
-    files; duplicate timestamps WARN-only, e.g. the intentional
-    `20260921000000_*` pair), unit tests, and a dry-run `next build` with
+    files; duplicate timestamps are now an ERROR after the find below), unit
+    tests, and a dry-run `next build` with
     dummy Supabase envs (guarded queries fall back; no real backend touched).
     `supabase db lint` runs conditionally via `SUPABASE_DB_URL` secret, else
     skips with a notice (needs a live database).
@@ -751,6 +751,27 @@ below.*
   `saveAdvertiseSection`/`saveSiteSetting` actions (capability-gated, audit
   logged, revalidating `/en`+`/fr` /advertise and the admin page) — unit
   covered in `lib/admin/actions-site.test.ts`.
+- 2026-09-08 — **Remote migration drift repaired + duplicate-version rule
+  corrected** (`node scripts/verify-migrations.mjs` runs clean, exit 0): the
+  production Supabase project had been migrated from an older revision of
+  `20260901000000_init_schema.sql`; enum labels added later by editing the
+  init (never appended as migrations) were missing remotely — first visible
+  when `supabase db push` failed on the phase1_3 policy
+  `status = 'pending'` with `invalid input value for enum submission_status:
+  "pending" (SQLSTATE 22P02)`. New idempotent repair migration
+  `20260920000001_remote_drift_repair.sql` guarantees every enum label the
+  app writes exists via `alter type ... add value if not exists` (16 enum
+  types) plus the `media_assets` backup-integrity columns; applied with
+  `supabase db push --include-all` (safe here: repair must sort before the
+  pending phase1_3). During that push, the duplicate-version pair bit:
+  `20260921000000_production_phase1_3_fixes.sql` shared `version` with
+  `20260921000000_db_maintenance.sql`, and `supabase_migrations` PK
+  `(version)` rejected the second history row (SQLSTATE 23505) after the
+  migration's statements ran. The file has never applied (each attempt
+  rolled back), so it was **renumbered** to
+  `20260921120000_production_phase1_3_fixes.sql` — never reuse a version
+  prefix. `scripts/verify-migrations.mjs` now treats duplicate timestamps as
+  an ERROR instead of a warning so CI catches this class before `db push`.
 
 
 
