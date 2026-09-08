@@ -24,8 +24,10 @@ export default async function LoginPage({ searchParams }: Props) {
     const dict = getDictionary(locale);
     const { next: rawNext } = await searchParams;
     const nextParam = Array.isArray(rawNext) ? rawNext[0] : rawNext;
-    const nextPath =
-        safeNextPath(nextParam, locale) ?? localePath(locale, "/account/dashboard");
+    // Pass through only an explicit `next`; empty lets /auth/landing fall back
+    // to the role landing (staff → /admin/dashboard). Defaulting here to
+    // /account/dashboard would mask the admin role on every direct login.
+    const nextPath = safeNextPath(nextParam, locale) ?? "";
 
     return (
         <div className="w-full max-w-md">

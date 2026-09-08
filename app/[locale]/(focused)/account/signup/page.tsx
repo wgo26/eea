@@ -20,8 +20,9 @@ export default async function SignupPage({ searchParams }: Props) {
     const { next: rawNext } = await searchParams;
     const nextParam = Array.isArray(rawNext) ? rawNext[0] : rawNext;
     // Carried through signup → login so the journey resumes after confirming.
-    const nextPath =
-        safeNextPath(nextParam, locale) ?? localePath(locale, "/account/dashboard");
+    // Empty lets /auth/landing fall back to the role landing instead of
+    // masking staff as members on direct signups.
+    const nextPath = safeNextPath(nextParam, locale) ?? "";
 
     return (
         <div className="w-full max-w-md">

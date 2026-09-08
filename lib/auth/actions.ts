@@ -77,10 +77,14 @@ function mapSupabaseError(message: string): AuthErrorCode {
   return 'provider_error'
 }
 
-/** Validated `next` → the role-aware landing URL that honors it. */
+/** Validated `next` → the role-aware landing URL that honors it. When no
+ * explicit `next` was requested, omit the param so /auth/landing falls back
+ * to the role landing (staff → /admin/dashboard, else /account/dashboard)
+ * instead of masking the role with a hardcoded member default. */
 async function landingFor(rawNext: string | null): Promise<string> {
   const locale = await getRequestLocale()
-  const nextPath = safeNextPath(rawNext, locale) ?? localePath(locale, '/account/dashboard')
+  const nextPath = safeNextPath(rawNext, locale)
+  if (!nextPath) return localePath(locale, '/auth/landing')
   return localePath(locale, `/auth/landing?next=${encodeURIComponent(nextPath)}`)
 }
 
@@ -160,10 +164,10 @@ export async function signUpWithPassword(
   }
 
   const locale = await getRequestLocale()
-  const nextPath =
-    safeNextPath(str(formData.get('next')) || null, locale) ??
-    localePath(locale, '/account/dashboard')
-  const loginHere = `/${locale}/account/login?next=${encodeURIComponent(nextPath)}`
+  const explicitNext = safeNextPath(str(formData.get('next')) || null, locale)
+  const loginHere =
+    `/${locale}/account/login` +
+    (explicitNext ? `?next=${encodeURIComponent(explicitNext)}` : '')
   const siteUrl = SITE.url.replace(/\/+$/, '')
   const emailRedirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent(loginHere)}`
 
