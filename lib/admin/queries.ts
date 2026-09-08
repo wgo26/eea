@@ -64,9 +64,34 @@ export type DashboardStats = {
   recentActivity: ModerationEntry[]
 }
 
+export const EMPTY_DASHBOARD_STATS: DashboardStats = {
+  pendingSubmissions: 0,
+  pendingByType: [],
+  publishedToday: 0,
+  scheduled: 0,
+  draftCount: 0,
+  expiringListings: 0,
+  activeAds: 0,
+  totalStories: 0,
+  totalNews: 0,
+  totalListings: 0,
+  totalNotices: 0,
+  totalCulture: 0,
+  storageUsed: 0,
+  storageByProvider: [],
+  recentActivity: [],
+}
+
 export async function getDashboardStats(): Promise<DashboardStats> {
-  const today = new Date()
-  today.setUTCHours(0, 0, 0, 0)
+  // Fail-safe: the admin shell (layout + page) both call this. If the
+  // service-role env is missing or any query throws synchronously (e.g.
+  // createClient with undefined URL throws before `safe()` can catch it),
+  // return empty stats instead of crashing the whole /admin tree into the
+  // global error boundary.
+  if (!hasDatabase()) return EMPTY_DASHBOARD_STATS
+  try {
+    const today = new Date()
+    today.setUTCHours(0, 0, 0, 0)
 
   const [pendingRes, byTypeRes, todayRes, scheduledRes, draftRes, expiringRes, activeAdsRes, countsRes, storageRes, activityRes] = await Promise.all([
     safe(db().from('submissions').select('id', { count: 'exact', head: true }).eq('status', 'pending')),
@@ -99,22 +124,26 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const counts = (countsRes.data ?? []) as { type: string }[]
   const countByType = (t: string) => counts.filter((r) => r.type === t).length
 
-  return {
-    pendingSubmissions: pendingRes.count ?? 0,
-    pendingByType: [...byTypeMap.entries()].map(([type, count]) => ({ type, count })),
-    publishedToday: todayRes.count ?? 0,
-    scheduled: scheduledRes.count ?? 0,
-    draftCount: draftRes.count ?? 0,
-    expiringListings: expiringRes.count ?? 0,
-    activeAds: activeAdsRes.count ?? 0,
-    totalStories: countByType('photo_story'),
-    totalNews: countByType('news'),
-    totalListings: countByType('listing'),
-    totalNotices: countByType('notice'),
-    totalCulture: countByType('culture'),
-    storageUsed,
-    storageByProvider: [...providerMap.entries()].map(([provider, v]) => ({ provider, ...v })),
-    recentActivity: activityRes,
+    return {
+      pendingSubmissions: pendingRes.count ?? 0,
+      pendingByType: [...byTypeMap.entries()].map(([type, count]) => ({ type, count })),
+      publishedToday: todayRes.count ?? 0,
+      scheduled: scheduledRes.count ?? 0,
+      draftCount: draftRes.count ?? 0,
+      expiringListings: expiringRes.count ?? 0,
+      activeAds: activeAdsRes.count ?? 0,
+      totalStories: countByType('photo_story'),
+      totalNews: countByType('news'),
+      totalListings: countByType('listing'),
+      totalNotices: countByType('notice'),
+      totalCulture: countByType('culture'),
+      storageUsed,
+      storageByProvider: [...providerMap.entries()].map(([provider, v]) => ({ provider, ...v })),
+      recentActivity: activityRes,
+    }
+  } catch (e) {
+    console.error('[admin] getDashboardStats failed, returning empty stats', e)
+    return EMPTY_DASHBOARD_STATS
   }
 }
 /* ------------------------------------------------------------------ */
@@ -606,35 +635,41 @@ export type ModerationEntry = {
 }
 
 export async function getRecentModeration(limit = 20, filters?: { actor?: string; action?: string; entityType?: string }): Promise<ModerationEntry[]> {
-  let query = db()
-      .from('moderation_log')
-      .select(`id, action, from_status, to_status, notes, created_at, submission_id, entity_type,
-        actor:profiles(display_name, full_name),
-        content:content_items(type, translations:content_translations(locale, title))`)
-      .order('created_at', { ascending: false })
-      .limit(limit)
-  if (filters?.action) query = query.eq('action', filters.action)
-  if (filters?.entityType) query = query.eq('entity_type', filters.entityType)
-  if (filters?.actor) query = query.eq('actor_id', filters.actor)
-  const { data } = await safe(query)
-  return (data ?? []).map((row) => {
-    const actor = Array.isArray(row.actor) ? row.actor[0] : row.actor
-    const content = Array.isArray(row.content) ? row.content[0] : row.content
-    const translations = content && Array.isArray(content.translations) ? content.translations : content?.translations ? [content.translations] : []
-    const t = (translations as { title: string }[])[0]
-    return {
-      id: row.id,
-      action: row.action,
-      fromStatus: row.from_status,
-      toStatus: row.to_status,
-      notes: row.notes,
-      createdAt: row.created_at,
-      actorName: (actor as { display_name: string | null; full_name: string | null } | undefined)?.display_name ?? (actor as { full_name: string | null } | undefined)?.full_name ?? null,
-      contentTitle: t?.title ?? null,
-      contentType: content?.type ?? null,
-      submissionId: row.submission_id,
-    }
-  })
+  if (!hasDatabase()) return []
+  try {
+    let query = db()
+        .from('moderation_log')
+        .select(`id, action, from_status, to_status, notes, created_at, submission_id, entity_type,
+          actor:profiles(display_name, full_name),
+          content:content_items(type, translations:content_translations(locale, title))`)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+    if (filters?.action) query = query.eq('action', filters.action)
+    if (filters?.entityType) query = query.eq('entity_type', filters.entityType)
+    if (filters?.actor) query = query.eq('actor_id', filters.actor)
+    const { data } = await safe(query)
+    return (data ?? []).map((row) => {
+      const actor = Array.isArray(row.actor) ? row.actor[0] : row.actor
+      const content = Array.isArray(row.content) ? row.content[0] : row.content
+      const translations = content && Array.isArray(content.translations) ? content.translations : content?.translations ? [content.translations] : []
+      const t = (translations as { title: string }[])[0]
+      return {
+        id: row.id,
+        action: row.action,
+        fromStatus: row.from_status,
+        toStatus: row.to_status,
+        notes: row.notes,
+        createdAt: row.created_at,
+        actorName: (actor as { display_name: string | null; full_name: string | null } | undefined)?.display_name ?? (actor as { full_name: string | null } | undefined)?.full_name ?? null,
+        contentTitle: t?.title ?? null,
+        contentType: content?.type ?? null,
+        submissionId: row.submission_id,
+      }
+    })
+  } catch (e) {
+    console.error('[admin] getRecentModeration failed', e)
+    return []
+  }
 }
 
 /* ------------------------------------------------------------------ */

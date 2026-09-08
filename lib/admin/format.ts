@@ -39,20 +39,19 @@ export function formatRelative(value: string | null | undefined, locale: Locale 
   if (!value) return '—'
   const then = new Date(value).getTime()
   if (Number.isNaN(then)) return '—'
-  const diff = Date.now() - then
-  const abs = Math.abs(diff)
-  const rtf = new Intl.RelativeTimeFormat(localeTag[locale], { numeric: 'auto' })
-  const units: [number, Intl.RelativeTimeFormatUnit][] = [
-    [60, 'second'],
-    [3600, 'minute'],
-    [86400, 'hour'],
-    [2592000, 'day'],
-    [31536000, 'month'],
-  ]
-  for (const [threshold, unit] of units) {
-    if (abs < threshold) return rtf.format(Math.round(diff / (threshold / (unit === 'second' ? 1 : unit === 'minute' ? 60 : unit === 'hour' ? 3600 : unit === 'day' ? 86400 : 2592000))), unit)
+  try {
+    const diffSec = (Date.now() - then) / 1000
+    const abs = Math.abs(diffSec)
+    const rtf = new Intl.RelativeTimeFormat(localeTag[locale], { numeric: 'auto' })
+    if (abs < 60) return rtf.format(Math.round(diffSec), 'second')
+    if (abs < 3600) return rtf.format(Math.round(diffSec / 60), 'minute')
+    if (abs < 86400) return rtf.format(Math.round(diffSec / 3600), 'hour')
+    if (abs < 2592000) return rtf.format(Math.round(diffSec / 86400), 'day')
+    if (abs < 31536000) return rtf.format(Math.round(diffSec / 2592000), 'month')
+    return rtf.format(Math.round(diffSec / 31536000), 'year')
+  } catch {
+    return '—'
   }
-  return rtf.format(Math.round(diff / 31536000), 'year')
 }
 
 export function formatBytes(bytes: number | null | undefined): string {
