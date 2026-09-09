@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { useToast } from '@/components/admin/toast'
 
 type MutationResult = { ok: true } | { ok: false; error: string }
@@ -16,18 +17,21 @@ type BulkAction = {
   confirmBody?: string
   confirmLabel?: string
   cancelLabel?: string
+  /** Optional extra confirm-dialog content (e.g. a rejection-reason textarea). */
+  children?: React.ReactNode
 }
 
 /**
  * Sticky bulk-action bar shown when rows are selected in a DataTable.
- * Renders above the table, shows the selection count, and lets the user
- * run a server action against all selected keys at once.
- *
- * Uses ConfirmDialog internally for destructive actions.
+ * Renders above the table, shows the selection count, and runs a server
+ * action against all selected keys at once. Keys are pulled at run time via
+ * `getKeys` so the parent stays the single owner of the selection state.
+ * Destructive actions (confirmTitle) confirm through the shared ConfirmDialog.
  */
 export function BulkActionsBar({
   selectedCount,
   actions,
+  getKeys,
   onClear,
   onDone,
   confirmLabel = 'Confirm',
@@ -37,6 +41,7 @@ export function BulkActionsBar({
 }: {
   selectedCount: number
   actions: BulkAction[]
+  getKeys: () => string[]
   onClear: () => void
   onDone: () => void
   confirmLabel?: string
@@ -51,11 +56,12 @@ export function BulkActionsBar({
   if (selectedCount === 0) return null
 
   const runAction = async (action: BulkAction, keys: string[]) => {
+    if (keys.length === 0) return
     setLoading(true)
     try {
       const result = await action.action(keys)
       if (result.ok) {
-        addToast(action.successToast, 'success')
+        addToast(action.successToast.replace('{count}', String(keys.length)), 'success')
         onDone()
       } else {
         addToast(result.error, 'error')
@@ -83,10 +89,7 @@ export function BulkActionsBar({
                 if (action.confirmTitle) {
                   setPendingAction(action)
                 } else {
-                  // We need the keys — but they're managed by the parent.
-                  // The parent passes onDone and we trigger via a custom event.
-                  const evt = new CustomEvent('bulk-action', { detail: action })
-                  window.dispatchEvent(evt)
+                  void runAction(action, getKeys())
                 }
               }}
               className={cn(
@@ -109,39 +112,21 @@ export function BulkActionsBar({
         </button>
       </div>
 
-      {pendingAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-lg">
-            <h3 className="text-base font-semibold text-foreground">{pendingAction.confirmTitle}</h3>
-            <p className="mt-2 text-sm text-muted-foreground">{pendingAction.confirmBody}</p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => setPendingAction(null)}
-                disabled={loading}
-                className="inline-flex items-center rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent"
-              >
-                {cancelLabel}
-              </button>
-              <button
-                onClick={async () => {
-                  // Trigger the parent to collect keys and run
-                  const evt = new CustomEvent('bulk-action-confirm', { detail: pendingAction })
-                  window.dispatchEvent(evt)
-                }}
-                disabled={loading}
-                className={cn(
-                  'inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium',
-                  pendingAction.tone === 'danger'
-                    ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                    : 'bg-primary text-primary-foreground hover:bg-primary/90',
-                )}
-              >
-                {loading ? '…' : confirmLabel}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={pendingAction !== null}
+        onOpenChange={(v) => { if (!v) setPendingAction(null) }}
+        title={pendingAction?.confirmTitle ?? ''}
+        description={pendingAction?.confirmBody ?? ''}
+        confirmLabel={pendingAction?.confirmLabel ?? confirmLabel}
+        cancelLabel={pendingAction?.cancelLabel ?? cancelLabel}
+        loading={loading}
+        tone={pendingAction?.tone === 'danger' ? 'danger' : 'default'}
+        onConfirm={() => {
+          if (pendingAction) void runAction(pendingAction, getKeys())
+        }}
+      >
+        {pendingAction?.children}
+      </ConfirmDialog>
     </>
   )
 }

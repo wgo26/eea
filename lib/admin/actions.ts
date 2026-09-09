@@ -683,6 +683,30 @@ export async function updateSubmissionNotes(submissionId: string, notes: string)
   }
 }
 
+/**
+ * Bulk moderation: run the same capability- and status-checked single
+ * operations over a selection. Sequential on purpose — one HTTP round trip
+ * for the whole selection, with a per-item failure count surfaced to the UI.
+ */
+export async function bulkApproveSubmissions(ids: string[]): Promise<ActionResult> {
+  let failed = 0
+  for (const id of ids) {
+    const result = await approveSubmission(id)
+    if (!result.ok) failed += 1
+  }
+  return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} submission(s) failed.` } : { ok: true }
+}
+
+export async function bulkRejectSubmissions(ids: string[], reason: string): Promise<ActionResult> {
+  if (!reason.trim()) return { ok: false, error: 'A reason is required when rejecting.' }
+  let failed = 0
+  for (const id of ids) {
+    const result = await rejectSubmission(id, reason)
+    if (!result.ok) failed += 1
+  }
+  return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} submission(s) failed.` } : { ok: true }
+}
+
 /* ------------------------------------------------------------------ */
 /* Clarification & reopen (Phase 3 moderation loop)                    */
 /* ------------------------------------------------------------------ */

@@ -107,7 +107,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     safe(db().from('ad_campaigns').select('id', { count: 'exact', head: true }).eq('status', 'active')),
     safe(db().from('content_items').select('type')),
     safe(db().from('media_assets').select('provider, file_size_bytes')),
-    getRecentModeration(8),
+    getRecentModeration({ limit: 8 }).then((r) => r.rows),
   ])
 
   const byTypeMap = new Map<string, number>()
@@ -173,7 +173,7 @@ export type SubmissionRow = {
 }
 
 export async function getSubmissions(options?: {
-  status?: SubmissionStatus | 'all'
+  status?: SubmissionStatus | SubmissionStatus[] | 'all'
   type?: ContentType | 'all'
   search?: string
   limit?: number
@@ -191,7 +191,9 @@ export async function getSubmissions(options?: {
     .order('submitted_at', { ascending: false, nullsFirst: false })
     .range(offset, offset + limit - 1)
 
-  if (status !== 'all') query = query.eq('status', status)
+  if (status !== 'all') {
+    query = Array.isArray(status) ? query.in('status', status) : query.eq('status', status)
+  }
   if (type !== 'all') query = query.eq('submission_type', type)
   if (search) query = query.or(`guest_name.ilike.%${search}%,guest_email.ilike.%${search}%,guest_phone.ilike.%${search}%`)
 
@@ -214,6 +216,34 @@ export async function getSubmissions(options?: {
     contentItemId: r.content_item_id,
     })),
     total: count ?? 0,
+  }
+}
+
+/**
+ * Tab-badge counts for the moderation queue. Six index-only head counts beat
+ * pulling 5×1000 rows; "pending" folds in reopened (in_review) rows exactly
+ * like the queue view does.
+ */
+export async function getSubmissionCounts(): Promise<{
+  pending: number
+  needs_clarification: number
+  approved: number
+  rejected: number
+  total: number
+}> {
+  const statuses: SubmissionStatus[] = ['pending', 'in_review', 'needs_clarification', 'approved', 'rejected']
+  const results = await Promise.all(
+    statuses.map((s) => safe(db().from('submissions').select('id', { count: 'exact', head: true }).eq('status', s))),
+  )
+  const byStatus: Record<string, number> = {}
+  statuses.forEach((s, i) => { byStatus[s] = results[i].count ?? 0 })
+  const pending = byStatus.pending + byStatus.in_review
+  return {
+    pending,
+    needs_clarification: byStatus.needs_clarification,
+    approved: byStatus.approved,
+    rejected: byStatus.rejected,
+    total: pending + byStatus.needs_clarification + byStatus.approved + byStatus.rejected,
   }
 }
 
@@ -514,18 +544,20 @@ export type UserRow = {
   createdAt: string | null
 }
 
-export async function getUsers(options?: { search?: string; role?: AppRole | 'all'; status?: 'all' | 'active' | 'suspended' | 'banned'; limit?: number }): Promise<UserRow[]> {
+export async function getUsers(options?: { search?: string; role?: AppRole | 'all'; status?: 'all' | 'active' | 'suspended' | 'banned'; limit?: number; page?: number }): Promise<{ rows: UserRow[]; total: number }> {
   const search = options?.search?.trim()
   const role = options?.role ?? 'all'
   const limit = options?.limit ?? 50
+  const page = options?.page ?? 1
+  const offset = (page - 1) * limit
 
   let query = db()
     .from('profiles')
     .select(`id, display_name, full_name, email, phone, avatar_url, is_verified, is_public, is_suspended, is_banned, contributor_featured, contributor_bio_override, created_at,
       location:locations(name),
-      roles:user_roles(role)`)
+      roles:user_roles(role)`, { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .range(offset, offset + limit - 1)
 
   if (search) query = query.or(`display_name.ilike.%${search}%,full_name.ilike.%${search}%,email.ilike.%${search}%`)
   if (role !== 'all') query = query.eq('roles.role', role)
@@ -533,8 +565,8 @@ export async function getUsers(options?: { search?: string; role?: AppRole | 'al
   if (options?.status === 'banned') query = query.eq('is_banned', true)
   if (options?.status === 'active') query = query.eq('is_suspended', false).eq('is_banned', false)
 
-  const { data } = await safe(query)
-  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+  const { data, count } = await safe(query)
+  const rows = ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
     const roles = Array.isArray(row.roles) ? row.roles : row.roles ? [row.roles] : []
     const location = Array.isArray(row.location) ? row.location[0] : row.location
     return {
@@ -555,6 +587,7 @@ export async function getUsers(options?: { search?: string; role?: AppRole | 'al
       createdAt: row.created_at as string | null,
     }
   })
+  return { rows, total: count ?? 0 }
 }
 
 /* ------------------------------------------------------------------ */
@@ -748,21 +781,36 @@ export type ModerationEntry = {
   submissionId: string | null
 }
 
-export async function getRecentModeration(limit = 20, filters?: { actor?: string; action?: string; entityType?: string }, locale: Locale = 'en'): Promise<ModerationEntry[]> {
-  if (!hasDatabase()) return []
+export async function getRecentModeration(options?: {
+  limit?: number
+  page?: number
+  action?: string
+  entityType?: string
+  actor?: string
+  from?: string
+  to?: string
+  locale?: Locale
+}): Promise<{ rows: ModerationEntry[]; total: number }> {
+  const limit = options?.limit ?? 20
+  const page = options?.page ?? 1
+  const offset = (page - 1) * limit
+  const locale = options?.locale ?? 'en'
+  if (!hasDatabase()) return { rows: [], total: 0 }
   try {
     let query = db()
         .from('moderation_log')
         .select(`id, action, from_status, to_status, notes, created_at, submission_id, entity_type,
           actor:profiles(display_name, full_name),
-          content:content_items(type, translations:content_translations(locale, title))`)
+          content:content_items(type, translations:content_translations(locale, title))`, { count: 'exact' })
         .order('created_at', { ascending: false })
-        .limit(limit)
-    if (filters?.action) query = query.eq('action', filters.action)
-    if (filters?.entityType) query = query.eq('entity_type', filters.entityType)
-    if (filters?.actor) query = query.eq('actor_id', filters.actor)
-    const { data } = await safe(query)
-    return (data ?? []).map((row) => {
+        .range(offset, offset + limit - 1)
+    if (options?.action) query = query.eq('action', options.action)
+    if (options?.entityType) query = query.eq('entity_type', options.entityType)
+    if (options?.actor) query = query.eq('actor_id', options.actor)
+    if (options?.from) query = query.gte('created_at', options.from)
+    if (options?.to) query = query.lte('created_at', `${options.to}T23:59:59.999Z`)
+    const { data, count } = await safe(query)
+    const rows = (data ?? []).map((row) => {
       const actor = Array.isArray(row.actor) ? row.actor[0] : row.actor
       const content = Array.isArray(row.content) ? row.content[0] : row.content
       const translations = content && Array.isArray(content.translations) ? content.translations : content?.translations ? [content.translations] : []
@@ -781,9 +829,25 @@ export async function getRecentModeration(limit = 20, filters?: { actor?: string
         submissionId: row.submission_id,
       }
     })
+    return { rows, total: count ?? 0 }
   } catch (e) {
     console.error('[admin] getRecentModeration failed', e)
-    return []
+    return { rows: [], total: 0 }
+  }
+}
+
+/** Distinct action / entity-type values for the audit-log filter dropdowns. */
+export async function getAuditFilterOptions(): Promise<{ actions: string[]; entityTypes: string[] }> {
+  if (!hasDatabase()) return { actions: [], entityTypes: [] }
+  const [actionsRes, entitiesRes] = await Promise.all([
+    safe(db().from('moderation_log').select('action').limit(5000)),
+    safe(db().from('moderation_log').select('entity_type').limit(5000)),
+  ])
+  const uniqSorted = (values: (string | null | undefined)[]) =>
+    [...new Set(values.filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b))
+  return {
+    actions: uniqSorted((actionsRes.data ?? []).map((r) => (r as { action: string }).action)),
+    entityTypes: uniqSorted((entitiesRes.data ?? []).map((r) => (r as { entity_type: string | null }).entity_type)),
   }
 }
 
