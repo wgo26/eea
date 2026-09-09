@@ -3,13 +3,13 @@ import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
 import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/guards'
-import { getAdSlots, getAdvertisers, getPendingAdInquiries } from '@/lib/admin/queries'
+import { getAdSlots, getAdvertisers, getPendingAdInquiries, getCampaigns } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { DataTable } from '@/components/admin/data-table'
+import { StatusBadge } from '@/components/admin/status-badge'
 import { formatDate, formatPrice, formatPercent } from '@/lib/admin/format'
 import { AdSlotActions } from './ad-slot-actions'
 import { AdCreateForms } from './ad-create-forms'
-import type { AdSlotRow } from '@/lib/admin/queries'
 import { InquiryActions } from './inquiry-actions'
 import { AdvertiserActions } from './advertiser-actions'
 import { CampaignActions } from './campaign-actions'
@@ -25,11 +25,19 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
   const dict = getDictionary(locale)
   const t = dict.admin.ads
 
-  const [slots, advertisers, inquiries] = await Promise.all([
+  const [slots, advertisers, inquiries, campaigns] = await Promise.all([
     getAdSlots(),
     getAdvertisers(),
     getPendingAdInquiries(),
+    getCampaigns(),
   ])
+
+  const campaignStatusLabels: Record<string, string> = {
+    active: t.statusActive,
+    paused: t.statusPaused,
+    pending: t.statusPending,
+    ended: t.statusEnded,
+  }
 
   return (
     <div className="space-y-6">
@@ -88,38 +96,39 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
 
       <section>
         <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.campaignsHeading}</h2>
-        {slots.filter((s) => s.activeCampaign).length === 0 ? (
+        {campaigns.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
             {t.emptyCampaigns}
           </div>
         ) : (
           <DataTable
-            rows={slots.filter((s) => s.activeCampaign) as (AdSlotRow & { activeCampaign: NonNullable<AdSlotRow['activeCampaign']> })[]}
-            rowKey={(r) => r.activeCampaign.id}
+            rows={campaigns}
+            rowKey={(r) => r.id}
             columns={[
               { key: 'campaign', header: t.colCampaign, render: (r) => (
                 <div className="min-w-0">
-                  <div className="text-sm font-medium truncate">{r.activeCampaign.name}</div>
-                  <div className="text-xs text-muted-foreground truncate">{r.activeCampaign.advertiserName}</div>
+                  <div className="text-sm font-medium truncate">{r.name}</div>
+                  <div className="text-xs text-muted-foreground truncate">{r.advertiserName}</div>
                 </div>
               ) },
-              { key: 'slot', header: t.colSlot, render: (r) => <span className="text-xs">{r.name}</span> },
+              { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} label={campaignStatusLabels[r.status] ?? r.status} /> },
+              { key: 'slot', header: t.colSlot, render: (r) => <span className="text-xs">{r.slotName ?? '—'}</span> },
               { key: 'dates', header: t.colDates, render: (r) => (
                 <div className="text-xs text-muted-foreground">
-                  <div>{formatDate(r.activeCampaign.startsAt)} → {formatDate(r.activeCampaign.endsAt)}</div>
+                  <div>{formatDate(r.startsAt)} → {formatDate(r.endsAt)}</div>
                 </div>
               ) },
-              { key: 'pricing', header: t.colPrice, render: (r) => <span className="text-xs">{formatPrice(r.activeCampaign.agreedPrice, r.activeCampaign.currency)}</span> },
+              { key: 'pricing', header: t.colPrice, render: (r) => <span className="text-xs">{formatPrice(r.agreedPrice, r.currency)}</span> },
               { key: 'performance', header: t.colPerformance, render: (r) => (
                 <div className="text-xs">
-                  <span>{r.activeCampaign.impressions.toLocaleString()} {t.impressions}</span>
+                  <span>{r.impressions.toLocaleString()} {t.impressions}</span>
                   <span className="text-muted-foreground"> · </span>
-                  <span>{r.activeCampaign.clicks.toLocaleString()} {t.clicks}</span>
+                  <span>{r.clicks.toLocaleString()} {t.clicks}</span>
                   <span className="text-muted-foreground"> · </span>
-                  <span>{formatPercent(r.activeCampaign.clicks, r.activeCampaign.impressions)} CTR</span>
+                  <span>{formatPercent(r.clicks, r.impressions)} CTR</span>
                 </div>
               ) },
-              { key: 'actions', header: '', render: (r) => <CampaignActions campaign={r.activeCampaign} copy={t} />, className: 'text-right' },
+              { key: 'actions', header: '', render: (r) => <CampaignActions campaign={r} copy={t} />, className: 'text-right' },
             ]}
           />
         )}

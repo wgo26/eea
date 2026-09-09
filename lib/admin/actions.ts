@@ -1077,6 +1077,24 @@ export async function updateContributorCuration(userId: string, input: { feature
   } catch (e) { return fail(e) }
 }
 
+export async function updateUserProfile(
+  userId: string,
+  input: { displayName?: string | null; fullName?: string | null },
+): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageUsers')
+    const patch: Record<string, string | null> = {}
+    if (input.displayName !== undefined) patch.display_name = input.displayName?.trim() || null
+    if (input.fullName !== undefined) patch.full_name = input.fullName?.trim() || null
+    if (Object.keys(patch).length === 0) return { ok: false, error: 'Nothing to update.' }
+    const { error } = await supabase.from('profiles').update(patch).eq('id', userId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: 'user:profile:update', entityType: 'profile', entityId: userId })
+    revalidateLocalized('/admin/users')
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
 export async function inviteUser(email: string, role: AppRole = 'contributor'): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertAdmin()
