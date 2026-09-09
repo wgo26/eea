@@ -1,11 +1,13 @@
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
+import { requireCapability } from '@/lib/auth/guards'
 import Link from 'next/link'
 import { getSubmissions } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { Tabs } from '@/components/admin/tabs'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
+import { localizeStatus, localizeType } from '@/lib/admin/labels'
 import { DataTable } from '@/components/admin/data-table'
 import { formatRelative } from '@/lib/admin/format'
 import { ModerationActions } from './moderation-actions'
@@ -43,6 +45,7 @@ export default async function Page({
   searchParams: Promise<{ status?: string; type?: string }>
 }) {
   const locale = await getRequestLocale()
+  await requireCapability('moderate', '/admin/moderation')
   const dict = getDictionary(locale)
   const t = dict.admin.moderation
   const tf = dict.admin.typeFilters
@@ -52,13 +55,18 @@ export default async function Page({
   const type = (params.type as 'all' | 'photo_story' | 'news' | 'listing' | 'notice' | 'culture') || 'all'
 
   // The pending queue also covers reopened rows (in_review) — merge both.
-  const [pendingItems, inReviewItems, clarificationItems, approvedItems, rejectedItems] = await Promise.all([
+  const [pendingRes, inReviewRes, clarificationRes, approvedRes, rejectedRes] = await Promise.all([
     getSubmissions({ status: 'pending', type: 'all', limit: 1000 }),
     getSubmissions({ status: 'in_review', type: 'all', limit: 1000 }),
     getSubmissions({ status: 'needs_clarification', type: 'all', limit: 1000 }),
     getSubmissions({ status: 'approved', type: 'all', limit: 1000 }),
     getSubmissions({ status: 'rejected', type: 'all', limit: 1000 }),
   ])
+  const pendingItems = pendingRes.rows
+  const inReviewItems = inReviewRes.rows
+  const clarificationItems = clarificationRes.rows
+  const approvedItems = approvedRes.rows
+  const rejectedItems = rejectedRes.rows
 
   const queueFor = (): SubmissionRow[] => {
     const merged = [...pendingItems, ...inReviewItems].sort((a, b) =>
@@ -137,7 +145,7 @@ export default async function Page({
           columns={[
             { key: 'type', header: t.colType, render: (r) => (
               <div className="space-y-1">
-                <TypeBadge type={r.submissionType} />
+                <TypeBadge type={r.submissionType} label={localizeType(r.submissionType, dict.admin.common)} />
                 <Link
                   href={localePath(locale, `/admin/moderation/${r.id}`)}
                   className="block text-xs text-primary hover:underline"
@@ -147,7 +155,7 @@ export default async function Page({
               </div>
             ) },
             { key: 'submitter', header: t.colSubmitter, render: (r) => <SubmitterCell row={r} copy={t} /> },
-            { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} /> },
+            { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, dict.admin.common)} /> },
             { key: 'submitted', header: t.colSubmitted, render: (r) => <time className="text-xs text-muted-foreground">{formatRelative(r.submittedAt)}</time> },
             { key: 'actions', header: '', render: (r) => <ModerationActions submission={r} copy={t} />, className: 'text-right' },
           ]}

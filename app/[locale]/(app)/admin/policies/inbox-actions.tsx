@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { resolveLegalReport, resolveDataRequest } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
 import { StatusBadge } from '@/components/admin/status-badge'
+import { localizeStatus, localizeRequestType } from '@/lib/admin/labels'
 import { formatRelative } from '@/lib/admin/format'
 import type { Dictionary, Locale } from '@/lib/i18n'
 import type { ReportRow, DataRequestRow } from '@/lib/admin/queries'
@@ -17,11 +18,13 @@ type Copy = Dictionary['admin']['policies']
  */
 export function InboxLists({
   copy,
+  common,
   takedowns,
   requests,
   locale,
 }: {
   copy: Copy
+  common: Dictionary['admin']['common']
   takedowns: ReportRow[]
   requests: DataRequestRow[]
   locale: Locale
@@ -46,10 +49,10 @@ export function InboxLists({
         ) : (
           <>
             {openTakedowns.map((report) => (
-              <TakedownCard key={report.id} report={report} copy={copy} locale={locale} />
+              <TakedownCard key={report.id} report={report} copy={copy} common={common} locale={locale} />
             ))}
             {doneTakedowns.map((report) => (
-              <TakedownCard key={report.id} report={report} copy={copy} locale={locale} done />
+              <TakedownCard key={report.id} report={report} copy={copy} common={common} locale={locale} done />
             ))}
           </>
         )}
@@ -66,10 +69,10 @@ export function InboxLists({
         ) : (
           <>
             {openRequests.map((req) => (
-              <RequestCard key={req.id} request={req} copy={copy} locale={locale} />
+              <RequestCard key={req.id} request={req} copy={copy} common={common} locale={locale} />
             ))}
             {doneRequests.map((req) => (
-              <RequestCard key={req.id} request={req} copy={copy} locale={locale} done />
+              <RequestCard key={req.id} request={req} copy={copy} common={common} locale={locale} done />
             ))}
           </>
         )}
@@ -134,19 +137,21 @@ function ResolveBox({
 function TakedownCard({
   report,
   copy,
+  common,
   locale,
   done,
 }: {
   report: ReportRow
   copy: Copy
+  common: Dictionary['admin']['common']
   locale: Locale
   done?: boolean
 }) {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <StatusBadge status={report.status} />
-        <span className="text-sm font-medium">{report.subject ?? 'Takedown'}</span>
+        <StatusBadge status={report.status} label={localizeStatus(report.status, common)} />
+        <span className="text-sm font-medium">{report.subject ?? copy.takedownFallback}</span>
         <span className="ml-auto text-xs text-muted-foreground">
           {report.createdAt ? formatRelative(report.createdAt, locale) : null}
         </span>
@@ -181,19 +186,21 @@ function TakedownCard({
 function RequestCard({
   request,
   copy,
+  common,
   locale,
   done,
 }: {
   request: DataRequestRow
   copy: Copy
+  common: Dictionary['admin']['common']
   locale: Locale
   done?: boolean
 }) {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <StatusBadge status={request.status} />
-        <span className="text-sm font-medium">{request.requestType}</span>
+        <StatusBadge status={request.status} label={localizeStatus(request.status, common)} />
+        <span className="text-sm font-medium">{localizeRequestType(request.requestType, copy.requestTypes as unknown as Record<string, string>)}</span>
         {request.requesterEmail ? (
           <a
             href={`mailto:${request.requesterEmail}`}

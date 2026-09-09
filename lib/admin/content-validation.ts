@@ -5,7 +5,7 @@ export type ContentDraftInput = {
   categoryId?: string | null
   photographerCredit?: string | null
   translations: { locale: 'en' | 'fr'; title: string; excerpt?: string; body?: string }[]
-  photos?: { url: string; caption?: string; credit?: string }[]
+  photos?: { url: string; alt?: string; caption?: string; credit?: string }[]
   keepPhotoIds?: string[]
   listing?: {
     price?: number | null

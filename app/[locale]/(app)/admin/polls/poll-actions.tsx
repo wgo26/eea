@@ -114,6 +114,7 @@ export function PollRowActions({
   poll: {
     id: string
     question: string
+    locale: string
     isActive: boolean
     totalVotes: number
     options: Array<{ id: string; label: string }>
@@ -165,7 +166,7 @@ export function PollRowActions({
   async function handleExportCSV() {
     const res = await exportPollResults(poll.id)
     if (res.ok && res.data) {
-      const rows = [['Option', 'Votes', 'Percentage']]
+      const rows = [[copy.csvOption, copy.csvVotes, copy.csvPercentage]]
       for (const item of res.data) {
         rows.push([`"${item.label.replace(/"/g, '""')}"`, String(item.count), `${item.percentage}%`])
       }
@@ -218,6 +219,9 @@ export function PollRowActions({
             <DialogTitle>{copy.editTitle}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleEditSubmit} className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              {copy.localeLabel}: <span className="font-semibold uppercase">{poll.locale}</span>
+            </p>
             <div>
               <label className={labelCls}>{copy.question}</label>
               <input

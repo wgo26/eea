@@ -7,7 +7,7 @@ import {
   getSiteSettingsAdmin,
 } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
-import { AdvertiseSectionEditor, SiteLinksForm } from './site-content-forms'
+import { AdvertiseSectionEditor, SiteBrandingForm, SiteLinksForm } from './site-content-forms'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -39,6 +39,9 @@ export default async function Page({
 
   const params = await searchParams
   const editLocale: Locale = params.locale === 'fr' ? 'fr' : 'en'
+  // Defaults must come from the EDIT locale's dictionary — using the UI
+  // locale here rendered English built-in text beside French fields.
+  const editDict = getDictionary(editLocale)
 
   const [sections, settings] = await Promise.all([
     getAdvertiseSectionsAdmin(),
@@ -50,10 +53,24 @@ export default async function Page({
       <PageHeader title={t.title} description={t.description} />
 
       <section className="space-y-4">
+        <h2 className="text-sm font-semibold">{t.brandingTitle}</h2>
+        <SiteBrandingForm
+          copy={t}
+          settings={{
+            site_logo_url: settings.site_logo_url,
+            site_name: settings.site_name,
+            site_tagline: settings.site_tagline,
+            site_name_fr: settings.site_name_fr,
+            site_tagline_fr: settings.site_tagline_fr,
+          }}
+        />
+      </section>
+
+      <section className="space-y-4">
         <h2 className="text-sm font-semibold">{t.advertiseTitle}</h2>
         <AdvertiseSectionEditor
           copy={t}
-          sections={advertiseDefaults(dict)}
+          sections={advertiseDefaults(editDict)}
           overrides={sections}
           editLocale={editLocale}
           locale={locale}

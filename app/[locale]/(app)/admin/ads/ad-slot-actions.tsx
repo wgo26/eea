@@ -1,25 +1,23 @@
 'use client'
 
-import { useState } from 'react'
 import { updateCampaignStatus } from '@/lib/admin/actions'
+import { useAdminMutation } from '@/components/admin/confirm-dialog'
 import type { Dictionary } from '@/lib/i18n'
 import type { AdSlotRow } from '@/lib/admin/queries'
 
 type Copy = Dictionary['admin']['ads']
 
 export function AdSlotActions({ slot, copy }: { slot: AdSlotRow; copy: Copy }) {
-  const [busy, setBusy] = useState(false)
+  const { run, loading } = useAdminMutation()
   const campaign = slot.activeCampaign
 
   async function handleCampaignAction(action: 'pause' | 'activate') {
     if (!campaign) return
-    setBusy(true)
     const status = action === 'pause' ? 'paused' : 'active'
-    const result = await updateCampaignStatus(campaign.id, status)
-    setBusy(false)
-    if (!result.ok) {
-      alert(result.error)
-    }
+    await run(
+      () => updateCampaignStatus(campaign.id, status),
+      action === 'pause' ? copy.statusPaused : copy.statusActive,
+    )
   }
 
   return (
@@ -27,10 +25,10 @@ export function AdSlotActions({ slot, copy }: { slot: AdSlotRow; copy: Copy }) {
       {campaign ? (
         <button
           onClick={() => handleCampaignAction(campaign.status === 'active' ? 'pause' : 'activate')}
-          disabled={busy}
+          disabled={loading}
           className="text-xs px-2 py-1 rounded border border-border hover:bg-accent transition-colors disabled:opacity-50"
         >
-          {campaign.status === 'active' ? copy.pause : copy.activate}
+          {loading ? '…' : (campaign.status === 'active' ? copy.pause : copy.activate)}
         </button>
       ) : (
         <span className="text-xs text-muted-foreground">{copy.noCampaign}</span>

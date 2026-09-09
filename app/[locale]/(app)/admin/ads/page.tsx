@@ -1,11 +1,14 @@
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
+import { localePath } from '@/lib/i18n/urls'
+import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/guards'
 import { getAdSlots, getAdvertisers, getPendingAdInquiries } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { DataTable } from '@/components/admin/data-table'
 import { formatDate, formatPrice, formatPercent } from '@/lib/admin/format'
 import { AdSlotActions } from './ad-slot-actions'
+import { AdCreateForms } from './ad-create-forms'
 import type { AdSlotRow } from '@/lib/admin/queries'
 import { InquiryActions } from './inquiry-actions'
 import { AdvertiserActions } from './advertiser-actions'
@@ -33,9 +36,15 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
       <PageHeader title={t.title} description={t.description} />
 
       <nav className="flex gap-2 border-b border-border pb-2">
-        <a href="?tab=inquiries" className="rounded-md border border-border px-3 py-1.5 text-xs font-medium">{t.inquiriesTab} ({inquiries.length})</a>
-        <a href="?tab=operations" className="rounded-md border border-border px-3 py-1.5 text-xs font-medium">{t.operationsTab}</a>
+        <Link href={localePath(locale, '/admin/ads') + '?tab=inquiries'} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium">{t.inquiriesTab} ({inquiries.length})</Link>
+        <Link href={localePath(locale, '/admin/ads') + '?tab=operations'} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium">{t.operationsTab}</Link>
       </nav>
+
+      <AdCreateForms
+        copy={t}
+        slots={slots}
+        advertisers={advertisers.map((a) => ({ id: a.id, companyName: a.companyName }))}
+      />
 
       {(await searchParams).tab === 'inquiries' && (
         <section>

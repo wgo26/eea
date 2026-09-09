@@ -56,7 +56,7 @@ export default async function Page() {
         <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.operations}</h2>
         <StatGrid>
           <a href={localePath(locale, '/admin/ads')}><StatCard label={t.activeAds} value={stats.activeAds} /></a>
-          <StatCard label={t.activeListings} value={stats.expiringListings} />
+          <a href={localePath(locale, '/admin/listings')}><StatCard label={t.activeListings} value={stats.activeListings} hint={t.expiringListings.replace('{count}', String(stats.expiringListings))} /></a>
           <a href={localePath(locale, '/admin/storage-backup')}><StatCard label={t.storageUsed} value={formatBytes(stats.storageUsed)} /></a>
         </StatGrid>
       </section>

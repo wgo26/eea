@@ -8,6 +8,8 @@ import { localeHref, useLocaleFromPath } from "@/components/site-header";
 
 type SocialLinks = { facebook: string | null; youtube: string | null };
 
+type Branding = { logoUrl: string | null; siteName: string | null; siteNameFr?: string | null };
+
 /** Only an absolute http(s) link renders — defense against a bad setting. */
 function safeSocialHref(value: string | null): string | null {
     if (!value) return null;
@@ -19,11 +21,31 @@ function safeSocialHref(value: string | null): string | null {
     }
 }
 
-export function SiteFooter({ socialLinks }: { socialLinks?: SocialLinks }) {
+/** Only an absolute http(s) logo or site-relative path renders. */
+function safeLogoSrc(value: string | null): string | null {
+    if (!value) return null;
+    if (value.startsWith("/")) {
+        if (value.includes("..") || /[\s<>"]/.test(value)) return null;
+        return value;
+    }
+    try {
+        const url = new URL(value);
+        return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+    } catch {
+        return null;
+    }
+}
+
+export function SiteFooter({ socialLinks, branding }: { socialLinks?: SocialLinks; branding?: Branding }) {
     const locale = useLocaleFromPath();
     const dict = getDictionary(locale);
     const facebookHref = safeSocialHref(socialLinks?.facebook ?? null);
     const youtubeHref = safeSocialHref(socialLinks?.youtube ?? null);
+    const logoSrc = safeLogoSrc(branding?.logoUrl ?? null);
+    const siteName =
+      locale === 'fr'
+        ? branding?.siteNameFr?.trim() || branding?.siteName?.trim() || "Eagle Eye Africa"
+        : branding?.siteName?.trim() || "Eagle Eye Africa";
 
     const sections = [
         { href: "/photo-stories", label: dict.nav.photoStories },
@@ -53,9 +75,14 @@ export function SiteFooter({ socialLinks }: { socialLinks?: SocialLinks }) {
                 <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
                     <div>
                         <p className="flex items-center gap-2 text-lg font-extrabold tracking-tight">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                                <Eye className="h-4 w-4" aria-hidden />
-                            </span>
+                            {logoSrc ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={logoSrc} alt={siteName} className="h-8 w-auto max-w-32 rounded object-contain" />
+                            ) : (
+                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                                    <Eye className="h-4 w-4" aria-hidden />
+                                </span>
+                            )}
                             {dict.footer.aboutTitle}
                         </p>
                         <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
@@ -103,7 +130,7 @@ export function SiteFooter({ socialLinks }: { socialLinks?: SocialLinks }) {
 
                 <div className="flex flex-col items-start justify-between gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center">
                     <p>
-                        © {new Date().getFullYear()} Eagle Eye Africa. {dict.footer.rights}
+                        © {new Date().getFullYear()} {siteName}. {dict.footer.rights}
                     </p>
                     <p>{dict.footer.madeIn}</p>
                 </div>

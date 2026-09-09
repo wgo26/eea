@@ -41,11 +41,43 @@ export function useNavItems() {
     }));
 }
 
-export function SiteHeader() {
+export type SiteBranding = {
+    logoUrl: string | null
+    siteName: string | null
+    siteTagline: string | null
+    siteNameFr?: string | null
+    siteTaglineFr?: string | null
+}
+
+/** Only an absolute http(s) URL or site-relative path renders as a logo. */
+function safeLogoSrc(value: string | null): string | null {
+    if (!value) return null
+    if (value.startsWith('/')) {
+        if (value.includes('..') || /[\s<>"]/.test(value)) return null
+        return value
+    }
+    try {
+        const url = new URL(value)
+        return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null
+    } catch {
+        return null
+    }
+}
+
+export function SiteHeader({ branding }: { branding?: SiteBranding }) {
     const locale = useLocaleFromPath();
     const dict = getDictionary(locale);
     const items = useNavItems();
     const pathname = usePathname() ?? "/";
+    const logoSrc = safeLogoSrc(branding?.logoUrl ?? null);
+    const siteName =
+      locale === 'fr'
+        ? branding?.siteNameFr?.trim() || branding?.siteName?.trim() || SITE_NAME
+        : branding?.siteName?.trim() || SITE_NAME;
+    const tagline =
+      locale === 'fr'
+        ? branding?.siteTaglineFr?.trim() || branding?.siteTagline?.trim() || dict.header.tagline
+        : branding?.siteTagline?.trim() || dict.header.tagline;
 
     return (
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -53,15 +85,24 @@ export function SiteHeader() {
                 <Link
                     href={localeHref(locale, "/")}
                     className="flex shrink-0 items-center gap-2"
-                    aria-label={SITE_NAME}
+                    aria-label={siteName}
                 >
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                        <Eye className="h-5 w-5" aria-hidden />
-                    </span>
+                    {logoSrc ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                            src={logoSrc}
+                            alt={siteName}
+                            className="h-9 w-auto max-w-36 rounded-lg object-contain"
+                        />
+                    ) : (
+                        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                            <Eye className="h-5 w-5" aria-hidden />
+                        </span>
+                    )}
                     <span className="hidden flex-col leading-tight sm:flex">
-                        <span className="text-sm font-extrabold tracking-tight">{SITE_NAME}</span>
+                        <span className="text-sm font-extrabold tracking-tight">{siteName}</span>
                         <span className="text-[10px] font-medium text-muted-foreground">
-                            {dict.header.tagline}
+                            {tagline}
                         </span>
                     </span>
                 </Link>

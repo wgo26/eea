@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { updateContentStatus, setContentFeatured, archiveContent } from '@/lib/admin/actions'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
+import { ActionMenu, ActionMenuTrigger } from '@/components/admin/action-menu'
+import type { ActionMenuEntry } from '@/components/admin/action-menu'
 import type { Dictionary } from '@/lib/i18n'
 import type { ContentRow } from '@/lib/admin/queries'
 
@@ -11,7 +13,6 @@ type CommonCopy = Dictionary['admin']['common']
 
 export function ContentActions({ content, copy, common }: { content: ContentRow; copy: Copy; common: CommonCopy }) {
   const { run, loading } = useAdminMutation()
-  const [dropdownOpen, setDropdownOpen] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState(false)
 
   /** Status transitions, labels localized via the dictionary. */
@@ -28,8 +29,7 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
   )
 
   async function handleStatusChange(status: string, toast: string) {
-    const ok = await run(() => updateContentStatus(content.id, status), toast)
-    if (ok) setDropdownOpen(false)
+    await run(() => updateContentStatus(content.id, status), toast)
   }
 
   async function handleToggleFeatured() {
@@ -41,10 +41,23 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
 
   async function handleArchive() {
     const ok = await run(() => archiveContent(content.id), copy.toastArchived)
-    if (ok) {
-      setConfirmArchive(false)
-      setDropdownOpen(false)
-    }
+    if (ok) setConfirmArchive(false)
+  }
+
+  const menuItems: ActionMenuEntry[] = transitions.map((t) => ({
+    label: t.label,
+    onSelect: () => handleStatusChange(t.key, t.toast),
+    disabled: loading,
+  }))
+
+  if (transitions.length > 0) {
+    menuItems.push({ separator: true })
+    menuItems.push({
+      label: copy.archive,
+      onSelect: () => setConfirmArchive(true),
+      tone: 'danger',
+      disabled: loading,
+    })
   }
 
   return (
@@ -63,45 +76,11 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
         {content.isFeatured ? copy.featured : copy.feature}
       </button>
 
-      {transitions.length > 0 && (
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            disabled={loading}
-            className="inline-flex items-center rounded-md border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {loading ? common.working : copy.actions}
-          </button>
-          {dropdownOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(false)} />
-              <div className="absolute right-0 z-50 mt-1 w-40 rounded-md border border-border bg-card shadow-lg py-1">
-                {transitions.map((t) => (
-                  <button
-                    key={t.key}
-                    type="button"
-                    onClick={() => handleStatusChange(t.key, t.toast)}
-                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors"
-                  >
-                    {t.label}
-                  </button>
-                ))}
-                <div className="border-t border-border my-1" />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDropdownOpen(false)
-                    setConfirmArchive(true)
-                  }}
-                  className="w-full px-3 py-1.5 text-left text-sm text-destructive hover:bg-muted transition-colors"
-                >
-                  {copy.archive}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+      {menuItems.length > 0 && (
+        <ActionMenu
+          trigger={<ActionMenuTrigger label={copy.actions} />}
+          items={menuItems}
+        />
       )}
 
       <ConfirmDialog

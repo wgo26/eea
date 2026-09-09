@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { saveAboutSection } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
@@ -40,6 +40,18 @@ export function AboutSectionEditor({
 }) {
   const base = `${localePath(locale, '/admin/policies')}?tab=about`
 
+  function confirmIfDirty(e: React.MouseEvent, targetLocale: Locale) {
+    if (targetLocale === editLocale) {
+      e.preventDefault()
+      return
+    }
+    if (typeof document !== 'undefined' && document.querySelector('[data-dirty="true"]')) {
+      if (!window.confirm(copy.save ?? 'You have unsaved changes. Switch language anyway?')) {
+        e.preventDefault()
+      }
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -48,6 +60,7 @@ export function AboutSectionEditor({
             <Link
               key={l}
               href={`${base}&locale=${l}`}
+              onClick={(e) => confirmIfDirty(e, l)}
               aria-current={editLocale === l ? 'true' : undefined}
               className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
                 editLocale === l
@@ -107,6 +120,33 @@ function SectionCard({
   const [loading, setLoading] = useState(false)
 
   const hasOverride = Boolean(override?.heading ?? override?.body ?? override?.ctaLabel)
+  const initialHeading = override?.heading ?? ''
+  const initialBody = override?.body ?? ''
+  const initialCta = override?.ctaLabel ?? ''
+  const isDirty = heading !== initialHeading || body !== initialBody || ctaLabel !== initialCta
+
+  // Sync when the saved row for this locale changes (first load / after
+  // save / locale switch) — but never clobber unsaved typing.
+  /* eslint-disable react-hooks/set-state-in-effect -- locale-switch sync by design (guarded by isDirty) */
+  useEffect(() => {
+    if (!isDirty) {
+      setHeading(override?.heading ?? '')
+      setBody(override?.body ?? '')
+      setCtaLabel(override?.ctaLabel ?? '')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [override?.id, editLocale])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Warn on tab close / reload with unsaved edits.
+  useEffect(() => {
+    if (!isDirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isDirty])
 
   async function handleSave() {
     setLoading(true)
@@ -126,7 +166,7 @@ function SectionCard({
     'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary'
 
   return (
-    <section className="rounded-lg border border-border bg-card p-4">
+    <section className="rounded-lg border border-border bg-card p-4" data-dirty={isDirty ? 'true' : undefined}>
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-medium">
           {section.label} · {editLocale.toUpperCase()}

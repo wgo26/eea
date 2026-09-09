@@ -52,6 +52,7 @@ export type DashboardStats = {
   publishedToday: number
   scheduled: number
   draftCount: number
+  activeListings: number
   expiringListings: number
   activeAds: number
   totalStories: number
@@ -70,6 +71,7 @@ export const EMPTY_DASHBOARD_STATS: DashboardStats = {
   publishedToday: 0,
   scheduled: 0,
   draftCount: 0,
+  activeListings: 0,
   expiringListings: 0,
   activeAds: 0,
   totalStories: 0,
@@ -92,14 +94,16 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   try {
     const today = new Date()
     today.setUTCHours(0, 0, 0, 0)
+    const expiringWindow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
 
-  const [pendingRes, byTypeRes, todayRes, scheduledRes, draftRes, expiringRes, activeAdsRes, countsRes, storageRes, activityRes] = await Promise.all([
+  const [pendingRes, byTypeRes, todayRes, scheduledRes, draftRes, activeListingsRes, expiringSoonRes, activeAdsRes, countsRes, storageRes, activityRes] = await Promise.all([
     safe(db().from('submissions').select('id', { count: 'exact', head: true }).eq('status', 'pending')),
     safe(db().from('submissions').select('submission_type').eq('status', 'pending')),
     safe(db().from('content_items').select('id', { count: 'exact', head: true }).eq('status', 'published').gte('published_at', today.toISOString())),
     safe(db().from('content_items').select('id', { count: 'exact', head: true }).eq('status', 'scheduled')),
     safe(db().from('content_items').select('id', { count: 'exact', head: true }).eq('status', 'draft')),
     safe(db().from('listings').select('content_item_id', { count: 'exact', head: true }).eq('listing_status', 'active')),
+    safe(db().from('content_items').select('id', { count: 'exact', head: true }).eq('type', 'listing').eq('status', 'published').not('expires_at', 'is', null).lte('expires_at', expiringWindow.toISOString())),
     safe(db().from('ad_campaigns').select('id', { count: 'exact', head: true }).eq('status', 'active')),
     safe(db().from('content_items').select('type')),
     safe(db().from('media_assets').select('provider, file_size_bytes')),
@@ -130,7 +134,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       publishedToday: todayRes.count ?? 0,
       scheduled: scheduledRes.count ?? 0,
       draftCount: draftRes.count ?? 0,
-      expiringListings: expiringRes.count ?? 0,
+      activeListings: activeListingsRes.count ?? 0,
+      expiringListings: expiringSoonRes.count ?? 0,
       activeAds: activeAdsRes.count ?? 0,
       totalStories: countByType('photo_story'),
       totalNews: countByType('news'),
@@ -170,23 +175,29 @@ export type SubmissionRow = {
 export async function getSubmissions(options?: {
   status?: SubmissionStatus | 'all'
   type?: ContentType | 'all'
+  search?: string
   limit?: number
-}): Promise<SubmissionRow[]> {
+  offset?: number
+}): Promise<{ rows: SubmissionRow[]; total: number }> {
   const status = options?.status ?? 'pending'
   const type = options?.type ?? 'all'
-  const limit = options?.limit ?? 50
+  const search = options?.search?.trim() ?? ''
+  const limit = options?.limit ?? 20
+  const offset = options?.offset ?? 0
 
   let query = db()
     .from('submissions')
-    .select('id, submission_type, status, guest_name, guest_email, guest_phone, consent_confirmed, rights_confirmed, submitted_at, reviewed_at, rejection_reason, internal_notes, payload, content_item_id')
+    .select('id, submission_type, status, guest_name, guest_email, guest_phone, consent_confirmed, rights_confirmed, submitted_at, reviewed_at, rejection_reason, internal_notes, payload, content_item_id', { count: 'exact' })
     .order('submitted_at', { ascending: false, nullsFirst: false })
-    .limit(limit)
+    .range(offset, offset + limit - 1)
 
   if (status !== 'all') query = query.eq('status', status)
   if (type !== 'all') query = query.eq('submission_type', type)
+  if (search) query = query.or(`guest_name.ilike.%${search}%,guest_email.ilike.%${search}%,guest_phone.ilike.%${search}%`)
 
-  const { data } = await safe(query)
-  return (data ?? []).map((r) => ({
+  const { data, count } = await safe(query)
+  return {
+    rows: (data ?? []).map((r) => ({
     id: r.id,
     submissionType: r.submission_type,
     status: r.status,
@@ -201,7 +212,9 @@ export async function getSubmissions(options?: {
     internalNotes: r.internal_notes,
     payload: r.payload,
     contentItemId: r.content_item_id,
-  }))
+    })),
+    total: count ?? 0,
+  }
 }
 
 export async function getSubmissionById(id: string): Promise<SubmissionRow | null> {
@@ -248,8 +261,11 @@ export type ContentRow = {
   scheduledFor: string | null
   expiresAt: string | null
   createdAt: string | null
+  updatedAt: string | null
   title: string | null
   excerpt: string | null
+  /** True when the item has translations but none in the requested locale. */
+  missingLocale: boolean
   locationName: string | null
   categoryName: string | null
   coverUrl: string | null
@@ -257,7 +273,7 @@ export type ContentRow = {
   submittedBy: string | null
 }
 
-const CONTENT_SELECT = `id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by,
+const CONTENT_SELECT = `id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, updated_at, author_id, submitted_by,
   translations:content_translations(locale, title, excerpt),
   location:locations(name),
   category:categories!category_id(category_translations(locale, name)),
@@ -268,29 +284,41 @@ export async function getContentItems(options?: {
   type?: ContentType | 'all'
   search?: string
   limit?: number
+  offset?: number
   locale?: Locale
-}): Promise<ContentRow[]> {
+}): Promise<{ rows: ContentRow[]; total: number }> {
   const status = options?.status ?? 'all'
   const type = options?.type ?? 'all'
-  const limit = options?.limit ?? 50
+  const search = options?.search?.trim() ?? ''
+  const limit = options?.limit ?? 20
+  const offset = options?.offset ?? 0
   const locale = options?.locale ?? 'en'
 
   let query = db()
     .from('content_items')
-    .select(CONTENT_SELECT)
+    .select(CONTENT_SELECT, { count: 'exact' })
     .order('updated_at', { ascending: false })
-    .limit(limit)
+    .range(offset, offset + limit - 1)
 
   if (status !== 'all') query = query.eq('status', status)
   if (type !== 'all') query = query.eq('type', type)
+  if (search) query = query.or(`slug.ilike.%${search}%,translations.title.ilike.%${search}%`)
 
-  const { data } = await safe(query)
-  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => mapContentRow(row, locale))
+  const { data, count } = await safe(query)
+  return {
+    rows: ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => mapContentRow(row, locale)),
+    total: count ?? 0,
+  }
 }
 
 function mapContentRow(row: Record<string, unknown>, locale: Locale): ContentRow {
   const translations = Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []
-  const t = (translations as { locale: string; title: string | null; excerpt: string | null }[]).find((x) => x.locale === locale) ?? (translations[0] as { title: string | null; excerpt: string | null } | undefined)
+  const own = (translations as { locale: string; title: string | null; excerpt: string | null }[]).find((x) => x.locale === locale)
+  const fallback = (translations as { locale: string; title: string | null; excerpt: string | null }[])[0]
+  const t = own ?? fallback
+  // Explicit fallback flag so the table can badge "EN only / FR missing"
+  // instead of silently showing the wrong language.
+  const missingLocale = translations.length > 0 && !own
 
   const location = Array.isArray(row.location) ? row.location[0] : row.location
   const category = Array.isArray(row.category) ? row.category[0] : row.category
@@ -311,8 +339,10 @@ function mapContentRow(row: Record<string, unknown>, locale: Locale): ContentRow
     scheduledFor: row.scheduled_for as string | null,
     expiresAt: row.expires_at as string | null,
     createdAt: row.created_at as string | null,
+    updatedAt: (row.updated_at as string | null) ?? null,
     title: t?.title ?? null,
     excerpt: t?.excerpt ?? null,
+    missingLocale,
     locationName: (location as { name: string } | undefined)?.name ?? null,
     categoryName: catName,
     coverUrl: (cover as { public_url: string } | undefined)?.public_url ?? null,
@@ -388,6 +418,8 @@ export type HomepageSlot = {
   title: string | null
   type: string | null
   coverUrl: string | null
+  /** True when the linked content has translations but none in the requested locale. */
+  missingLocale: boolean
 }
 
 export async function getHomepageSlots(locale: Locale = 'en'): Promise<HomepageSlot[]> {
@@ -403,7 +435,9 @@ export async function getHomepageSlots(locale: Locale = 'en'): Promise<HomepageS
   return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
     const content = (row.content as unknown as { id: string; type: string; translations: { locale: string; title: string }[]; cover: { public_url: string }[] } | null) ?? null
     const translations = content && Array.isArray(content.translations) ? content.translations : content?.translations ? [content.translations] : []
-    const t = (translations as { locale: string; title: string }[]).find((x) => x.locale === locale) ?? (translations[0] as { title: string } | undefined)
+    const list = translations as { locale: string; title: string }[]
+    const t = list.find((x) => x.locale === locale) ?? (translations[0] as { title: string } | undefined)
+    const missingLocale = list.length > 0 && !list.some((x) => x.locale === locale)
     const cover = content && Array.isArray(content.cover) ? content.cover[0] : content?.cover
     return {
       id: row.id as string,
@@ -415,6 +449,44 @@ export async function getHomepageSlots(locale: Locale = 'en'): Promise<HomepageS
       endsAt: row.ends_at as string | null,
       title: t?.title ?? null,
       type: content?.type ?? null,
+      coverUrl: (cover as { public_url: string } | undefined)?.public_url ?? null,
+      missingLocale,
+    }
+  })
+}
+
+export type SlotSearchResult = {
+  id: string
+  type: string
+  status: string
+  titleEn: string | null
+  titleFr: string | null
+  coverUrl: string | null
+}
+
+/** Search content by title across both languages for homepage slot assignment. */
+export async function queryContentForSlotAssign(query: string, limit = 10): Promise<SlotSearchResult[]> {
+  const q = query.trim()
+  if (!q) return []
+  const { data } = await safe(
+    db()
+      .from('content_items')
+      .select(`id, type, status,
+        translations:content_translations(locale, title),
+        cover:media_assets(public_url)`)
+      .or(`translations.title.ilike.%${q}%`)
+      .order('updated_at', { ascending: false })
+      .limit(limit),
+  )
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+    const trans = Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []
+    const cover = Array.isArray(row.cover) ? row.cover[0] : row.cover
+    return {
+      id: row.id as string,
+      type: row.type as string,
+      status: row.status as string,
+      titleEn: (trans as { locale: string; title: string | null }[]).find((t) => t.locale === 'en')?.title ?? null,
+      titleFr: (trans as { locale: string; title: string | null }[]).find((t) => t.locale === 'fr')?.title ?? null,
       coverUrl: (cover as { public_url: string } | undefined)?.public_url ?? null,
     }
   })
@@ -514,6 +586,8 @@ export type AdCampaignRow = {
   currency: string | null
   paymentStatus: string | null
   advertiserName: string | null
+  slotId: string | null
+  slotName: string | null
   impressions: number
   clicks: number
 }
@@ -554,10 +628,12 @@ export async function getAdSlots(): Promise<AdSlotRow[]> {
             copyText: active.copy_text as string | null,
             startsAt: active.starts_at as string | null,
             endsAt: active.ends_at as string | null,
-            agreedPrice: active.agreed_price as number | null,
-            currency: (active.currency as string) ?? row.currency,
+            agreedPrice: active.agreed_price == null ? null : Number(active.agreed_price),
+            currency: active.currency as string | null,
             paymentStatus: active.payment_status as string | null,
             advertiserName: (advertiser as { company_name: string } | undefined)?.company_name ?? null,
+            slotId: row.id as string,
+            slotName: row.name as string,
             impressions,
             clicks,
           }
@@ -617,6 +693,44 @@ export async function getPendingAdInquiries(limit = 100): Promise<AdInquiryRow[]
   })
 }
 
+/** Every campaign (not only slotted/active ones) for the full campaigns list. */
+export async function getCampaigns(limit = 100): Promise<AdCampaignRow[]> {
+  const { data } = await safe(
+    db()
+      .from('ad_campaigns')
+      .select(`id, name, status, destination_url, copy_text, starts_at, ends_at, agreed_price, currency, payment_status,
+        advertiser:advertisers(company_name),
+        slot:ad_slots(name),
+        events:ad_events(event_type)`)
+      .order('created_at', { ascending: false })
+      .limit(limit),
+  )
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+    const advertiser = Array.isArray(row.advertiser) ? row.advertiser[0] : row.advertiser
+    const slot = Array.isArray(row.slot) ? row.slot[0] : row.slot
+    const events = Array.isArray(row.events) ? row.events : row.events ? [row.events] : []
+    const impressions = (events as { event_type: string }[]).filter((e) => e.event_type === 'impression').length
+    const clicks = (events as { event_type: string }[]).filter((e) => e.event_type === 'click').length
+    return {
+      id: row.id as string,
+      name: row.name as string,
+      status: row.status as string,
+      destinationUrl: row.destination_url as string | null,
+      copyText: row.copy_text as string | null,
+      startsAt: row.starts_at as string | null,
+      endsAt: row.ends_at as string | null,
+      agreedPrice: row.agreed_price == null ? null : Number(row.agreed_price),
+      currency: row.currency as string | null,
+      paymentStatus: row.payment_status as string | null,
+      advertiserName: (advertiser as { company_name: string } | undefined)?.company_name ?? null,
+      slotId: (slot as { id?: string } | undefined)?.id ?? null,
+      slotName: (slot as { name?: string } | undefined)?.name ?? null,
+      impressions,
+      clicks,
+    }
+  })
+}
+
 /* ------------------------------------------------------------------ */
 /* Audit log                                                          */
 /* ------------------------------------------------------------------ */
@@ -634,7 +748,7 @@ export type ModerationEntry = {
   submissionId: string | null
 }
 
-export async function getRecentModeration(limit = 20, filters?: { actor?: string; action?: string; entityType?: string }): Promise<ModerationEntry[]> {
+export async function getRecentModeration(limit = 20, filters?: { actor?: string; action?: string; entityType?: string }, locale: Locale = 'en'): Promise<ModerationEntry[]> {
   if (!hasDatabase()) return []
   try {
     let query = db()
@@ -652,7 +766,8 @@ export async function getRecentModeration(limit = 20, filters?: { actor?: string
       const actor = Array.isArray(row.actor) ? row.actor[0] : row.actor
       const content = Array.isArray(row.content) ? row.content[0] : row.content
       const translations = content && Array.isArray(content.translations) ? content.translations : content?.translations ? [content.translations] : []
-      const t = (translations as { title: string }[])[0]
+      const list = translations as { locale: string; title: string }[]
+      const t = list.find((x) => x.locale === locale) ?? list[0]
       return {
         id: row.id,
         action: row.action,
@@ -745,11 +860,14 @@ export type ReportRow = {
   contentType: string | null
   contentSlug: string | null
   contentStatus: string | null
+  /** True when the linked content has translations but none in the requested locale. */
+  missingLocale: boolean
 }
 
-export async function getReports(options?: { status?: string; limit?: number; reportType?: string }): Promise<ReportRow[]> {
+export async function getReports(options?: { status?: string; limit?: number; reportType?: string; locale?: Locale }): Promise<ReportRow[]> {
   const status = options?.status ?? 'all'
   const limit = options?.limit ?? 100
+  const locale = options?.locale ?? 'en'
   let query = db()
     .from('reports')
     .select(`id, report_type, reporter_id, content_item_id, media_id, subject, description, evidence_url,
@@ -769,8 +887,9 @@ export async function getReports(options?: { status?: string; limit?: number; re
         : content?.translations
           ? [content.translations]
           : []
-    const t = (translations as { locale: string; title: string | null }[]).find((x) => x.locale === 'en')
+    const t = (translations as { locale: string; title: string | null }[]).find((x) => x.locale === locale)
       ?? (translations[0] as { title: string | null } | undefined)
+    const missingLocale = (translations as unknown[]).length > 0 && !(translations as { locale: string }[]).some((x) => x.locale === locale)
     return {
       id: row.id as string,
       reportType: row.report_type as string,
@@ -789,6 +908,7 @@ export async function getReports(options?: { status?: string; limit?: number; re
       contentType: (content?.type as string | undefined) ?? null,
       contentSlug: (content?.slug as string | undefined) ?? null,
       contentStatus: (content?.status as string | undefined) ?? null,
+      missingLocale,
     }
   })
 }
@@ -808,11 +928,14 @@ export type CorrectionRow = {
   contentType: string | null
   contentSlug: string | null
   contentStatus: string | null
+  /** True when the linked content has translations but none in the requested locale. */
+  missingLocale: boolean
 }
 
-export async function getCorrections(options?: { status?: string; limit?: number }): Promise<CorrectionRow[]> {
+export async function getCorrections(options?: { status?: string; limit?: number; locale?: Locale }): Promise<CorrectionRow[]> {
   const status = options?.status ?? 'all'
   const limit = options?.limit ?? 100
+  const locale = options?.locale ?? 'en'
   let query = db()
     .from('corrections')
     .select(`id, content_item_id, reporter_id, reporter_name, reporter_email, correction_text,
@@ -831,8 +954,9 @@ export async function getCorrections(options?: { status?: string; limit?: number
         : content?.translations
           ? [content.translations]
           : []
-    const t = (translations as { locale: string; title: string | null }[]).find((x) => x.locale === 'en')
+    const t = (translations as { locale: string; title: string | null }[]).find((x) => x.locale === locale)
       ?? (translations[0] as { title: string | null } | undefined)
+    const missingLocale = (translations as unknown[]).length > 0 && !(translations as { locale: string }[]).some((x) => x.locale === locale)
     return {
       id: row.id as string,
       contentItemId: row.content_item_id as string,
@@ -848,6 +972,7 @@ export async function getCorrections(options?: { status?: string; limit?: number
       contentType: (content?.type as string | undefined) ?? null,
       contentSlug: (content?.slug as string | undefined) ?? null,
       contentStatus: (content?.status as string | undefined) ?? null,
+      missingLocale,
     }
   })
 }
@@ -897,6 +1022,10 @@ export type AdminListingRow = {
   contentItemId: string
   slug: string | null
   title: string | null
+  titleEn: string | null
+  titleFr: string | null
+  /** True when the item has translations but none in the requested locale. */
+  missingLocale: boolean
   price: number | null
   currency: string | null
   listingStatus: string
@@ -913,9 +1042,12 @@ export type AdminListingRow = {
  * listings extension row. When a listing status filter is applied the embed
  * becomes an inner join so the filter runs in SQL, not after the limit.
  */
-export async function getListingsAdmin(options?: { status?: string; limit?: number }): Promise<AdminListingRow[]> {
+export async function getListingsAdmin(options?: { status?: string; limit?: number; offset?: number; locale?: Locale; search?: string }): Promise<AdminListingRow[]> {
   const status = options?.status ?? 'all'
   const limit = options?.limit ?? 100
+  const offset = options?.offset ?? 0
+  const locale = options?.locale ?? 'en'
+  const search = options?.search?.trim() ?? ''
 
   const select = `id, slug, status, is_featured, expires_at, published_at,
     translations:content_translations(locale, title),
@@ -926,21 +1058,28 @@ export async function getListingsAdmin(options?: { status?: string; limit?: numb
     .select(select)
     .eq('type', 'listing')
     .order('published_at', { ascending: false, nullsFirst: false })
-    .limit(limit)
+    .range(offset, offset + limit - 1)
   if (status !== 'all') query = query.eq('listing.listing_status', status)
+  if (search) query = query.or(`slug.ilike.%${search}%,translations.title.ilike.%${search}%`)
 
   const { data } = await safe(query)
   return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
     const translations = Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []
-    const t =
-      (translations as { locale: string; title: string | null }[]).find((x) => x.locale === 'en')
+    const list = translations as { locale: string; title: string | null }[]
+    const titleEn = list.find((x) => x.locale === 'en')?.title ?? null
+    const titleFr = list.find((x) => x.locale === 'fr')?.title ?? null
+    const t = list.find((x) => x.locale === locale)
       ?? (translations[0] as { title: string | null } | undefined)
+    const missingLocale = list.length > 0 && !list.some((x) => x.locale === locale)
     const listing = Array.isArray(row.listing) ? row.listing[0] : row.listing
     const l = (listing as Record<string, unknown> | null) ?? null
     return {
       contentItemId: row.id as string,
       slug: (row.slug as string | null) ?? null,
       title: t?.title ?? null,
+      titleEn,
+      titleFr,
+      missingLocale,
       price: l && l.price != null ? Number(l.price) : null,
       currency: (l ? (l.currency as string | null) : null) ?? null,
       listingStatus: (l ? ((l.listing_status as string) ?? 'active') : 'active'),
@@ -991,6 +1130,8 @@ export type AdminCategoryRow = {
   isActive: boolean
   nameEn: string | null
   nameFr: string | null
+  descriptionEn: string | null
+  descriptionFr: string | null
   itemCount: number
 }
 
@@ -1000,7 +1141,7 @@ type RawCategoryAdminRow = {
   content_type: string
   sort_order: number
   is_active: boolean
-  translations: { locale: string; name: string }[] | { locale: string; name: string } | null
+  translations: { locale: string; name: string; description: string | null }[] | { locale: string; name: string; description: string | null } | null
   items: { count: number }[] | { count: number } | null
 }
 
@@ -1010,7 +1151,7 @@ export async function getCategoriesAdmin(): Promise<AdminCategoryRow[]> {
     db()
       .from('categories')
       .select(
-        'id, slug, content_type, sort_order, is_active, translations:category_translations(locale, name), items:content_items(count)',
+        'id, slug, content_type, sort_order, is_active, translations:category_translations(locale, name, description), items:content_items(count)',
       )
       .order('content_type', { ascending: true })
       .order('sort_order', { ascending: true }),
@@ -1026,6 +1167,8 @@ export async function getCategoriesAdmin(): Promise<AdminCategoryRow[]> {
       isActive: row.is_active,
       nameEn: trans.find((t) => t.locale === 'en')?.name ?? null,
       nameFr: trans.find((t) => t.locale === 'fr')?.name ?? null,
+      descriptionEn: trans.find((t) => t.locale === 'en')?.description ?? null,
+      descriptionFr: trans.find((t) => t.locale === 'fr')?.description ?? null,
       itemCount: items?.count ?? 0,
     }
   })
@@ -1035,6 +1178,7 @@ export type AdminLocationRow = {
   id: string
   name: string
   slug: string
+  locale: string | null
   locationType: string | null
   description: string | null
   latitude: number | null
@@ -1050,6 +1194,7 @@ type RawLocationAdminRow = {
   id: string
   name: string
   slug: string
+  locale: string | null
   location_type: string | null
   description: string | null
   latitude: number | string | null
@@ -1066,7 +1211,7 @@ export async function getLocationsAdmin(): Promise<AdminLocationRow[]> {
     db()
       .from('locations')
       .select(
-        'id, name, slug, location_type, description, latitude, longitude, is_active, parent_id, items:content_items(count), residents:profiles(count)',
+        'id, name, slug, locale, location_type, description, latitude, longitude, is_active, parent_id, items:content_items(count), residents:profiles(count)',
       )
       .order('name', { ascending: true }),
   )
@@ -1080,6 +1225,7 @@ export async function getLocationsAdmin(): Promise<AdminLocationRow[]> {
       id: row.id,
       name: row.name,
       slug: row.slug,
+      locale: row.locale ?? null,
       locationType: row.location_type,
       description: row.description,
       latitude: row.latitude === null ? null : Number(row.latitude),
@@ -1182,6 +1328,12 @@ export type AdminFundraiserRow = {
   slug: string | null
   storyType: string | null
   storyTitle: string | null
+  storyTitleEn: string | null
+  storyTitleFr: string | null
+  storyBodyEn: string | null
+  storyBodyFr: string | null
+  /** True when the story has translations but none in the requested locale. */
+  missingLocale: boolean
   storyStatus: string | null
   goalAmount: number
   raisedAmount: number
@@ -1200,28 +1352,46 @@ export type AdminFundraiserRow = {
 
 /**
  * Every fundraiser campaign with its parent story. `content_item_id` is the
- * fundraisers primary key, so the join is one-to-one.
+ * fundraisers primary key, so the join is one-to-one. The story title prefers
+ * the requested locale so /fr/admin/fundraisers shows French titles instead
+ * of leaking English copy into the French back office.
  */
-export async function getFundraisersAdmin(limit = 100): Promise<AdminFundraiserRow[]> {
+export async function getFundraisersAdmin(limit = 100, locale: Locale = 'en'): Promise<AdminFundraiserRow[]> {
   const { data } = await safe(
     db()
       .from('fundraisers')
       .select(`content_item_id, goal_amount, currency, raised_amount, organizer_name,
         organizer_phone, organizer_email, donation_url, payout_method, payout_account, payout_account_name, verification_notes, closed_at,
         story:content_items(id, slug, type, status, expires_at,
-          translations:content_translations(locale, title))`)
+          translations:content_translations(locale, title, body))`)
       .limit(limit),
   )
 
   return (data ?? []).map((row) => {
     const story = Array.isArray(row.story) ? row.story[0] : row.story
     const translations = story && Array.isArray(story.translations) ? story.translations : []
+    const list = translations as { locale: string; title: string | null; body: string | null }[]
+    const titleEn = list.find((x) => x.locale === 'en')?.title ?? null
+    const titleFr = list.find((x) => x.locale === 'fr')?.title ?? null
+    const bodyEn = list.find((x) => x.locale === 'en')?.body ?? null
+    const bodyFr = list.find((x) => x.locale === 'fr')?.body ?? null
+    const localized = list.find(
+      (x) => x.locale === locale && x.title,
+    )
     const title =
-      (translations as { locale: string; title: string | null }[]).find((t) => t.title)?.title ?? null
+      localized?.title ??
+      list.find((x) => x.title)?.title ??
+      null
+    const missingLocale = list.length > 0 && !list.some((x) => x.locale === locale && x.title)
     return {
       contentItemId: row.content_item_id,
       slug: story?.slug ?? null,
       storyTitle: title,
+      storyTitleEn: titleEn,
+      storyTitleFr: titleFr,
+      storyBodyEn: bodyEn,
+      storyBodyFr: bodyFr,
+      missingLocale,
       storyType: story?.type ?? null,
       storyStatus: story?.status ?? null,
       goalAmount: Number(row.goal_amount ?? 0),
@@ -1433,6 +1603,11 @@ export async function getAdvertiseOverrides(
 export const SITE_SETTING_KEYS = [
   'social_facebook_url',
   'social_youtube_url',
+  'site_logo_url',
+  'site_name',
+  'site_tagline',
+  'site_name_fr',
+  'site_tagline_fr',
 ] as const
 
 export type SiteSettingKey = (typeof SITE_SETTING_KEYS)[number]
@@ -1440,15 +1615,33 @@ export type SiteSettingKey = (typeof SITE_SETTING_KEYS)[number]
 export type SiteSettings = {
   facebookUrl: string | null
   youtubeUrl: string | null
+  logoUrl: string | null
+  siteName: string | null
+  siteTagline: string | null
+  siteNameFr: string | null
+  siteTaglineFr: string | null
 }
 
-const EMPTY_SITE_SETTINGS: SiteSettings = { facebookUrl: null, youtubeUrl: null }
+const EMPTY_SITE_SETTINGS: SiteSettings = {
+  facebookUrl: null,
+  youtubeUrl: null,
+  logoUrl: null,
+  siteName: null,
+  siteTagline: null,
+  siteNameFr: null,
+  siteTaglineFr: null,
+}
 
 function toSiteSettings(rows: { key: string; value: string | null }[]): SiteSettings {
   const map: SiteSettings = { ...EMPTY_SITE_SETTINGS }
   for (const row of rows) {
     if (row.key === 'social_facebook_url') map.facebookUrl = row.value?.trim() || null
     if (row.key === 'social_youtube_url') map.youtubeUrl = row.value?.trim() || null
+    if (row.key === 'site_logo_url') map.logoUrl = row.value?.trim() || null
+    if (row.key === 'site_name') map.siteName = row.value?.trim() || null
+    if (row.key === 'site_tagline') map.siteTagline = row.value?.trim() || null
+    if (row.key === 'site_name_fr') map.siteNameFr = row.value?.trim() || null
+    if (row.key === 'site_tagline_fr') map.siteTaglineFr = row.value?.trim() || null
   }
   return map
 }
@@ -1464,10 +1657,20 @@ export async function getSiteSettingsAdmin(): Promise<
   const result: Record<SiteSettingKey, string | null> = {
     social_facebook_url: null,
     social_youtube_url: null,
+    site_logo_url: null,
+    site_name: null,
+    site_tagline: null,
+    site_name_fr: null,
+    site_tagline_fr: null,
   }
   for (const row of rows) {
     if (row.key === 'social_facebook_url') result.social_facebook_url = row.value
     if (row.key === 'social_youtube_url') result.social_youtube_url = row.value
+    if (row.key === 'site_logo_url') result.site_logo_url = row.value
+    if (row.key === 'site_name') result.site_name = row.value
+    if (row.key === 'site_tagline') result.site_tagline = row.value
+    if (row.key === 'site_name_fr') result.site_name_fr = row.value
+    if (row.key === 'site_tagline_fr') result.site_tagline_fr = row.value
   }
   return result
 }

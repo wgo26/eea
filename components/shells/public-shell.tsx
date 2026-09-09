@@ -11,14 +11,22 @@ import { getPublicSiteSettings } from '@/lib/admin/queries'
  *
  * The footer's social links come from the admin-maintained site settings
  * (/admin/site-content → Footer social links); unset links hide the icon.
+ * The header/footer brand (logo, name, tagline) comes from the same
+ * settings (/admin/site-content → Brand & logo); unset values fall back to
+ * the built-in Eye mark + wordmark.
  */
 export async function PublicShell({ children }: { children: ReactNode }) {
-  const social = await getPublicSiteSettings()
+  const settings = await getPublicSiteSettings()
   return (
     <>
-      <SiteHeader />
+      <SiteHeader
+        branding={{ logoUrl: settings.logoUrl, siteName: settings.siteName, siteTagline: settings.siteTagline, siteNameFr: settings.siteNameFr, siteTaglineFr: settings.siteTaglineFr }}
+      />
       <main className="flex-1">{children}</main>
-      <SiteFooter socialLinks={{ facebook: social.facebookUrl, youtube: social.youtubeUrl }} />
+      <SiteFooter
+        socialLinks={{ facebook: settings.facebookUrl, youtube: settings.youtubeUrl }}
+        branding={{ logoUrl: settings.logoUrl, siteName: settings.siteName, siteNameFr: settings.siteNameFr }}
+      />
     </>
   )
 }

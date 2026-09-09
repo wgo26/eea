@@ -30,6 +30,7 @@ const btnDanger =
 type LocationFormState = {
   name: string
   slug: string
+  locale: string
   locationType: string
   description: string
   latitude: string
@@ -41,6 +42,7 @@ type LocationFormState = {
 const emptyForm: LocationFormState = {
   name: '',
   slug: '',
+  locale: 'en',
   locationType: '',
   description: '',
   latitude: '',
@@ -53,6 +55,7 @@ function formFromRow(row: AdminLocationRow): LocationFormState {
   return {
     name: row.name,
     slug: row.slug,
+    locale: row.locale === 'fr' ? 'fr' : 'en',
     locationType: row.locationType ?? '',
     description: row.description ?? '',
     latitude: row.latitude === null ? '' : String(row.latitude),
@@ -95,6 +98,16 @@ function LocationFields({
           <label className={labelCls}>{copy.slug}</label>
           <input value={form.slug} onChange={(e) => set({ slug: e.target.value })} className={inputCls} placeholder="auto" />
         </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className={labelCls}>{copy.localeLabel}</label>
+          <select value={form.locale} onChange={(e) => set({ locale: e.target.value })} className={inputCls}>
+            <option value="en">{copy.localeEn}</option>
+            <option value="fr">{copy.localeFr}</option>
+          </select>
+        </div>
+        <p className="text-xs text-muted-foreground self-end">{copy.sharedValueNotice}</p>
       </div>
       {showSlugWarning && <p className="text-xs text-amber-700 dark:text-amber-400">{copy.slugRenameWarning}</p>}
       {!showSlugWarning && <p className="-mt-1 text-xs text-muted-foreground">{copy.slugAutoHint}</p>}
@@ -176,6 +189,7 @@ export function LocationCreateForm({
         createLocation({
           name: form.name,
           slug: form.slug.trim() || undefined,
+          locale: form.locale,
           locationType: form.locationType.trim() || undefined,
           description: form.description.trim() || undefined,
           latitude,
@@ -268,6 +282,7 @@ export function LocationRowActions({
         updateLocation(location.id, {
           name: form.name,
           slug: form.slug,
+          locale: form.locale,
           locationType: form.locationType.trim() || null,
           description: form.description.trim() || null,
           latitude,

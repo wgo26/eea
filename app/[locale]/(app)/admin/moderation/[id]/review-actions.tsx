@@ -16,13 +16,36 @@ import type { SubmissionRow } from '@/lib/admin/queries'
 type Copy = Dictionary['admin']['review']
 type Option = { id: string; name: string }
 
-/** Payload prefill: map the submit-form payload keys onto the drawer fields. */
+/** Payload prefill: map the submit-form payload keys onto the drawer fields.
+ * Locale-aware: returns per-locale title/body guesses so a French submission
+ * lands in the FR inputs, not the EN inputs (and vice versa). Sources:
+ * locale-suffixed keys (title_fr/headline_fr/description_fr/…) first, then
+ * the explicit payload locale (submission_locale/locale/lang), then generic
+ * keys as a shared fallback for both columns. */
 function prefillFromPayload(payload: Record<string, unknown> | null) {
   const p = payload ?? {}
   const str = (v: unknown) => (typeof v === 'string' ? v : '')
+  const explicitLocale = str(p.submission_locale) || str(p.locale) || str(p.lang) || str(p.language)
+  const isFr = /^fr/i.test(explicitLocale)
+  const frFirst =
+    str(p.title_fr) || str(p.headline_fr) || str(p.item_fr) || str(p.what_fr) || str(p.question_fr) || str(p.name_fr)
+  const enFirst =
+    str(p.title_en) || str(p.headline_en) || str(p.item_en) || str(p.what_en) || str(p.question_en) || str(p.name_en)
+  const generic =
+    str(p.headline) || str(p.item) || str(p.what) || str(p.title) || str(p.question) || str(p.name)
+  const frBodyFirst = str(p.description_fr) || str(p.message_fr) || str(p.body_fr) || str(p.details_fr)
+  const enBodyFirst = str(p.description_en) || str(p.message_en) || str(p.body_en) || str(p.details_en)
+  const genericBody = str(p.description) || str(p.message) || str(p.body) || str(p.details)
   return {
-    title: str(p.headline) || str(p.item) || str(p.what),
-    body: str(p.description) || str(p.message),
+    // Generic fallback feeds both columns so nothing is lost; the locale
+    // guess decides which column gets the "primary" prefill.
+    titleEn: enFirst || (!isFr ? generic : ''),
+    titleFr: frFirst || (isFr ? generic : ''),
+    genericTitle: generic,
+    bodyEn: enBodyFirst || (!isFr ? genericBody : ''),
+    bodyFr: frBodyFirst || (isFr ? genericBody : ''),
+    genericBody,
+    payloadLocale: isFr ? 'fr' : enFirst || /^en/i.test(explicitLocale) ? 'en' : explicitLocale || null,
     price: str(p.price),
     photos: str(p.photos),
     organization: str(p.organization),
@@ -289,12 +312,12 @@ function ApproveDrawer({
   const [publish, setPublish] = useState<'now' | 'schedule' | 'draft'>('now')
   const [scheduledFor, setScheduledFor] = useState('')
   const [expiresAt, setExpiresAt] = useState('')
-  const [enTitle, setEnTitle] = useState(prefill.title)
-  const [frTitle, setFrTitle] = useState('')
+  const [enTitle, setEnTitle] = useState(prefill.titleEn)
+  const [frTitle, setFrTitle] = useState(prefill.titleFr)
   const [enExcerpt, setEnExcerpt] = useState('')
   const [frExcerpt, setFrExcerpt] = useState('')
-  const [enBody, setEnBody] = useState(prefill.body)
-  const [frBody, setFrBody] = useState('')
+  const [enBody, setEnBody] = useState(prefill.bodyEn)
+  const [frBody, setFrBody] = useState(prefill.bodyFr)
   const [photos, setPhotos] = useState(prefill.photos)
   const [credit, setCredit] = useState('')
   const [verification, setVerification] = useState('community_submission')
@@ -370,7 +393,22 @@ function ApproveDrawer({
             <input value={enTitle} onChange={(e) => setEnTitle(e.target.value)} className={inputCls} />
           </Field>
           <Field label={copy.frTitle} hint={publish !== 'draft' ? copy.bilingualHint : undefined}>
-            <input value={frTitle} onChange={(e) => setFrTitle(e.target.value)} className={inputCls} />
+            <div className="flex items-start gap-2">
+              <input value={frTitle} onChange={(e) => setFrTitle(e.target.value)} className={inputCls} />
+              <button
+                type="button"
+                onClick={() => {
+                  setFrTitle(enTitle)
+                  setFrExcerpt(enExcerpt)
+                  setFrBody(enBody)
+                }}
+                className="shrink-0 rounded-md border border-border px-2 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+                disabled={!enTitle.trim() && !enBody.trim()}
+                title={copy.copyFromEn}
+              >
+                {copy.copyFromEn}
+              </button>
+            </div>
           </Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label={copy.enExcerpt}>
@@ -446,16 +484,9 @@ function ApproveDrawer({
             <div className="grid gap-3 rounded-md border border-border bg-background p-3 sm:grid-cols-2">
               <Field label={copy.noticeTypeLabel}>
                 <select value={noticeType} onChange={(e) => setNoticeType(e.target.value)} className={inputCls}>
-                  <option value="public_notice">Public notice</option>
-                  <option value="lost_found">Lost &amp; found</option>
-                  <option value="road_closure">Road closure</option>
-                  <option value="community_alert">Community alert</option>
-                  <option value="missing_person">Missing person</option>
-                  <option value="service_announcement">Service announcement</option>
-                  <option value="government_notice">Government notice</option>
-                  <option value="school_notice">School notice</option>
-                  <option value="organization_notice">Organization notice</option>
-                  <option value="other">Other</option>
+                  {Object.entries(copy.noticeTypes).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
                 </select>
               </Field>
               <Field label={copy.organization}>

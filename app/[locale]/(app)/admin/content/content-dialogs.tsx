@@ -11,6 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { MediaUploader } from '@/components/admin/media-uploader'
+import type { UploadedPhoto } from '@/components/admin/media-uploader'
+import { ui, Field } from '@/lib/admin/ui-constants'
 import type { Dictionary } from '@/lib/i18n'
 import type { ContentRow } from '@/lib/admin/queries'
 
@@ -21,24 +24,11 @@ type Option = { id: string; name: string; slug?: string }
 
 const CONTENT_TYPES = ['photo_story', 'news', 'listing', 'notice', 'culture'] as const
 
-const inputCls =
-  'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary'
-const btnPrimary =
-  'inline-flex items-center justify-center rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50'
-const btnGhost =
-  'inline-flex items-center justify-center rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50'
-const btnDanger =
-  'inline-flex items-center justify-center rounded-md border border-destructive/40 px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50'
-
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <label className="block space-y-1">
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      {children}
-      {hint && <span className="block text-xs text-muted-foreground/80">{hint}</span>}
-    </label>
-  )
-}
+// Use shared ui constants instead of duplicated string literals
+const inputCls = ui.input
+const btnPrimary = ui.btnPrimary
+const btnGhost = ui.btnSecondary
+const btnDanger = ui.btnDanger
 
 // Wrapper so the edit dialog can fetch via a client-callable server action.
 async function fetchEditData(contentItemId: string) {
@@ -72,7 +62,7 @@ export function ContentCreateDialog({
   const [frExcerpt, setFrExcerpt] = useState('')
   const [enBody, setEnBody] = useState('')
   const [frBody, setFrBody] = useState('')
-  const [photos, setPhotos] = useState('')
+  const [newPhotos, setNewPhotos] = useState<UploadedPhoto[]>([])
   const [credit, setCredit] = useState('')
   const [verification, setVerification] = useState('community_submission')
   const [locationId, setLocationId] = useState('')
@@ -111,7 +101,7 @@ export function ContentCreateDialog({
     setFrExcerpt('')
     setEnBody('')
     setFrBody('')
-    setPhotos('')
+    setNewPhotos([])
     setCredit('')
     setVerification('community_submission')
     setLocationId('')
@@ -147,11 +137,7 @@ export function ContentCreateDialog({
         { locale: 'en', title: enTitle, excerpt: enExcerpt, body: enBody },
         { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody },
       ],
-      photos: photos
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean)
-        .map((url) => ({ url })),
+      photos: newPhotos.map((p) => ({ url: p.url, alt: p.alt, caption: p.caption })),
     }
     if (type === 'listing') {
       draft.listing = {
@@ -248,9 +234,32 @@ export function ContentCreateDialog({
                 <textarea value={frBody} onChange={(e) => setFrBody(e.target.value)} rows={4} className={inputCls} />
               </Field>
             </div>
-            <Field label={copy.photosLabel} hint={copy.photosHint}>
-              <textarea value={photos} onChange={(e) => setPhotos(e.target.value)} rows={3} className={inputCls} />
-            </Field>
+            <MediaUploader
+              newPhotos={newPhotos}
+              keepIds={[]}
+              onChange={({ newPhotos: np }) => setNewPhotos(np)}
+              destination="admin_asset"
+              copy={{
+                label: copy.photosLabel,
+                hint: copy.photosHint,
+                browseFiles: common.browseFiles,
+                dropHere: common.dropHere,
+                or: common.orPasteUrl,
+                urlPlaceholder: 'https://…',
+                addUrl: common.addUrl,
+                existing: copy.photosExisting,
+                altLabel: common.altLabel,
+                captionLabel: common.captionLabel,
+                creditLabel: copy.photographerCredit,
+                cover: common.cover,
+                setCover: common.setCover,
+                uploading: common.photoUploading,
+                uploadError: common.photoUploadError,
+                tooLarge: common.photoTooLarge,
+                wrongType: common.photoWrongType,
+                empty: common.noPhotos,
+              }}
+            />
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label={copy.photographerCredit}>
                 <input value={credit} onChange={(e) => setCredit(e.target.value)} className={inputCls} />
@@ -314,16 +323,9 @@ export function ContentCreateDialog({
               <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
                 <Field label={copy.noticeTypeLabel}>
                   <select value={noticeType} onChange={(e) => setNoticeType(e.target.value)} className={inputCls}>
-                    <option value="public_notice">Public notice</option>
-                    <option value="lost_found">Lost &amp; found</option>
-                    <option value="road_closure">Road closure</option>
-                    <option value="community_alert">Community alert</option>
-                    <option value="missing_person">Missing person</option>
-                    <option value="service_announcement">Service announcement</option>
-                    <option value="government_notice">Government notice</option>
-                    <option value="school_notice">School notice</option>
-                    <option value="organization_notice">Organization notice</option>
-                    <option value="other">Other</option>
+                    {Object.entries(copy.noticeTypes).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
                   </select>
                 </Field>
                 <Field label={copy.organization}>
@@ -479,6 +481,7 @@ function ContentEditForm({
   data,
   copy,
   common,
+  typeFilters,
   locations,
   categories,
   onDone,
@@ -501,6 +504,7 @@ function ContentEditForm({
   const [frBody, setFrBody] = useState(data.frBody ?? '')
   const [photosText, setPhotosText] = useState('')
   const [keepIds, setKeepIds] = useState<string[]>(data.photos.map((p) => p.id))
+  const [newPhotos, setNewPhotos] = useState<UploadedPhoto[]>([])
   const [credit, setCredit] = useState('')
   const [verification, setVerification] = useState(data.verification ?? 'community_submission')
   const [locationId, setLocationId] = useState(data.locationId ?? '')
@@ -542,11 +546,14 @@ function ContentEditForm({
         { locale: 'en', title: enTitle, excerpt: enExcerpt, body: enBody },
         { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody },
       ],
-      photos: photosText
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean)
-        .map((url) => ({ url })),
+      photos: [
+        ...newPhotos.map((p) => ({ url: p.url, alt: p.alt, caption: p.caption })),
+        ...photosText
+          .split('\n')
+          .map((l) => l.trim())
+          .filter(Boolean)
+          .map((url) => ({ url })),
+      ],
       keepPhotoIds: keepIds,
     }
     if (isListing) {
@@ -610,26 +617,34 @@ function ContentEditForm({
         </Field>
       </div>
 
-      {data.photos.length > 0 && (
-        <div className="rounded-md border border-border bg-muted/30 p-3">
-          <p className="text-xs font-medium text-muted-foreground mb-2">{copy.photosExisting}</p>
-          <ul className="space-y-1.5">
-            {data.photos.map((ph) => (
-              <li key={ph.id} className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={keepIds.includes(ph.id)}
-                  onChange={(e) => setKeepIds((prev) => (e.target.checked ? [...prev, ph.id] : prev.filter((id) => id !== ph.id)))}
-                />
-                <span className="min-w-0 flex-1 truncate">{ph.url}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <Field label={copy.photosLabel} hint={copy.photosHint}>
-        <textarea value={photosText} onChange={(e) => setPhotosText(e.target.value)} rows={2} className={inputCls} placeholder="https://…" />
-      </Field>
+      <MediaUploader
+        existingPhotos={data.photos.map((p) => ({ id: p.id, url: p.url, alt: p.alt, caption: p.caption, credit: p.credit, isCover: false }))}
+        keepIds={keepIds}
+        newPhotos={newPhotos}
+        onChange={({ keepIds: ki, newPhotos: np }) => { setKeepIds(ki); setNewPhotos(np) }}
+        contentItemId={data.id}
+        destination="admin_asset"
+        copy={{
+          label: copy.photosLabel,
+          hint: copy.photosHint,
+          browseFiles: common.browseFiles,
+          dropHere: common.dropHere,
+          or: common.orPasteUrl,
+          urlPlaceholder: 'https://…',
+          addUrl: common.addUrl,
+          existing: copy.photosExisting,
+          altLabel: common.altLabel,
+          captionLabel: common.captionLabel,
+          creditLabel: copy.photographerCredit,
+          cover: common.cover,
+          setCover: common.setCover,
+          uploading: common.photoUploading,
+          uploadError: common.photoUploadError,
+          tooLarge: common.photoTooLarge,
+          wrongType: common.photoWrongType,
+          empty: common.noPhotos,
+        }}
+      />
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={copy.photographerCredit}>
           <input value={credit} onChange={(e) => setCredit(e.target.value)} className={inputCls} />
@@ -693,16 +708,9 @@ function ContentEditForm({
         <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
           <Field label={copy.noticeTypeLabel}>
             <select value={noticeType} onChange={(e) => setNoticeType(e.target.value)} className={inputCls}>
-              <option value="public_notice">Public notice</option>
-              <option value="lost_found">Lost &amp; found</option>
-              <option value="road_closure">Road closure</option>
-              <option value="community_alert">Community alert</option>
-              <option value="missing_person">Missing person</option>
-              <option value="service_announcement">Service announcement</option>
-              <option value="government_notice">Government notice</option>
-              <option value="school_notice">School notice</option>
-              <option value="organization_notice">Organization notice</option>
-              <option value="other">Other</option>
+              {Object.entries(copy.noticeTypes).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
             </select>
           </Field>
           <Field label={copy.organization}>

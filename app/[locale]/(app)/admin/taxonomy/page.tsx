@@ -68,12 +68,21 @@ export default async function Page({
               {
                 key: 'name',
                 header: t.colName,
-                render: (r) => (
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{r.nameEn ?? r.slug}</div>
-                    {r.nameFr && <div className="text-xs text-muted-foreground truncate">{r.nameFr}</div>}
-                  </div>
-                ),
+                render: (r) => {
+                  const primary = locale === 'fr' ? (r.nameFr ?? r.nameEn ?? r.slug) : (r.nameEn ?? r.slug)
+                  const secondary = locale === 'fr' ? (r.nameFr ? r.nameEn : null) : r.nameFr
+                  return (
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{primary}</div>
+                      {secondary && <div className="text-xs text-muted-foreground truncate">{secondary}</div>}
+                      {!r.nameFr && (
+                        <div className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                          {dict.admin.common.missingFr}
+                        </div>
+                      )}
+                    </div>
+                  )
+                },
               },
               { key: 'slug', header: t.colSlug, render: (r) => <span className="text-xs font-mono">{r.slug}</span> },
               {
@@ -128,7 +137,15 @@ export default async function Page({
                 header: t.colName,
                 render: (r) => (
                   <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{r.name}</div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-sm font-medium truncate">{r.name}</span>
+                      <span
+                        className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide border border-border bg-muted text-muted-foreground"
+                        title={t.localeLabel}
+                      >
+                        {(r.locale ?? 'en').toUpperCase()}
+                      </span>
+                    </div>
                     {r.locationType && <div className="text-xs text-muted-foreground truncate">{r.locationType}</div>}
                   </div>
                 ),

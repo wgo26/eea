@@ -65,6 +65,25 @@ export default async function Page({
     { key: 'inbox', label: t.tabInbox, count: openInbox },
   ]
   const hrefFor = (key: string) => `${localePath(locale, '/admin/policies')}?tab=${key}`
+  // Edit-locale dictionary for the About defaults column (site-content
+  // already fixed this: UI locale rendered EN text beside FR fields).
+  const editDict = getDictionary(editLocale)
+
+  // EN↔FR parity: group current versions by policy type and warn when one
+  // locale is current with no current counterpart in the other.
+  const currentByType = new Map<string, { en?: string; fr?: string }>()
+  for (const p of policies) {
+    if (!p.isCurrent) continue
+    const entry = currentByType.get(p.policyType) ?? {}
+    if (p.locale === 'en') entry.en = p.version
+    if (p.locale === 'fr') entry.fr = p.version
+    currentByType.set(p.policyType, entry)
+  }
+  const parityWarnings: string[] = []
+  for (const [type, cur] of currentByType) {
+    if (cur.en && !cur.fr) parityWarnings.push(t.parityWarningBody.replace('{type}', type).replace('{enVersion}', cur.en))
+    if (cur.fr && !cur.en) parityWarnings.push(t.parityWarningBodyFr.replace('{type}', type).replace('{frVersion}', cur.fr))
+  }
 
   return (
     <div className="space-y-6">
@@ -75,6 +94,17 @@ export default async function Page({
       {tab === 'pages' ? (
         <div className="space-y-6">
           <PolicyCreateForm copy={t} />
+
+          {parityWarnings.length > 0 && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/40" role="alert">
+              <p className="text-sm font-medium text-amber-900 dark:text-amber-100">{t.parityWarningTitle}</p>
+              <ul className="mt-1.5 list-disc space-y-1 pl-5 text-xs text-amber-800 dark:text-amber-200">
+                {parityWarnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {policies.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border bg-muted/30 p-10 text-center">
@@ -90,7 +120,7 @@ export default async function Page({
                   copy={t}
                   common={dict.admin.common}
                   locale={locale}
-                  viewHref={localePath(locale, `/about/${policy.policyType}`)}
+                  viewHref={localePath(policy.locale === 'fr' ? 'fr' : 'en', `/about/${policy.policyType}`)}
                 />
               ))}
             </section>
@@ -101,16 +131,16 @@ export default async function Page({
       {tab === 'about' ? (
         <AboutSectionEditor
           copy={t}
-          sections={aboutDefaults(locale, dict)}
+          sections={aboutDefaults(editLocale, editDict)}
           overrides={sections}
           editLocale={editLocale}
           locale={locale}
-          viewHref={localePath(locale, '/about')}
+          viewHref={localePath(editLocale, '/about')}
         />
       ) : null}
 
       {tab === 'inbox' ? (
-        <InboxLists copy={t} takedowns={takedowns} requests={requests} locale={locale} />
+        <InboxLists copy={t} common={dict.admin.common} takedowns={takedowns} requests={requests} locale={locale} />
       ) : null}
     </div>
   )

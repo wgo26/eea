@@ -65,8 +65,8 @@ function formFromRow(row: AdminCategoryRow): CategoryFormState {
     nameEn: row.nameEn ?? '',
     nameFr: row.nameFr ?? '',
     slug: row.slug,
-    descriptionEn: '',
-    descriptionFr: '',
+    descriptionEn: row.descriptionEn ?? '',
+    descriptionFr: row.descriptionFr ?? '',
     sortOrder: String(row.sortOrder),
     isActive: row.isActive,
   }

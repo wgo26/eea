@@ -29,7 +29,7 @@ function normalizeStatus(status: string | null | undefined): StatusVariant {
   return 'default'
 }
 
-export function StatusBadge({ status, className }: { status: string | null | undefined; className?: string }) {
+export function StatusBadge({ status, label, className }: { status: string | null | undefined; label?: string; className?: string }) {
   const variant = normalizeStatus(status)
   return (
     <span className={cn(
@@ -37,18 +37,18 @@ export function StatusBadge({ status, className }: { status: string | null | und
       variantStyles[variant],
       className,
     )}>
-      {status ?? '—'}
+      {label ?? status ?? '—'}
     </span>
   )
 }
 
-export function TypeBadge({ type, className }: { type: string | null | undefined; className?: string }) {
+export function TypeBadge({ type, label, className }: { type: string | null | undefined; label?: string; className?: string }) {
   return (
     <span className={cn(
       'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground',
       className,
     )}>
-      {(type ?? '—').replace(/_/g, ' ')}
+      {label ?? (type ?? '—').replace(/_/g, ' ')}
     </span>
   )
 }

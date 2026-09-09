@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { deleteUser, setUserRole, setUserStatus } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
+import { ActionMenu, ActionMenuTrigger } from '@/components/admin/action-menu'
+import type { ActionMenuEntry } from '@/components/admin/action-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { Dictionary } from '@/lib/i18n'
@@ -21,11 +23,6 @@ const ROLE_LABEL_KEY: Record<AppRole, keyof Copy> = {
   advertiser: 'roleAdvertiser',
 }
 
-/**
- * Step-up confirmation for sensitive user actions: the acting admin re-enters
- * their password (verified server-side via assertReauth) before suspend/ban,
- * delete, or admin-role changes go through.
- */
 function ReauthDialog({
   open,
   onOpenChange,
@@ -86,8 +83,8 @@ function ReauthDialog({
 export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy; common: CommonCopy }) {
   const { addToast } = useToast()
   const [loading, setLoading] = useState(false)
-  const [open, setOpen] = useState(false)
   const [pendingRemoval, setPendingRemoval] = useState<AppRole | null>(null)
+  const [restoreConfirm, setRestoreConfirm] = useState(false)
   const [reauth, setReauth] = useState<{
     title: string
     description: string
@@ -95,10 +92,7 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
     run: (password: string) => Promise<void>
   } | null>(null)
 
-  async function runToggleRole(role: AppRole, assign: boolean, confirmPassword?: string) {
-    // Reserved for the step-up reauth flow (callers already thread the
-    // password through); role changes are server-authorized today.
-    void confirmPassword;
+  async function runToggleRole(role: AppRole, assign: boolean) {
     setLoading(true)
     const result = await setUserRole(user.id, role, assign)
     setLoading(false)
@@ -117,9 +111,7 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
   async function handleToggleRole(role: AppRole) {
     const hasRole = user.roles.includes(role)
     if (role === 'admin') {
-      // Admin grant/revoke is privilege escalation — password step-up.
       const label = String(copy.roleAdmin)
-      setOpen(false)
       setReauth({
         title: copy.reauthTitle,
         description: hasRole
@@ -127,15 +119,13 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
           : copy.toastRoleAssigned.replace('{role}', label),
         confirmLabel: hasRole ? copy.remove : copy.reauthTitle,
         run: async (password) => {
-          const ok = await runToggleRole(role, !hasRole, password)
+          const ok = await runToggleRole(role, !hasRole)
           if (ok) setReauth(null)
         },
       })
       return
     }
-    // Assigning is harmless; removing a role cuts access at once — confirm.
     if (hasRole) {
-      setOpen(false)
       setPendingRemoval(role)
       return
     }
@@ -148,25 +138,21 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
     if (ok) setPendingRemoval(null)
   }
 
-  async function runSetStatus(status: 'active' | 'suspended' | 'banned', confirmPassword?: string) {
+  async function runSetStatus(status: 'active' | 'suspended' | 'banned', password?: string) {
     setLoading(true)
-    const result = await setUserStatus(user.id, status, confirmPassword)
+    const result = await setUserStatus(user.id, status, password)
     setLoading(false)
     addToast(result.ok ? copy.saved : result.error, result.ok ? 'success' : 'error')
     return result.ok
   }
 
   function handleStatus(status: 'active' | 'suspended' | 'banned') {
-    const label = status === 'active' ? copy.restore : status === 'suspended' ? copy.suspend : copy.ban
     if (status === 'active') {
-      // Restoring is not destructive — plain confirm, no reauth.
-      void (async () => {
-        if (!window.confirm(`${label}: ${user.email ?? user.displayName ?? user.id}?`)) return
-        await runSetStatus(status)
-      })()
+      // Restore uses ConfirmDialog instead of window.confirm
+      setRestoreConfirm(true)
       return
     }
-    setOpen(false)
+    const label = status === 'suspended' ? copy.suspend : copy.ban
     setReauth({
       title: copy.reauthTitle,
       description: `${label}: ${user.email ?? user.displayName ?? user.id}`,
@@ -179,7 +165,6 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
   }
 
   function handleDelete() {
-    setOpen(false)
     setReauth({
       title: copy.reauthTitle,
       description: copy.deleteUserConfirm,
@@ -196,50 +181,33 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
 
   const pendingLabel = pendingRemoval ? String(copy[ROLE_LABEL_KEY[pendingRemoval]]) : ''
 
+  // Build action menu items using the shared ActionMenu (replaces hand-rolled dropdown)
+  const menuItems: ActionMenuEntry[] = ALL_ROLES.map((role) => ({
+    label: String(copy[ROLE_LABEL_KEY[role]]),
+    onSelect: () => handleToggleRole(role),
+    disabled: loading,
+  }))
+
+  menuItems.push({ separator: true })
+
+  if (user.isSuspended) {
+    menuItems.push({ label: copy.restore, onSelect: () => handleStatus('active'), disabled: loading })
+  }
+  if (!user.isSuspended && !user.isBanned) {
+    menuItems.push({ label: copy.suspend, onSelect: () => handleStatus('suspended'), disabled: loading })
+  }
+  if (!user.isBanned) {
+    menuItems.push({ label: copy.ban, onSelect: () => handleStatus('banned'), disabled: loading, tone: 'danger' })
+  }
+  menuItems.push({ label: copy.deleteUser, onSelect: handleDelete, disabled: loading, tone: 'danger' })
+
   return (
     <div className="relative inline-block">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="inline-flex items-center rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-      >
-        {copy.manageRoles}
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-50 mt-1 w-48 rounded-md border border-border bg-card shadow-lg py-2">
-            <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {copy.assignRoles}
-            </div>
-            {ALL_ROLES.map((role) => {
-              const hasRole = user.roles.includes(role)
-              return (
-                <button
-                  key={role}
-                  type="button"
-                  onClick={() => handleToggleRole(role)}
-                  disabled={loading}
-                  className="w-full flex items-center justify-between px-3 py-1.5 text-sm hover:bg-muted transition-colors disabled:opacity-50"
-                >
-                  <span>{copy[ROLE_LABEL_KEY[role]]}</span>
-                  <span className={`h-2 w-2 rounded-full ${hasRole ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`} />
-                </button>
-              )
-            })}
-            <div className="my-1 border-t border-border" />
-            {user.isSuspended && <button type="button" onClick={() => handleStatus('active')} disabled={loading} className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-50">{copy.restore}</button>}
-            {!user.isSuspended && !user.isBanned && <button type="button" onClick={() => handleStatus('suspended')} disabled={loading} className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-50">{copy.suspend}</button>}
-            {!user.isBanned && <button type="button" onClick={() => handleStatus('banned')} disabled={loading} className="w-full px-3 py-1.5 text-left text-sm text-destructive hover:bg-muted disabled:opacity-50">{copy.ban}</button>}
-            <button type="button" onClick={handleDelete} disabled={loading} className="w-full px-3 py-1.5 text-left text-sm text-destructive hover:bg-muted disabled:opacity-50">{copy.deleteUser}</button>
-          </div>
-        </>
-      )}
+      <ActionMenu trigger={<ActionMenuTrigger label={copy.manageRoles} />} items={menuItems} />
+
       <ConfirmDialog
         open={pendingRemoval !== null}
-        onOpenChange={(v) => {
-          if (!v) setPendingRemoval(null)
-        }}
+        onOpenChange={(v) => { if (!v) setPendingRemoval(null) }}
         title={copy.removeRoleConfirmTitle}
         description={copy.removeRoleConfirmBody.replace('{role}', pendingLabel)}
         confirmLabel={copy.remove}
@@ -247,20 +215,33 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
         loading={loading}
         onConfirm={handleConfirmRemoval}
       />
+
+      {/* Restore confirmation — replaces window.confirm */}
+      <ConfirmDialog
+        open={restoreConfirm}
+        onOpenChange={setRestoreConfirm}
+        title={copy.restoreConfirmTitle}
+        description={copy.restoreConfirmBody}
+        confirmLabel={copy.restore}
+        cancelLabel={common.cancel}
+        loading={loading}
+        onConfirm={async () => {
+          setRestoreConfirm(false)
+          await runSetStatus('active')
+        }}
+        tone="default"
+      />
+
       <ReauthDialog
         open={reauth !== null}
-        onOpenChange={(v) => {
-          if (!v) setReauth(null)
-        }}
+        onOpenChange={(v) => { if (!v) setReauth(null) }}
         title={reauth?.title ?? ''}
         description={reauth?.description ?? ''}
         confirmLabel={reauth?.confirmLabel ?? ''}
         cancelLabel={common.cancel}
         passwordLabel={copy.reauthPasswordLabel}
         loading={loading}
-        onConfirm={(password) => {
-          void reauth?.run(password)
-        }}
+        onConfirm={(password) => { void reauth?.run(password) }}
       />
     </div>
   )

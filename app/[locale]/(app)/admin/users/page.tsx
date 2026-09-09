@@ -8,6 +8,7 @@ import { StatusBadge } from '@/components/admin/status-badge'
 import { DataTable } from '@/components/admin/data-table'
 import { formatDateTime } from '@/lib/admin/format'
 import { UserActions } from './user-actions'
+import { InviteForm } from './invite-form'
 import type { AppRole, UserRow } from '@/lib/admin/queries'
 import Image from 'next/image'
 
@@ -44,6 +45,8 @@ export default async function Page({
   return (
     <div className="space-y-5">
       <PageHeader title={t.title} description={t.description} />
+
+      <InviteForm copy={t} common={dict.admin.common} />
 
       <div className="flex flex-col sm:flex-row gap-3">
         <form action={localePath(locale, '/admin/users')} method="GET" className="flex-1">

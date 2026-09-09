@@ -113,4 +113,26 @@ describe('Site setting actions', () => {
     expect(chain?.delete).toHaveBeenCalled()
     expect(chain?.eq).toHaveBeenCalledWith('key', 'social_youtube_url')
   })
+
+  it('accepts a site-relative logo path', async () => {
+    const res = await saveSiteSetting({ key: 'site_logo_url', value: '/uploads/logo.png' })
+    expect(res.ok).toBe(true)
+    const chain = mocks.chains.at(-1)
+    expect(chain?.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'site_logo_url', value: '/uploads/logo.png' }),
+      expect.objectContaining({ onConflict: 'key' }),
+    )
+  })
+
+  it('rejects javascript: logo URLs', async () => {
+    const res = await saveSiteSetting({ key: 'site_logo_url', value: 'javascript:alert(1)' })
+    expect(res.ok).toBe(false)
+  })
+
+  it('accepts plain-text site names and rejects markup', async () => {
+    const ok = await saveSiteSetting({ key: 'site_name', value: 'Eagle Eye Africa' })
+    expect(ok.ok).toBe(true)
+    const bad = await saveSiteSetting({ key: 'site_name', value: '<img src=x>' })
+    expect(bad.ok).toBe(false)
+  })
 })

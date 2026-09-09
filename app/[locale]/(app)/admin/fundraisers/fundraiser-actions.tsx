@@ -19,7 +19,7 @@ type CommonCopy = Dictionary['admin']['common']
 
 type EditableFundraiser = Pick<
   AdminFundraiserRow,
-  'contentItemId' | 'goalAmount' | 'raisedAmount' | 'currency' | 'organizerName' | 'donationUrl' | 'verificationNotes' | 'closedAt' | 'payoutMethod' | 'payoutAccount' | 'payoutAccountName'
+  'contentItemId' | 'goalAmount' | 'raisedAmount' | 'currency' | 'organizerName' | 'donationUrl' | 'verificationNotes' | 'closedAt' | 'payoutMethod' | 'payoutAccount' | 'payoutAccountName' | 'storyTitleEn' | 'storyTitleFr' | 'storyBodyEn' | 'storyBodyFr' | 'missingLocale'
 >
 
 const inputCls =
@@ -107,7 +107,7 @@ export function FundraiserCreateForm({ copy, common }: { copy: Copy; common: Com
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
-              <label className="block"><span className={labelCls}>{copy.payoutMethod}</span><select value={payoutMethod} onChange={(e) => setPayoutMethod(e.target.value as 'momo' | 'bank' | '')} className={inputCls}><option value="">{copy.payoutNone}</option><option value="momo">MoMo</option><option value="bank">Bank</option></select></label>
+              <label className="block"><span className={labelCls}>{copy.payoutMethod}</span><select value={payoutMethod} onChange={(e) => setPayoutMethod(e.target.value as 'momo' | 'bank' | '')} className={inputCls}><option value="">{copy.payoutNone}</option><option value="momo">{common.payoutMethods?.momo ?? 'MoMo'}</option><option value="bank">{common.payoutMethods?.bank ?? 'Bank'}</option></select></label>
               <label className="block"><span className={labelCls}>{copy.payoutAccount}</span><input value={payoutAccount} onChange={(e) => setPayoutAccount(e.target.value)} className={inputCls} /></label>
               <label className="block"><span className={labelCls}>{copy.payoutAccountName}</span><input value={payoutAccountName} onChange={(e) => setPayoutAccountName(e.target.value)} className={inputCls} /></label>
             </div>
@@ -179,6 +179,10 @@ export function FundraiserCard({ row, copy, common, canDelete }: { row: Editable
   const [payoutMethod, setPayoutMethod] = useState<'momo' | 'bank' | ''>((row.payoutMethod as 'momo' | 'bank' | null) ?? '')
   const [payoutAccount, setPayoutAccount] = useState(row.payoutAccount ?? '')
   const [payoutAccountName, setPayoutAccountName] = useState(row.payoutAccountName ?? '')
+  const [titleEn, setTitleEn] = useState(row.storyTitleEn ?? '')
+  const [titleFr, setTitleFr] = useState(row.storyTitleFr ?? '')
+  const [descEn, setDescEn] = useState(row.storyBodyEn ?? '')
+  const [descFr, setDescFr] = useState(row.storyBodyFr ?? '')
 
   async function handleSave() {
     setBusy(true)
@@ -191,6 +195,10 @@ export function FundraiserCard({ row, copy, common, canDelete }: { row: Editable
       payoutAccount,
       payoutAccountName,
       verificationNotes,
+      titleEn,
+      titleFr,
+      descriptionEn: descEn,
+      descriptionFr: descFr,
     })
     setBusy(false)
     if (result.ok) {
@@ -220,6 +228,45 @@ export function FundraiserCard({ row, copy, common, canDelete }: { row: Editable
   if (editing) {
     return (
       <div className="w-full space-y-3 rounded-md border border-border bg-background p-3">
+        <div className="space-y-2 rounded-md border border-border/60 bg-muted/30 p-2.5">
+          <p className="text-xs font-medium text-muted-foreground">{copy.editStoryTitle}</p>
+          {row.missingLocale && (
+            <p className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+              {copy.missingTranslation}
+            </p>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-xs text-muted-foreground">{copy.titleEn}</span>
+              <input value={titleEn} onChange={(e) => setTitleEn(e.target.value)} className="mt-1 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
+            </label>
+            <label className="block">
+              <span className="text-xs text-muted-foreground">{copy.titleFr}</span>
+              <div className="mt-1 flex items-start gap-1.5">
+                <input value={titleFr} onChange={(e) => setTitleFr(e.target.value)} className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                <button
+                  type="button"
+                  onClick={() => { setTitleFr(titleEn); setDescFr(descEn) }}
+                  disabled={!titleEn.trim() && !descEn.trim()}
+                  title={copy.copyFromEn}
+                  className="shrink-0 rounded-md border border-border px-2 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+                >
+                  {copy.copyFromEn}
+                </button>
+              </div>
+            </label>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-xs text-muted-foreground">{copy.descEn}</span>
+              <textarea value={descEn} onChange={(e) => setDescEn(e.target.value)} rows={3} className="mt-1 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+            </label>
+            <label className="block">
+              <span className="text-xs text-muted-foreground">{copy.descFr}</span>
+              <textarea value={descFr} onChange={(e) => setDescFr(e.target.value)} rows={3} className="mt-1 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+            </label>
+          </div>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="text-xs text-muted-foreground">{copy.goal}</span>
@@ -254,7 +301,7 @@ export function FundraiserCard({ row, copy, common, canDelete }: { row: Editable
           />
         </label>
         <div className="grid gap-3 sm:grid-cols-3">
-          <label className="block"><span className="text-xs text-muted-foreground">{copy.payoutMethod}</span><select value={payoutMethod} onChange={(e) => setPayoutMethod(e.target.value as 'momo' | 'bank' | '')} className={inputCls}><option value="">{copy.payoutNone}</option><option value="momo">MoMo</option><option value="bank">Bank</option></select></label>
+          <label className="block"><span className="text-xs text-muted-foreground">{copy.payoutMethod}</span><select value={payoutMethod} onChange={(e) => setPayoutMethod(e.target.value as 'momo' | 'bank' | '')} className={inputCls}><option value="">{copy.payoutNone}</option><option value="momo">{common.payoutMethods?.momo ?? 'MoMo'}</option><option value="bank">{common.payoutMethods?.bank ?? 'Bank'}</option></select></label>
           <label className="block"><span className="text-xs text-muted-foreground">{copy.payoutAccount}</span><input value={payoutAccount} onChange={(e) => setPayoutAccount(e.target.value)} className={inputCls} /></label>
           <label className="block"><span className="text-xs text-muted-foreground">{copy.payoutAccountName}</span><input value={payoutAccountName} onChange={(e) => setPayoutAccountName(e.target.value)} className={inputCls} /></label>
         </div>

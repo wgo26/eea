@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { assertStaff, assertAdmin, assertCapability, assertReauth, type AdminContext } from '@/lib/admin/auth'
 import { CACHE_TAGS } from '@/lib/cache/tags'
-import { getContentItemEditData as fetchContentEditData } from '@/lib/admin/queries'
+import { getContentItemEditData as fetchContentEditData, queryContentForSlotAssign } from '@/lib/admin/queries'
 import type { AppRole } from '@/lib/admin/queries'
 import { deleteFromR2 } from '@/lib/storage/providers/r2'
 import { storageConfig } from '@/lib/storage/config'
@@ -637,6 +637,12 @@ export async function getContentItemEditData(contentItemId: string) {
   return fetchContentEditData(contentItemId)
 }
 
+/** Client-callable content search for homepage-slot assignment (capability-gated). */
+export async function searchContentForSlot(query: string, limit = 10) {
+  await assertCapability('manageContent')
+  return queryContentForSlotAssign(query, limit)
+}
+
 export async function rejectSubmission(submissionId: string, reason: string): Promise<ActionResult> {
   try {
     if (!reason.trim()) return { ok: false, error: 'A reason is required when rejecting.' }
@@ -758,6 +764,35 @@ export async function reopenSubmission(submissionId: string): Promise<ActionResu
   }
 }
 
+/**
+ * Permanent submission delete (admin only, Phase 2 cleanup). Removes the
+ * submission row + its moderation_log history; approved submissions keep
+ * their already-published content item.
+ */
+export async function deleteSubmission(submissionId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertAdmin()
+    const { data: row } = await supabase.from('submissions').select('id, status, submission_type').eq('id', submissionId).limit(1)
+    const found = (row ?? [])[0] as { id: string; status: string; submission_type: string } | undefined
+    if (!found) return { ok: false, error: 'Submission not found.' }
+
+    const { error } = await supabase.from('submissions').delete().eq('id', submissionId)
+    if (error) return { ok: false, error: error.message }
+
+    await audit(supabase, user.id, {
+      action: 'moderation:delete',
+      submissionId,
+      notes: `${found.submission_type}/${found.status}`,
+    })
+    revalidateLocalized('/admin/moderation')
+    revalidateLocalized('/admin/moderation/[id]')
+    revalidateLocalized('/admin/dashboard')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Content status transitions                                          */
 /* ------------------------------------------------------------------ */
@@ -866,6 +901,52 @@ export async function createHomepageSlot(input: { slotKey: string; sortOrder?: n
     const { error } = await supabase.from('homepage_slots').insert({ slot_key: slotKey, sort_order: input.sortOrder ?? 0, starts_at: input.startsAt || null, ends_at: input.endsAt || null, created_by: user.id })
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'slot:create', entityType: 'homepage_slot', notes: slotKey })
+    revalidatePublicContentCache()
+    revalidateLocalized('/admin/content')
+    revalidateLocalized('/')
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+/** Delete a homepage slot (staff). Content keeps its own status — only the slot goes away. */
+export async function deleteHomepageSlot(slotId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageContent')
+    const { data: row } = await supabase.from('homepage_slots').select('id, slot_key').eq('id', slotId).limit(1)
+    const found = (row ?? [])[0] as { id: string; slot_key: string } | undefined
+    if (!found) return { ok: false, error: 'Slot not found.' }
+
+    const { error } = await supabase.from('homepage_slots').delete().eq('id', slotId)
+    if (error) return { ok: false, error: error.message }
+
+    await audit(supabase, user.id, { action: 'slot:delete', entityType: 'homepage_slot', notes: found.slot_key })
+    revalidatePublicContentCache()
+    revalidateLocalized('/admin/content')
+    revalidateLocalized('/')
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+/** Swap a homepage slot's sort_order with its up/down neighbour. */
+export async function reorderHomepageSlot(slotId: string, direction: 'up' | 'down'): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageContent')
+    const { data: rows } = await supabase
+      .from('homepage_slots')
+      .select('id, sort_order')
+      .order('sort_order', { ascending: true })
+    const ordered = (rows ?? []) as { id: string; sort_order: number }[]
+    const idx = ordered.findIndex((r) => r.id === slotId)
+    if (idx === -1) return { ok: false, error: 'Slot not found.' }
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= ordered.length) return { ok: false, error: 'Already at the edge.' }
+
+    const a = ordered[idx]
+    const b = ordered[swapIdx]
+    await supabase.from('homepage_slots').update({ sort_order: b.sort_order }).eq('id', a.id)
+    await supabase.from('homepage_slots').update({ sort_order: a.sort_order }).eq('id', b.id)
+
+    await audit(supabase, user.id, { action: 'slot:reorder', entityType: 'homepage_slot', notes: `${a.id} ${direction}` })
     revalidatePublicContentCache()
     revalidateLocalized('/admin/content')
     revalidateLocalized('/')
@@ -1112,6 +1193,24 @@ export async function rejectAdInquiry(campaignId: string, reason: string): Promi
     if (error) return { ok: false, error: error.message }
     await supabase.from('ad_inquiry_events').insert({ campaign_id: campaignId, actor_id: user.id, event_type: 'rejected', reason: reason.trim() })
     await audit(supabase, user.id, { action: 'ad:inquiry:reject', notes: `campaign=${campaignId}: ${reason.trim()}` })
+    revalidateLocalized('/admin/ads')
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+/** Delete a pending ad inquiry (spam / stale cleanup). Non-pending rows stay protected. */
+export async function deleteAdInquiry(campaignId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageAds')
+    const { data: row } = await supabase.from('ad_campaigns').select('id, status').eq('id', campaignId).limit(1)
+    const found = (row ?? [])[0] as { id: string; status: string } | undefined
+    if (!found) return { ok: false, error: 'Campaign not found.' }
+    if (found.status !== 'pending') return { ok: false, error: 'Only pending inquiries can be deleted.' }
+
+    const { error } = await supabase.from('ad_campaigns').delete().eq('id', campaignId)
+    if (error) return { ok: false, error: error.message }
+
+    await audit(supabase, user.id, { action: 'ad:inquiry:delete', notes: `campaign=${campaignId}` })
     revalidateLocalized('/admin/ads')
     return { ok: true }
   } catch (e) { return fail(e) }
@@ -1482,10 +1581,23 @@ export async function createFundraiser(input: {
       .single()
     if (cErr || !created) return { ok: false, error: cErr?.message ?? 'Could not create fundraiser item.' }
 
-    const { error: translationError } = await supabase.from('content_translations').insert([
+    // Insert the FR translation only when FR copy was actually provided.
+    // The old `|| titleEn` fallback persisted English text as the French
+    // translation, so French pages showed English content stored as "fr".
+    const rows: { content_item_id: string; locale: string; title: string | null; body: string | null }[] = [
       { content_item_id: created.id, locale: 'en', title: titleEn, body: descEn },
-      { content_item_id: created.id, locale: 'fr', title: input.titleFr?.trim() || titleEn, body: input.descriptionFr?.trim() || descEn },
-    ])
+    ]
+    const titleFr = input.titleFr?.trim()
+    const descFr = input.descriptionFr?.trim()
+    if (titleFr || descFr) {
+      rows.push({
+        content_item_id: created.id,
+        locale: 'fr',
+        title: titleFr || null,
+        body: descFr || null,
+      })
+    }
+    const { error: translationError } = await supabase.from('content_translations').insert(rows)
     if (translationError) {
       await supabase.from('content_items').delete().eq('id', created.id)
       return { ok: false, error: translationError.message }
@@ -1528,6 +1640,10 @@ export async function updateFundraiser(
     payoutAccount?: string | null
     payoutAccountName?: string | null
     verificationNotes?: string | null
+    titleEn?: string | null
+    titleFr?: string | null
+    descriptionEn?: string | null
+    descriptionFr?: string | null
   },
 ): Promise<ActionResult> {
   try {
@@ -1564,10 +1680,49 @@ export async function updateFundraiser(
     if (input.payoutAccount !== undefined) patch.payout_account = input.payoutAccount?.trim() || null
     if (input.payoutAccountName !== undefined) patch.payout_account_name = input.payoutAccountName?.trim() || null
     if (input.verificationNotes !== undefined) patch.verification_notes = input.verificationNotes || null
-    if (Object.keys(patch).length === 0) return { ok: true }
+    if (Object.keys(patch).length > 0) {
+      const { error } = await supabase.from('fundraisers').update(patch).eq('content_item_id', contentItemId)
+      if (error) return { ok: false, error: error.message }
+    }
 
-    const { error } = await supabase.from('fundraisers').update(patch).eq('content_item_id', contentItemId)
-    if (error) return { ok: false, error: error.message }
+    // Bilingual story fields live on content_translations (same model as
+    // content create/edit). Upsert EN when provided; FR upserts when
+    // non-empty and deletes when cleared so "FR missing" stays visible
+    // instead of persisting stale copy.
+    const storyTouched =
+      input.titleEn !== undefined ||
+      input.descriptionEn !== undefined ||
+      input.titleFr !== undefined ||
+      input.descriptionFr !== undefined
+    if (storyTouched) {
+      const { data: existing } = await supabase
+        .from('content_translations')
+        .select('locale, title, body')
+        .eq('content_item_id', contentItemId)
+      const rows = (existing ?? []) as { locale: string; title: string | null; body: string | null }[]
+      const enRow = rows.find((r) => r.locale === 'en')
+      const frRow = rows.find((r) => r.locale === 'fr')
+      const nextEnTitle = input.titleEn !== undefined ? input.titleEn?.trim() || '' : (enRow?.title ?? '')
+      const nextEnBody = input.descriptionEn !== undefined ? input.descriptionEn?.trim() || '' : (enRow?.body ?? '')
+      if (!nextEnTitle) return { ok: false, error: 'English title is required.' }
+      const { error: enErr } = await supabase.from('content_translations').upsert(
+        { content_item_id: contentItemId, locale: 'en', title: nextEnTitle, body: nextEnBody || null },
+        { onConflict: 'content_item_id,locale' },
+      )
+      if (enErr) return { ok: false, error: enErr.message }
+      const nextFrTitle = input.titleFr !== undefined ? input.titleFr?.trim() || '' : (frRow?.title ?? '')
+      const nextFrBody = input.descriptionFr !== undefined ? input.descriptionFr?.trim() || '' : (frRow?.body ?? '')
+      if (nextFrTitle || nextFrBody) {
+        const { error: frErr } = await supabase.from('content_translations').upsert(
+          { content_item_id: contentItemId, locale: 'fr', title: nextFrTitle || null, body: nextFrBody || null },
+          { onConflict: 'content_item_id,locale' },
+        )
+        if (frErr) return { ok: false, error: frErr.message }
+      } else if (input.titleFr !== undefined || input.descriptionFr !== undefined) {
+        await supabase.from('content_translations').delete().eq('content_item_id', contentItemId).eq('locale', 'fr')
+      }
+    }
+    if (Object.keys(patch).length === 0 && !storyTouched) return { ok: true }
     await audit(supabase, user.id, {
       action: 'fundraiser:update',
       contentItemId,
@@ -2023,9 +2178,24 @@ export async function saveAdvertiseSection(input: {
 const SITE_SETTING_KEYS = [
   'social_facebook_url',
   'social_youtube_url',
+  'site_logo_url',
+  'site_name',
+  'site_tagline',
+  'site_name_fr',
+  'site_tagline_fr',
 ] as const
 
 const SITE_SETTING_MAX_LENGTH = 500
+
+/** Branding text keys (site name / tagline, both locales) are plain text, not URLs. */
+const SITE_TEXT_KEYS = ['site_name', 'site_tagline', 'site_name_fr', 'site_tagline_fr'] as const
+
+function validateSiteText(value: string): string | null {
+  if (value.length > 120) return null
+  // Reject markup/URLs smuggled into the name — header renders this as text.
+  if (/[<>]/.test(value)) return null
+  return value
+}
 
 /** Validate a user-supplied public URL: absolute http(s) only — the footer
  *  renders this in an <a href>, so anything else (javascript:, data:, …) is
@@ -2040,8 +2210,24 @@ function validatePublicUrl(value: string): string | null {
   }
 }
 
-/** Upsert one site setting (footer social links). An empty value deletes the
- *  row — the footer hides that icon and the defaults return. */
+/**
+ * Validate a logo/image URL: absolute http(s) (CDN, Supabase public URL) or
+ * a site-relative path (e.g. /uploads/… or an admin-asset public path).
+ * Anything else (javascript:, data:, …) is rejected — the header renders
+ * this in an <img>.
+ */
+function validateImageUrl(value: string): string | null {
+  if (value.length > SITE_SETTING_MAX_LENGTH) return null
+  if (value.startsWith('/')) {
+    if (value.includes('..') || /[\s<>"]/.test(value)) return null
+    return value
+  }
+  return validatePublicUrl(value)
+}
+
+/** Upsert one site setting (footer social links + site branding). An empty
+ *  value deletes the row — the footer hides that icon, the header falls back
+ *  to the built-in wordmark, and the defaults return. */
 export async function saveSiteSetting(input: {
   key: string
   value: string | null
@@ -2053,8 +2239,17 @@ export async function saveSiteSetting(input: {
     const { supabase, user } = await assertCapability('manageSiteContent')
     const value = input.value?.trim() || null
     if (value) {
-      const valid = validatePublicUrl(value)
-      if (!valid) return { ok: false, error: 'Enter a full URL starting with https://.' }
+      let valid: string | null = null
+      if ((SITE_TEXT_KEYS as readonly string[]).includes(input.key)) {
+        valid = validateSiteText(value)
+        if (!valid) return { ok: false, error: 'Enter plain text (max 120 characters, no markup).' }
+      } else if (input.key === 'site_logo_url') {
+        valid = validateImageUrl(value)
+        if (!valid) return { ok: false, error: 'Enter a full https:// URL or a site path starting with /.' }
+      } else {
+        valid = validatePublicUrl(value)
+        if (!valid) return { ok: false, error: 'Enter a full URL starting with https://.' }
+      }
       const { error } = await supabase
         .from('site_settings')
         .upsert(
@@ -2497,6 +2692,7 @@ export async function deleteCategory(categoryId: string, reassignToId?: string):
 export async function createLocation(input: {
   name: string
   slug?: string
+  locale?: string
   locationType?: string
   description?: string
   latitude?: number | null
@@ -2523,6 +2719,7 @@ export async function createLocation(input: {
     const { error } = await supabase.from('locations').insert({
       name,
       slug,
+      locale: input.locale === 'fr' ? 'fr' : 'en',
       location_type: input.locationType?.trim() || null,
       description: input.description?.trim() || null,
       latitude: input.latitude ?? null,
@@ -2564,6 +2761,7 @@ export async function updateLocation(
   input: {
     name?: string
     slug?: string
+    locale?: string
     locationType?: string | null
     description?: string | null
     latitude?: number | null
@@ -2604,6 +2802,7 @@ export async function updateLocation(
     }
     if (input.locationType !== undefined) patch.location_type = input.locationType?.trim() || null
     if (input.description !== undefined) patch.description = input.description?.trim() || null
+    if (input.locale !== undefined) patch.locale = input.locale === 'fr' ? 'fr' : 'en'
     if (input.latitude !== undefined) patch.latitude = input.latitude
     if (input.longitude !== undefined) patch.longitude = input.longitude
     if (input.isActive !== undefined) patch.is_active = input.isActive

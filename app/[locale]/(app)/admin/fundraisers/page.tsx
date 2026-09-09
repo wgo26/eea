@@ -6,6 +6,7 @@ import { isAdminRoles } from '@/lib/auth/roles'
 import { getFundraisersAdmin } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { StatusBadge } from '@/components/admin/status-badge'
+import { localizeStatus } from '@/lib/admin/labels'
 import { formatRelative, formatPrice } from '@/lib/admin/format'
 import { FundraiserCard, FundraiserCreateForm } from './fundraiser-actions'
 
@@ -36,7 +37,7 @@ export default async function Page() {
   const t = dict.admin.fundraisers
   const common = dict.admin.common
 
-  const fundraisers = await getFundraisersAdmin()
+  const fundraisers = await getFundraisersAdmin(100, locale)
 
   return (
     <div className="space-y-6">
@@ -56,9 +57,14 @@ export default async function Page() {
               <div key={f.contentItemId} className="rounded-lg border border-border bg-card p-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <StatusBadge status={f.closedAt ? 'closed' : 'open'} />
-                      {f.storyStatus && <StatusBadge status={f.storyStatus} />}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge status={f.closedAt ? 'closed' : 'open'} label={localizeStatus(f.closedAt ? 'closed' : 'open', dict.admin.common)} />
+                      {f.storyStatus && <StatusBadge status={f.storyStatus} label={localizeStatus(f.storyStatus, dict.admin.common)} />}
+                      {f.missingLocale && (
+                        <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                          {t.missingTranslation}
+                        </span>
+                      )}
                     </div>
                     <h3 className="mt-1.5 text-sm font-medium">
                       {f.storyTitle ?? f.slug ?? f.contentItemId}

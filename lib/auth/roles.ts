@@ -68,7 +68,13 @@ export async function getUserRoles(
     .select("role")
     .eq("user_id", userId);
 
-  if (error) return [];
+  if (error) {
+    // Never silently swallow: a denied/granted read here turns every staff
+    // member into a "member" (all /admin pages deny). Log so the cause is
+    // visible in production logs instead of masquerading as "access denied".
+    console.error("[auth] getUserRoles failed, treating as no roles", error.message);
+    return [];
+  }
   return (data ?? [])
     .map((row: { role: string }) => row.role)
     .filter(isRole);
