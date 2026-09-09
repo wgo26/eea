@@ -1,8 +1,15 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
-import { Monitor, Moon, Sun } from 'lucide-react'
-import { applyTheme, THEME_ORDER, THEME_STORAGE_KEY, type Theme } from '@/lib/theme'
+import { Moon, Sun } from 'lucide-react'
+import {
+  applyTheme,
+  isExplicitTheme,
+  resolveAutomaticTheme,
+  THEME_ORDER,
+  THEME_STORAGE_KEY,
+  type Theme,
+} from '@/lib/theme'
 import { getDictionary, type Locale } from '@/lib/i18n'
 
 /**
@@ -10,23 +17,23 @@ import { getDictionary, type Locale } from '@/lib/i18n'
  * so it is read with useSyncExternalStore instead of being mirrored into React
  * state inside an effect (rejected by react-hooks/set-state-in-effect).
  * As in language-switcher.tsx, DOM side effects live at module scope.
+ *
+ * Only light/dark are user-selectable. When nothing is stored (or a legacy
+ * "system" value remains), the toggle follows the OS preference automatically.
  */
 
 /** In-memory mirror of the persisted theme, keeping the UI consistent even when storage is unavailable. */
 let snapshot: Theme | null = null
 const listeners = new Set<() => void>()
 
-function isTheme(value: string | null): value is Theme {
-  return !!value && (THEME_ORDER as readonly string[]).includes(value)
-}
-
-/** Reads the persisted theme, falling back to "system" when unset or storage is unavailable. */
+/** Reads the persisted theme, falling back to the OS preference when unset or storage is unavailable. */
 function readStoredTheme(): Theme {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY)
-    return isTheme(stored) ? stored : 'system'
+    if (isExplicitTheme(stored)) return stored
+    return resolveAutomaticTheme()
   } catch {
-    return 'system'
+    return resolveAutomaticTheme()
   }
 }
 
@@ -34,9 +41,9 @@ function getSnapshot(): Theme {
   return snapshot ?? readStoredTheme()
 }
 
-/** Matches the pre-paint script's default so the server HTML and hydration agree. */
+/** Matches the pre-paint script's resolution so the server HTML and hydration agree. */
 function getServerSnapshot(): Theme {
-  return 'system'
+  return 'light'
 }
 
 /** Persists the theme, applies it to <html> and notifies every mounted toggle. */
@@ -56,10 +63,20 @@ function subscribe(onChange: () => void): () => void {
   snapshot = readStoredTheme()
   applyTheme(snapshot)
 
-  // Follow OS preference changes while in "system" mode (DOM-only; the snapshot stays "system").
+  // While no explicit choice is stored, follow OS preference changes live.
   const mq = window.matchMedia('(prefers-color-scheme: dark)')
   const onSystemChange = () => {
-    if (getSnapshot() === 'system') applyTheme('system')
+    let stored: string | null = null
+    try {
+      stored = localStorage.getItem(THEME_STORAGE_KEY)
+    } catch {
+      // Storage unavailable — treat as automatic.
+    }
+    if (!isExplicitTheme(stored)) {
+      snapshot = null // force re-resolution from the OS preference
+      applyTheme(resolveAutomaticTheme())
+      for (const listener of listeners) listener()
+    }
   }
 
   // Follow theme changes made in other tabs.
@@ -86,8 +103,8 @@ export function ThemeToggle({ locale }: { locale: Locale }) {
     writeTheme(THEME_ORDER[(THEME_ORDER.indexOf(theme) + 1) % THEME_ORDER.length])
   }
 
-  const Icon = theme === 'system' ? Monitor : theme === 'light' ? Sun : Moon
-  const label = `${t.label}: ${theme === 'system' ? t.system : theme === 'light' ? t.light : t.dark}`
+  const Icon = theme === 'light' ? Sun : Moon
+  const label = `${t.label}: ${theme === 'light' ? t.light : t.dark}`
 
   return (
     <button

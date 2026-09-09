@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { Menu } from 'lucide-react'
 import {
   Sheet,
@@ -27,6 +28,7 @@ export function AdminMobileNav({
   labels: { menu: string; backToSite: string }
 }) {
   const [open, setOpen] = useState(false)
+  const pathname = usePathname() ?? ''
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -46,18 +48,32 @@ export function AdminMobileNav({
         <nav className="flex h-full flex-col overflow-y-auto p-3" aria-label={labels.menu}>
           {items.map((item) => {
             const Icon = item.icon
+            const isActive =
+              pathname === item.href ||
+              pathname.startsWith(`${item.href}/`) ||
+              pathname === item.path ||
+              pathname.startsWith(`${item.path}/`)
             return (
               <Link
                 key={item.path}
                 href={item.href}
                 onClick={() => setOpen(false)}
-                className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                aria-current={isActive ? 'page' : undefined}
+                className={cn(
+                  'flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                )}
               >
                 <span className="h-4 w-4 shrink-0"><Icon /></span>
                 <span className="flex-1">{item.label}</span>
                 {item.badge != null && item.badge > 0 && (
                   <span className={cn(
-                    'inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-medium text-destructive-foreground',
+                    'inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-medium',
+                    isActive
+                      ? 'bg-primary-foreground/20 text-primary-foreground'
+                      : 'bg-destructive text-destructive-foreground',
                   )}>
                     {item.badge > 99 ? '99+' : item.badge}
                   </span>

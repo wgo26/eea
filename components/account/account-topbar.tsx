@@ -6,6 +6,7 @@ import { localePath } from '@/lib/i18n/urls'
 import { getSessionUser } from '@/lib/auth/guards'
 import { getUserRoles, isStaffRoles } from '@/lib/auth/roles'
 import { signOutAction } from '@/lib/auth/actions'
+import { AccountTopbarNav } from './account-topbar-nav'
 
 /**
  * Account AppShell topbar (checklist items 7 + 11): the logged-in area's
@@ -59,21 +60,7 @@ export async function AccountTopbar() {
           </span>
         </Link>
 
-        <nav
-          className="flex flex-1 items-center gap-1 overflow-x-auto"
-          aria-label={dict.account.topbar.dashboard}
-        >
-          {tabs.map((tab) => (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className="inline-flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-            >
-              <tab.icon className="h-4 w-4" aria-hidden />
-              <span className="hidden sm:inline">{tab.label}</span>
-            </Link>
-          ))}
-        </nav>
+        <AccountTopbarNav tabs={tabs} />
 
         <div className="flex shrink-0 items-center gap-2 border-l border-border pl-2">
           <div className="hidden text-right leading-tight md:block">

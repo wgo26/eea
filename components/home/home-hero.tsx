@@ -24,11 +24,11 @@ type HomeHeroProps = {
 export function HomeHero({ featured, secondary, dict, locale, submitHref, photoStoriesHref }: HomeHeroProps) {
     if (featured.length === 0) {
         return (
-            <section className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/10 via-background to-muted p-8 md:p-14">
+            <section className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/10 via-background to-muted p-6 sm:p-8 md:p-14">
                 <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-link">
                     {dict.home.kicker}
                 </p>
-                <h1 className="mt-3 max-w-2xl text-3xl font-extrabold tracking-tight md:text-5xl">
+                <h1 className="mt-3 max-w-2xl break-words text-2xl font-extrabold tracking-tight sm:text-3xl md:text-5xl">
                     {dict.meta.title}
                 </h1>
                 <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground md:text-base">
@@ -49,10 +49,11 @@ export function HomeHero({ featured, secondary, dict, locale, submitHref, photoS
     return (
         <>
             {featured.length > 1 ? <h1 className="sr-only">{dict.meta.title}</h1> : null}
-            <section className="grid gap-6 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1fr)]">
-                {/* <section className="grid gap-6 lg:grid-cols-[2.1fr_1fr]"> */}
+            <section className="relative grid min-w-0 gap-6 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1fr)]">
                 {featured.length > 1 ? (
-                    <HeroCarousel stories={featured} dict={dict} locale={locale} />
+                    <div className="min-w-0">
+                        <HeroCarousel stories={featured} dict={dict} locale={locale} />
+                    </div>
                 ) : (
                     <HeroSlide story={featured[0]} dict={dict} locale={locale} headingLevel="h1" />
                 )}

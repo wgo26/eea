@@ -28,9 +28,10 @@ export function HeroSlide({
     return (
         <Link
             href={story.href}
-            // Fixed height: a long story must never stretch the hero (and break
-            // the rail alignment) — text clamps below keep the overlay in check.
-            className="group relative flex h-[440px] flex-col justify-end overflow-hidden rounded-3xl lg:h-[560px]"
+            // Responsive fixed height: a long story must never stretch the hero
+            // (and break the rail alignment) — text clamps + word-wrapping below
+            // keep the overlay in check on small screens.
+            className="group relative flex h-[400px] min-w-0 flex-col justify-end overflow-hidden rounded-3xl sm:h-[440px] lg:h-[560px]"
             aria-label={story.title}
         >
             <div
@@ -40,7 +41,7 @@ export function HeroSlide({
                 aria-label={story.title}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/55 to-black/15" aria-hidden />
-            <div className="relative p-6 md:p-10">
+            <div className="relative min-w-0 p-5 sm:p-6 md:p-10">
                 <span className="inline-flex w-fit items-center rounded-full bg-primary px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.18em] text-primary-foreground shadow-sm">
                     {dict.hero.featured}
                 </span>
@@ -56,12 +57,12 @@ export function HeroSlide({
                         </span>
                     ) : null}
                 </div>
-                <Heading className="mt-3 line-clamp-3 max-w-3xl text-3xl font-extrabold leading-tight tracking-tight text-white md:text-5xl">
+                <Heading className="mt-3 line-clamp-3 max-w-3xl break-words text-2xl font-extrabold leading-tight tracking-tight text-white sm:text-3xl md:text-5xl">
                     {story.title}
                 </Heading>
                 <span className="mt-3 block h-1.5 w-16 rounded-full bg-primary" aria-hidden />
                 {story.excerpt ? (
-                    <p className="mt-2.5 line-clamp-2 max-w-2xl text-sm leading-relaxed text-white/85 md:line-clamp-3 md:text-base">
+                    <p className="mt-2.5 line-clamp-2 max-w-2xl break-words text-sm leading-relaxed text-white/85 md:line-clamp-3 md:text-base">
                         {story.excerpt}
                     </p>
                 ) : null}

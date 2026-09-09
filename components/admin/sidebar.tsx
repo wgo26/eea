@@ -40,7 +40,11 @@ export function AdminSidebar({
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-3" aria-label={dict.admin.sidebar.admin}>
         {items.map((item) => {
-          const isActive = pathname === item.path || pathname.startsWith(`${item.path}/`)
+          const isActive =
+            pathname === item.href ||
+            pathname.startsWith(`${item.href}/`) ||
+            pathname === item.path ||
+            pathname.startsWith(`${item.path}/`)
           const Icon = item.icon
           return (
             <Link

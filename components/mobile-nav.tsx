@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 type MobileNavProps = {
-  items: { href: string; label: string }[];
+  items: { href: string; label: string; path?: string }[];
   searchAction: string;
   searchPlaceholder: string;
   searchLabel: string;
@@ -16,6 +16,18 @@ type MobileNavProps = {
   submitHref: string;
   submitLabel: string;
 };
+
+const SUPPORTED_LOCALES = ["en", "fr"] as const;
+
+function stripLocalePrefix(path: string): string {
+  const first = path.split("/")[1];
+  if ((SUPPORTED_LOCALES as readonly string[]).includes(first)) {
+    const stripped = "/" + path.split("/").slice(2).join("/");
+    if (stripped === "/" || stripped === "//") return "/";
+    return stripped.replace(/\/+$/, "") || "/";
+  }
+  return path || "/";
+}
 
 /** Mobile menu — nav links, search and the submit CTA below md. */
 export function MobileNav({
@@ -51,8 +63,13 @@ export function MobileNav({
           </form>
           <nav className="mt-3 flex flex-col">
             {items.map((item) => {
+              const canonical = item.path ?? stripLocalePrefix(item.href);
+              const stripped = stripLocalePrefix(pathname);
               const isActive =
-                pathname === item.href || pathname.startsWith(`${item.href}/`);
+                stripped === canonical ||
+                stripped.startsWith(`${canonical}/`) ||
+                pathname === item.href ||
+                pathname.startsWith(`${item.href}/`);
               return (
                 <Link
                   key={item.href}

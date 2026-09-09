@@ -23,6 +23,18 @@ export function useLocaleFromPath(): Locale {
     return (locales as readonly string[]).includes(first) ? (first as Locale) : "en";
 }
 
+function stripLocalePrefix(path: string): string {
+    const first = path.split("/")[1];
+    if ((locales as readonly string[]).includes(first)) {
+        const stripped = "/" + path.split("/").slice(2).join("/");
+        // "/en" -> "/" ; "/en/" -> "/" ; "/en/photo-stories" -> "/photo-stories"
+        if (stripped === "/" || stripped === "//") return "/";
+        // handle double slash edge
+        return stripped.replace(/\/+$/, "") || "/";
+    }
+    return path || "/";
+}
+
 const SECTION_PATHS = [
     { key: "photoStories", path: "/photo-stories" },
     { key: "news", path: "/news" },
@@ -38,6 +50,7 @@ export function useNavItems() {
     return SECTION_PATHS.map(({ key, path }) => ({
         href: localeHref(locale, path),
         label: dict.nav[key],
+        path,
     }));
 }
 
@@ -109,7 +122,10 @@ export function SiteHeader({ branding }: { branding?: SiteBranding }) {
 
                 <nav className="ml-4 hidden items-center gap-0.5 lg:flex" aria-label="Main">
                     {items.map((item) => {
+                        const canonical = (item as { path?: string }).path ?? stripLocalePrefix(item.href)
+                        const stripped = stripLocalePrefix(pathname)
                         const isActive =
+                            stripped === canonical || stripped.startsWith(`${canonical}/`) ||
                             pathname === item.href || pathname.startsWith(`${item.href}/`);
                         return (
                             <Link
