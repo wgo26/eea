@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { ArrowLeft } from "lucide-react";
 
 import { getDictionary, resolveLocale } from "@/lib/i18n";
-import { SubmitForm } from "@/components/submit/submit-form";
+import { SubmitFormGated } from "@/components/submit/submit-form-gated";
 import { localePath } from "@/lib/i18n/urls";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -31,7 +31,7 @@ export default async function Page() {
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">{meta.blurb}</p>
             <div className="mt-6">
-                <SubmitForm type="buy-sell" dict={dict} />
+                <SubmitFormGated type="buy-sell" dict={dict} />
             </div>
         </div>
     );

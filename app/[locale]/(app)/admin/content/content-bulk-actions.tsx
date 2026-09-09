@@ -4,13 +4,9 @@ import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { DataTable } from '@/components/admin/data-table'
 import { BulkActionsBar } from '@/components/admin/bulk-actions'
-import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import type { Column } from '@/components/admin/data-table'
 import type { ContentRow } from '@/lib/admin/queries'
 import { updateContentStatus, archiveContent, deleteContentItem } from '@/lib/admin/actions'
-import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
-import { localizeStatus, localizeType } from '@/lib/admin/labels'
-import { formatRelative } from '@/lib/admin/format'
 import Image from 'next/image'
 
 type CommonDict = {
@@ -19,6 +15,7 @@ type CommonDict = {
   bulkPublish: string
   bulkArchive: string
   bulkDelete: string
+  bulkUpdated: string
   confirm: string
   cancel: string
 }
@@ -40,18 +37,11 @@ type Props = {
     toastDeleted: string
   }
   common: CommonDict
-  base: string
-  status: string
-  type: string
-  search?: string
 }
 
-export function ContentBulkActions({ rows, canDelete, copy, common, base, status, type, search }: Props) {
+export function ContentBulkActions({ rows, canDelete, copy, common }: Props) {
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const { run, loading } = useAdminMutation()
 
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id))
 
@@ -77,50 +67,28 @@ export function ContentBulkActions({ rows, canDelete, copy, common, base, status
     router.refresh()
   }
 
-  const handleBulkPublish = async () => {
-    await run(
-      async () => {
-        const results = await Promise.all(
-          selectedKeys.map((id) => updateContentStatus(id, 'published')),
-        )
-        const failed = results.filter((r) => !r.ok)
-        return failed.length > 0
-          ? { ok: false, error: `${failed.length} item(s) failed` }
-          : { ok: true }
-      },
-      `${selectedKeys.length} item(s) published.`,
-    )
-    refresh()
+  const handleBulkPublish = async (keys: string[]) => {
+    const results = await Promise.all(keys.map((id) => updateContentStatus(id, 'published')))
+    const failed = results.filter((r) => !r.ok)
+    return failed.length > 0
+      ? { ok: false as const, error: `${failed.length} item(s) failed` }
+      : { ok: true as const }
   }
 
-  const handleBulkArchive = async () => {
-    setShowArchiveConfirm(false)
-    await run(
-      async () => {
-        const results = await Promise.all(selectedKeys.map((id) => archiveContent(id)))
-        const failed = results.filter((r) => !r.ok)
-        return failed.length > 0
-          ? { ok: false, error: `${failed.length} item(s) failed` }
-          : { ok: true }
-      },
-      copy.toastArchived,
-    )
-    refresh()
+  const handleBulkArchive = async (keys: string[]) => {
+    const results = await Promise.all(keys.map((id) => archiveContent(id)))
+    const failed = results.filter((r) => !r.ok)
+    return failed.length > 0
+      ? { ok: false as const, error: `${failed.length} item(s) failed` }
+      : { ok: true as const }
   }
 
-  const handleBulkDelete = async () => {
-    setShowDeleteConfirm(false)
-    await run(
-      async () => {
-        const results = await Promise.all(selectedKeys.map((id) => deleteContentItem(id)))
-        const failed = results.filter((r) => !r.ok)
-        return failed.length > 0
-          ? { ok: false, error: `${failed.length} item(s) failed` }
-          : { ok: true }
-      },
-      copy.toastDeleted,
-    )
-    refresh()
+  const handleBulkDelete = async (keys: string[]) => {
+    const results = await Promise.all(keys.map((id) => deleteContentItem(id)))
+    const failed = results.filter((r) => !r.ok)
+    return failed.length > 0
+      ? { ok: false as const, error: `${failed.length} item(s) failed` }
+      : { ok: true as const }
   }
 
   // Render a hidden DataTable with selectable rows + bulk bar above it
@@ -146,20 +114,20 @@ export function ContentBulkActions({ rows, canDelete, copy, common, base, status
       {selected.size > 0 && (
         <BulkActionsBar
           selectedCount={selected.size}
+          getKeys={() => selectedKeys}
           onClear={() => setSelected(new Set())}
           onDone={refresh}
           selectedLabel={common.bulkSelected}
           clearLabel={common.bulkClear}
           cancelLabel={common.cancel}
+          confirmLabel={common.confirm}
           actions={[
-            { label: common.bulkPublish, action: handleBulkPublish, successToast: 'Published' },
+            { label: common.bulkPublish, action: handleBulkPublish, successToast: common.bulkUpdated },
             { label: common.bulkArchive, action: handleBulkArchive, successToast: copy.toastArchived, tone: 'danger', confirmTitle: copy.archiveConfirmTitle, confirmBody: copy.archiveConfirmBody },
             ...(canDelete ? [{ label: common.bulkDelete, action: handleBulkDelete, successToast: copy.toastDeleted, tone: 'danger' as const, confirmTitle: copy.deleteConfirmTitle, confirmBody: copy.deleteConfirmBody }] : []),
           ]}
         />
       )}
-
-      <input type="hidden" name="bulk-selection" value={Array.from(selected).join(',')} />
 
       <DataTable
         rows={rows}
@@ -170,29 +138,6 @@ export function ContentBulkActions({ rows, canDelete, copy, common, base, status
         onToggleRow={toggleRow}
         onToggleAll={toggleAll}
         allSelected={allSelected}
-      />
-
-      <ConfirmDialog
-        open={showArchiveConfirm}
-        onOpenChange={setShowArchiveConfirm}
-        title={copy.archiveConfirmTitle}
-        description={copy.archiveConfirmBody}
-        confirmLabel={common.confirm}
-        cancelLabel={common.cancel}
-        onConfirm={handleBulkArchive}
-        loading={loading}
-      />
-
-      <ConfirmDialog
-        open={showDeleteConfirm}
-        onOpenChange={setShowDeleteConfirm}
-        title={copy.deleteConfirmTitle}
-        description={copy.deleteConfirmBody}
-        confirmLabel={common.confirm}
-        cancelLabel={common.cancel}
-        onConfirm={handleBulkDelete}
-        loading={loading}
-        tone="danger"
       />
     </>
   )

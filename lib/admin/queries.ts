@@ -63,6 +63,8 @@ export type DashboardStats = {
   storageUsed: number
   storageByProvider: { provider: string; bytes: number; count: number }[]
   recentActivity: ModerationEntry[]
+  /** submitted_at of the oldest pending/in_review submission (SLA watch). */
+  oldestPendingAt: string | null
 }
 
 export const EMPTY_DASHBOARD_STATS: DashboardStats = {
@@ -82,6 +84,7 @@ export const EMPTY_DASHBOARD_STATS: DashboardStats = {
   storageUsed: 0,
   storageByProvider: [],
   recentActivity: [],
+  oldestPendingAt: null,
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
@@ -96,7 +99,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     today.setUTCHours(0, 0, 0, 0)
     const expiringWindow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
 
-  const [pendingRes, byTypeRes, todayRes, scheduledRes, draftRes, activeListingsRes, expiringSoonRes, activeAdsRes, countsRes, storageRes, activityRes] = await Promise.all([
+  const [pendingRes, byTypeRes, todayRes, scheduledRes, draftRes, activeListingsRes, expiringSoonRes, activeAdsRes, countsRes, storageRes, activityRes, oldestRes] = await Promise.all([
     safe(db().from('submissions').select('id', { count: 'exact', head: true }).eq('status', 'pending')),
     safe(db().from('submissions').select('submission_type').eq('status', 'pending')),
     safe(db().from('content_items').select('id', { count: 'exact', head: true }).eq('status', 'published').gte('published_at', today.toISOString())),
@@ -107,7 +110,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     safe(db().from('ad_campaigns').select('id', { count: 'exact', head: true }).eq('status', 'active')),
     safe(db().from('content_items').select('type')),
     safe(db().from('media_assets').select('provider, file_size_bytes')),
-    getRecentModeration(8),
+    getRecentModeration({ limit: 8 }).then((r) => r.rows),
+    safe(db().from('submissions').select('submitted_at').in('status', ['pending', 'in_review']).order('submitted_at', { ascending: true }).limit(1)),
   ])
 
   const byTypeMap = new Map<string, number>()
@@ -145,6 +149,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       storageUsed,
       storageByProvider: [...providerMap.entries()].map(([provider, v]) => ({ provider, ...v })),
       recentActivity: activityRes,
+      oldestPendingAt: ((oldestRes.data ?? []) as { submitted_at: string | null }[])[0]?.submitted_at ?? null,
     }
   } catch (e) {
     console.error('[admin] getDashboardStats failed, returning empty stats', e)
@@ -173,7 +178,7 @@ export type SubmissionRow = {
 }
 
 export async function getSubmissions(options?: {
-  status?: SubmissionStatus | 'all'
+  status?: SubmissionStatus | SubmissionStatus[] | 'all'
   type?: ContentType | 'all'
   search?: string
   limit?: number
@@ -185,35 +190,80 @@ export async function getSubmissions(options?: {
   const limit = options?.limit ?? 20
   const offset = options?.offset ?? 0
 
-  let query = db()
-    .from('submissions')
-    .select('id, submission_type, status, guest_name, guest_email, guest_phone, consent_confirmed, rights_confirmed, submitted_at, reviewed_at, rejection_reason, internal_notes, payload, content_item_id', { count: 'exact' })
-    .order('submitted_at', { ascending: false, nullsFirst: false })
-    .range(offset, offset + limit - 1)
+  // Fail-safe: a DB hiccup or missing service-role env resolves to an empty
+  // queue rather than crashing the page into the global error boundary.
+  if (!hasDatabase()) return { rows: [], total: 0 }
+  try {
+    let query = db()
+      .from('submissions')
+      .select('id, submission_type, status, guest_name, guest_email, guest_phone, consent_confirmed, rights_confirmed, submitted_at, reviewed_at, rejection_reason, internal_notes, payload, content_item_id', { count: 'exact' })
+      .order('submitted_at', { ascending: false, nullsFirst: false })
+      .range(offset, offset + limit - 1)
 
-  if (status !== 'all') query = query.eq('status', status)
-  if (type !== 'all') query = query.eq('submission_type', type)
-  if (search) query = query.or(`guest_name.ilike.%${search}%,guest_email.ilike.%${search}%,guest_phone.ilike.%${search}%`)
+    if (status !== 'all') {
+      query = Array.isArray(status) ? query.in('status', status) : query.eq('status', status)
+    }
+    if (type !== 'all') query = query.eq('submission_type', type)
+    if (search) query = query.or(`guest_name.ilike.%${search}%,guest_email.ilike.%${search}%,guest_phone.ilike.%${search}%`)
 
-  const { data, count } = await safe(query)
-  return {
-    rows: (data ?? []).map((r) => ({
-    id: r.id,
-    submissionType: r.submission_type,
-    status: r.status,
-    guestName: r.guest_name,
-    guestEmail: r.guest_email,
-    guestPhone: r.guest_phone,
-    consentConfirmed: r.consent_confirmed,
-    rightsConfirmed: r.rights_confirmed,
-    submittedAt: r.submitted_at,
-    reviewedAt: r.reviewed_at,
-    rejectionReason: r.rejection_reason,
-    internalNotes: r.internal_notes,
-    payload: r.payload,
-    contentItemId: r.content_item_id,
-    })),
-    total: count ?? 0,
+    const { data, count } = await safe(query)
+    return {
+      rows: (data ?? []).map((r) => ({
+      id: r.id,
+      submissionType: r.submission_type,
+      status: r.status,
+      guestName: r.guest_name,
+      guestEmail: r.guest_email,
+      guestPhone: r.guest_phone,
+      consentConfirmed: r.consent_confirmed,
+      rightsConfirmed: r.rights_confirmed,
+      submittedAt: r.submitted_at,
+      reviewedAt: r.reviewed_at,
+      rejectionReason: r.rejection_reason,
+      internalNotes: r.internal_notes,
+      payload: r.payload,
+      contentItemId: r.content_item_id,
+      })),
+      total: count ?? 0,
+    }
+  } catch (e) {
+    console.error('[admin] getSubmissions failed, returning empty queue', e)
+    return { rows: [], total: 0 }
+  }
+}
+
+/**
+ * Tab-badge counts for the moderation queue. Six index-only head counts beat
+ * pulling 5×1000 rows; "pending" folds in reopened (in_review) rows exactly
+ * like the queue view does.
+ */
+export async function getSubmissionCounts(): Promise<{
+  pending: number
+  needs_clarification: number
+  approved: number
+  rejected: number
+  total: number
+}> {
+  const empty = { pending: 0, needs_clarification: 0, approved: 0, rejected: 0, total: 0 }
+  if (!hasDatabase()) return empty
+  try {
+    const statuses: SubmissionStatus[] = ['pending', 'in_review', 'needs_clarification', 'approved', 'rejected']
+    const results = await Promise.all(
+      statuses.map((s) => safe(db().from('submissions').select('id', { count: 'exact', head: true }).eq('status', s))),
+    )
+    const byStatus: Record<string, number> = {}
+    statuses.forEach((s, i) => { byStatus[s] = results[i].count ?? 0 })
+    const pending = byStatus.pending + byStatus.in_review
+    return {
+      pending,
+      needs_clarification: byStatus.needs_clarification,
+      approved: byStatus.approved,
+      rejected: byStatus.rejected,
+      total: pending + byStatus.needs_clarification + byStatus.approved + byStatus.rejected,
+    }
+  } catch (e) {
+    console.error('[admin] getSubmissionCounts failed, returning empty counts', e)
+    return empty
   }
 }
 
@@ -277,7 +327,7 @@ const CONTENT_SELECT = `id, type, slug, status, verification, is_featured, is_ar
   translations:content_translations(locale, title, excerpt),
   location:locations(name),
   category:categories!category_id(category_translations(locale, name)),
-  cover:media_assets!inner(public_url)`
+  cover:media_assets(public_url)`
 
 export async function getContentItems(options?: {
   status?: string | 'all'
@@ -361,7 +411,7 @@ export type ContentEditData = ContentRow & {
   frBody: string | null
   locationId: string | null
   categoryId: string | null
-  photos: { id: string; url: string; caption: string | null; credit: string | null }[]
+  photos: { id: string; url: string; alt: string | null; caption: string | null; credit: string | null }[]
   listing: { price: number | null; currency: string | null; contactPhone: string | null; contactEmail: string | null; whatsappNumber: string | null; sellerName: string | null } | null
   notice: { noticeType: string; organizationName: string | null; contactPhone: string | null; isOfficial: boolean; noticeDate: string | null; expiryDate: string | null } | null
   event: { startsAt: string | null; endsAt: string | null; venueName: string | null; ticketUrl: string | null; organizerName: string | null; organizerPhone: string | null; organizerEmail: string | null } | null
@@ -372,7 +422,7 @@ export async function getContentItemEditData(contentItemId: string): Promise<Con
   const { data } = await safe(
     db()
       .from('content_items')
-      .select('id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by, location_id, category_id, translations:content_translations(locale, title, excerpt, body), location:locations(name), category:categories!category_id(category_translations(locale, name)), media:media_assets(id, public_url, caption, photographer_credit, sort_order), listing:listings(price, currency, contact_phone, contact_email, whatsapp_number), notice:notices(notice_type, organization_name, contact_phone, is_official, notice_date, expiry_date), event:events(starts_at, ends_at, venue_name, ticket_url, organizer_name, organizer_phone, organizer_email)')
+      .select('id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by, location_id, category_id, translations:content_translations(locale, title, excerpt, body), location:locations(name), category:categories!category_id(category_translations(locale, name)), media:media_assets(id, public_url, caption, alt_text, photographer_credit, sort_order), listing:listings(price, currency, contact_phone, contact_email, whatsapp_number), notice:notices(notice_type, organization_name, contact_phone, is_official, notice_date, expiry_date), event:events(starts_at, ends_at, venue_name, ticket_url, organizer_name, organizer_phone, organizer_email)')
       .eq('id', contentItemId)
       .limit(1),
   )
@@ -382,7 +432,7 @@ export async function getContentItemEditData(contentItemId: string): Promise<Con
   const translations = (Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []) as { locale: string; title: string | null; excerpt: string | null; body: string | null }[]
   const en = translations.find((t) => t.locale === 'en')
   const fr = translations.find((t) => t.locale === 'fr')
-  const media = (Array.isArray(row.media) ? row.media : row.media ? [row.media] : []) as { id: string; public_url: string; caption: string | null; photographer_credit: string | null }[]
+  const media = (Array.isArray(row.media) ? row.media : row.media ? [row.media] : []) as { id: string; public_url: string; caption: string | null; alt_text: string | null; photographer_credit: string | null }[]
   const listingRaw = (Array.isArray(row.listing) ? row.listing[0] : row.listing) as { price: number | string | null; currency: string | null; contact_phone: string | null; contact_email: string | null; whatsapp_number: string | null; seller_name?: string | null } | null | undefined
   const noticeRaw = (Array.isArray(row.notice) ? row.notice[0] : row.notice) as { notice_type: string; organization_name: string | null; contact_phone: string | null; is_official: boolean; notice_date: string | null; expiry_date: string | null } | null | undefined
   const eventRaw = (Array.isArray(row.event) ? row.event[0] : row.event) as { starts_at: string | null; ends_at: string | null; venue_name: string | null; ticket_url: string | null; organizer_name: string | null; organizer_phone: string | null; organizer_email: string | null } | null | undefined
@@ -396,7 +446,7 @@ export async function getContentItemEditData(contentItemId: string): Promise<Con
     frBody: fr?.body ?? null,
     locationId: row.location_id as string | null,
     categoryId: row.category_id as string | null,
-    photos: [...media].sort((a, b) => (a as unknown as { sort_order: number }).sort_order - (b as unknown as { sort_order: number }).sort_order).map((m) => ({ id: m.id, url: m.public_url, caption: m.caption, credit: m.photographer_credit })),
+    photos: [...media].sort((a, b) => (a as unknown as { sort_order: number }).sort_order - (b as unknown as { sort_order: number }).sort_order).map((m) => ({ id: m.id, url: m.public_url, alt: m.alt_text ?? null, caption: m.caption, credit: m.photographer_credit })),
     listing: listingRaw ? { price: listingRaw.price === null ? null : Number(listingRaw.price), currency: listingRaw.currency, contactPhone: listingRaw.contact_phone, contactEmail: listingRaw.contact_email, whatsappNumber: listingRaw.whatsapp_number, sellerName: (listingRaw.seller_name as string | null) ?? null } : null,
     notice: noticeRaw ? { noticeType: noticeRaw.notice_type, organizationName: noticeRaw.organization_name, contactPhone: noticeRaw.contact_phone, isOfficial: !!noticeRaw.is_official, noticeDate: noticeRaw.notice_date, expiryDate: noticeRaw.expiry_date } : null,
     event: eventRaw ? { startsAt: eventRaw.starts_at, endsAt: eventRaw.ends_at, venueName: eventRaw.venue_name, ticketUrl: eventRaw.ticket_url, organizerName: eventRaw.organizer_name, organizerPhone: eventRaw.organizer_phone, organizerEmail: eventRaw.organizer_email } : null,
@@ -429,7 +479,7 @@ export async function getHomepageSlots(locale: Locale = 'en'): Promise<HomepageS
       .select(`id, slot_key, content_item_id, sort_order, is_active, starts_at, ends_at,
         content:content_items(id, type,
           translations:content_translations(locale, title),
-          cover:media_assets!inner(public_url))`)
+          cover:media_assets(public_url))`)
       .order('sort_order', { ascending: true }),
   )
   return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
@@ -514,18 +564,20 @@ export type UserRow = {
   createdAt: string | null
 }
 
-export async function getUsers(options?: { search?: string; role?: AppRole | 'all'; status?: 'all' | 'active' | 'suspended' | 'banned'; limit?: number }): Promise<UserRow[]> {
+export async function getUsers(options?: { search?: string; role?: AppRole | 'all'; status?: 'all' | 'active' | 'suspended' | 'banned'; limit?: number; page?: number }): Promise<{ rows: UserRow[]; total: number }> {
   const search = options?.search?.trim()
   const role = options?.role ?? 'all'
   const limit = options?.limit ?? 50
+  const page = options?.page ?? 1
+  const offset = (page - 1) * limit
 
   let query = db()
     .from('profiles')
     .select(`id, display_name, full_name, email, phone, avatar_url, is_verified, is_public, is_suspended, is_banned, contributor_featured, contributor_bio_override, created_at,
       location:locations(name),
-      roles:user_roles(role)`)
+      roles:user_roles(role)`, { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .range(offset, offset + limit - 1)
 
   if (search) query = query.or(`display_name.ilike.%${search}%,full_name.ilike.%${search}%,email.ilike.%${search}%`)
   if (role !== 'all') query = query.eq('roles.role', role)
@@ -533,8 +585,8 @@ export async function getUsers(options?: { search?: string; role?: AppRole | 'al
   if (options?.status === 'banned') query = query.eq('is_banned', true)
   if (options?.status === 'active') query = query.eq('is_suspended', false).eq('is_banned', false)
 
-  const { data } = await safe(query)
-  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+  const { data, count } = await safe(query)
+  const rows = ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
     const roles = Array.isArray(row.roles) ? row.roles : row.roles ? [row.roles] : []
     const location = Array.isArray(row.location) ? row.location[0] : row.location
     return {
@@ -555,6 +607,7 @@ export async function getUsers(options?: { search?: string; role?: AppRole | 'al
       createdAt: row.created_at as string | null,
     }
   })
+  return { rows, total: count ?? 0 }
 }
 
 /* ------------------------------------------------------------------ */
@@ -748,21 +801,36 @@ export type ModerationEntry = {
   submissionId: string | null
 }
 
-export async function getRecentModeration(limit = 20, filters?: { actor?: string; action?: string; entityType?: string }, locale: Locale = 'en'): Promise<ModerationEntry[]> {
-  if (!hasDatabase()) return []
+export async function getRecentModeration(options?: {
+  limit?: number
+  page?: number
+  action?: string
+  entityType?: string
+  actor?: string
+  from?: string
+  to?: string
+  locale?: Locale
+}): Promise<{ rows: ModerationEntry[]; total: number }> {
+  const limit = options?.limit ?? 20
+  const page = options?.page ?? 1
+  const offset = (page - 1) * limit
+  const locale = options?.locale ?? 'en'
+  if (!hasDatabase()) return { rows: [], total: 0 }
   try {
     let query = db()
         .from('moderation_log')
         .select(`id, action, from_status, to_status, notes, created_at, submission_id, entity_type,
           actor:profiles(display_name, full_name),
-          content:content_items(type, translations:content_translations(locale, title))`)
+          content:content_items(type, translations:content_translations(locale, title))`, { count: 'exact' })
         .order('created_at', { ascending: false })
-        .limit(limit)
-    if (filters?.action) query = query.eq('action', filters.action)
-    if (filters?.entityType) query = query.eq('entity_type', filters.entityType)
-    if (filters?.actor) query = query.eq('actor_id', filters.actor)
-    const { data } = await safe(query)
-    return (data ?? []).map((row) => {
+        .range(offset, offset + limit - 1)
+    if (options?.action) query = query.eq('action', options.action)
+    if (options?.entityType) query = query.eq('entity_type', options.entityType)
+    if (options?.actor) query = query.eq('actor_id', options.actor)
+    if (options?.from) query = query.gte('created_at', options.from)
+    if (options?.to) query = query.lte('created_at', `${options.to}T23:59:59.999Z`)
+    const { data, count } = await safe(query)
+    const rows = (data ?? []).map((row) => {
       const actor = Array.isArray(row.actor) ? row.actor[0] : row.actor
       const content = Array.isArray(row.content) ? row.content[0] : row.content
       const translations = content && Array.isArray(content.translations) ? content.translations : content?.translations ? [content.translations] : []
@@ -781,9 +849,25 @@ export async function getRecentModeration(limit = 20, filters?: { actor?: string
         submissionId: row.submission_id,
       }
     })
+    return { rows, total: count ?? 0 }
   } catch (e) {
     console.error('[admin] getRecentModeration failed', e)
-    return []
+    return { rows: [], total: 0 }
+  }
+}
+
+/** Distinct action / entity-type values for the audit-log filter dropdowns. */
+export async function getAuditFilterOptions(): Promise<{ actions: string[]; entityTypes: string[] }> {
+  if (!hasDatabase()) return { actions: [], entityTypes: [] }
+  const [actionsRes, entitiesRes] = await Promise.all([
+    safe(db().from('moderation_log').select('action').limit(5000)),
+    safe(db().from('moderation_log').select('entity_type').limit(5000)),
+  ])
+  const uniqSorted = (values: (string | null | undefined)[]) =>
+    [...new Set(values.filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b))
+  return {
+    actions: uniqSorted((actionsRes.data ?? []).map((r) => (r as { action: string }).action)),
+    entityTypes: uniqSorted((entitiesRes.data ?? []).map((r) => (r as { entity_type: string | null }).entity_type)),
   }
 }
 
@@ -835,6 +919,63 @@ export async function getStorageStats(): Promise<StorageStats> {
     pendingBackup: pendingRes.count ?? 0,
     pendingVerification: verificationRes.count ?? 0,
     lastBackupAt: null,
+  }
+}
+
+export type MediaAssetRow = {
+  id: string
+  kind: string
+  provider: string
+  destination: string
+  publicUrl: string | null
+  storageKey: string | null
+  mimeType: string | null
+  sizeBytes: number | null
+  backedUpAt: string | null
+  backupVerifiedAt: string | null
+  verificationStatus: string | null
+  createdAt: string | null
+}
+
+/** Per-asset rows for the storage table (aggregates live in getStorageStats). */
+export async function getMediaAssets(options?: {
+  page?: number
+  limit?: number
+  kind?: string
+  provider?: string
+  backup?: 'backed_up' | 'pending'
+}): Promise<{ rows: MediaAssetRow[]; total: number }> {
+  const limit = options?.limit ?? 25
+  const page = options?.page ?? 1
+  const offset = (page - 1) * limit
+
+  let query = db()
+    .from('media_assets')
+    .select('id, kind, provider, destination, public_url, storage_key, mime_type, file_size_bytes, backed_up_at, backup_verified_at, verification_status, created_at', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1)
+  if (options?.kind && options.kind !== 'all') query = query.eq('kind', options.kind)
+  if (options?.provider && options.provider !== 'all') query = query.eq('provider', options.provider)
+  if (options?.backup === 'pending') query = query.is('backed_up_at', null)
+  if (options?.backup === 'backed_up') query = query.not('backed_up_at', 'is', null)
+
+  const { data, count } = await safe(query)
+  return {
+    rows: ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+      id: r.id as string,
+      kind: r.kind as string,
+      provider: r.provider as string,
+      destination: r.destination as string,
+      publicUrl: (r.public_url as string | null) ?? null,
+      storageKey: (r.storage_key as string | null) ?? null,
+      mimeType: (r.mime_type as string | null) ?? null,
+      sizeBytes: r.file_size_bytes == null ? null : Number(r.file_size_bytes),
+      backedUpAt: (r.backed_up_at as string | null) ?? null,
+      backupVerifiedAt: (r.backup_verified_at as string | null) ?? null,
+      verificationStatus: (r.verification_status as string | null) ?? null,
+      createdAt: (r.created_at as string | null) ?? null,
+    })),
+    total: count ?? 0,
   }
 }
 
@@ -1042,7 +1183,7 @@ export type AdminListingRow = {
  * listings extension row. When a listing status filter is applied the embed
  * becomes an inner join so the filter runs in SQL, not after the limit.
  */
-export async function getListingsAdmin(options?: { status?: string; limit?: number; offset?: number; locale?: Locale; search?: string }): Promise<AdminListingRow[]> {
+export async function getListingsAdmin(options?: { status?: string; limit?: number; offset?: number; locale?: Locale; search?: string }): Promise<{ rows: AdminListingRow[]; total: number }> {
   const status = options?.status ?? 'all'
   const limit = options?.limit ?? 100
   const offset = options?.offset ?? 0
@@ -1055,15 +1196,15 @@ export async function getListingsAdmin(options?: { status?: string; limit?: numb
 
   let query = db()
     .from('content_items')
-    .select(select)
+    .select(select, { count: 'exact' })
     .eq('type', 'listing')
     .order('published_at', { ascending: false, nullsFirst: false })
     .range(offset, offset + limit - 1)
   if (status !== 'all') query = query.eq('listing.listing_status', status)
   if (search) query = query.or(`slug.ilike.%${search}%,translations.title.ilike.%${search}%`)
 
-  const { data } = await safe(query)
-  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+  const { data, count } = await safe(query)
+  const rows = ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
     const translations = Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []
     const list = translations as { locale: string; title: string | null }[]
     const titleEn = list.find((x) => x.locale === 'en')?.title ?? null
@@ -1091,6 +1232,7 @@ export async function getListingsAdmin(options?: { status?: string; limit?: numb
       contactPhone: (l ? (l.contact_phone as string | null) : null) ?? null,
     }
   })
+  return { rows, total: count ?? 0 }
 }
 
 /* ------------------------------------------------------------------ */

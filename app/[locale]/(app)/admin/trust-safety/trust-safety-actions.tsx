@@ -1,9 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { resolveReport, resolveCorrection } from '@/lib/admin/actions'
+import Link from 'next/link'
+import { resolveReport, resolveCorrection, deleteReport } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
-import type { Dictionary } from '@/lib/i18n'
+import { ConfirmDialog } from '@/components/admin/confirm-dialog'
+import { localePath } from '@/lib/i18n/urls'
+import type { Dictionary, Locale } from '@/lib/i18n'
 import type { ReportRow, CorrectionRow } from '@/lib/admin/queries'
 
 type Copy = Dictionary['admin']['trustSafety']
@@ -83,11 +86,12 @@ export function CorrectionActions({ correction, copy }: { correction: Correction
   )
 }
 
-export function ReportActions({ report, copy }: { report: ReportRow; copy: Copy }) {
+export function ReportActions({ report, copy, common, locale }: { report: ReportRow; copy: Copy; common: Dictionary['admin']['common']; locale: Locale }) {
   const { addToast } = useToast()
   const [busy, setBusy] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState('')
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   const closed = report.status === 'resolved' || report.status === 'dismissed'
 
@@ -104,8 +108,28 @@ export function ReportActions({ report, copy }: { report: ReportRow; copy: Copy 
     }
   }
 
+  async function handleDelete() {
+    setBusy(true)
+    const result = await deleteReport(report.id)
+    setBusy(false)
+    if (result.ok) {
+      setDeleteOpen(false)
+      addToast(copy.toastReportDeleted, 'success')
+    } else {
+      addToast(result.error, 'error')
+    }
+  }
+
   return (
     <div className="space-y-2 text-right">
+      {report.contentItemId && (
+        <Link
+          href={`${localePath(locale, '/admin/content')}?edit=${report.contentItemId}`}
+          className="block text-xs text-primary hover:underline"
+        >
+          {copy.editContent}
+        </Link>
+      )}
       {!closed && (
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           {report.status !== 'investigating' && (
@@ -144,6 +168,25 @@ export function ReportActions({ report, copy }: { report: ReportRow; copy: Copy 
           </button>
         </div>
       )}
+      <button
+        type="button"
+        onClick={() => setDeleteOpen(true)}
+        disabled={busy}
+        className={ghostBtn + ' hover:text-destructive hover:border-destructive/50'}
+      >
+        {copy.deleteReport}
+      </button>
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={copy.deleteReportConfirmTitle}
+        description={copy.deleteReportConfirmBody}
+        confirmLabel={copy.deleteReport}
+        cancelLabel={common.cancel}
+        loading={busy}
+        onConfirm={handleDelete}
+        tone="danger"
+      />
     </div>
   )
 }

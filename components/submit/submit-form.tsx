@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { submitStory } from "@/lib/public/actions";
+import { PhotoUploadField } from "@/components/submit/photo-field";
 import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import type { SubmitState } from "@/lib/public/types";
 import { localePath } from "@/lib/i18n/urls";
@@ -72,7 +73,7 @@ function Field({
     );
 }
 
-export function SubmitForm({ type, dict }: { type: SubmitType; dict: Dictionary }) {
+export function SubmitForm({ type, dict, canUpload = false }: { type: SubmitType; dict: Dictionary; canUpload?: boolean }) {
     const router = useRouter();
     const locale = useLocaleFromPath();
     const [state, formAction, pending] = useActionState<SubmitState, FormData>(
@@ -147,11 +148,7 @@ export function SubmitForm({ type, dict }: { type: SubmitType; dict: Dictionary 
                         </Field>
                     </div>
                     <Field label={f.photos} htmlFor="photos" hint={f.photosHint}>
-                        <Textarea
-                            id="photos"
-                            name="photos"
-                            placeholder={f.photosPlaceholder}
-                        />
+                        <PhotoUploadField name="photos" placeholder={f.photosPlaceholder} canUpload={canUpload} />
                     </Field>
                     <Field label={f.description} htmlFor="description">
                         <Textarea id="description" name="description" placeholder={f.descriptionPlaceholder} />
@@ -181,7 +178,7 @@ export function SubmitForm({ type, dict }: { type: SubmitType; dict: Dictionary 
                         </Field>
                     </div>
                     <Field label={f.photos} htmlFor="photos" hint={f.photosHint}>
-                        <Textarea id="photos" name="photos" placeholder={f.photosPlaceholder} />
+                        <PhotoUploadField name="photos" placeholder={f.photosPlaceholder} canUpload={canUpload} />
                     </Field>
                 </>
             ) : null}
@@ -203,7 +200,7 @@ export function SubmitForm({ type, dict }: { type: SubmitType; dict: Dictionary 
                         <Input id="location" name="location" placeholder={f.locationPlaceholder} />
                     </Field>
                     <Field label={f.photos} htmlFor="photos" hint={f.photosHint}>
-                        <Textarea id="photos" name="photos" placeholder={f.photosPlaceholder} />
+                        <PhotoUploadField name="photos" placeholder={f.photosPlaceholder} canUpload={canUpload} />
                     </Field>
                 </>
             ) : null}
@@ -305,7 +302,7 @@ export function SubmitForm({ type, dict }: { type: SubmitType; dict: Dictionary 
                         <Input id="location" name="location" placeholder={f.locationPlaceholder} />
                     </Field>
                     <Field label={f.photos} htmlFor="photos" hint={f.photosHint}>
-                        <Textarea id="photos" name="photos" placeholder={f.photosPlaceholder} />
+                        <PhotoUploadField name="photos" placeholder={f.photosPlaceholder} canUpload={canUpload} />
                     </Field>
                 </>
             ) : null}

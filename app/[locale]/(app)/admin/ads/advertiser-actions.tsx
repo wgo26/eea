@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { deleteAdvertiser, updateAdvertiser } from '@/lib/admin/actions'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
-import { useToast } from '@/components/admin/toast'
 import {
   Dialog,
   DialogContent,

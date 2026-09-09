@@ -126,7 +126,7 @@ export default async function Page({
               },
               { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, dict.admin.common)} /> },
               { key: 'received', header: t.colReceived, render: (r) => <time className="text-xs text-muted-foreground">{formatRelative(r.createdAt, locale)}</time> },
-              { key: 'actions', header: '', render: (r) => <ReportActions report={r} copy={t} />, className: 'text-right' },
+              { key: 'actions', header: '', render: (r) => <ReportActions report={r} copy={t} common={dict.admin.common} locale={locale} />, className: 'text-right' },
             ]}
           />
         )

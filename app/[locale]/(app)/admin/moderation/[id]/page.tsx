@@ -4,7 +4,7 @@ import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
 import { requireCapability } from '@/lib/auth/guards'
-import { getSubmissionById, getContentItemRef, getLocations, getCategoriesForType } from '@/lib/admin/queries'
+import { getSubmissionById, getSubmissions, getContentItemRef, getLocations, getCategoriesForType } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { formatRelative } from '@/lib/admin/format'
@@ -29,6 +29,23 @@ function payloadValue(value: unknown): string {
   if (Array.isArray(value)) return value.map((v) => String(v)).join(', ')
   if (typeof value === 'object') return JSON.stringify(value)
   return String(value)
+}
+
+/** Keys that suggest image content, even without a file extension. */
+const PHOTO_KEY_RE = /photo|image|picture|cover/i
+const URL_RE = /https?:\/\/[^\s'",;\\]+/g
+
+/** Pull image URLs out of a flattened payload value (photos arrive comma-joined). */
+function extractPhotoUrls(key: string, value: string): string[] {
+  if (!value.includes('http')) return []
+  const urls = value.match(URL_RE) ?? []
+  if (urls.length === 0) return []
+  const imageUrls = urls.filter(
+    (u) => /\.(jpe?g|png|webp|gif|avif)(\?.*)?$/i.test(u) || u.includes('/uploads') || u.includes('/media'),
+  )
+  // A photo-ish payload key wins even when the URLs lack a recognizable extension.
+  if (PHOTO_KEY_RE.test(key)) return urls
+  return imageUrls
 }
 
 /** Public detail path for a published item, mirroring lib/queries/home.ts. */
@@ -63,10 +80,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   // become `listing` content items, so the category list uses that type.
   const contentTypeForCategories: ContentType =
     submission.submissionType === 'buy_sell' ? 'listing' : (submission.submissionType as ContentType)
-  const [locations, categories] = await Promise.all([
+  const [locations, categories, queue] = await Promise.all([
     getLocations(),
     getCategoriesForType(contentTypeForCategories, locale),
+    getSubmissions({ status: ['pending', 'in_review'], limit: 2 }),
   ])
+  // Top of the pending queue, excluding the submission being reviewed.
+  const nextPending = queue.rows.find((r) => r.id !== submission.id) ?? null
 
   // Published items can be previewed on the public site; anything else
   // deep-links into the content manager filtered to its status.
@@ -82,6 +102,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const payloadEntries = Object.entries(submission.payload ?? {})
     .map(([key, value]) => ({ key, value: payloadValue(value) }))
     .filter((entry) => entry.value !== '')
+
+  // Locale-aware payload labels (dictionary map, humanized-key fallback).
+  const labels: Record<string, string> = t.payloadLabels
+  const labelFor = (key: string) => labels[key] ?? labels[key.replace(/[_-]/g, '')] ?? humanizeKey(key)
 
   return (
     <div className="space-y-5">
@@ -109,12 +133,26 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <p className="mt-2 text-sm text-muted-foreground">{t.emptyPayload}</p>
           ) : (
             <dl className="mt-3 divide-y divide-border">
-              {payloadEntries.map(({ key, value }) => (
-                <div key={key} className="grid gap-1 py-2 sm:grid-cols-[160px_1fr] sm:gap-3">
-                  <dt className="text-xs font-medium text-muted-foreground">{humanizeKey(key)}</dt>
-                  <dd className="whitespace-pre-wrap break-words text-sm">{value}</dd>
-                </div>
-              ))}
+              {payloadEntries.map(({ key, value }) => {
+                const photos = extractPhotoUrls(key, value)
+                return (
+                  <div key={key} className="grid gap-1 py-2 sm:grid-cols-[160px_1fr] sm:gap-3">
+                    <dt className="text-xs font-medium text-muted-foreground">{labelFor(key)}</dt>
+                    {photos.length > 0 ? (
+                      <dd className="flex flex-wrap gap-2">
+                        {photos.map((url) => (
+                          <a key={url} href={url} target="_blank" rel="noreferrer" className="block">
+                            {/* eslint-disable-next-line @next/next/no-img-element -- external photo hosts, thumbnail preview */}
+                            <img src={url} alt="" className="h-16 w-16 rounded border border-border object-cover" />
+                          </a>
+                        ))}
+                      </dd>
+                    ) : (
+                      <dd className="whitespace-pre-wrap break-words text-sm">{value}</dd>
+                    )}
+                  </div>
+                )
+              })}
             </dl>
           )}
         </section>
@@ -158,9 +196,19 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             </Link>
           )}
 
+          {nextPending && (
+            <Link
+              href={localePath(locale, `/admin/moderation/${nextPending.id}`)}
+              className="block rounded-lg border border-border bg-card px-4 py-3 text-sm text-primary hover:underline"
+            >
+              {t.nextPending} →
+            </Link>
+          )}
+
           <ReviewActions
             submission={submission}
             copy={t}
+            common={dict.admin.common}
             locations={locations}
             categories={categories}
           />

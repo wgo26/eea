@@ -4,8 +4,10 @@ import { localePath } from '@/lib/i18n/urls'
 import { requireCapability } from '@/lib/auth/guards'
 import { getUsers } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
+import { EmptyState } from '@/components/admin/empty-state'
 import { StatusBadge } from '@/components/admin/status-badge'
 import { DataTable } from '@/components/admin/data-table'
+import { Pager } from '@/components/admin/pager'
 import { formatDateTime } from '@/lib/admin/format'
 import { UserActions } from './user-actions'
 import { InviteForm } from './invite-form'
@@ -25,10 +27,12 @@ const ROLE_FILTERS: { key: AppRole | 'all'; dictKey: 'roleAll' | 'roleAdmin' | '
   { key: 'advertiser', dictKey: 'roleAdvertiser' },
 ]
 
+const PAGE_SIZE = 20
+
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ role?: string; status?: string; q?: string }>
+  searchParams: Promise<{ role?: string; status?: string; q?: string; page?: string }>
 }) {
   await requireCapability('manageUsers', '/admin/users')
   const locale = await getRequestLocale()
@@ -36,11 +40,21 @@ export default async function Page({
   const t = dict.admin.users
 
   const params = await searchParams
-  const role = (params.role as AppRole) || 'all'
+  const role = (params.role as AppRole | 'all') || 'all'
   const status = (params.status as 'all' | 'active' | 'suspended' | 'banned') || 'all'
   const search = params.q || ''
+  const page = Math.max(1, Number.parseInt(params.page ?? '1', 10) || 1)
 
-  const users = await getUsers({ role, status, search, limit: 100 })
+  const { rows: users, total } = await getUsers({ role, status, search, limit: PAGE_SIZE, page })
+
+  const pageHref = (p: number) => {
+    const sp = new URLSearchParams()
+    if (role !== 'all') sp.set('role', role)
+    if (status !== 'all') sp.set('status', status)
+    if (search) sp.set('q', search)
+    sp.set('page', String(p))
+    return `${localePath(locale, '/admin/users')}?${sp.toString()}`
+  }
 
   return (
     <div className="space-y-5">
@@ -84,9 +98,7 @@ export default async function Page({
       </div>
 
       {users.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-muted/30 p-10 text-center">
-          <p className="text-sm text-muted-foreground">{t.empty}</p>
-        </div>
+        <EmptyState message={t.empty} />
       ) : (
         <DataTable
           rows={users}
@@ -100,6 +112,8 @@ export default async function Page({
           ]}
         />
       )}
+
+      <Pager page={page} pageSize={PAGE_SIZE} total={total} hrefFor={pageHref} copy={dict.admin.common} />
     </div>
   )
 }

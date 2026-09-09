@@ -2,17 +2,13 @@ import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
 import { requireCapability } from '@/lib/auth/guards'
-import Link from 'next/link'
-import { getSubmissions } from '@/lib/admin/queries'
+import { getSubmissions, getSubmissionCounts } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
+import { EmptyState } from '@/components/admin/empty-state'
 import { Tabs } from '@/components/admin/tabs'
-import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
-import { localizeStatus, localizeType } from '@/lib/admin/labels'
-import { DataTable } from '@/components/admin/data-table'
-import { formatRelative } from '@/lib/admin/format'
-import { ModerationActions } from './moderation-actions'
+import { Pager } from '@/components/admin/pager'
+import { ModerationBulkTable } from './moderation-bulk-actions'
 import type { SubmissionStatus } from '@/lib/auth/roles'
-import type { SubmissionRow } from '@/lib/admin/queries'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -39,10 +35,14 @@ const TAB_LABELS: Record<string, keyof ReturnType<typeof getDictionary>['admin']
   all: 'tabAll',
 }
 
+const PAGE_SIZE = 20
+
+const ALL_STATUSES: SubmissionStatus[] = ['pending', 'in_review', 'needs_clarification', 'approved', 'rejected']
+
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; type?: string }>
+  searchParams: Promise<{ status?: string; type?: string; page?: string }>
 }) {
   const locale = await getRequestLocale()
   await requireCapability('moderate', '/admin/moderation')
@@ -53,48 +53,27 @@ export default async function Page({
   const params = await searchParams
   const status = (params.status as SubmissionStatus | 'all') || 'pending'
   const type = (params.type as 'all' | 'photo_story' | 'news' | 'listing' | 'notice' | 'culture') || 'all'
+  const page = Math.max(1, Number.parseInt(params.page ?? '1', 10) || 1)
 
-  // The pending queue also covers reopened rows (in_review) — merge both.
-  const [pendingRes, inReviewRes, clarificationRes, approvedRes, rejectedRes] = await Promise.all([
-    getSubmissions({ status: 'pending', type: 'all', limit: 1000 }),
-    getSubmissions({ status: 'in_review', type: 'all', limit: 1000 }),
-    getSubmissions({ status: 'needs_clarification', type: 'all', limit: 1000 }),
-    getSubmissions({ status: 'approved', type: 'all', limit: 1000 }),
-    getSubmissions({ status: 'rejected', type: 'all', limit: 1000 }),
+  // The pending queue also covers reopened rows (in_review) — fold both in.
+  const statusFilter: SubmissionStatus[] | 'all' =
+    status === 'pending'
+      ? ['pending', 'in_review']
+      : status === 'all'
+        ? ALL_STATUSES
+        : [status]
+
+  // One paginated server query for the visible page + cheap index-only head
+  // counts for the tab badges (replaces the 5×1000-row fetch + client merge).
+  const [{ rows: submissions, total }, counts] = await Promise.all([
+    getSubmissions({ status: statusFilter, type, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
+    getSubmissionCounts(),
   ])
-  const pendingItems = pendingRes.rows
-  const inReviewItems = inReviewRes.rows
-  const clarificationItems = clarificationRes.rows
-  const approvedItems = approvedRes.rows
-  const rejectedItems = rejectedRes.rows
-
-  const queueFor = (): SubmissionRow[] => {
-    const merged = [...pendingItems, ...inReviewItems].sort((a, b) =>
-      (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''),
-    )
-    if (status === 'pending') return merged.filter((r) => type === 'all' || r.submissionType === type)
-    if (status === 'all') return [...merged, ...clarificationItems, ...approvedItems, ...rejectedItems]
-      .filter((r) => type === 'all' || r.submissionType === type)
-      .sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''))
-      .slice(0, 100)
-    return (
-      status === 'needs_clarification' ? clarificationItems : status === 'approved' ? approvedItems : rejectedItems
-    ).filter((r) => type === 'all' || r.submissionType === type)
-  }
-  const submissions = queueFor()
-
-  const counts: Record<string, number> = {
-    pending: pendingItems.length + inReviewItems.length,
-    needs_clarification: clarificationItems.length,
-    approved: approvedItems.length,
-    rejected: rejectedItems.length,
-    all: pendingItems.length + inReviewItems.length + clarificationItems.length + approvedItems.length + rejectedItems.length,
-  }
 
   const tabs = STATUS_KEYS.map((key) => ({
     key,
     label: t[TAB_LABELS[key]],
-    count: counts[key] ?? 0,
+    count: (counts as Record<string, number>)[key === 'all' ? 'total' : key] ?? 0,
   }))
 
   /** Locale-prefixed tab hrefs (checklist: never a bare /admin constant). */
@@ -103,6 +82,9 @@ export default async function Page({
 
   const typeHref = (key: string) =>
     `${localePath(locale, '/admin/moderation')}?status=${status}&type=${key}`
+
+  const pageHref = (p: number) =>
+    `${localePath(locale, '/admin/moderation')}?status=${status}&type=${type}&page=${p}`
 
   const statusWord =
     status === 'pending' ? t.tabPending
@@ -135,41 +117,18 @@ export default async function Page({
       </div>
 
       {submissions.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-muted/30 p-10 text-center">
-          <p className="text-sm text-muted-foreground">{t.empty.replace('{status}', statusWord.toLowerCase())}</p>
-        </div>
+        <EmptyState message={t.empty.replace('{status}', statusWord.toLowerCase())} />
       ) : (
-        <DataTable
+        <ModerationBulkTable
           rows={submissions}
-          rowKey={(r) => r.id}
-          columns={[
-            { key: 'type', header: t.colType, render: (r) => (
-              <div className="space-y-1">
-                <TypeBadge type={r.submissionType} label={localizeType(r.submissionType, dict.admin.common)} />
-                <Link
-                  href={localePath(locale, `/admin/moderation/${r.id}`)}
-                  className="block text-xs text-primary hover:underline"
-                >
-                  {t.review}
-                </Link>
-              </div>
-            ) },
-            { key: 'submitter', header: t.colSubmitter, render: (r) => <SubmitterCell row={r} copy={t} /> },
-            { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, dict.admin.common)} /> },
-            { key: 'submitted', header: t.colSubmitted, render: (r) => <time className="text-xs text-muted-foreground">{formatRelative(r.submittedAt)}</time> },
-            { key: 'actions', header: '', render: (r) => <ModerationActions submission={r} copy={t} />, className: 'text-right' },
-          ]}
+          copy={t}
+          common={dict.admin.common}
+          commonLabels={dict.admin.common}
+          locale={locale}
         />
       )}
-    </div>
-  )
-}
 
-function SubmitterCell({ row, copy }: { row: SubmissionRow; copy: ReturnType<typeof getDictionary>['admin']['moderation'] }) {
-  return (
-    <div className="min-w-0">
-      <div className="text-sm font-medium truncate">{row.guestName ?? copy.anonymous}</div>
-      {row.guestEmail && <div className="text-xs text-muted-foreground truncate">{row.guestEmail}</div>}
+      <Pager page={page} pageSize={PAGE_SIZE} total={total} hrefFor={pageHref} copy={dict.admin.common} />
     </div>
   )
 }

@@ -71,7 +71,7 @@ export function DataTable<T>({
           key: '__select',
           header: '',
           sortable: false,
-          render: (_row: T) => null,
+          render: () => null,
           headerClassName: selectWidth,
           className: selectWidth,
         } as Column<T>,

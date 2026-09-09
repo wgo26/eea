@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/admin/empty-state'
 import { formatRelative } from '@/lib/admin/format'
 import { ContentActions } from './content-actions'
 import { ContentBulkActions } from './content-bulk-actions'
+import Link from 'next/link'
 import { ContentCreateDialog, ContentDeleteButton, ContentEditTrigger } from './content-dialogs'
 import { HomepageCuration } from './homepage-curation'
 import type { ContentRow } from '@/lib/admin/queries'
@@ -44,7 +45,7 @@ const TYPE_FILTERS = [
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; type?: string; tab?: string; page?: string; q?: string }>
+  searchParams: Promise<{ status?: string; type?: string; tab?: string; page?: string; q?: string; edit?: string }>
 }) {
   const { roles } = await requireCapability('manageContent', '/admin/content')
   const canDelete = isAdminRoles(roles)
@@ -129,7 +130,13 @@ export default async function Page({
             active={type}
           />
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Link
+              href={localePath(locale, '/admin/content/import')}
+              className="inline-flex min-h-[36px] items-center rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {t.importButton}
+            </Link>
             <ContentCreateDialog
               copy={t}
               common={dict.admin.common}
@@ -151,10 +158,6 @@ export default async function Page({
               canDelete={canDelete}
               copy={t}
               common={tc}
-              base={base}
-              status={status}
-              type={type}
-              search={search}
             />
             <DataTable
               rows={content.rows}
@@ -173,9 +176,9 @@ export default async function Page({
                         content={r}
                         copy={t}
                         common={dict.admin.common}
-                        typeFilters={tf}
                         locations={locationOptions}
                         categoriesByType={categoriesByType}
+                        autoOpen={params.edit === r.id}
                       />
                       <ContentActions content={r} copy={t} common={dict.admin.common} />
                       {canDelete && <ContentDeleteButton content={r} copy={t} common={dict.admin.common} />}

@@ -683,6 +683,30 @@ export async function updateSubmissionNotes(submissionId: string, notes: string)
   }
 }
 
+/**
+ * Bulk moderation: run the same capability- and status-checked single
+ * operations over a selection. Sequential on purpose — one HTTP round trip
+ * for the whole selection, with a per-item failure count surfaced to the UI.
+ */
+export async function bulkApproveSubmissions(ids: string[]): Promise<ActionResult> {
+  let failed = 0
+  for (const id of ids) {
+    const result = await approveSubmission(id)
+    if (!result.ok) failed += 1
+  }
+  return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} submission(s) failed.` } : { ok: true }
+}
+
+export async function bulkRejectSubmissions(ids: string[], reason: string): Promise<ActionResult> {
+  if (!reason.trim()) return { ok: false, error: 'A reason is required when rejecting.' }
+  let failed = 0
+  for (const id of ids) {
+    const result = await rejectSubmission(id, reason)
+    if (!result.ok) failed += 1
+  }
+  return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} submission(s) failed.` } : { ok: true }
+}
+
 /* ------------------------------------------------------------------ */
 /* Clarification & reopen (Phase 3 moderation loop)                    */
 /* ------------------------------------------------------------------ */
@@ -1073,6 +1097,24 @@ export async function updateContributorCuration(userId: string, input: { feature
     await audit(supabase, user.id, { action: 'user:contributor:update', entityType: 'profile', entityId: userId })
     revalidateLocalized('/admin/users')
     revalidateLocalized('/contributors')
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+export async function updateUserProfile(
+  userId: string,
+  input: { displayName?: string | null; fullName?: string | null },
+): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageUsers')
+    const patch: Record<string, string | null> = {}
+    if (input.displayName !== undefined) patch.display_name = input.displayName?.trim() || null
+    if (input.fullName !== undefined) patch.full_name = input.fullName?.trim() || null
+    if (Object.keys(patch).length === 0) return { ok: false, error: 'Nothing to update.' }
+    const { error } = await supabase.from('profiles').update(patch).eq('id', userId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: 'user:profile:update', entityType: 'profile', entityId: userId })
+    revalidateLocalized('/admin/users')
     return { ok: true }
   } catch (e) { return fail(e) }
 }
@@ -1821,6 +1863,18 @@ export async function triggerBackup(): Promise<ActionResult> {
  * (investigating -> resolved / dismissed). The note is recorded on the row
  * and in the moderation log so the audit trail shows who decided what.
  */
+/** Permanently delete a junk/spam report (admin only — irreversible). */
+export async function deleteReport(reportId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertAdmin()
+    const { error } = await supabase.from('reports').delete().eq('id', reportId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: 'report:delete', entityType: 'report', entityId: reportId })
+    revalidateLocalized('/admin/trust-safety')
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
 export async function resolveReport(
   reportId: string,
   status: 'investigating' | 'resolved' | 'dismissed',
@@ -2336,6 +2390,44 @@ export async function resolveDataRequest(
 /* ------------------------------------------------------------------ */
 /* Listing lifecycle (Phase 3 buy & sell loop)                         */
 /* ------------------------------------------------------------------ */
+
+/** Quick edit of listing commerce fields (price/currency) from the listings manager. */
+export async function updateListing(
+  contentItemId: string,
+  input: { price?: number | null; currency?: string | null },
+): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageContent')
+    const patch: Record<string, unknown> = {}
+    if (input.price !== undefined) patch.price = input.price
+    if (input.currency !== undefined) patch.currency = input.currency?.trim().toUpperCase() || null
+    if (Object.keys(patch).length === 0) return { ok: false, error: 'Nothing to update.' }
+    const { error } = await supabase.from('listings').update(patch).eq('content_item_id', contentItemId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: 'listing:update', entityType: 'listing', entityId: contentItemId })
+    revalidateLocalized('/admin/listings')
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+/** Bulk expire/relist over a selection — one round trip, per-item failures counted. */
+export async function bulkExpireListings(contentItemIds: string[]): Promise<ActionResult> {
+  let failed = 0
+  for (const id of contentItemIds) {
+    const result = await expireListing(id)
+    if (!result.ok) failed += 1
+  }
+  return failed > 0 ? { ok: false, error: `${failed} of ${contentItemIds.length} listing(s) failed.` } : { ok: true }
+}
+
+export async function bulkRelistListings(contentItemIds: string[]): Promise<ActionResult> {
+  let failed = 0
+  for (const id of contentItemIds) {
+    const result = await relistListing(id)
+    if (!result.ok) failed += 1
+  }
+  return failed > 0 ? { ok: false, error: `${failed} of ${contentItemIds.length} listing(s) failed.` } : { ok: true }
+}
 
 /** Manually expire an active listing (hidden from the public site at once). */
 export async function expireListing(contentItemId: string): Promise<ActionResult> {
