@@ -63,6 +63,8 @@ export type DashboardStats = {
   storageUsed: number
   storageByProvider: { provider: string; bytes: number; count: number }[]
   recentActivity: ModerationEntry[]
+  /** submitted_at of the oldest pending/in_review submission (SLA watch). */
+  oldestPendingAt: string | null
 }
 
 export const EMPTY_DASHBOARD_STATS: DashboardStats = {
@@ -82,6 +84,7 @@ export const EMPTY_DASHBOARD_STATS: DashboardStats = {
   storageUsed: 0,
   storageByProvider: [],
   recentActivity: [],
+  oldestPendingAt: null,
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
@@ -96,7 +99,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     today.setUTCHours(0, 0, 0, 0)
     const expiringWindow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
 
-  const [pendingRes, byTypeRes, todayRes, scheduledRes, draftRes, activeListingsRes, expiringSoonRes, activeAdsRes, countsRes, storageRes, activityRes] = await Promise.all([
+  const [pendingRes, byTypeRes, todayRes, scheduledRes, draftRes, activeListingsRes, expiringSoonRes, activeAdsRes, countsRes, storageRes, activityRes, oldestRes] = await Promise.all([
     safe(db().from('submissions').select('id', { count: 'exact', head: true }).eq('status', 'pending')),
     safe(db().from('submissions').select('submission_type').eq('status', 'pending')),
     safe(db().from('content_items').select('id', { count: 'exact', head: true }).eq('status', 'published').gte('published_at', today.toISOString())),
@@ -108,6 +111,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     safe(db().from('content_items').select('type')),
     safe(db().from('media_assets').select('provider, file_size_bytes')),
     getRecentModeration({ limit: 8 }).then((r) => r.rows),
+    safe(db().from('submissions').select('submitted_at').in('status', ['pending', 'in_review']).order('submitted_at', { ascending: true }).limit(1)),
   ])
 
   const byTypeMap = new Map<string, number>()
@@ -145,6 +149,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       storageUsed,
       storageByProvider: [...providerMap.entries()].map(([provider, v]) => ({ provider, ...v })),
       recentActivity: activityRes,
+      oldestPendingAt: ((oldestRes.data ?? []) as { submitted_at: string | null }[])[0]?.submitted_at ?? null,
     }
   } catch (e) {
     console.error('[admin] getDashboardStats failed, returning empty stats', e)

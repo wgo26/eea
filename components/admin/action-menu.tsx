@@ -40,7 +40,8 @@ export function ActionMenu({
 }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+      {/* base-ui has no asChild — the `render` prop composes the trigger element. */}
+      <DropdownMenuTrigger render={trigger as React.ReactElement}>
         {trigger}
       </DropdownMenuTrigger>
       <DropdownMenuContent align={align} className={cn('w-48', className)}>

@@ -338,6 +338,10 @@ export const appStringsEn = {
       quickActions: 'Quick actions',
       expiringListings: 'Expiring soon ({count})',
       viewAll: 'View all',
+      qaCreateContent: 'Create content',
+      qaInviteUser: 'Invite user',
+      qaNewAd: 'New ad',
+      slaWarning: 'Oldest pending submission is {hours}h old — the queue needs attention.',
     },
     moderation: {
       title: 'Moderation',

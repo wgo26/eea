@@ -1,10 +1,11 @@
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
-import Link from 'next/link'
 import { requireCapability } from '@/lib/auth/guards'
 import { getAdSlots, getAdvertisers, getPendingAdInquiries, getCampaigns } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
+import { EmptyState } from '@/components/admin/empty-state'
+import { Tabs } from '@/components/admin/tabs'
 import { DataTable } from '@/components/admin/data-table'
 import { StatusBadge } from '@/components/admin/status-badge'
 import { formatDate, formatPrice, formatPercent } from '@/lib/admin/format'
@@ -39,14 +40,20 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
     ended: t.statusEnded,
   }
 
+  const tab = (await searchParams).tab === 'inquiries' ? 'inquiries' : 'operations'
+
   return (
     <div className="space-y-6">
       <PageHeader title={t.title} description={t.description} />
 
-      <nav className="flex gap-2 border-b border-border pb-2">
-        <Link href={localePath(locale, '/admin/ads') + '?tab=inquiries'} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium">{t.inquiriesTab} ({inquiries.length})</Link>
-        <Link href={localePath(locale, '/admin/ads') + '?tab=operations'} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium">{t.operationsTab}</Link>
-      </nav>
+      <Tabs
+        tabs={[
+          { key: 'inquiries', label: t.inquiriesTab, count: inquiries.length },
+          { key: 'operations', label: t.operationsTab },
+        ]}
+        active={tab}
+        hrefFor={(key) => `${localePath(locale, '/admin/ads')}?tab=${key}`}
+      />
 
       <AdCreateForms
         copy={t}
@@ -54,7 +61,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
         advertisers={advertisers.map((a) => ({ id: a.id, companyName: a.companyName }))}
       />
 
-      {(await searchParams).tab === 'inquiries' && (
+      {tab === 'inquiries' && (
         <section>
           <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">{t.inquiriesHeading}</h2>
           {inquiries.length === 0 ? <p className="text-sm text-muted-foreground">{t.emptyInquiries}</p> : (
@@ -67,12 +74,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
         </section>
       )}
 
-      {(await searchParams).tab !== 'inquiries' && <><section>
+      {tab !== 'inquiries' && <><section>
         <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.slotsHeading}</h2>
         {slots.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
-            {t.emptySlots}
-          </div>
+          <EmptyState message={t.emptySlots} />
         ) : (
           <DataTable
             rows={slots}
@@ -97,9 +102,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
       <section>
         <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.campaignsHeading}</h2>
         {campaigns.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
-            {t.emptyCampaigns}
-          </div>
+          <EmptyState message={t.emptyCampaigns} />
         ) : (
           <DataTable
             rows={campaigns}
@@ -137,9 +140,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
       <section>
         <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.advertisersHeading}</h2>
         {advertisers.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
-            {t.emptyAdvertisers}
-          </div>
+          <EmptyState message={t.emptyAdvertisers} />
         ) : (
           <DataTable
             rows={advertisers}

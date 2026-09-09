@@ -338,6 +338,10 @@ export const appStringsFr = {
       quickActions: 'Actions rapides',
       expiringListings: 'Expire bientôt ({count})',
       viewAll: 'Tout afficher',
+      qaCreateContent: 'Créer un contenu',
+      qaInviteUser: 'Inviter un utilisateur',
+      qaNewAd: 'Nouvelle annonce',
+      slaWarning: 'La plus ancienne proposition en attente date de {hours} h — la file a besoin d’attention.',
     },
     moderation: {
       title: 'Modération',

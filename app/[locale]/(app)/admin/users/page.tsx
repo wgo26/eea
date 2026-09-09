@@ -4,6 +4,7 @@ import { localePath } from '@/lib/i18n/urls'
 import { requireCapability } from '@/lib/auth/guards'
 import { getUsers } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
+import { EmptyState } from '@/components/admin/empty-state'
 import { StatusBadge } from '@/components/admin/status-badge'
 import { DataTable } from '@/components/admin/data-table'
 import { Pager } from '@/components/admin/pager'
@@ -97,9 +98,7 @@ export default async function Page({
       </div>
 
       {users.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-muted/30 p-10 text-center">
-          <p className="text-sm text-muted-foreground">{t.empty}</p>
-        </div>
+        <EmptyState message={t.empty} />
       ) : (
         <DataTable
           rows={users}
