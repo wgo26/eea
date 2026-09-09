@@ -7,9 +7,6 @@ import { BulkActionsBar } from '@/components/admin/bulk-actions'
 import type { Column } from '@/components/admin/data-table'
 import type { ContentRow } from '@/lib/admin/queries'
 import { updateContentStatus, archiveContent, deleteContentItem } from '@/lib/admin/actions'
-import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
-import { localizeStatus, localizeType } from '@/lib/admin/labels'
-import { formatRelative } from '@/lib/admin/format'
 import Image from 'next/image'
 
 type CommonDict = {
@@ -40,13 +37,9 @@ type Props = {
     toastDeleted: string
   }
   common: CommonDict
-  base: string
-  status: string
-  type: string
-  search?: string
 }
 
-export function ContentBulkActions({ rows, canDelete, copy, common, base, status, type, search }: Props) {
+export function ContentBulkActions({ rows, canDelete, copy, common }: Props) {
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
 

@@ -151,10 +151,6 @@ export default async function Page({
               canDelete={canDelete}
               copy={t}
               common={tc}
-              base={base}
-              status={status}
-              type={type}
-              search={search}
             />
             <DataTable
               rows={content.rows}

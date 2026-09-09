@@ -148,7 +148,7 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
           ? copy.removeRoleConfirmBody.replace('{role}', label)
           : copy.toastRoleAssigned.replace('{role}', label),
         confirmLabel: hasRole ? copy.remove : copy.reauthTitle,
-        run: async (password) => {
+        run: async () => {
           const ok = await runToggleRole(role, !hasRole)
           if (ok) setReauth(null)
         },

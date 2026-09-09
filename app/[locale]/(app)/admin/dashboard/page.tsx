@@ -15,6 +15,14 @@ export async function generateMetadata(): Promise<{ title: string }> {
   return { title: getDictionary(locale).admin.dashboard.title }
 }
 
+// SLA watch: pending queue older than 48h gets the amber treatment.
+// Module-scope helper so the server-component render stays pure
+// (react-hooks/purity flags Date.now() inside render).
+function getOldestPendingHours(oldestPendingAt: string | null): number | null {
+  if (!oldestPendingAt) return null
+  return Math.floor((Date.now() - new Date(oldestPendingAt).getTime()) / 3_600_000)
+}
+
 export default async function Page() {
   await requireCapability('viewDashboard', '/admin/dashboard')
   const locale = await getRequestLocale()
@@ -22,10 +30,7 @@ export default async function Page() {
   const t = dict.admin.dashboard
   const stats = await getDashboardStats()
 
-  // SLA watch: pending queue older than 48h gets the amber treatment.
-  const oldestPendingHours = stats.oldestPendingAt
-    ? Math.floor((Date.now() - new Date(stats.oldestPendingAt).getTime()) / 3_600_000)
-    : null
+  const oldestPendingHours = getOldestPendingHours(stats.oldestPendingAt)
   const slaBreached = oldestPendingHours != null && oldestPendingHours >= 48
   const contentHref = (params: { status?: string; type?: string }) => {
     const sp = new URLSearchParams({ tab: 'content' })
