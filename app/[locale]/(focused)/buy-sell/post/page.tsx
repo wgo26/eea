@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { localePath } from "@/lib/i18n/urls";
-import { SubmitForm } from "@/components/submit/submit-form";
+import { SubmitFormGated } from "@/components/submit/submit-form-gated";
 
 export async function generateMetadata(): Promise<Metadata> {
     const locale = resolveLocale((await headers()).get("x-locale"));
@@ -38,7 +38,7 @@ export default async function Page({
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">{dict.buySell.postTagline}</p>
             <div className="mt-6">
-                <SubmitForm type="buy-sell" dict={dict} />
+                <SubmitFormGated type="buy-sell" dict={dict} />
             </div>
         </div>
     );

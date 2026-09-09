@@ -396,7 +396,7 @@ export type ContentEditData = ContentRow & {
   frBody: string | null
   locationId: string | null
   categoryId: string | null
-  photos: { id: string; url: string; caption: string | null; credit: string | null }[]
+  photos: { id: string; url: string; alt: string | null; caption: string | null; credit: string | null }[]
   listing: { price: number | null; currency: string | null; contactPhone: string | null; contactEmail: string | null; whatsappNumber: string | null; sellerName: string | null } | null
   notice: { noticeType: string; organizationName: string | null; contactPhone: string | null; isOfficial: boolean; noticeDate: string | null; expiryDate: string | null } | null
   event: { startsAt: string | null; endsAt: string | null; venueName: string | null; ticketUrl: string | null; organizerName: string | null; organizerPhone: string | null; organizerEmail: string | null } | null
@@ -407,7 +407,7 @@ export async function getContentItemEditData(contentItemId: string): Promise<Con
   const { data } = await safe(
     db()
       .from('content_items')
-      .select('id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by, location_id, category_id, translations:content_translations(locale, title, excerpt, body), location:locations(name), category:categories!category_id(category_translations(locale, name)), media:media_assets(id, public_url, caption, photographer_credit, sort_order), listing:listings(price, currency, contact_phone, contact_email, whatsapp_number), notice:notices(notice_type, organization_name, contact_phone, is_official, notice_date, expiry_date), event:events(starts_at, ends_at, venue_name, ticket_url, organizer_name, organizer_phone, organizer_email)')
+      .select('id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by, location_id, category_id, translations:content_translations(locale, title, excerpt, body), location:locations(name), category:categories!category_id(category_translations(locale, name)), media:media_assets(id, public_url, caption, alt_text, photographer_credit, sort_order), listing:listings(price, currency, contact_phone, contact_email, whatsapp_number), notice:notices(notice_type, organization_name, contact_phone, is_official, notice_date, expiry_date), event:events(starts_at, ends_at, venue_name, ticket_url, organizer_name, organizer_phone, organizer_email)')
       .eq('id', contentItemId)
       .limit(1),
   )
@@ -417,7 +417,7 @@ export async function getContentItemEditData(contentItemId: string): Promise<Con
   const translations = (Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []) as { locale: string; title: string | null; excerpt: string | null; body: string | null }[]
   const en = translations.find((t) => t.locale === 'en')
   const fr = translations.find((t) => t.locale === 'fr')
-  const media = (Array.isArray(row.media) ? row.media : row.media ? [row.media] : []) as { id: string; public_url: string; caption: string | null; photographer_credit: string | null }[]
+  const media = (Array.isArray(row.media) ? row.media : row.media ? [row.media] : []) as { id: string; public_url: string; caption: string | null; alt_text: string | null; photographer_credit: string | null }[]
   const listingRaw = (Array.isArray(row.listing) ? row.listing[0] : row.listing) as { price: number | string | null; currency: string | null; contact_phone: string | null; contact_email: string | null; whatsapp_number: string | null; seller_name?: string | null } | null | undefined
   const noticeRaw = (Array.isArray(row.notice) ? row.notice[0] : row.notice) as { notice_type: string; organization_name: string | null; contact_phone: string | null; is_official: boolean; notice_date: string | null; expiry_date: string | null } | null | undefined
   const eventRaw = (Array.isArray(row.event) ? row.event[0] : row.event) as { starts_at: string | null; ends_at: string | null; venue_name: string | null; ticket_url: string | null; organizer_name: string | null; organizer_phone: string | null; organizer_email: string | null } | null | undefined
@@ -431,7 +431,7 @@ export async function getContentItemEditData(contentItemId: string): Promise<Con
     frBody: fr?.body ?? null,
     locationId: row.location_id as string | null,
     categoryId: row.category_id as string | null,
-    photos: [...media].sort((a, b) => (a as unknown as { sort_order: number }).sort_order - (b as unknown as { sort_order: number }).sort_order).map((m) => ({ id: m.id, url: m.public_url, caption: m.caption, credit: m.photographer_credit })),
+    photos: [...media].sort((a, b) => (a as unknown as { sort_order: number }).sort_order - (b as unknown as { sort_order: number }).sort_order).map((m) => ({ id: m.id, url: m.public_url, alt: m.alt_text ?? null, caption: m.caption, credit: m.photographer_credit })),
     listing: listingRaw ? { price: listingRaw.price === null ? null : Number(listingRaw.price), currency: listingRaw.currency, contactPhone: listingRaw.contact_phone, contactEmail: listingRaw.contact_email, whatsappNumber: listingRaw.whatsapp_number, sellerName: (listingRaw.seller_name as string | null) ?? null } : null,
     notice: noticeRaw ? { noticeType: noticeRaw.notice_type, organizationName: noticeRaw.organization_name, contactPhone: noticeRaw.contact_phone, isOfficial: !!noticeRaw.is_official, noticeDate: noticeRaw.notice_date, expiryDate: noticeRaw.expiry_date } : null,
     event: eventRaw ? { startsAt: eventRaw.starts_at, endsAt: eventRaw.ends_at, venueName: eventRaw.venue_name, ticketUrl: eventRaw.ticket_url, organizerName: eventRaw.organizer_name, organizerPhone: eventRaw.organizer_phone, organizerEmail: eventRaw.organizer_email } : null,

@@ -239,6 +239,18 @@ export function ContentCreateDialog({
               keepIds={[]}
               onChange={({ newPhotos: np }) => setNewPhotos(np)}
               destination="admin_asset"
+              pickerCopy={{
+                title: common.mediaLibrary,
+                search: common.mediaLibrary,
+                searchPlaceholder: common.mediaSearchPlaceholder,
+                noResults: common.mediaNoResults,
+                loading: common.mediaLoading,
+                cancel: common.mediaCancel,
+                select: common.mediaSelect,
+                images: common.mediaImages,
+                all: common.mediaAll,
+                reuse: common.mediaReuse,
+              }}
               copy={{
                 label: copy.photosLabel,
                 hint: copy.photosHint,
@@ -414,7 +426,6 @@ export function ContentEditTrigger({
   content,
   copy,
   common,
-  typeFilters,
   locations,
   categoriesByType,
   autoOpen = false,
@@ -422,10 +433,10 @@ export function ContentEditTrigger({
   content: ContentRow
   copy: Copy
   common: CommonCopy
-  typeFilters: TypeFilters
   locations: Option[]
   categoriesByType: Record<string, Option[]>
-  /** Deep-link support: `/admin/content?edit=<id>` opens the dialog on load. */
+  /** Deep-link: pass `autoOpen` to open the dialog on page load (the content
+   *  page derives it from the `edit` query param). */
   autoOpen?: boolean
 }) {
   const [open, setOpen] = useState(autoOpen)
@@ -466,7 +477,6 @@ export function ContentEditTrigger({
               data={data}
               copy={copy}
               common={common}
-              typeFilters={typeFilters}
               locations={locations}
               categories={categoriesByType[data.type] ?? []}
               onDone={() => setOpen(false)}
@@ -484,7 +494,6 @@ function ContentEditForm({
   data,
   copy,
   common,
-  typeFilters,
   locations,
   categories,
   onDone,
@@ -492,7 +501,6 @@ function ContentEditForm({
   data: NonNullable<Awaited<ReturnType<typeof fetchEditData>>>
   copy: Copy
   common: CommonCopy
-  typeFilters: TypeFilters
   locations: Option[]
   categories: Option[]
   onDone: () => void
@@ -505,7 +513,6 @@ function ContentEditForm({
   const [frExcerpt, setFrExcerpt] = useState(data.frExcerpt ?? '')
   const [enBody, setEnBody] = useState(data.enBody ?? '')
   const [frBody, setFrBody] = useState(data.frBody ?? '')
-  const [photosText, setPhotosText] = useState('')
   const [keepIds, setKeepIds] = useState<string[]>(data.photos.map((p) => p.id))
   const [newPhotos, setNewPhotos] = useState<UploadedPhoto[]>([])
   const [credit, setCredit] = useState('')
@@ -549,14 +556,7 @@ function ContentEditForm({
         { locale: 'en', title: enTitle, excerpt: enExcerpt, body: enBody },
         { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody },
       ],
-      photos: [
-        ...newPhotos.map((p) => ({ url: p.url, alt: p.alt, caption: p.caption })),
-        ...photosText
-          .split('\n')
-          .map((l) => l.trim())
-          .filter(Boolean)
-          .map((url) => ({ url })),
-      ],
+      photos: newPhotos.map((p) => ({ url: p.url, alt: p.alt, caption: p.caption })),
       keepPhotoIds: keepIds,
     }
     if (isListing) {
@@ -627,6 +627,18 @@ function ContentEditForm({
         onChange={({ keepIds: ki, newPhotos: np }) => { setKeepIds(ki); setNewPhotos(np) }}
         contentItemId={data.id}
         destination="admin_asset"
+        pickerCopy={{
+          title: common.mediaLibrary,
+          search: common.mediaLibrary,
+          searchPlaceholder: common.mediaSearchPlaceholder,
+          noResults: common.mediaNoResults,
+          loading: common.mediaLoading,
+          cancel: common.mediaCancel,
+          select: common.mediaSelect,
+          images: common.mediaImages,
+          all: common.mediaAll,
+          reuse: common.mediaReuse,
+        }}
         copy={{
           label: copy.photosLabel,
           hint: copy.photosHint,

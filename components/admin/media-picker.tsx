@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { cn } from '@/lib/utils'
 import { useDebouncedValue } from '@/hooks/use-debounce'
 
 type MediaAsset = {
@@ -77,12 +76,12 @@ export function MediaPicker({
   }, [debouncedQ, kind, page])
 
   useEffect(() => {
-    if (open) fetchAssets()
+    if (!open) return
+    // Defer past the effect body so loading state flips in a callback, not
+    // synchronously inside the effect (react-hooks/set-state-in-effect).
+    const timer = setTimeout(() => { void fetchAssets() }, 0)
+    return () => clearTimeout(timer)
   }, [open, fetchAssets])
-
-  useEffect(() => {
-    if (open) setPage(1)
-  }, [debouncedQ, kind, open])
 
   if (!open) return null
 
@@ -109,13 +108,13 @@ export function MediaPicker({
           <input
             type="search"
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => { setQ(e.target.value); setPage(1) }}
             placeholder={copy.searchPlaceholder}
             className="h-8 flex-1 rounded-md border border-border bg-background px-3 text-sm"
           />
           <select
             value={kind}
-            onChange={(e) => setKind(e.target.value as 'all' | 'image' | 'video')}
+            onChange={(e) => { setKind(e.target.value as 'all' | 'image' | 'video'); setPage(1) }}
             className="h-8 rounded-md border border-border bg-background px-2 text-sm"
           >
             <option value="all">{copy.all}</option>

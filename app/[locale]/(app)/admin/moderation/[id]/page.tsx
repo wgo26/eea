@@ -41,7 +41,7 @@ function extractPhotoUrls(key: string, value: string): string[] {
   const urls = value.match(URL_RE) ?? []
   if (urls.length === 0) return []
   const imageUrls = urls.filter(
-    (u) => /\.(jpe?g|png|webp|gif|avif)(\?.*)?$/i.test(u) || u.includes('/uploads/') || u.includes('/media/'),
+    (u) => /\.(jpe?g|png|webp|gif|avif)(\?.*)?$/i.test(u) || u.includes('/uploads') || u.includes('/media'),
   )
   // A photo-ish payload key wins even when the URLs lack a recognizable extension.
   if (PHOTO_KEY_RE.test(key)) return urls
@@ -208,6 +208,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           <ReviewActions
             submission={submission}
             copy={t}
+            common={dict.admin.common}
             locations={locations}
             categories={categories}
           />

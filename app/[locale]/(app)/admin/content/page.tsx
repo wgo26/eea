@@ -173,7 +173,6 @@ export default async function Page({
                         content={r}
                         copy={t}
                         common={dict.admin.common}
-                        typeFilters={tf}
                         locations={locationOptions}
                         categoriesByType={categoriesByType}
                         autoOpen={params.edit === r.id}

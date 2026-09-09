@@ -26,8 +26,7 @@ const inputCls =
 
 /**
  * Listing lifecycle controls (Phase 3): expire, relist (30-day window), mark
- * sold and remove — plus the quick price edit and a deep-link into the
- * content edit dialog (`/admin/content?edit=<id>`).
+ * sold and remove — plus the quick price edit and the content-edit deep link.
  */
 export function ListingActions({ listing, copy, common, locale }: { listing: AdminListingRow; copy: Copy; common: CommonCopy; locale: Locale }) {
   const { addToast } = useToast()

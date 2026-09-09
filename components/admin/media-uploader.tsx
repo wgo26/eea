@@ -1,8 +1,22 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/admin/toast'
+import { MediaPicker } from '@/components/admin/media-picker'
+
+export type MediaPickerCopy = {
+  title: string
+  search: string
+  searchPlaceholder: string
+  noResults: string
+  loading: string
+  cancel: string
+  select: string
+  images: string
+  all: string
+  reuse: string
+}
 
 export type UploadedPhoto = {
   url: string
@@ -51,6 +65,8 @@ type MediaUploaderProps = {
   allowUrlPaste?: boolean
   /** Show per-photo alt/caption fields (default true) */
   showAltCaption?: boolean
+  /** When provided, shows the "reuse existing" media-library picker */
+  pickerCopy?: MediaPickerCopy
   /** Label for the upload area */
   label?: string
   /** Hint text */
@@ -61,6 +77,8 @@ type MediaUploaderProps = {
     hint?: string
     drop?: string
     browse?: string
+    browseFiles?: string
+    dropHere?: string
     or?: string
     pasteUrl?: string
     urlPlaceholder?: string
@@ -81,11 +99,13 @@ type MediaUploaderProps = {
   }
 }
 
-const DEFAULT_COPY: NonNullable<MediaUploaderProps['copy']> = {
+const DEFAULT_COPY: Required<NonNullable<MediaUploaderProps['copy']>> = {
   label: 'Photos',
   hint: 'Upload images or paste image URLs. The first photo is the cover.',
   drop: 'Drop images here',
   browse: 'Browse files',
+  browseFiles: 'Browse files',
+  dropHere: 'Drop images here',
   or: 'or',
   pasteUrl: 'Paste URL',
   urlPlaceholder: 'https://…',
@@ -116,13 +136,15 @@ export function MediaUploader({
   acceptedTypes = 'image/jpeg,image/png,image/webp,image/gif',
   allowUrlPaste = true,
   showAltCaption = true,
+  pickerCopy,
   label,
   hint,
   copy,
 }: MediaUploaderProps) {
-  const c = { ...DEFAULT_COPY, ...copy }
+  const c = useMemo(() => ({ ...DEFAULT_COPY, ...copy }), [copy])
   const { addToast } = useToast()
   const [uploading, setUploading] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [urlInput, setUrlInput] = useState('')
   const [urlError, setUrlError] = useState<string | null>(null)
@@ -230,11 +252,6 @@ export function MediaUploader({
     updateNewPhotos(arr)
   }
 
-  const isCover = (photo: ExistingPhoto | UploadedPhoto, idx: number) => {
-    if ('id' in photo) return idx === 0 && keepIds[0] === photo.id
-    return idx === keepIds.length && idx === 0 + keepIds.length
-  }
-
   return (
     <div className="space-y-3">
       {(label || c.label) && (
@@ -267,8 +284,8 @@ export function MediaUploader({
         <p className="text-sm text-muted-foreground">
           {uploading ? c.uploading : (
             <>
-              <span className="font-medium text-foreground">{c.browse}</span>
-              <span className="ml-1">{c.drop.toLowerCase()}</span>
+              <span className="font-medium text-foreground">{c.browseFiles}</span>
+              <span className="ml-1">{(c.dropHere ?? c.drop).toLowerCase()}</span>
             </>
           )}
         </p>
@@ -309,6 +326,25 @@ export function MediaUploader({
           </button>
           {urlError && <p className="text-xs text-destructive">{urlError}</p>}
         </div>
+      )}
+
+      {/* Reuse existing media — browsable library picker (G5) */}
+      {pickerCopy && (
+        <>
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="inline-flex w-fit items-center rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent"
+          >
+            {pickerCopy.reuse}
+          </button>
+          <MediaPicker
+            open={pickerOpen}
+            onOpenChange={setPickerOpen}
+            copy={pickerCopy}
+            onPick={(url, assetId) => updateNewPhotos([...newPhotos, { url, assetId }])}
+          />
+        </>
       )}
 
       {/* Thumbnail strip */}

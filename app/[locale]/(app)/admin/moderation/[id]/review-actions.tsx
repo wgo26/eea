@@ -10,6 +10,7 @@ import {
 } from '@/lib/admin/actions'
 import type { ContentDraftInput } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
+import { MediaUploader, type UploadedPhoto } from '@/components/admin/media-uploader'
 import type { Dictionary } from '@/lib/i18n'
 import type { SubmissionRow } from '@/lib/admin/queries'
 
@@ -63,11 +64,13 @@ function prefillFromPayload(payload: Record<string, unknown> | null) {
 export function ReviewActions({
   submission,
   copy,
+  common,
   locations = [],
   categories = [],
 }: {
   submission: SubmissionRow
   copy: Copy
+  common: Dictionary['admin']['common']
   locations?: Option[]
   categories?: Option[]
 }) {
@@ -260,6 +263,7 @@ export function ReviewActions({
         <ApproveDrawer
           submission={submission}
           copy={copy}
+          common={common}
           locations={locations}
           categories={categories}
           prefill={prefill}
@@ -291,6 +295,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 function ApproveDrawer({
   submission,
   copy,
+  common,
   locations,
   categories,
   prefill,
@@ -300,6 +305,7 @@ function ApproveDrawer({
 }: {
   submission: SubmissionRow
   copy: Copy
+  common: Dictionary['admin']['common']
   locations: Option[]
   categories: Option[]
   prefill: ReturnType<typeof prefillFromPayload>
@@ -319,6 +325,18 @@ function ApproveDrawer({
   const [enBody, setEnBody] = useState(prefill.bodyEn)
   const [frBody, setFrBody] = useState(prefill.bodyFr)
   const [photos, setPhotos] = useState(prefill.photos)
+  // Photo URLs from the payload prefill the uploader as editable thumbnails
+  // ("url - caption" lines); adding uploads/URLs keeps the same line format.
+  const [newPhotos, setNewPhotos] = useState<UploadedPhoto[]>(() =>
+    prefill.photos
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [url, ...captionParts] = line.split(/\s+-\s+/)
+        return { url, caption: captionParts.join(' - ') || undefined }
+      }),
+  )
   const [credit, setCredit] = useState('')
   const [verification, setVerification] = useState('community_submission')
   const [locationId, setLocationId] = useState('')
@@ -427,7 +445,23 @@ function ApproveDrawer({
             </Field>
           </div>
           <Field label={copy.photosLabel} hint={copy.photosHint}>
-            <textarea value={photos} onChange={(e) => setPhotos(e.target.value)} rows={3} className={inputCls} />
+            <MediaUploader
+              newPhotos={newPhotos}
+              onChange={({ newPhotos: np }) => {
+                setNewPhotos(np)
+                setPhotos(np.map((p) => (p.caption ? `${p.url} - ${p.caption}` : p.url)).filter(Boolean).join('\n'))
+              }}
+              destination="public_photo"
+              showAltCaption={false}
+              copy={{
+                label: copy.photosLabel,
+                hint: copy.photosHint,
+                uploading: common.photoUploading,
+                uploadError: common.photoUploadError,
+                tooLarge: common.photoTooLarge,
+                wrongType: common.photoWrongType,
+              }}
+            />
           </Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label={copy.photographerCredit}>
