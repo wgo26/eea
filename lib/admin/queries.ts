@@ -190,37 +190,45 @@ export async function getSubmissions(options?: {
   const limit = options?.limit ?? 20
   const offset = options?.offset ?? 0
 
-  let query = db()
-    .from('submissions')
-    .select('id, submission_type, status, guest_name, guest_email, guest_phone, consent_confirmed, rights_confirmed, submitted_at, reviewed_at, rejection_reason, internal_notes, payload, content_item_id', { count: 'exact' })
-    .order('submitted_at', { ascending: false, nullsFirst: false })
-    .range(offset, offset + limit - 1)
+  // Fail-safe: a DB hiccup or missing service-role env resolves to an empty
+  // queue rather than crashing the page into the global error boundary.
+  if (!hasDatabase()) return { rows: [], total: 0 }
+  try {
+    let query = db()
+      .from('submissions')
+      .select('id, submission_type, status, guest_name, guest_email, guest_phone, consent_confirmed, rights_confirmed, submitted_at, reviewed_at, rejection_reason, internal_notes, payload, content_item_id', { count: 'exact' })
+      .order('submitted_at', { ascending: false, nullsFirst: false })
+      .range(offset, offset + limit - 1)
 
-  if (status !== 'all') {
-    query = Array.isArray(status) ? query.in('status', status) : query.eq('status', status)
-  }
-  if (type !== 'all') query = query.eq('submission_type', type)
-  if (search) query = query.or(`guest_name.ilike.%${search}%,guest_email.ilike.%${search}%,guest_phone.ilike.%${search}%`)
+    if (status !== 'all') {
+      query = Array.isArray(status) ? query.in('status', status) : query.eq('status', status)
+    }
+    if (type !== 'all') query = query.eq('submission_type', type)
+    if (search) query = query.or(`guest_name.ilike.%${search}%,guest_email.ilike.%${search}%,guest_phone.ilike.%${search}%`)
 
-  const { data, count } = await safe(query)
-  return {
-    rows: (data ?? []).map((r) => ({
-    id: r.id,
-    submissionType: r.submission_type,
-    status: r.status,
-    guestName: r.guest_name,
-    guestEmail: r.guest_email,
-    guestPhone: r.guest_phone,
-    consentConfirmed: r.consent_confirmed,
-    rightsConfirmed: r.rights_confirmed,
-    submittedAt: r.submitted_at,
-    reviewedAt: r.reviewed_at,
-    rejectionReason: r.rejection_reason,
-    internalNotes: r.internal_notes,
-    payload: r.payload,
-    contentItemId: r.content_item_id,
-    })),
-    total: count ?? 0,
+    const { data, count } = await safe(query)
+    return {
+      rows: (data ?? []).map((r) => ({
+      id: r.id,
+      submissionType: r.submission_type,
+      status: r.status,
+      guestName: r.guest_name,
+      guestEmail: r.guest_email,
+      guestPhone: r.guest_phone,
+      consentConfirmed: r.consent_confirmed,
+      rightsConfirmed: r.rights_confirmed,
+      submittedAt: r.submitted_at,
+      reviewedAt: r.reviewed_at,
+      rejectionReason: r.rejection_reason,
+      internalNotes: r.internal_notes,
+      payload: r.payload,
+      contentItemId: r.content_item_id,
+      })),
+      total: count ?? 0,
+    }
+  } catch (e) {
+    console.error('[admin] getSubmissions failed, returning empty queue', e)
+    return { rows: [], total: 0 }
   }
 }
 
@@ -236,19 +244,26 @@ export async function getSubmissionCounts(): Promise<{
   rejected: number
   total: number
 }> {
-  const statuses: SubmissionStatus[] = ['pending', 'in_review', 'needs_clarification', 'approved', 'rejected']
-  const results = await Promise.all(
-    statuses.map((s) => safe(db().from('submissions').select('id', { count: 'exact', head: true }).eq('status', s))),
-  )
-  const byStatus: Record<string, number> = {}
-  statuses.forEach((s, i) => { byStatus[s] = results[i].count ?? 0 })
-  const pending = byStatus.pending + byStatus.in_review
-  return {
-    pending,
-    needs_clarification: byStatus.needs_clarification,
-    approved: byStatus.approved,
-    rejected: byStatus.rejected,
-    total: pending + byStatus.needs_clarification + byStatus.approved + byStatus.rejected,
+  const empty = { pending: 0, needs_clarification: 0, approved: 0, rejected: 0, total: 0 }
+  if (!hasDatabase()) return empty
+  try {
+    const statuses: SubmissionStatus[] = ['pending', 'in_review', 'needs_clarification', 'approved', 'rejected']
+    const results = await Promise.all(
+      statuses.map((s) => safe(db().from('submissions').select('id', { count: 'exact', head: true }).eq('status', s))),
+    )
+    const byStatus: Record<string, number> = {}
+    statuses.forEach((s, i) => { byStatus[s] = results[i].count ?? 0 })
+    const pending = byStatus.pending + byStatus.in_review
+    return {
+      pending,
+      needs_clarification: byStatus.needs_clarification,
+      approved: byStatus.approved,
+      rejected: byStatus.rejected,
+      total: pending + byStatus.needs_clarification + byStatus.approved + byStatus.rejected,
+    }
+  } catch (e) {
+    console.error('[admin] getSubmissionCounts failed, returning empty counts', e)
+    return empty
   }
 }
 
@@ -312,7 +327,7 @@ const CONTENT_SELECT = `id, type, slug, status, verification, is_featured, is_ar
   translations:content_translations(locale, title, excerpt),
   location:locations(name),
   category:categories!category_id(category_translations(locale, name)),
-  cover:media_assets!inner(public_url)`
+  cover:media_assets(public_url)`
 
 export async function getContentItems(options?: {
   status?: string | 'all'
@@ -464,7 +479,7 @@ export async function getHomepageSlots(locale: Locale = 'en'): Promise<HomepageS
       .select(`id, slot_key, content_item_id, sort_order, is_active, starts_at, ends_at,
         content:content_items(id, type,
           translations:content_translations(locale, title),
-          cover:media_assets!inner(public_url))`)
+          cover:media_assets(public_url))`)
       .order('sort_order', { ascending: true }),
   )
   return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {

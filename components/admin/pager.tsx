@@ -1,11 +1,17 @@
-'use client'
-
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
 /**
  * Shared prev/next + range footer for paginated admin tables. Links are
  * locale-prefixed by the caller via hrefFor (checklist: never a bare path).
+ *
+ * Server Component (no 'use client'): every paginated admin page renders
+ * Pager from a Server Component and passes an `hrefFor` closure. If this
+ * file were a Client Component, that function prop would cross the
+ * server/client boundary → production React #441 ("An error occurred in
+ * the Server Components render") on every paginated admin page (moderation,
+ * audit-log, users, listings, content, storage). Link-only pagination needs
+ * no client JS, so this stays a Server Component. Do NOT add 'use client'.
  */
 export function Pager({
   page,

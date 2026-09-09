@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/admin/empty-state'
 import { formatRelative } from '@/lib/admin/format'
 import { ContentActions } from './content-actions'
 import { ContentBulkActions } from './content-bulk-actions'
+import Link from 'next/link'
 import { ContentCreateDialog, ContentDeleteButton, ContentEditTrigger } from './content-dialogs'
 import { HomepageCuration } from './homepage-curation'
 import type { ContentRow } from '@/lib/admin/queries'
@@ -129,7 +130,13 @@ export default async function Page({
             active={type}
           />
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Link
+              href={localePath(locale, '/admin/content/import')}
+              className="inline-flex min-h-[36px] items-center rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {t.importButton}
+            </Link>
             <ContentCreateDialog
               copy={t}
               common={dict.admin.common}
