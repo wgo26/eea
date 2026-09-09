@@ -610,6 +610,115 @@ export async function getUsers(options?: { search?: string; role?: AppRole | 'al
   return { rows, total: count ?? 0 }
 }
 
+export type UserSubmissionMini = {
+  id: string
+  submissionType: string
+  status: string
+  submittedAt: string | null
+}
+
+export type UserContentMini = {
+  id: string
+  type: string
+  slug: string
+  status: string
+  title: string
+  publishedAt: string | null
+}
+
+export type UserDetail = {
+  user: UserRow
+  submissions: UserSubmissionMini[]
+  submissionCount: number
+  content: UserContentMini[]
+  contentCount: number
+}
+
+/**
+ * Full preview for the admin user detail page: profile + roles (via getUsers
+ * mapping), recent submissions filed by the user, and content they authored.
+ */
+export async function getUserDetail(userId: string): Promise<UserDetail | null> {
+  const profileRes = await safe(
+    db()
+      .from('profiles')
+      .select(`id, display_name, full_name, email, phone, avatar_url, is_verified, is_public, is_suspended, is_banned, contributor_featured, contributor_bio_override, created_at,
+        location:locations(name),
+        roles:user_roles(role)`)
+      .eq('id', userId)
+      .maybeSingle(),
+  )
+  const profile = profileRes.data as Record<string, unknown> | null
+  if (!profile) return null
+
+  const rolesRaw = Array.isArray(profile.roles) ? profile.roles : profile.roles ? [profile.roles] : []
+  const location = Array.isArray(profile.location) ? profile.location[0] : profile.location
+  const user: UserRow = {
+    id: profile.id as string,
+    displayName: profile.display_name as string | null,
+    fullName: profile.full_name as string | null,
+    email: profile.email as string | null,
+    phone: profile.phone as string | null,
+    avatarUrl: profile.avatar_url as string | null,
+    isVerified: !!profile.is_verified,
+    isPublic: !!profile.is_public,
+    isSuspended: !!profile.is_suspended,
+    isBanned: !!profile.is_banned,
+    contributorFeatured: !!profile.contributor_featured,
+    contributorBioOverride: profile.contributor_bio_override as string | null,
+    locationName: (location as { name: string } | undefined)?.name ?? null,
+    roles: (rolesRaw as { role: string }[]).map((r) => r.role).filter(isRole),
+    createdAt: profile.created_at as string | null,
+  }
+
+  const [subsRes, contentRes] = await Promise.all([
+    safe(
+      db()
+        .from('submissions')
+        .select('id, submission_type, status, submitted_at', { count: 'exact' })
+        .eq('submitted_by', userId)
+        .order('submitted_at', { ascending: false, nullsFirst: false })
+        .limit(10),
+    ),
+    safe(
+      db()
+        .from('content_items')
+        .select('id, type, slug, status, published_at, translations:content_translations(locale, title)', { count: 'exact' })
+        .eq('author_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(10),
+    ),
+  ])
+
+  const submissions = ((subsRes.data ?? []) as Record<string, unknown>[]).map((r) => ({
+    id: r.id as string,
+    submissionType: (r.submission_type as string) ?? '—',
+    status: (r.status as string) ?? '—',
+    submittedAt: r.submitted_at as string | null,
+  }))
+
+  const content = ((contentRes.data ?? []) as Record<string, unknown>[]).map((r) => {
+    const trs = Array.isArray(r.translations) ? r.translations as { locale: string; title: string | null }[] : []
+    const title = trs.find((t) => t.locale === 'en')?.title ?? trs[0]?.title ?? (r.slug as string)
+    return {
+      id: r.id as string,
+      type: (r.type as string) ?? '—',
+      slug: (r.slug as string) ?? '',
+      status: (r.status as string) ?? '—',
+      title,
+      publishedAt: r.published_at as string | null,
+    }
+  })
+
+  return {
+    user,
+    submissions,
+    submissionCount: subsRes.count ?? submissions.length,
+    content,
+    contentCount: contentRes.count ?? content.length,
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Ads                                                                */
 /* ------------------------------------------------------------------ */

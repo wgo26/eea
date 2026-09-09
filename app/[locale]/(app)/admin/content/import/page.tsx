@@ -2,7 +2,7 @@ import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { requireCapability } from '@/lib/auth/guards'
 import { PageHeader } from '@/components/admin/page-header'
-import { BloggerImportClient } from './import-client'
+import { ContentImportClient } from './import-client'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -20,7 +20,7 @@ export default async function Page() {
         title={dict.admin.content.importTitle}
         description={dict.admin.content.importDescription}
       />
-      <BloggerImportClient
+      <ContentImportClient
         copy={dict.admin.content}
         typeFilters={dict.admin.typeFilters}
         locale={locale}

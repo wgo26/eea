@@ -30,7 +30,7 @@ const ROLE_LABEL_KEY: Record<AppRole, keyof Copy> = {
   advertiser: 'roleAdvertiser',
 }
 
-function ReauthDialog({
+export function ReauthDialog({
   open,
   onOpenChange,
   title,

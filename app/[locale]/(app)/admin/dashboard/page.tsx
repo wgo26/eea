@@ -1,7 +1,10 @@
 import { getDictionary } from '@/lib/i18n'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { requireCapability } from '@/lib/auth/guards'
+import { isAdminRoles } from '@/lib/auth/roles'
 import { getDashboardStats } from '@/lib/admin/queries'
+import { getDemoDataCounts } from '@/lib/admin/demo-data'
+import { DemoDataCard } from './demo-data-card'
 import { PageHeader } from '@/components/admin/page-header'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
@@ -24,11 +27,14 @@ function getOldestPendingHours(oldestPendingAt: string | null): number | null {
 }
 
 export default async function Page() {
-  await requireCapability('viewDashboard', '/admin/dashboard')
+  const { roles } = await requireCapability('viewDashboard', '/admin/dashboard')
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
   const t = dict.admin.dashboard
   const stats = await getDashboardStats()
+
+  // Demo-data sweep is admin-only: editors see neither the card nor the counts.
+  const demoCounts = isAdminRoles(roles) ? await getDemoDataCounts() : null
 
   const oldestPendingHours = getOldestPendingHours(stats.oldestPendingAt)
   const slaBreached = oldestPendingHours != null && oldestPendingHours >= 48
@@ -136,6 +142,9 @@ export default async function Page() {
           </div>
         )}
       </section>
+
+      {/* Demo data sweep — admin only (clear seeded sample content before real data) */}
+      {demoCounts && <DemoDataCard copy={t} cancelLabel={dict.admin.common.cancel} counts={demoCounts} />}
     </div>
   )
 }

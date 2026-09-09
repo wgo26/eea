@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
@@ -104,7 +105,7 @@ export default async function Page({
           rows={users}
           rowKey={(r) => r.id}
           columns={[
-            { key: 'user', header: t.colUser, render: (r) => <UserCell row={r} copy={t} /> },
+            { key: 'user', header: t.colUser, render: (r) => <UserCell row={r} copy={t} href={localePath(locale, `/admin/users/${r.id}`)} /> },
             { key: 'location', header: t.colLocation, render: (r) => <span className="text-xs text-muted-foreground">{r.locationName ?? '—'}</span> },
             { key: 'roles', header: t.colRoles, render: (r) => <RolesCell roles={r.roles} copy={t} /> },
             { key: 'joined', header: t.colJoined, render: (r) => <time className="text-xs text-muted-foreground">{formatDateTime(r.createdAt)}</time> },
@@ -118,7 +119,7 @@ export default async function Page({
   )
 }
 
-function UserCell({ row, copy }: { row: UserRow; copy: ReturnType<typeof getDictionary>['admin']['users'] }) {
+function UserCell({ row, copy, href }: { row: UserRow; copy: ReturnType<typeof getDictionary>['admin']['users']; href: string }) {
   return (
     <div className="min-w-0 flex items-center gap-3">
       {row.avatarUrl ? (
@@ -129,7 +130,9 @@ function UserCell({ row, copy }: { row: UserRow; copy: ReturnType<typeof getDict
         </div>
       )}
       <div className="min-w-0">
-        <div className="text-sm font-medium truncate">{row.displayName ?? row.fullName ?? copy.unnamed}</div>
+        <Link href={href} className="block truncate text-sm font-medium transition-colors hover:text-primary hover:underline">
+          {row.displayName ?? row.fullName ?? copy.unnamed}
+        </Link>
         {row.email && <div className="text-xs text-muted-foreground truncate">{row.email}</div>}
       </div>
     </div>

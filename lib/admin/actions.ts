@@ -191,6 +191,7 @@ async function upsertTranslations(
       {
         content_item_id: contentItemId,
         locale: t.locale,
+        voice: 'formal',
         title: t.title?.trim() || null,
         excerpt: t.excerpt?.trim() || null,
         body: t.body?.trim() || null,
@@ -1748,16 +1749,16 @@ export async function updateFundraiser(
       const nextEnBody = input.descriptionEn !== undefined ? input.descriptionEn?.trim() || '' : (enRow?.body ?? '')
       if (!nextEnTitle) return { ok: false, error: 'English title is required.' }
       const { error: enErr } = await supabase.from('content_translations').upsert(
-        { content_item_id: contentItemId, locale: 'en', title: nextEnTitle, body: nextEnBody || null },
-        { onConflict: 'content_item_id,locale' },
+        { content_item_id: contentItemId, locale: 'en', voice: 'formal', title: nextEnTitle, body: nextEnBody || null },
+        { onConflict: 'content_item_id,locale,voice' },
       )
       if (enErr) return { ok: false, error: enErr.message }
       const nextFrTitle = input.titleFr !== undefined ? input.titleFr?.trim() || '' : (frRow?.title ?? '')
       const nextFrBody = input.descriptionFr !== undefined ? input.descriptionFr?.trim() || '' : (frRow?.body ?? '')
       if (nextFrTitle || nextFrBody) {
         const { error: frErr } = await supabase.from('content_translations').upsert(
-          { content_item_id: contentItemId, locale: 'fr', title: nextFrTitle || null, body: nextFrBody || null },
-          { onConflict: 'content_item_id,locale' },
+          { content_item_id: contentItemId, locale: 'fr', voice: 'formal', title: nextFrTitle || null, body: nextFrBody || null },
+          { onConflict: 'content_item_id,locale,voice' },
         )
         if (frErr) return { ok: false, error: frErr.message }
       } else if (input.titleFr !== undefined || input.descriptionFr !== undefined) {

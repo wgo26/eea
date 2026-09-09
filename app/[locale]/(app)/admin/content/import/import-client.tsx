@@ -2,7 +2,8 @@
 
 import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { importBloggerPosts, type BloggerImportType } from '@/lib/admin/actions-import'
+import { importPosts, type ImportPostType } from '@/lib/admin/actions-import'
+import { xmlFilesFromZip } from '@/lib/admin/zip-reader'
 import { localePath } from '@/lib/i18n/urls'
 import type { Dictionary, Locale } from '@/lib/i18n'
 import { ui } from '@/lib/admin/ui-constants'
@@ -25,12 +26,14 @@ function fill(template: string, n: number): string {
 }
 
 /**
- * Blogspot import client. Parsing happens in the browser with DOMParser
- * (mirrors lib/admin/blogger.ts: only kind#post entries): the raw .xml never
- * goes through a Server Action, so large backups don't hit action body
- * limits. Only the selected posts' JSON is sent, in batches of 10.
+ * Content import client (Blogger/Atom-style exports, .xml or .zip). Parsing
+ * happens in the browser with DOMParser (mirrors lib/admin/blogger.ts: only
+ * kind#post entries): the raw file never goes through a Server Action, so
+ * large backups don't hit action body limits. ZIP archives are unpacked here
+ * too (lib/admin/zip-reader.ts) and every .xml inside is parsed. Only the
+ * selected posts' JSON is sent, in batches of 10.
  */
-export function BloggerImportClient({
+export function ContentImportClient({
   copy,
   typeFilters,
   locale,
@@ -44,7 +47,7 @@ export function BloggerImportClient({
   const [fileError, setFileError] = useState<string | null>(null)
   const [posts, setPosts] = useState<PreviewPost[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [importType, setImportType] = useState<BloggerImportType>('news')
+  const [importType, setImportType] = useState<ImportPostType>('news')
   const [importing, setImporting] = useState(false)
   const [progress, setProgress] = useState<string | null>(null)
   const [done, setDone] = useState<string | null>(null)
@@ -108,13 +111,43 @@ export function BloggerImportClient({
     setDone(null)
     setFailures([])
     try {
-      if (file.size > 15 * 1024 * 1024) throw new Error('File too large (max 15 MB).')
-      const xml = await file.text()
-      const doc = new DOMParser().parseFromString(xml, 'text/xml')
-      if (doc.getElementsByTagName('parsererror').length > 0) {
-        throw new Error('Could not parse this XML file.')
+      if (file.size > 100 * 1024 * 1024) throw new Error('File too large (max 100 MB).')
+
+      // ZIP archives (e.g. a Blogger backup download) are unpacked in the
+      // browser and every .xml inside is parsed; plain .xml files parse as-is.
+      // Detection is by extension OR the PK magic bytes, so mislabeled files
+      // still work.
+      const head = new Uint8Array(await file.slice(0, 4).arrayBuffer())
+      const isZip =
+        /\.zip$/i.test(file.name) ||
+        (head[0] === 0x50 && head[1] === 0x4b && (head[2] === 3 || head[2] === 5 || head[2] === 7))
+
+      let docs: string[]
+      if (isZip) {
+        let xmlFiles: { name: string; xml: string }[]
+        try {
+          xmlFiles = await xmlFilesFromZip(await file.arrayBuffer())
+        } catch {
+          throw new Error(copy.importBadZip)
+        }
+        if (xmlFiles.length === 0) throw new Error(copy.importNoPosts)
+        docs = xmlFiles.map((f) => f.xml)
+      } else {
+        docs = [await file.text()]
       }
-      const parsed = parseFeed(doc)
+
+      // With a ZIP (multiple docs) unparsable entries are skipped; a single
+      // plain file still fails loudly like before.
+      const parser = new DOMParser()
+      const parsed: PreviewPost[] = []
+      for (const xml of docs) {
+        const doc = parser.parseFromString(xml, 'text/xml')
+        if (doc.getElementsByTagName('parsererror').length > 0) {
+          if (docs.length === 1) throw new Error('Could not parse this XML file.')
+          continue
+        }
+        parsed.push(...parseFeed(doc))
+      }
       setPosts(parsed)
       setSelected(new Set(parsed.map((p) => p.key)))
       if (parsed.length === 0) setFileError(copy.importNoPosts)
@@ -152,7 +185,7 @@ export function BloggerImportClient({
           originalUrl: p.originalUrl,
         }))
         setProgress(`${i + 1}–${Math.min(i + batch.length, selectedPosts.length)} / ${selectedPosts.length}`)
-        const res = await importBloggerPosts(batch, importType)
+        const res = await importPosts(batch, importType)
         imported += res.imported.length
         failed.push(...res.failed)
       }
@@ -186,7 +219,7 @@ export function BloggerImportClient({
           <input
             ref={fileRef}
             type="file"
-            accept=".xml,.atom,text/xml,application/atom+xml"
+            accept=".xml,.atom,.zip,text/xml,application/atom+xml,application/zip"
             className="hidden"
             onChange={(e) => handleFile(e.target.files?.[0])}
           />
@@ -215,7 +248,7 @@ export function BloggerImportClient({
               {copy.importTypeLabel}
               <select
                 value={importType}
-                onChange={(e) => setImportType(e.target.value as BloggerImportType)}
+                onChange={(e) => setImportType(e.target.value as ImportPostType)}
                 className={ui.input}
               >
                 {(['news', 'photo_story', 'culture', 'notice'] as const).map((t) => (

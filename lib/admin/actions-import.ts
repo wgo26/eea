@@ -16,24 +16,24 @@ function revalidateLocalized(path: string) {
   for (const locale of LOCALES) revalidatePath(`/${locale}${path}`)
 }
 
-export type BloggerImportItem = Pick<
+export type ImportPostItem = Pick<
   BloggerPost,
   'title' | 'bodyHtml' | 'publishedAt' | 'labels' | 'originalUrl'
 >
 
-export type BloggerImportResult = {
+export type ImportPostsResult = {
   imported: { title: string; slug: string }[]
   failed: { title: string; error: string }[]
 }
 
 const IMPORT_TYPES = ['news', 'photo_story', 'culture', 'notice'] as const
-export type BloggerImportType = (typeof IMPORT_TYPES)[number]
+export type ImportPostType = (typeof IMPORT_TYPES)[number]
 
 async function uniqueSlug(
   supabase: ReturnType<typeof createAdminClient>,
   base: string,
 ): Promise<string> {
-  const root = slugify(base) || 'blogspot-import'
+  const root = slugify(base) || 'imported-post'
   for (let i = 1; i <= 50; i++) {
     const candidate = i === 1 ? root : `${root}-${i}`
     const { data } = await supabase.from('content_items').select('id').eq('slug', candidate).limit(1)
@@ -61,20 +61,21 @@ async function ensureTag(
 }
 
 /**
- * Import parsed Blogspot posts as content drafts (admin/editor with
- * manageContent). Every post becomes a draft with its English translation,
- * its inline images registered as media rows (hotlinked — no re-upload), and
- * its Blogger labels mapped to tags. Nothing publishes: editors review and
- * publish from /admin/content, adding the French translation there.
+ * Import parsed export posts (Blogger/Atom-style content exports) as content
+ * drafts (admin/editor with manageContent). Every post becomes a draft with
+ * its English translation, its inline images registered as media rows
+ * (hotlinked — no re-upload), and its source labels mapped to tags. Nothing
+ * publishes: editors review and publish from /admin/content, adding the
+ * French translation there.
  */
-export async function importBloggerPosts(
-  items: BloggerImportItem[],
-  type: BloggerImportType = 'news',
-): Promise<BloggerImportResult> {
+export async function importPosts(
+  items: ImportPostItem[],
+  type: ImportPostType = 'news',
+): Promise<ImportPostsResult> {
   const { supabase, user } = await assertCapability('manageContent')
   const admin = createAdminClient()
   const contentType = IMPORT_TYPES.includes(type) ? type : 'news'
-  const result: BloggerImportResult = { imported: [], failed: [] }
+  const result: ImportPostsResult = { imported: [], failed: [] }
 
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error('No posts to import.')
@@ -115,6 +116,7 @@ export async function importBloggerPosts(
           {
             content_item_id: contentId,
             locale: 'en',
+            voice: 'formal',
             title,
             excerpt: makeExcerpt(bodyHtml),
             body: bodyHtml,
@@ -150,10 +152,10 @@ export async function importBloggerPosts(
         }
 
         await supabase.from('moderation_log').insert({
-          action: 'content:import:blogspot',
+          action: 'content:import',
           content_item_id: contentId,
           actor_id: user.id,
-          notes: `${contentType}/${slug} source=${item.originalUrl ?? 'blogspot'} published=${item.publishedAt ?? 'unknown'}`,
+          notes: `${contentType}/${slug} source=${item.originalUrl ?? 'export'} published=${item.publishedAt ?? 'unknown'}`,
         })
 
         result.imported.push({ title, slug })
