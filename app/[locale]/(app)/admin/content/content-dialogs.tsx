@@ -417,6 +417,7 @@ export function ContentEditTrigger({
   typeFilters,
   locations,
   categoriesByType,
+  autoOpen = false,
 }: {
   content: ContentRow
   copy: Copy
@@ -424,8 +425,10 @@ export function ContentEditTrigger({
   typeFilters: TypeFilters
   locations: Option[]
   categoriesByType: Record<string, Option[]>
+  /** Deep-link support: `/admin/content?edit=<id>` opens the dialog on load. */
+  autoOpen?: boolean
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(autoOpen)
   const [data, setData] = useState<Awaited<ReturnType<typeof fetchEditData>> | null>(null)
   const [fetching, setFetching] = useState(false)
 

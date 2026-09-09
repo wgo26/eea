@@ -44,7 +44,7 @@ const TYPE_FILTERS = [
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; type?: string; tab?: string; page?: string; q?: string }>
+  searchParams: Promise<{ status?: string; type?: string; tab?: string; page?: string; q?: string; edit?: string }>
 }) {
   const { roles } = await requireCapability('manageContent', '/admin/content')
   const canDelete = isAdminRoles(roles)
@@ -176,6 +176,7 @@ export default async function Page({
                         typeFilters={tf}
                         locations={locationOptions}
                         categoriesByType={categoriesByType}
+                        autoOpen={params.edit === r.id}
                       />
                       <ContentActions content={r} copy={t} common={dict.admin.common} />
                       {canDelete && <ContentDeleteButton content={r} copy={t} common={dict.admin.common} />}

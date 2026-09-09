@@ -902,6 +902,63 @@ export async function getStorageStats(): Promise<StorageStats> {
   }
 }
 
+export type MediaAssetRow = {
+  id: string
+  kind: string
+  provider: string
+  destination: string
+  publicUrl: string | null
+  storageKey: string | null
+  mimeType: string | null
+  sizeBytes: number | null
+  backedUpAt: string | null
+  backupVerifiedAt: string | null
+  verificationStatus: string | null
+  createdAt: string | null
+}
+
+/** Per-asset rows for the storage table (aggregates live in getStorageStats). */
+export async function getMediaAssets(options?: {
+  page?: number
+  limit?: number
+  kind?: string
+  provider?: string
+  backup?: 'backed_up' | 'pending'
+}): Promise<{ rows: MediaAssetRow[]; total: number }> {
+  const limit = options?.limit ?? 25
+  const page = options?.page ?? 1
+  const offset = (page - 1) * limit
+
+  let query = db()
+    .from('media_assets')
+    .select('id, kind, provider, destination, public_url, storage_key, mime_type, file_size_bytes, backed_up_at, backup_verified_at, verification_status, created_at', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1)
+  if (options?.kind && options.kind !== 'all') query = query.eq('kind', options.kind)
+  if (options?.provider && options.provider !== 'all') query = query.eq('provider', options.provider)
+  if (options?.backup === 'pending') query = query.is('backed_up_at', null)
+  if (options?.backup === 'backed_up') query = query.not('backed_up_at', 'is', null)
+
+  const { data, count } = await safe(query)
+  return {
+    rows: ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+      id: r.id as string,
+      kind: r.kind as string,
+      provider: r.provider as string,
+      destination: r.destination as string,
+      publicUrl: (r.public_url as string | null) ?? null,
+      storageKey: (r.storage_key as string | null) ?? null,
+      mimeType: (r.mime_type as string | null) ?? null,
+      sizeBytes: r.file_size_bytes == null ? null : Number(r.file_size_bytes),
+      backedUpAt: (r.backed_up_at as string | null) ?? null,
+      backupVerifiedAt: (r.backup_verified_at as string | null) ?? null,
+      verificationStatus: (r.verification_status as string | null) ?? null,
+      createdAt: (r.created_at as string | null) ?? null,
+    })),
+    total: count ?? 0,
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Trust & safety queues (reports + corrections)                      */
 /* ------------------------------------------------------------------ */
@@ -1106,7 +1163,7 @@ export type AdminListingRow = {
  * listings extension row. When a listing status filter is applied the embed
  * becomes an inner join so the filter runs in SQL, not after the limit.
  */
-export async function getListingsAdmin(options?: { status?: string; limit?: number; offset?: number; locale?: Locale; search?: string }): Promise<AdminListingRow[]> {
+export async function getListingsAdmin(options?: { status?: string; limit?: number; offset?: number; locale?: Locale; search?: string }): Promise<{ rows: AdminListingRow[]; total: number }> {
   const status = options?.status ?? 'all'
   const limit = options?.limit ?? 100
   const offset = options?.offset ?? 0
@@ -1119,15 +1176,15 @@ export async function getListingsAdmin(options?: { status?: string; limit?: numb
 
   let query = db()
     .from('content_items')
-    .select(select)
+    .select(select, { count: 'exact' })
     .eq('type', 'listing')
     .order('published_at', { ascending: false, nullsFirst: false })
     .range(offset, offset + limit - 1)
   if (status !== 'all') query = query.eq('listing.listing_status', status)
   if (search) query = query.or(`slug.ilike.%${search}%,translations.title.ilike.%${search}%`)
 
-  const { data } = await safe(query)
-  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+  const { data, count } = await safe(query)
+  const rows = ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
     const translations = Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []
     const list = translations as { locale: string; title: string | null }[]
     const titleEn = list.find((x) => x.locale === 'en')?.title ?? null
@@ -1155,6 +1212,7 @@ export async function getListingsAdmin(options?: { status?: string; limit?: numb
       contactPhone: (l ? (l.contact_phone as string | null) : null) ?? null,
     }
   })
+  return { rows, total: count ?? 0 }
 }
 
 /* ------------------------------------------------------------------ */
