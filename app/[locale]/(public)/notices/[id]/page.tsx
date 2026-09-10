@@ -305,7 +305,7 @@ export default async function NoticePage({ params }: NoticePageProps) {
                         </CardContent>
                     </Card>
 
-                    {notice.contactInfo ? (
+                    {notice.organizationName || notice.hasContact ? (
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2 text-base">
@@ -314,9 +314,14 @@ export default async function NoticePage({ params }: NoticePageProps) {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">
-                                    {notice.contactInfo}
-                                </p>
+                                {notice.organizationName ? (
+                                    <p className="text-sm font-medium">{notice.organizationName}</p>
+                                ) : null}
+                                {notice.hasContact ? (
+                                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                                        {dict.notices.contactViaOrganization ?? dict.notices.contact}
+                                    </p>
+                                ) : null}
                             </CardContent>
                         </Card>
                     ) : null}
@@ -324,7 +329,7 @@ export default async function NoticePage({ params }: NoticePageProps) {
                     <AdSlot
                         ad={null}
                         dict={dict}
-                        advertiseHref="/advertise"
+                        advertiseHref={localePath(locale, "/advertise")}
                         variant="rail"
                         className="lg:sticky lg:top-24"
                     />

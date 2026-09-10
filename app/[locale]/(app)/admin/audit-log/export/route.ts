@@ -6,12 +6,18 @@ function csv(value: unknown): string {
   return `"${text.replace(/"/g, '""')}"`
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await assertCapability('viewAuditLog')
   } catch {
     return new Response('Forbidden', { status: 403 })
   }
+
+  const { searchParams } = new URL(request.url)
+  const action = searchParams.get('action') || undefined
+  const entityType = searchParams.get('entity') || undefined
+  const from = searchParams.get('from') || undefined
+  const to = searchParams.get('to') || undefined
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -20,11 +26,16 @@ export async function GET() {
       const client = createAdminClient()
       const pageSize = 500
       for (let offset = 0; ; offset += pageSize) {
-        const { data, error } = await client
+        let query = client
           .from('moderation_log')
           .select('id, action, entity_type, entity_id, actor_id, from_status, to_status, notes, created_at')
           .order('created_at', { ascending: false })
           .range(offset, offset + pageSize - 1)
+        if (action) query = query.eq('action', action)
+        if (entityType) query = query.eq('entity_type', entityType)
+        if (from) query = query.gte('created_at', from)
+        if (to) query = query.lte('created_at', `${to}T23:59:59.999Z`)
+        const { data, error } = await query
         if (error) {
           controller.error(error)
           return

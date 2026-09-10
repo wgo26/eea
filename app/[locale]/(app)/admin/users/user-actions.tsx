@@ -122,9 +122,9 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
     }
   }
 
-  async function runToggleRole(role: AppRole, assign: boolean) {
+  async function runToggleRole(role: AppRole, assign: boolean, password?: string) {
     setLoading(true)
-    const result = await setUserRole(user.id, role, assign)
+    const result = await setUserRole(user.id, role, assign, password)
     setLoading(false)
     if (result.ok) {
       const label = String(copy[ROLE_LABEL_KEY[role]])
@@ -148,8 +148,8 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
           ? copy.removeRoleConfirmBody.replace('{role}', label)
           : copy.toastRoleAssigned.replace('{role}', label),
         confirmLabel: hasRole ? copy.remove : copy.reauthTitle,
-        run: async () => {
-          const ok = await runToggleRole(role, !hasRole)
+        run: async (password: string) => {
+          const ok = await runToggleRole(role, !hasRole, password)
           if (ok) setReauth(null)
         },
       })

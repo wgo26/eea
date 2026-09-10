@@ -54,6 +54,18 @@ export default async function Page({
 
   const selectCls = 'rounded-md border border-border bg-background px-3 py-2 text-sm'
 
+  const humanize = (v: string) => v.replace(/[:_]/g, ' ')
+  const exportHref = (() => {
+    const sp = new URLSearchParams()
+    if (params.action) sp.set('action', params.action)
+    if (params.entity) sp.set('entity', params.entity)
+    if (params.from) sp.set('from', params.from)
+    if (params.to) sp.set('to', params.to)
+    const qs = sp.toString()
+    return `${localePath(locale, '/admin/audit-log/export')}${qs ? `?${qs}` : ''}`
+  })()
+  const hasFilters = !!(params.action || params.entity || params.from || params.to)
+
   return (
     <div className="space-y-6">
       <PageHeader title={t.title} description={t.description} />
@@ -62,19 +74,19 @@ export default async function Page({
         <select name="action" defaultValue={params.action ?? ''} aria-label={t.actionPlaceholder} className={selectCls}>
           <option value="">{t.allActions}</option>
           {filterOptions.actions.map((a) => (
-            <option key={a} value={a}>{a}</option>
+            <option key={a} value={a}>{humanize(a)}</option>
           ))}
         </select>
         <select name="entity" defaultValue={params.entity ?? ''} aria-label={t.entityPlaceholder} className={selectCls}>
           <option value="">{t.allEntities}</option>
           {filterOptions.entityTypes.map((e) => (
-            <option key={e} value={e}>{e}</option>
+            <option key={e} value={e}>{humanize(e)}</option>
           ))}
         </select>
         <input type="date" name="from" defaultValue={params.from ?? ''} aria-label={t.fromLabel} className={selectCls} />
         <input type="date" name="to" defaultValue={params.to ?? ''} aria-label={t.toLabel} className={selectCls} />
         <button type="submit" className="rounded-md border border-border px-3 py-2 text-sm">{t.filter}</button>
-        <a href={localePath(locale, '/admin/audit-log/export')} className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">{t.exportCsv}</a>
+        <a href={exportHref} className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground" title={hasFilters ? t.exportFiltered : t.exportCsv}>{hasFilters ? t.exportFiltered : t.exportCsv}</a>
       </form>
 
       <DataTable
@@ -112,7 +124,7 @@ export default async function Page({
             </div>
           ) },
           { key: 'actor', header: t.colActor, render: (r) => (
-            <span className="text-xs">{r.actorName ?? t.system}</span>
+            <span className="text-xs">{r.actorName ?? (r.actorId ? t.deletedUser : t.system)}</span>
           ) },
           { key: 'notes', header: t.colNotes, render: (r) => (
             <span className="text-xs text-muted-foreground truncate max-w-[200px] block">{r.notes ?? '—'}</span>

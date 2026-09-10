@@ -24,6 +24,7 @@ on:
         options:
           - storage-backup
           - db-maintenance
+          - ops-digest
           - both
 
 permissions: {}
@@ -67,4 +68,24 @@ jobs:
             "$url")
           echo "HTTP $code from $url"
           cat /tmp/out.txt
+          test "$code" = "200"
+
+  ops-digest:
+    name: Ops digest (nightly queue summary → webhook)
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '0 6 * * *')
+      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'ops-digest' || inputs.job == 'both'))
+    steps:
+      - name: Call ops-digest endpoint
+        run: |
+          set -euo pipefail
+          url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/ops-digest"
+          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "$url")
+          echo "HTTP $code from $url"
+          cat /tmp/out.txt
+          # No-op (200 {skipped:true}) when DIGEST_WEBHOOK_URL is unset; a 5xx
+          # (webhook down / DB error) fails the run so the failure surfaces.
           test "$code" = "200"

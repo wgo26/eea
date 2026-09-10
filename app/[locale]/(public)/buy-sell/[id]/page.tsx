@@ -147,12 +147,16 @@ export default async function ListingPage({ params }: ListingPageProps) {
                         {listing.location ? (
                             <div className="flex items-center gap-2 text-muted-foreground">
                                 <MapPin className="h-4 w-4" aria-hidden />
-                                <Link
-                                    href={`/locations/${listing.locationSlug ?? ""}`}
-                                    className="hover:text-foreground hover:underline"
-                                >
-                                    {listing.location}
-                                </Link>
+                                {listing.locationSlug ? (
+                                    <Link
+                                        href={localePath(locale, `/locations/${listing.locationSlug}`)}
+                                        className="hover:text-foreground hover:underline"
+                                    >
+                                        {listing.location}
+                                    </Link>
+                                ) : (
+                                    <span>{listing.location}</span>
+                                )}
                             </div>
                         ) : null}
                         {listing.publishedAt ? (
@@ -192,14 +196,19 @@ export default async function ListingPage({ params }: ListingPageProps) {
                             hasPhone={listing.hasPhone}
                             hasEmail={listing.hasEmail}
                             hasWhatsapp={listing.hasWhatsapp}
+                            isActive={listing.listingStatus === "active"}
                             title={listing.title}
                             labels={{
                                 reveal: dict.buySell.revealContact,
                                 hide: dict.buySell.hideContact,
-                                phone: dict.buySell.fieldContactPlaceholder,
-                                email: dict.buySell.fieldContactPlaceholder,
+                                phone: dict.buySell.contactPhone,
+                                email: dict.buySell.contactEmail,
                                 whatsapp: dict.common.whatsapp,
                                 contactSeller: dict.buySell.contactSeller,
+                                rateLimited: dict.buySell.contactRateLimited,
+                                unavailable: dict.buySell.contactUnavailable,
+                                loading: dict.buySell.contactLoading,
+                                soldNotice: dict.buySell.soldContactNotice,
                             }}
                         />
                     </div>
@@ -241,7 +250,7 @@ export default async function ListingPage({ params }: ListingPageProps) {
             <AdSlot
                 ad={null}
                 dict={dict}
-                advertiseHref="/advertise"
+                advertiseHref={localePath(locale, "/advertise")}
                 variant="inline-bottom"
                 className="mt-12"
             />

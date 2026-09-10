@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { buildAlternates } from "@/lib/i18n/urls";
+import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { Camera, MapPin, Newspaper, ShieldCheck } from "lucide-react";
@@ -52,7 +52,7 @@ export default async function ContributorsPage() {
             ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {contributors.map((c) => (
-                        <Link key={c.id} href={`/contributors/${c.id}`} className="group">
+                        <Link key={c.id} href={localePath(locale, `/contributors/${c.id}`)} className="group">
                             <Card className="h-full transition-shadow hover:shadow-md">
                                 <CardContent className="p-5">
                                     <div className="flex items-center gap-4">

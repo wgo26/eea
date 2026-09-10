@@ -42,9 +42,8 @@ type PollCardProps = {
  * One community poll with voting.
  *
  * Voting is optimistic: the bar fills immediately, then the server response
- * reconciles the real tallies. If the polls tables have not been created yet
- * (migration not applied) the vote is kept locally so the interaction still
- * works, and the reader is told results are indicative.
+ * reconciles the real tallies. If the vote cannot be persisted (polls tables
+ * unreachable) the vote is kept locally so the interaction still works.
  */
 export function PollCard({ poll, dict, locale, variant = "feature", className }: PollCardProps) {
     const [tallies, setTallies] = useState<Record<string, number>>(() =>
@@ -113,13 +112,6 @@ export function PollCard({ poll, dict, locale, variant = "feature", className }:
 
             const token = getVoterToken();
 
-            // Demo mode (tables not created yet): keep the vote local only.
-            if (poll.source === "demo") {
-                setLocalOnly(true);
-                persistLocal(optionId, optimistic);
-                return;
-            }
-
             startTransition(async () => {
                 const result = await submitPollVote(poll.id, optionId, token);
                 if (result.ok) {
@@ -153,7 +145,7 @@ export function PollCard({ poll, dict, locale, variant = "feature", className }:
                 setTallies(tallies);
             });
         },
-        [canVote, isPending, tallies, poll.id, poll.source, dict.common.error, persistLocal],
+        [canVote, isPending, tallies, poll.id, dict.common.error, persistLocal],
     );
 
     const closingLabel = useMemo(() => {

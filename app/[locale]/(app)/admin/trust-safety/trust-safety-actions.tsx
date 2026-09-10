@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { resolveReport, resolveCorrection, deleteReport } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
@@ -23,9 +24,11 @@ const ghostBtn =
  */
 export function CorrectionActions({ correction, copy }: { correction: CorrectionRow; copy: Copy }) {
   const { addToast } = useToast()
+  const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState('')
+  const [dismissOpen, setDismissOpen] = useState(false)
 
   const closed = correction.status === 'resolved' || correction.status === 'dismissed'
 
@@ -37,6 +40,8 @@ export function CorrectionActions({ correction, copy }: { correction: Correction
       addToast(toast, 'success')
       setNoteOpen(false)
       setNote('')
+      setDismissOpen(false)
+      router.refresh()
     } else {
       addToast(result.error, 'error')
     }
@@ -51,12 +56,12 @@ export function CorrectionActions({ correction, copy }: { correction: Correction
               {copy.investigate}
             </button>
           )}
-          <button type="button" onClick={() => setNoteOpen(!noteOpen)} disabled={busy} className={resolveBtn}>
-            {copy.resolve}
+          <button type="button" onClick={() => setNoteOpen(!noteOpen)} disabled={busy} aria-expanded={noteOpen} className={resolveBtn}>
+            {copy.resolutionLabel ?? copy.resolve}
           </button>
           <button
             type="button"
-            onClick={() => run('dismissed', copy.toastCorrectionDismissed)}
+            onClick={() => setDismissOpen(true)}
             disabled={busy}
             className={ghostBtn + ' hover:text-destructive hover:border-destructive/50'}
           >
@@ -66,7 +71,9 @@ export function CorrectionActions({ correction, copy }: { correction: Correction
       )}
       {noteOpen && (
         <div className="flex items-center justify-end gap-1.5">
+          <label htmlFor={`correction-note-${correction.id}`} className="sr-only">{copy.resolutionLabel}</label>
           <input
+            id={`correction-note-${correction.id}`}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder={copy.resolutionPh}
@@ -82,16 +89,28 @@ export function CorrectionActions({ correction, copy }: { correction: Correction
           </button>
         </div>
       )}
+      <ConfirmDialog
+        open={dismissOpen}
+        onOpenChange={setDismissOpen}
+        title={copy.dismiss}
+        description={copy.resolutionPh}
+        confirmLabel={copy.dismiss}
+        cancelLabel={copy.resolve === 'Resolve' ? 'Cancel' : 'Annuler'}
+        loading={busy}
+        onConfirm={() => run('dismissed', copy.toastCorrectionDismissed)}
+      />
     </div>
   )
 }
 
 export function ReportActions({ report, copy, common, locale }: { report: ReportRow; copy: Copy; common: Dictionary['admin']['common']; locale: Locale }) {
   const { addToast } = useToast()
+  const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState('')
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [dismissOpen, setDismissOpen] = useState(false)
 
   const closed = report.status === 'resolved' || report.status === 'dismissed'
 
@@ -103,6 +122,8 @@ export function ReportActions({ report, copy, common, locale }: { report: Report
       addToast(toast, 'success')
       setNoteOpen(false)
       setNote('')
+      setDismissOpen(false)
+      router.refresh()
     } else {
       addToast(result.error, 'error')
     }
@@ -115,6 +136,7 @@ export function ReportActions({ report, copy, common, locale }: { report: Report
     if (result.ok) {
       setDeleteOpen(false)
       addToast(copy.toastReportDeleted, 'success')
+      router.refresh()
     } else {
       addToast(result.error, 'error')
     }
@@ -137,12 +159,12 @@ export function ReportActions({ report, copy, common, locale }: { report: Report
               {copy.investigate}
             </button>
           )}
-          <button type="button" onClick={() => setNoteOpen(!noteOpen)} disabled={busy} className={resolveBtn}>
-            {copy.resolve}
+          <button type="button" onClick={() => setNoteOpen(!noteOpen)} disabled={busy} aria-expanded={noteOpen} className={resolveBtn}>
+            {copy.resolutionLabel ?? copy.resolve}
           </button>
           <button
             type="button"
-            onClick={() => run('dismissed', copy.toastDismissed)}
+            onClick={() => setDismissOpen(true)}
             disabled={busy}
             className={ghostBtn + ' hover:text-destructive hover:border-destructive/50'}
           >
@@ -152,7 +174,9 @@ export function ReportActions({ report, copy, common, locale }: { report: Report
       )}
       {noteOpen && (
         <div className="flex items-center justify-end gap-1.5">
+          <label htmlFor={`report-note-${report.id}`} className="sr-only">{copy.resolutionLabel}</label>
           <input
+            id={`report-note-${report.id}`}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder={copy.resolutionPh}
@@ -168,6 +192,16 @@ export function ReportActions({ report, copy, common, locale }: { report: Report
           </button>
         </div>
       )}
+      <ConfirmDialog
+        open={dismissOpen}
+        onOpenChange={setDismissOpen}
+        title={copy.dismiss}
+        description={copy.resolutionPh}
+        confirmLabel={copy.dismiss}
+        cancelLabel={common.cancel}
+        loading={busy}
+        onConfirm={() => run('dismissed', copy.toastDismissed)}
+      />
       <button
         type="button"
         onClick={() => setDeleteOpen(true)}

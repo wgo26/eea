@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useDebouncedValue } from '@/hooks/use-debounce'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 
 type MediaAsset = {
   id: string
@@ -88,8 +89,8 @@ export function MediaPicker({
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex h-[80vh] w-full max-w-3xl flex-col rounded-lg border border-border bg-card shadow-xl">
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent className="flex h-[80vh] max-w-3xl flex-col overflow-hidden p-0 gap-0">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="text-base font-semibold text-foreground">{copy.title}</h2>
@@ -187,7 +188,7 @@ export function MediaPicker({
             </div>
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

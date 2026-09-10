@@ -10,7 +10,7 @@ import { Pager } from '@/components/admin/pager'
 import { formatBytes, formatPercent } from '@/lib/admin/format'
 import { BackupActions } from './backup-actions'
 import { VerificationActions } from './verification-actions'
-import { AssetVerifyButton } from './asset-actions'
+import { AssetDeleteButton, AssetVerifyButton } from './asset-actions'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -67,7 +67,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
             {stats.byProvider.map((p) => (
               <div key={p.provider} className="rounded-lg border border-border bg-card p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium uppercase">{p.provider}</span>
+                  <span className="text-sm font-medium">{providerLabels[p.provider] ?? p.provider}</span>
                   <span className="text-xs text-muted-foreground">{t.files.replace('{count}', String(p.count))} · {formatBytes(p.bytes)}</span>
                 </div>
                 <div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -84,6 +84,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
 
       <section>
         <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.byKind}</h2>
+        {stats.byKind.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
+            {t.empty}
+          </div>
+        ) : (
         <div className="flex flex-wrap gap-2">
           {stats.byKind.map((k) => (
             <div key={k.kind} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-card text-xs">
@@ -92,6 +97,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
             </div>
           ))}
         </div>
+        )}
       </section>
 
       <section>
@@ -138,7 +144,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
                     {r.backupVerifiedAt ? t.verified : (r.verificationStatus ?? t.unverified)}
                   </span>
                 ) },
-                { key: 'actions', header: '', render: (r) => <AssetVerifyButton mediaId={r.id} copy={t} />, className: 'text-right' },
+                { key: 'actions', header: '', render: (r) => (
+                  <div className="flex items-center justify-end gap-1">
+                    <AssetVerifyButton mediaId={r.id} copy={t} />
+                    <AssetDeleteButton mediaId={r.id} inUse={r.contentItemId != null} copy={t} />
+                  </div>
+                ), className: 'text-right' },
               ]}
             />
             <Pager page={page} pageSize={PAGE_SIZE} total={assets.total} hrefFor={pageHref} copy={dict.admin.common} />

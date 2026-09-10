@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { buildAlternates } from "@/lib/i18n/urls";
+import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { resolveLocale, getDictionary } from "@/lib/i18n";
 import { headers } from "next/headers";
 import type { Metadata } from "next";
@@ -18,12 +18,15 @@ export async function generateMetadata(): Promise<Metadata> {
     const locale = resolveLocale((await headers()).get("x-locale"));
     const dict = getDictionary(locale);
     return {
-        title: dict.nav.locations,
+        title: dict.locations.title,
+        description: dict.locations.description,
         alternates: buildAlternates(locale, "/locations"),
     };
 }
 
 export default async function Page() {
+    const locale = resolveLocale((await headers()).get("x-locale"));
+    const dict = getDictionary(locale);
     const locations = await getLocationsWithCounts();
     const ranked = [...locations].sort(
         (a, b) => (b.contentCount ?? 0) - (a.contentCount ?? 0),
@@ -41,20 +44,20 @@ export default async function Page() {
                     <div className="max-w-3xl">
                         <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">
                             <Compass className="h-3.5 w-3.5" aria-hidden />
-                            Place-first journalism
+                            {dict.locations.eyebrow}
                         </div>
                         <h1 className="text-3xl font-black tracking-tight md:text-5xl">
-                            Every place has a story.
+                            {dict.locations.heading}
                         </h1>
                         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
-                            Explore where life is happening across the region — from community news and photo stories to notices, listings, and culture rooted in the places people call home.
+                            {dict.locations.description}
                         </p>
                     </div>
 
                     <div className="grid w-full max-w-md gap-3 sm:grid-cols-3 lg:w-auto">
-                        <StatBlock label="Places" value={String(ranked.length)} icon={<MapPin className="h-4 w-4" />} />
-                        <StatBlock label="Coverage" value={String(totalCoverage)} icon={<Newspaper className="h-4 w-4" />} />
-                        <StatBlock label="Active" value={String(activePlaces)} icon={<TrendingUp className="h-4 w-4" />} />
+                        <StatBlock label={dict.locations.statPlaces} value={String(ranked.length)} icon={<MapPin className="h-4 w-4" />} />
+                        <StatBlock label={dict.locations.statCoverage} value={String(totalCoverage)} icon={<Newspaper className="h-4 w-4" />} />
+                        <StatBlock label={dict.locations.statActive} value={String(activePlaces)} icon={<TrendingUp className="h-4 w-4" />} />
                     </div>
                 </div>
             </header>
@@ -63,16 +66,16 @@ export default async function Page() {
                 {featured.map((location) => (
                     <Link
                         key={location.slug}
-                        href={`/locations/${location.slug}`}
+                        href={localePath(locale, `/locations/${location.slug}`)}
                         className="group block rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
                     >
                         <div className="mb-4 flex items-center justify-between">
                             <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
                                 <MapPin className="h-3 w-3" aria-hidden />
-                                Featured place
+                                {dict.locations.featuredPlace}
                             </span>
                             <span className="text-xs font-medium text-muted-foreground">
-                                {location.contentCount ?? 0} stories
+                                {location.contentCount ?? 0} {dict.locations.stories}
                             </span>
                         </div>
                         <h2 className="text-xl font-bold tracking-tight">{location.name}</h2>
@@ -80,7 +83,7 @@ export default async function Page() {
                             <p className="mt-1 text-sm text-muted-foreground">{location.parentName}</p>
                         ) : null}
                         <div className="mt-4 flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">Open location hub</span>
+                            <span className="text-muted-foreground">{dict.locations.openHub}</span>
                             <ArrowRight className="h-4 w-4 text-primary transition-transform group-hover:translate-x-1" aria-hidden />
                         </div>
                     </Link>
@@ -92,15 +95,15 @@ export default async function Page() {
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div>
                             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                                Most active community
+                                {dict.locations.mostActive}
                             </p>
                             <h2 className="mt-2 text-2xl font-bold tracking-tight">{mostActive.name}</h2>
                         </div>
                         <Link
-                            href={`/locations/${mostActive.slug}`}
+                            href={localePath(locale, `/locations/${mostActive.slug}`)}
                             className="inline-flex items-center gap-2 text-sm font-semibold text-primary transition-colors hover:text-primary/80"
                         >
-                            Visit this place hub
+                            {dict.locations.visitHub}
                             <ArrowRight className="h-4 w-4" aria-hidden />
                         </Link>
                     </div>
@@ -111,12 +114,12 @@ export default async function Page() {
                 <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                            Browse all places
+                            {dict.locations.browseAll}
                         </p>
-                        <h2 className="mt-2 text-2xl font-bold tracking-tight">Community map</h2>
+                        <h2 className="mt-2 text-2xl font-bold tracking-tight">{dict.locations.communityMap}</h2>
                     </div>
                     <Badge variant="secondary" className="rounded-full px-3 py-1">
-                        {ranked.length} places
+                        {ranked.length} {dict.locations.places}
                     </Badge>
                 </div>
 
@@ -124,7 +127,7 @@ export default async function Page() {
                     {ranked.map((location) => (
                         <Link
                             key={location.slug}
-                            href={`/locations/${location.slug}`}
+                            href={localePath(locale, `/locations/${location.slug}`)}
                             className="group rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-md"
                         >
                             <div className="flex items-start justify-between gap-3">
@@ -140,9 +143,9 @@ export default async function Page() {
                             </div>
 
                             <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-                                <span>{location.contentCount ?? 0} items</span>
+                                <span>{location.contentCount ?? 0} {dict.locations.items}</span>
                                 <span className="inline-flex items-center gap-1 font-medium text-primary">
-                                    Explore
+                                    {dict.locations.explore}
                                     <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" aria-hidden />
                                 </span>
                             </div>

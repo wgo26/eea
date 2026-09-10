@@ -1,0 +1,7 @@
+
+> eea@0.1.0 check
+> tsc --noEmit && eslint . && node scripts/find-bare-hrefs.mjs && node scripts/verify-sitemap.mjs && node scripts/verify-migrations.mjs
+
+No locale-less internal links found.
+Sitemap routes verified: all static paths + dynamic segments resolve.
+Migration manifest OK: 29 migrations, latest 20260925000001_poll_fundraiser_delete_policies.sql.

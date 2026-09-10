@@ -7,19 +7,12 @@ import { getContentItems, getHomepageSlots, getCategoriesAdmin, getLocations } f
 import { PageHeader } from '@/components/admin/page-header'
 import { Tabs } from '@/components/admin/tabs'
 import { PaginationBar } from '@/components/admin/pagination'
-import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
-import { localizeStatus, localizeType } from '@/lib/admin/labels'
-import { DataTable } from '@/components/admin/data-table'
 import { FilterPills, SearchBar } from '@/components/admin/filter-pills'
 import { EmptyState } from '@/components/admin/empty-state'
-import { formatRelative } from '@/lib/admin/format'
-import { ContentActions } from './content-actions'
-import { ContentBulkActions } from './content-bulk-actions'
+import { ContentTable } from './content-bulk-actions'
 import Link from 'next/link'
-import { ContentCreateDialog, ContentDeleteButton, ContentEditTrigger } from './content-dialogs'
+import { ContentCreateDialog } from './content-dialogs'
 import { HomepageCuration } from './homepage-curation'
-import type { ContentRow } from '@/lib/admin/queries'
-import Image from 'next/image'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -89,8 +82,7 @@ export default async function Page({
   return (
     <div className="space-y-6">
       <PageHeader title={t.title} description={t.description} />
-
-      <Tabs
+<Tabs
         tabs={[
           { key: 'content', label: t.tabContent, count: content.total },
           { key: 'homepage', label: t.tabHomepage, count: slots.length },
@@ -153,40 +145,16 @@ export default async function Page({
             />
           ) : (
             <>
-            <ContentBulkActions
+            <ContentTable
               rows={content.rows}
               canDelete={canDelete}
               copy={t}
               common={tc}
-            />
-            <DataTable
-              rows={content.rows}
-              rowKey={(r) => r.id}
-              columns={[
-                { key: 'title', header: t.colTitle, render: (r) => <ContentTitleCell row={r} copy={t} locale={locale} /> },
-                { key: 'type', header: t.colType, render: (r) => <TypeBadge type={r.type} label={localizeType(r.type, dict.admin.common)} /> },
-                { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, dict.admin.common)} /> },
-                { key: 'updated', header: t.colUpdated, render: (r) => <time className="text-xs text-muted-foreground">{formatRelative(r.updatedAt ?? r.createdAt)}</time> },
-                {
-                  key: 'actions',
-                  header: '',
-                  render: (r) => (
-                    <div className="flex items-center justify-end gap-2">
-                      <ContentEditTrigger
-                        content={r}
-                        copy={t}
-                        common={dict.admin.common}
-                        locations={locationOptions}
-                        categoriesByType={categoriesByType}
-                        autoOpen={params.edit === r.id}
-                      />
-                      <ContentActions content={r} copy={t} common={dict.admin.common} />
-                      {canDelete && <ContentDeleteButton content={r} copy={t} common={dict.admin.common} />}
-                    </div>
-                  ),
-                  className: 'text-right',
-                },
-              ]}
+              typeLabels={dict.admin.common}
+              locale={locale}
+              locations={locationOptions}
+              categoriesByType={categoriesByType}
+              editId={params.edit}
             />
             <PaginationBar
               page={page}
@@ -199,30 +167,6 @@ export default async function Page({
           )}
         </>
       )}
-    </div>
-  )
-}
-
-function ContentTitleCell({ row, copy, locale }: { row: ContentRow; copy: ReturnType<typeof getDictionary>['admin']['content']; locale: string }) {
-  return (
-    <div className="min-w-0 flex items-center gap-3">
-      {row.coverUrl ? (
-        <Image src={row.coverUrl} alt="" className="h-10 w-10 rounded object-cover bg-muted shrink-0" />
-      ) : (
-        <div className="h-10 w-10 rounded bg-muted shrink-0" />
-      )}
-      <div className="min-w-0">
-        <div className="text-sm font-medium truncate">{row.title ?? copy.untitled}</div>
-        {row.excerpt && <div className="text-xs text-muted-foreground truncate">{row.excerpt}</div>}
-        {row.missingLocale && (
-          <span
-            className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
-            title={copy.bilingualHint}
-          >
-            {locale === 'fr' ? 'FR manquant — EN affiché' : 'FR missing — showing EN'}
-          </span>
-        )}
-      </div>
     </div>
   )
 }

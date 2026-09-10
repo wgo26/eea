@@ -113,19 +113,27 @@ Copy `.env.example` → `.env.local` and fill in the values. Never commit real s
 | `SUPABASE_ADMIN_ASSET_BUCKET` | — | Admin-asset bucket name (defaults to `admin-asset`) |
 | `CRON_SECRET` | production | Bearer secret guarding `/api/cron/*` (fail-closed) |
 | `TURNSTILE_SECRET_KEY` | — | Enables Cloudflare Turnstile verification when set (feature switch) |
+| `SENTRY_DSN` | — | Error tracking (see [`docs/observability.md`](docs/observability.md); inert until the SDK is installed) |
+| `DIGEST_WEBHOOK_URL` | — | Discord/Slack-compatible webhook for the nightly `/api/cron/ops-digest` summary |
 | `CLOUDINARY_CLOUD_NAME` | — | Optional image transform layer (adds a remote pattern) |
 | `SUPABASE_DB_URL` | CI secret | Enables the optional `supabase db lint` CI step (not an app env) |
 
 ## Scheduled jobs
 
-Two `CRON_SECRET`-guarded endpoints are declared in `vercel.json`:
+Three `CRON_SECRET`-guarded endpoints are declared in `vercel.json` (the third
+is also triggered from GitHub Actions on Hostinger — see §Hosting note):
 
 | Endpoint | Schedule (UTC) | Purpose |
 |---|---|---|
 | `/api/cron/storage-backup?batch=100` | 02:00 daily | Delta-sync R2 + Supabase Storage → Backblaze B2, checksum-verified |
 | `/api/cron/db-maintenance` | 02:30 daily | Purge stale rate-limit buckets, report DB telemetry, verify schema integrity (500 = alert) |
+| `/api/cron/ops-digest` | 06:00 daily | Post a queue summary (moderation/legal-inbox/ads/storage) to the configured webhook — the moderation-loop watchdog |
 
-**Hosting note:** `vercel.json` crons only fire on Vercel. On the Hostinger/VPS deployment, schedule both endpoints with a systemd timer or crontab (see `deploy/hostinger-business.md`).
+**Hosting note:** `vercel.json` crons only fire on Vercel. On the Hostinger/VPS
+deployment, schedule the endpoints with a systemd timer or crontab, and the
+storage-backup + db-maintenance endpoints are also invoked nightly by
+[`.github/workflows/scheduled-jobs.yml`](.github/workflows/scheduled-jobs.yml)
+(needs the `CRON_SECRET` repo secret). See `deploy/hostinger-business.md`.
 
 ## Deployment
 
@@ -143,6 +151,9 @@ Shipped hardening: PII-free public listings with a rate-limited contact-reveal a
 | [`features.md`](features.md) | Master feature set (product spec) |
 | [`sitemap.md`](sitemap.md) | Every route, mapped to the feature set |
 | [`audit.md`](audit.md) | Production-readiness audit + phased remediation plan (all phases shipped) |
+| [`docs/known-issues.md`](docs/known-issues.md) | **Current** debt list (regenerated against the code; the old `m.md`/`implementation_plan.md`/`scaffold_plan.md` live under `docs/history/`) |
+| [`docs/admin-manual.md`](docs/admin-manual.md) | Client-facing admin guide (per-section workflows) |
+| [`docs/observability.md`](docs/observability.md) | Logging, Sentry, uptime monitor, nightly ops-digest setup |
 | [`docs/hosting-architecture.md`](docs/hosting-architecture.md) | Hosting baseline |
 | [`docs/auth-emails.md`](docs/auth-emails.md) | Auth email templates + Supabase dashboard setup |
 | [`deploy/`](deploy/) | Hostinger + VPS deployment guides, nginx/systemd configs |

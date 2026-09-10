@@ -33,7 +33,7 @@ export default async function Page({
   searchParams: Promise<{ status?: string; page?: string; q?: string }>
 }) {
   const locale = await getRequestLocale()
-  await requireCapability('manageContent', '/admin/content')
+  await requireCapability('manageContent', '/admin/listings')
   const dict = getDictionary(locale)
   const t = dict.admin.listingsAdmin
   const tc = dict.admin.common
@@ -48,11 +48,12 @@ export default async function Page({
   // — calling DB writes during render is an anti-pattern (causes duplicate
   // writes on prefetch/revalidation). The pg_cron migration handles this.
 
-  const { rows: listings, total } = await getListingsAdmin({ status, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, locale })
+  const { rows: listings, total } = await getListingsAdmin({ status, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, locale, search })
 
   const base = localePath(locale, '/admin/listings')
   const statusHref = (key: string) => `${base}?status=${key}${search ? `&q=${encodeURIComponent(search)}` : ''}`
   const pageHref = (p: number) => `${base}?status=${status}${search ? `&q=${encodeURIComponent(search)}` : ''}&page=${p}`
+  const searchAction = `${base}?status=${status}`
 
   return (
     <div className="space-y-5">
@@ -71,7 +72,7 @@ export default async function Page({
           name="q"
           defaultValue={search}
           placeholder={tc.searchPlaceholder}
-          action={base}
+          action={searchAction}
           className="w-full sm:w-64"
         />
       </div>

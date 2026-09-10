@@ -15,6 +15,7 @@ import {
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
 import { StoryCard } from "@/components/home/story-card";
+import { CorrectionForm } from "@/components/news/correction-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,7 +44,12 @@ export async function generateMetadata({
     const { slug, locale: raw } = await params;
     const locale = resolveLocale(raw);
     const article = await getNewsBySlug(slug, locale);
-    if (!article) return { title: "News article not found" };
+    if (!article) {
+        return {
+            title: locale === "fr" ? "Article introuvable" : "News article not found",
+            alternates: buildAlternates(locale, "/news"),
+        };
+    }
     return {
         title: article.title,
         description: article.excerpt ?? undefined,
@@ -113,7 +119,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                             {dict.news.byline}{" "}
                             {article.authorId ? (
                                 <Link
-                                    href={`/contributors/${article.authorId}`}
+                                    href={localePath(locale, `/contributors/${article.authorId}`)}
                                     className="font-medium text-foreground hover:underline"
                                 >
                                     {article.authorName}
@@ -126,13 +132,20 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                         </span>
                     ) : null}
                     {article.location ? (
-                        <Link
-                            href={`/locations/${article.locationSlug ?? ""}`}
-                            className="inline-flex items-center gap-1.5 hover:text-foreground"
-                        >
-                            <MapPin className="h-4 w-4" aria-hidden />
-                            {article.location}
-                        </Link>
+                        article.locationSlug ? (
+                            <Link
+                                href={localePath(locale, `/locations/${article.locationSlug}`)}
+                                className="inline-flex items-center gap-1.5 hover:text-foreground"
+                            >
+                                <MapPin className="h-4 w-4" aria-hidden />
+                                {article.location}
+                            </Link>
+                        ) : (
+                            <span className="inline-flex items-center gap-1.5">
+                                <MapPin className="h-4 w-4" aria-hidden />
+                                {article.location}
+                            </span>
+                        )
                     ) : null}
                     {article.publishedAt ? (
                         <span className="inline-flex items-center gap-1.5">
@@ -170,20 +183,15 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
 
             <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div>
-                    {/* Report a correction */}
-                    <div className="mb-8 flex flex-wrap items-center gap-3 rounded-2xl border bg-muted/40 p-4 text-sm">
-                        <PencilLine className="h-4 w-4 text-muted-foreground" aria-hidden />
-                        <span className="text-muted-foreground">
-                            {dict.news.correctionIntro}
-                        </span>
-                        <Button
-                            render={<Link href={`/news/${article.slug}/correction`} />}
-                            variant="outline"
-                            size="sm"
-                            className="ml-auto"
-                        >
-                            {dict.news.reportCorrection}
-                        </Button>
+                    {/* Report a correction — inline form (no dead /correction route). */}
+                    <div id="correction" className="mb-8 space-y-4 rounded-2xl border bg-muted/40 p-4 text-sm">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <PencilLine className="h-4 w-4 text-muted-foreground" aria-hidden />
+                            <span className="text-muted-foreground">
+                                {dict.news.correctionIntro}
+                            </span>
+                        </div>
+                        <CorrectionForm slug={article.slug} dict={dict} locale={locale} />
                     </div>
 
                     {related.length > 0 ? (
@@ -268,13 +276,13 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                                         </dd>
                                     </div>
                                 ) : null}
-                                {article.imageUrl ? (
+                                {article.imageUrl && article.credit ? (
                                     <div className="flex items-start justify-between gap-3">
                                         <dt className="inline-flex items-center gap-1.5 text-muted-foreground">
                                             <Camera className="h-4 w-4" aria-hidden />
                                         </dt>
                                         <dd className="text-right font-medium text-foreground">
-                                            {dict.photoStories.photographBy}
+                                            {dict.photoStories.photographBy} {article.credit}
                                         </dd>
                                     </div>
                                 ) : null}
@@ -285,7 +293,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                     <AdSlot
                         ad={null}
                         dict={dict}
-                        advertiseHref="/advertise"
+                        advertiseHref={localePath(locale, "/advertise")}
                         variant="rail"
                         className="lg:sticky lg:top-24"
                     />

@@ -1,0 +1,5 @@
+app/[locale]/(app)/admin/trust-safety/page.tsx(202,25): error TS2345: Argument of type 'string' is not assignable to parameter of type '"en" | "fr"'.
+app/[locale]/(app)/admin/trust-safety/page.tsx(204,25): error TS2345: Argument of type 'string' is not assignable to parameter of type '"en" | "fr"'.
+app/[locale]/(app)/admin/trust-safety/page.tsx(206,25): error TS2345: Argument of type 'string' is not assignable to parameter of type '"en" | "fr"'.
+app/[locale]/(app)/admin/trust-safety/page.tsx(208,25): error TS2345: Argument of type 'string' is not assignable to parameter of type '"en" | "fr"'.
+app/[locale]/(app)/admin/trust-safety/page.tsx(210,25): error TS2345: Argument of type 'string' is not assignable to parameter of type '"en" | "fr"'.

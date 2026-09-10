@@ -1,21 +1,26 @@
 import type { Metadata } from "next";
-import { localePath } from "@/lib/i18n/urls";
+import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { CalendarDays, MapPin, Search as SearchIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { getDictionary, resolveLocale, type Dictionary, type Locale } from "@/lib/i18n";
+import { formatDate, getDictionary, resolveLocale, type Dictionary, type Locale } from "@/lib/i18n";
 import { getSearchResults, type SearchResultItem } from "@/lib/queries/search";
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
     return {
         title: dict.search.title,
         robots: { index: false, follow: true },
+        alternates: buildAlternates(locale, "/search"),
     };
 }
 
@@ -39,7 +44,7 @@ function typeLabel(type: string, dict: Dictionary): string {
         case "culture":
             return dict.search.culture;
         default:
-            return dict.search.news;
+            return dict.search.allTypes;
     }
 }
 
@@ -53,12 +58,12 @@ function ResultRow({
     locale: Locale;
 }) {
     return (
-        <Link href={item.href} className="group block">
+        <Link href={localePath(locale, item.href)} className="group block">
             <Card className="overflow-hidden transition-shadow hover:shadow-md">
                 <div className="flex items-stretch gap-3">
                     {item.imageUrl ? (
                         <span
-                            className="h-auto w-24 shrink-0 bg-cover bg-center sm:w-32"
+                            className="h-24 w-24 shrink-0 self-stretch bg-cover bg-center sm:w-32"
                             style={{ backgroundImage: `url(${item.imageUrl})` }}
                             role="img"
                             aria-label={item.title}
@@ -83,10 +88,7 @@ function ResultRow({
                             {item.publishedAt ? (
                                 <span className="inline-flex items-center gap-1">
                                     <CalendarDays className="h-3 w-3" aria-hidden />
-                                    {new Intl.DateTimeFormat(
-                                        locale === "fr" ? "fr-FR" : "en-GB",
-                                        { day: "numeric", month: "short", year: "numeric" },
-                                    ).format(new Date(item.publishedAt))}
+                                    {formatDate(item.publishedAt, locale)}
                                 </span>
                             ) : null}
                         </div>
@@ -107,15 +109,18 @@ const TYPE_TABS: { value: string | null; label: string }[] = [
 ];
 
 export default async function SearchPage({
+    params,
     searchParams,
 }: {
+    params: Promise<{ locale: string }>;
     searchParams: Promise<SearchParams>;
 }) {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
-    const params = await searchParams;
-    const q = first(params.q)?.trim() || "";
-    const type = first(params.type)?.trim() || null;
+    const sp = await searchParams;
+    const q = first(sp.q)?.trim() || "";
+    const type = first(sp.type)?.trim() || null;
 
     const results = q ? await getSearchResults({ q, type, locale }) : null;
 
@@ -167,6 +172,7 @@ export default async function SearchPage({
             </form>
 
             {/* Type filter chips */}
+            {q ? (
             <nav aria-label={dict.search.filterType} className="mt-4 flex flex-wrap gap-1.5">
                 {TYPE_TABS.map((tab) => {
                     const active = (tab.value ?? "") === typeParam;
@@ -196,6 +202,7 @@ export default async function SearchPage({
                     );
                 })}
             </nav>
+            ) : null}
 
             {/* Results */}
             <div className="mt-8">

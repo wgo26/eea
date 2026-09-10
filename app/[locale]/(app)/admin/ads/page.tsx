@@ -64,7 +64,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
       {tab === 'inquiries' && (
         <section>
           <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">{t.inquiriesHeading}</h2>
-          {inquiries.length === 0 ? <p className="text-sm text-muted-foreground">{t.emptyInquiries}</p> : (
+          {inquiries.length === 0 ? <EmptyState message={t.emptyInquiries} /> : (
             <DataTable rows={inquiries} rowKey={(r) => r.id} columns={[
               { key: 'company', header: t.colCompany, render: (r) => <div><div className="text-sm font-medium">{r.advertiserName ?? r.name}</div><div className="text-xs text-muted-foreground">{r.email} {r.phone}</div></div> },
               { key: 'message', header: t.inquiryMessage, render: (r) => <span className="whitespace-pre-wrap text-xs text-muted-foreground">{r.copyText ?? '—'}</span> },

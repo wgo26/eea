@@ -1,14 +1,16 @@
 import { getRequestLocale } from '@/lib/i18n/server'
-import { getDictionary } from '@/lib/i18n'
+import { getDictionary, type Locale } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
 import Link from 'next/link'
-import { getReports, getCorrections } from '@/lib/admin/queries'
+import { getReports, getCorrections, getTrustSafetyCounts, getTrustSafetyFilteredCounts } from '@/lib/admin/queries'
 import { requireCapability } from '@/lib/auth/guards'
 import { PageHeader } from '@/components/admin/page-header'
 import { Tabs } from '@/components/admin/tabs'
 import { StatusBadge } from '@/components/admin/status-badge'
 import { localizeStatus, localizeReportType } from '@/lib/admin/labels'
 import { DataTable } from '@/components/admin/data-table'
+import { EmptyState } from '@/components/admin/empty-state'
+import { Pager } from '@/components/admin/pager'
 import { formatRelative } from '@/lib/admin/format'
 import { ReportActions, CorrectionActions } from './trust-safety-actions'
 
@@ -31,24 +33,32 @@ const STATUS_LABELS: Record<StatusKey, keyof ReturnType<typeof getDictionary>['a
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; status?: string }>
+  searchParams: Promise<{ tab?: string; status?: string; page?: string }>
 }) {
   const locale = await getRequestLocale()
   await requireCapability('moderate', '/admin/dashboard')
   const dict = getDictionary(locale)
   const t = dict.admin.trustSafety
+  const tc = dict.admin.common
 
   const params = await searchParams
   const tab = params.tab === 'corrections' ? 'corrections' : 'reports'
   const status = (STATUS_KEYS as readonly string[]).includes(params.status ?? '') ? (params.status as StatusKey) : 'all'
+  const PAGE_SIZE = 20
+  const rawPage = Number(params.page ?? '1')
+  const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1
+  const offset = (page - 1) * PAGE_SIZE
 
-  const [reports, corrections] = await Promise.all([
-    getReports({ status: status === 'all' ? 'all' : status, limit: 100, locale }),
-    getCorrections({ status: status === 'all' ? 'all' : status, limit: 100, locale }),
+  const [reports, corrections, totals, filtered] = await Promise.all([
+    getReports({ status: status === 'all' ? 'all' : status, limit: PAGE_SIZE, offset, locale }),
+    getCorrections({ status: status === 'all' ? 'all' : status, limit: PAGE_SIZE, offset, locale }),
+    getTrustSafetyCounts(),
+    getTrustSafetyFilteredCounts(status),
   ])
 
   const base = localePath(locale, '/admin/trust-safety')
   const hrefFor = (key: string) => `${base}?tab=${key}&status=${status}`
+  const pageHref = (p: number) => `${base}?tab=${tab}&status=${status}&page=${p}`
 
   return (
     <div className="space-y-5">
@@ -56,8 +66,8 @@ export default async function Page({
 
       <Tabs
         tabs={[
-          { key: 'reports', label: t.tabReports, count: reports.length },
-          { key: 'corrections', label: t.tabCorrections, count: corrections.length },
+          { key: 'reports', label: t.tabReports, count: totals.reports },
+          { key: 'corrections', label: t.tabCorrections, count: totals.corrections },
         ]}
         active={tab}
         hrefFor={hrefFor}
@@ -81,10 +91,9 @@ export default async function Page({
 
       {tab === 'reports' ? (
         reports.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border bg-muted/30 p-10 text-center">
-            <p className="text-sm text-muted-foreground">{t.emptyReports}</p>
-          </div>
+          <EmptyState message={status === 'all' ? t.emptyReports : tc.emptyFiltered} />
         ) : (
+          <>
           <DataTable
             rows={reports}
             rowKey={(r) => r.id}
@@ -129,12 +138,15 @@ export default async function Page({
               { key: 'actions', header: '', render: (r) => <ReportActions report={r} copy={t} common={dict.admin.common} locale={locale} />, className: 'text-right' },
             ]}
           />
+          <div className="mt-4">
+            <Pager page={page} pageSize={PAGE_SIZE} total={filtered.reports} hrefFor={pageHref} copy={tc} />
+          </div>
+          </>
         )
       ) : corrections.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-muted/30 p-10 text-center">
-          <p className="text-sm text-muted-foreground">{t.emptyCorrections}</p>
-        </div>
+        <EmptyState message={status === 'all' ? t.emptyCorrections : tc.emptyFiltered} />
       ) : (
+        <>
         <DataTable
           rows={corrections}
           rowKey={(r) => r.id}
@@ -170,27 +182,31 @@ export default async function Page({
                 ),
               },
               { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, dict.admin.common)} /> },
-            { key: 'received', header: t.colReceived, render: (r) => <time className="text-xs text-muted-foreground">{formatRelative(r.createdAt, locale)}</time> },
+              { key: 'received', header: t.colReceived, render: (r) => <time className="text-xs text-muted-foreground">{formatRelative(r.createdAt, locale)}</time> },
             { key: 'actions', header: '', render: (r) => <CorrectionActions correction={r} copy={t} />, className: 'text-right' },
           ]}
         />
+        <div className="mt-4">
+          <Pager page={page} pageSize={PAGE_SIZE} total={filtered.corrections} hrefFor={pageHref} copy={tc} />
+        </div>
+        </>
       )}
     </div>
   )
 }
 
 /** Public detail path for reported content, mirroring the moderation screen. */
-function contentHref(locale: string, type: string | null, id: string, slug: string | null): string {
+function contentHref(locale: Locale, type: string | null, id: string, slug: string | null): string {
   switch (type) {
     case 'photo_story':
-      return `/${locale}/photo-stories/${slug ?? id}`
+      return localePath(locale, `/photo-stories/${slug ?? id}`)
     case 'culture':
-      return `/${locale}/culture/${slug ?? id}`
+      return localePath(locale, `/culture/${slug ?? id}`)
     case 'notice':
-      return `/${locale}/notices/${id}`
+      return localePath(locale, `/notices/${id}`)
     case 'listing':
-      return `/${locale}/buy-sell/${id}`
+      return localePath(locale, `/buy-sell/${id}`)
     default:
-      return `/${locale}/news/${slug ?? id}`
+      return localePath(locale, `/news/${slug ?? id}`)
   }
 }

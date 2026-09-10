@@ -20,10 +20,23 @@ export async function AccountTopbar() {
   const { supabase, user } = await getSessionUser()
   const roles = user ? await getUserRoles(supabase, user.id) : []
   const isStaff = isStaffRoles(roles)
-  const displayName =
-    (user?.user_metadata?.full_name as string | undefined) ??
-    user?.email?.split('@')[0] ??
-    ''
+  // Prefer the profiles row (same source as the dashboard) so the topbar
+  // name never disagrees with the dashboard greeting after a profile edit.
+  let displayName = ''
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name, full_name')
+      .eq('id', user.id)
+      .maybeSingle()
+    const p = profile as { display_name?: string | null; full_name?: string | null } | null
+    displayName =
+      p?.display_name ??
+      p?.full_name ??
+      (user.user_metadata?.full_name as string | undefined) ??
+      user.email?.split('@')[0] ??
+      ''
+  }
 
   const tabs = [
     {

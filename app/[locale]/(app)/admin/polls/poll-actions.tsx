@@ -170,14 +170,15 @@ export function PollRowActions({
       for (const item of res.data) {
         rows.push([`"${item.label.replace(/"/g, '""')}"`, String(item.count), `${item.percentage}%`])
       }
-      const csvContent = 'data:text/csv;charset=utf-8,' + rows.map((e) => e.join(',')).join('\n')
-      const encodedUri = encodeURI(csvContent)
+      const blob = new Blob([`\uFEFF${rows.map((e) => e.join(',')).join('\r\n')}`], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
-      link.setAttribute('href', encodedUri)
+      link.setAttribute('href', url)
       link.setAttribute('download', `poll-${poll.id}-results.csv`)
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
+      URL.revokeObjectURL(url)
     } else if (res.error) {
       addToast(res.error, 'error')
     }
@@ -198,7 +199,13 @@ export function PollRowActions({
         {poll.isActive ? copy.close : copy.activate}
       </button>
 
-      <button type="button" onClick={() => setEditOpen(true)} className={btnGhost}>
+      <button
+        type="button"
+        onClick={() => setEditOpen(true)}
+        disabled={poll.isActive}
+        title={poll.isActive ? copy.closeFirstHint ?? copy.close : copy.edit}
+        className={btnGhost}
+      >
         {copy.edit}
       </button>
 

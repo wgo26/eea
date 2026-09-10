@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { themeInitScript } from "@/lib/theme";
 import { localeInitScript } from "@/lib/i18n/locale-init";
 import { SITE } from "@/lib/constants";
+import { DEFAULT_OG_IMAGE, TWITTER_CARD } from "@/lib/seo/og";
 
 // Self-hosted via next/font/local (app/fonts/*.woff2) so dev/build never
 // hits fonts.googleapis.com — no network dependency, no proxy config needed.
@@ -37,6 +38,28 @@ export const metadata: Metadata = {
     },
     description: SITE.description,
     metadataBase: new URL(SITE.url),
+    // Default social-share card (1200×630): inherited by every route that
+    // does not define its own openGraph (homepage, section indexes,
+    // advertise, locations, …). Detail pages that set openGraph.images keep
+    // their real cover — Next shallow-merges metadata per segment, so a
+    // page-level openGraph fully replaces this one (documented behaviour).
+    openGraph: {
+        type: "website",
+        siteName: SITE.name,
+        images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: SITE.name }],
+    },
+    twitter: {
+        card: TWITTER_CARD,
+        images: [DEFAULT_OG_IMAGE],
+    },
+    // Tab icon is dynamic: /icon.svg (and /favicon.ico) are route handlers
+
+    // that redirect to the uploaded site logo (see lib/site-icon.ts). This
+    // link makes browsers prefer the SVG-capable URL over bare /favicon.ico
+    // auto-discovery. Replaces the old static demo-mark app/icon.svg.
+    icons: {
+        icon: "/icon.svg",
+    },
 };
 
 /**

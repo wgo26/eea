@@ -13,6 +13,7 @@ type RevealContactProps = {
     hasPhone: boolean;
     hasEmail: boolean;
     hasWhatsapp: boolean;
+    isActive: boolean;
     title: string;
     labels: {
         reveal: string;
@@ -21,6 +22,10 @@ type RevealContactProps = {
         email: string;
         whatsapp: string;
         contactSeller: string;
+        rateLimited: string;
+        unavailable: string;
+        loading: string;
+        soldNotice: string;
     };
 };
 
@@ -35,6 +40,7 @@ export function RevealContact({
     hasPhone,
     hasEmail,
     hasWhatsapp,
+    isActive,
     title,
     labels,
 }: RevealContactProps) {
@@ -48,6 +54,14 @@ export function RevealContact({
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
     const hasAnyContact = hasPhone || hasEmail || hasWhatsapp;
+
+    if (!isActive) {
+        return (
+            <p className="text-sm text-muted-foreground">
+                {labels.soldNotice}
+            </p>
+        );
+    }
 
     if (!hasAnyContact) {
         return (
@@ -70,9 +84,9 @@ export function RevealContact({
                 setContact(res.contact);
                 setRevealed(true);
             } else if (res.error === "rate_limited") {
-                setErrorMessage("Too many requests. Please try again in a few minutes.");
+                setErrorMessage(labels.rateLimited);
             } else {
-                setErrorMessage("Unable to retrieve contact details.");
+                setErrorMessage(labels.unavailable);
             }
         });
     };
@@ -91,7 +105,7 @@ export function RevealContact({
                         {isPending ? (
                             <>
                                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                                <span>Loading...</span>
+                                <span>{labels.loading}</span>
                             </>
                         ) : (
                             <>

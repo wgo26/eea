@@ -158,7 +158,7 @@ export default async function ContributorProfilePage({ params }: Props) {
             <AdSlot
                 ad={null}
                 dict={dict}
-                advertiseHref="/advertise"
+                advertiseHref={localePath(locale, "/advertise")}
                 variant="inline-bottom"
                 className="mt-12"
             />

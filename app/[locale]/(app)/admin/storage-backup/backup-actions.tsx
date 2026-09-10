@@ -16,16 +16,19 @@ export function BackupActions({ copy }: { copy: Copy }) {
     const result = await triggerBackup()
     setBusy(false)
     if (result.ok) {
-      setMessage(copy.backupQueued)
+      const count = (result as { count?: number }).count ?? 0
+      setMessage(`${copy.backupQueued} (${count})`)
     } else {
       setMessage(result.error)
     }
   }
 
+  const isSuccess = message != null && message.startsWith(copy.backupQueued)
+
   return (
     <div className="flex items-center gap-3">
       {message && (
-        <span className={`text-xs ${message === copy.backupQueued ? 'text-emerald-600' : 'text-destructive'}`}>
+        <span className={`text-xs ${isSuccess ? 'text-emerald-600' : 'text-destructive'}`}>
           {message}
         </span>
       )}

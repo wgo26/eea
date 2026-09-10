@@ -49,7 +49,7 @@ function firstParam(value: string | string[] | undefined): string | undefined {
     return Array.isArray(value) ? value[0] : value;
 }
 
-function buildHref(params: {
+function buildCanonicalHref(params: {
     search?: string;
     category?: string;
     location?: string;
@@ -65,13 +65,13 @@ function buildHref(params: {
 }
 
 const SUB_SECTIONS = [
-    { slug: "music", label: "Music", icon: Music },
-    { slug: "art", label: "Art", icon: Palette },
-    { slug: "fashion", label: "Fashion", icon: Landmark },
-    { slug: "events", label: "Events", icon: CalendarDays },
-    { slug: "food", label: "Food", icon: Utensils },
-    { slug: "film", label: "Film", icon: Video },
-];
+    { slug: "music", dictKey: "music", icon: Music },
+    { slug: "art", dictKey: "art", icon: Palette },
+    { slug: "fashion", dictKey: "fashion", icon: Landmark },
+    { slug: "events", dictKey: "events", icon: CalendarDays },
+    { slug: "food", dictKey: "food", icon: Utensils },
+    { slug: "film", dictKey: "film", icon: Video },
+] as const;
 
 export default async function CulturePage({
     params,
@@ -83,6 +83,7 @@ export default async function CulturePage({
     const { locale: raw } = await params;
     const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
+    const hrefL = (args: Parameters<typeof buildCanonicalHref>[0]) => localePath(locale, buildCanonicalHref(args));
 
     const sp = await searchParams;
     const search = firstParam(sp.q)?.trim() || undefined;
@@ -100,7 +101,11 @@ export default async function CulturePage({
         getCultureArticles({ search, category, location, locale, page }),
         getUpcomingEvents(locale, 5),
     ]);
-    const { articles, pageCount } = list;
+    const { articles: allArticles, total, pageCount } = list;
+    const articles =
+        browseMode && featured
+            ? allArticles.filter((article) => article.id !== featured.id)
+            : allArticles;
 
     const pages =
         pageCount <= 7
@@ -116,7 +121,7 @@ export default async function CulturePage({
                     <div className="max-w-3xl">
                         <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-500/25 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-700 dark:text-violet-300">
                             <Palette className="h-3.5 w-3.5" aria-hidden />
-                            Culture & entertainment
+                            {dict.culture.title}
                         </div>
                         <h1 className="text-3xl font-black tracking-tight md:text-5xl">
                             {dict.culture.title}
@@ -130,9 +135,9 @@ export default async function CulturePage({
                     </div>
 
                     <div className="grid w-full max-w-md gap-3 sm:grid-cols-3 lg:w-auto">
-                        <StatBlock label="Scenes" value="6" icon={<Palette className="h-4 w-4" />} />
-                        <StatBlock label="Events" value={String(upcomingEvents.length)} icon={<CalendarDays className="h-4 w-4" />} />
-                        <StatBlock label="Fresh" value={String(articles.length || 12)} icon={<Music className="h-4 w-4" />} />
+                        <StatBlock label={dict.culture.statScenes} value={String(SUB_SECTIONS.length)} icon={<Palette className="h-4 w-4" />} />
+                        <StatBlock label={dict.culture.statEvents} value={String(upcomingEvents.length)} icon={<CalendarDays className="h-4 w-4" />} />
+                        <StatBlock label={dict.culture.statFresh} value={String(total)} icon={<Music className="h-4 w-4" />} />
                     </div>
                 </div>
             </header>
@@ -142,13 +147,13 @@ export default async function CulturePage({
                     <div className="mb-4 flex items-center justify-between gap-3">
                         <div>
                             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                                Culture pulse
+                                {dict.culture.sceneEyebrow}
                             </p>
-                            <h2 className="mt-2 text-2xl font-bold tracking-tight">Scene map</h2>
+                            <h2 className="mt-2 text-2xl font-bold tracking-tight">{dict.culture.sceneTitle}</h2>
                         </div>
                         <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
                             <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
-                            Active now
+                            {dict.culture.sceneActive}
                         </span>
                     </div>
 
@@ -161,22 +166,22 @@ export default async function CulturePage({
 
                         <div className="absolute inset-0">
                             {[
-                                { left: "18%", top: "32%", label: "Music" },
-                                { left: "38%", top: "19%", label: "Art" },
-                                { left: "56%", top: "38%", label: "Food" },
-                                { left: "72%", top: "26%", label: "Film" },
-                                { left: "58%", top: "68%", label: "Events" },
-                                { left: "82%", top: "60%", label: "Fashion" },
+                                { left: "18%", top: "32%", dictKey: "music" },
+                                { left: "38%", top: "19%", dictKey: "art" },
+                                { left: "56%", top: "38%", dictKey: "food" },
+                                { left: "72%", top: "26%", dictKey: "film" },
+                                { left: "58%", top: "68%", dictKey: "events" },
+                                { left: "82%", top: "60%", dictKey: "fashion" },
                             ].map((node, index) => (
                                 <div
-                                    key={`${node.label}-${index}`}
+                                    key={`${node.dictKey}-${index}`}
                                     className="absolute -translate-x-1/2 -translate-y-1/2"
                                     style={{ left: node.left, top: node.top }}
                                 >
                                     <div className="flex flex-col items-center gap-1">
                                         <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 border-background bg-primary shadow-sm" aria-hidden />
                                         <span className="rounded-full border border-border/70 bg-background/85 px-2 py-1 text-[10px] font-medium text-foreground shadow-sm backdrop-blur-sm">
-                                            {node.label}
+                                            {dict.culture[node.dictKey as "music" | "art" | "food" | "film" | "events" | "fashion"]}
                                         </span>
                                     </div>
                                 </div>
@@ -189,7 +194,7 @@ export default async function CulturePage({
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-lg">
                             <CalendarDays className="h-4 w-4 text-primary" aria-hidden />
-                            This week
+                            {dict.culture.thisWeek}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -202,7 +207,7 @@ export default async function CulturePage({
                                 >
                                     {event.eventDate ? (
                                         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
-                                            {new Date(event.eventDate).toLocaleDateString()}
+                                            {new Date(event.eventDate).toLocaleDateString(locale)}
                                         </p>
                                     ) : null}
                                     <p className="mt-2 text-sm font-semibold leading-snug">{event.title}</p>
@@ -213,7 +218,7 @@ export default async function CulturePage({
                             ))
                         ) : (
                             <div className="rounded-2xl border border-dashed border-border/70 bg-muted/30 p-4 text-sm text-muted-foreground">
-                                New events are being curated for the next community calendar.
+                                {dict.culture.noEvents}
                             </div>
                         )}
                     </CardContent>
@@ -228,10 +233,11 @@ export default async function CulturePage({
                 {SUB_SECTIONS.map((section) => {
                     const Icon = section.icon;
                     const isActive = category === section.slug;
+                    const label = dict.culture[section.dictKey];
                     return (
                         <Link
                             key={section.slug}
-                            href={buildHref({ search, location, category: section.slug })}
+                            href={hrefL({ search, location, category: section.slug })}
                             aria-current={isActive ? "page" : undefined}
                             className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold transition-all ${
                                 isActive
@@ -240,7 +246,7 @@ export default async function CulturePage({
                             }`}
                         >
                             <Icon className="h-4 w-4" aria-hidden />
-                            {section.label}
+                            {label}
                         </Link>
                     );
                 })}
@@ -349,7 +355,7 @@ export default async function CulturePage({
                                                 </span>
                                             ) : null}
                                             {article.publishedAt ? (
-                                                <span>{new Date(article.publishedAt).toLocaleDateString()}</span>
+                                                <span>{new Date(article.publishedAt).toLocaleDateString(locale)}</span>
                                             ) : null}
                                         </div>
                                     </div>
@@ -364,7 +370,7 @@ export default async function CulturePage({
                                 {page > 1 ? (
                                     <PaginationItem>
                                         <PaginationPrevious
-                                            href={buildHref({
+                                            href={hrefL({
                                                 search,
                                                 category,
                                                 location,
@@ -376,7 +382,7 @@ export default async function CulturePage({
                                 {pages.map((p) => (
                                     <PaginationItem key={p}>
                                         <PaginationLink
-                                            href={buildHref({ search, category, location, page: p })}
+                                            href={hrefL({ search, category, location, page: p })}
                                             isActive={p === page}
                                         >
                                             {p}
@@ -386,7 +392,7 @@ export default async function CulturePage({
                                 {page < pageCount ? (
                                     <PaginationItem>
                                         <PaginationNext
-                                            href={buildHref({
+                                            href={hrefL({
                                                 search,
                                                 category,
                                                 location,
@@ -457,7 +463,7 @@ export default async function CulturePage({
                                             >
                                                 {event.eventDate ? (
                                                     <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
-                                                        {new Date(event.eventDate).toLocaleDateString()}
+                                                        {new Date(event.eventDate).toLocaleDateString(locale)}
                                                     </span>
                                                 ) : null}
                                                 <span className="mt-1 line-clamp-2 block text-sm font-semibold group-hover:underline">
@@ -489,7 +495,7 @@ export default async function CulturePage({
                     <AdSlot
                         ad={null}
                         dict={dict}
-                        advertiseHref="/advertise"
+                        advertiseHref={localePath(locale, "/advertise")}
                         variant="rail"
                         className="lg:sticky lg:top-24"
                     />

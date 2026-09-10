@@ -65,9 +65,8 @@ export type NoticeData = {
     isOfficial: boolean | null;
     expiresAt: string | null;
     organizationName: string | null;
-    contactPhone: string | null;
-    contactEmail: string | null;
-    contactInfo: string | null;
+    /** True when the notice has contact details (values never leave the server — PII-safe like buy-sell). */
+    hasContact: boolean;
     body?: string | null;
 };
 
@@ -228,9 +227,7 @@ function toNoticeData(row: RawNoticeRow, locale: Locale): NoticeData | null {
     const notice = asOne(row.notices);
 
     const slug = row.slug ?? row.id;
-    const contactInfo = [notice?.contact_phone, notice?.contact_email]
-        .filter((value): value is string => Boolean(value))
-        .join(" · ") || null;
+    const hasContact = Boolean(notice?.contact_phone || notice?.contact_email);
 
     return {
         id: row.id,
@@ -251,9 +248,7 @@ function toNoticeData(row: RawNoticeRow, locale: Locale): NoticeData | null {
         isOfficial: notice?.is_official ?? null,
         expiresAt: notice?.expiry_date ?? null,
         organizationName: notice?.organization_name ?? null,
-        contactPhone: notice?.contact_phone ?? null,
-        contactEmail: notice?.contact_email ?? null,
-        contactInfo,
+        hasContact,
         body: translation.body ?? null,
     };
 }

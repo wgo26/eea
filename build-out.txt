@@ -1,0 +1,45 @@
+
+> eea@0.1.0 build
+> next build
+
+▲ Next.js 16.3.4 (Turbopack)
+- Environments: .env
+✓ Running next.config.ts took 9.9s
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 4.2min
+  Running TypeScript ...
+app/[locale]/(app)/admin/content/content-bulk-actions.tsx(250,23): error TS2339: Property 'missingTranslation' does not exist on type 'ContentCopy & { title: string; description: string; tabContent: string; tabHomepage: string; statusAll: string; statusPublished: string; statusDraft: string; statusScheduled: string; ... 136 more ...; importColImages: string; }'.
+app/[locale]/(app)/admin/content/content-dialogs.tsx(137,23): error TS2339: Property 'operationFailed' does not exist on type '{ cancel: string; confirm: string; working: string; delete: string; edit: string; save: string; saving: string; search: string; noResults: string; previous: string; next: string; showing: string; actions: string; ... 57 more ...; payoutMethods: { ...; }; }'.
+Failed to type check.
+
+Turbopack build encountered 1 warning:
+./lib/observability/logger.ts:71:27
+Warning: Module not found: Can't resolve '@sentry/nextjs'
+  [90m69 |[0m     [90m// at build time (import of a string-typed specifier resolves to `any`).[0m
+  [90m70 |[0m     [36mconst[0m specifier: string = [32m"@sentry/nextjs"[0m;
+[33m[1m>[0m [90m71 |[0m     [36mconst[0m sentry = ([36mawait[0m [36mimport[0m(specifier).[36mcatch[0m(() => [36mnull[0m)) [36mas[0m {
+  [90m   |[0m                           [33m[1m^^^^^^^^^^^^^^^^^[0m
+  [90m72 |[0m       captureMessage?: (msg: string, opts?: unknown) => [36mvoid[0m;
+  [90m73 |[0m       captureException?: (err: unknown) => [36mvoid[0m;
+  [90m74 |[0m     } | [36mnull[0m;
+
+
+
+Import traces:
+  #1 [App Route]:
+    ./lib/observability/logger.ts
+    ./app/api/cron/storage-backup/route.ts
+
+  #2 [Server Component]:
+    ./lib/observability/logger.ts
+    ./lib/public/actions.ts
+
+  #3 [Server Component]:
+    ./lib/observability/logger.ts
+    ./lib/queries/about.ts
+    ./app/[locale]/(public)/about/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+

@@ -8,6 +8,7 @@ import { DemoDataCard } from './demo-data-card'
 import { PageHeader } from '@/components/admin/page-header'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
+import { localizeStatus, localizeType } from '@/lib/admin/labels'
 import { formatBytes, formatRelative } from '@/lib/admin/format'
 import { localePath } from '@/lib/i18n/urls'
 import Link from 'next/link'
@@ -136,7 +137,13 @@ export default async function Page() {
           <div className="rounded-lg border border-border overflow-hidden">
             <ul className="divide-y divide-border">
               {stats.recentActivity.map((entry) => (
-                <ActivityRow key={entry.id} entry={entry} systemLabel={dict.admin.audit.system} />
+                <ActivityRow
+                  key={entry.id}
+                  entry={entry}
+                  systemLabel={dict.admin.audit.system}
+                  deletedLabel={dict.admin.audit.deletedUser}
+                  common={dict.admin.common}
+                />
               ))}
             </ul>
           </div>
@@ -149,19 +156,31 @@ export default async function Page() {
   )
 }
 
-function ActivityRow({ entry, systemLabel }: { entry: ModerationEntry; systemLabel: string }) {
+function ActivityRow({
+  entry,
+  systemLabel,
+  deletedLabel,
+  common,
+}: {
+  entry: ModerationEntry
+  systemLabel: string
+  deletedLabel: string
+  common: Parameters<typeof localizeStatus>[1]
+}) {
+  const actor = entry.actorName ?? (entry.actorId ? deletedLabel : systemLabel)
   return (
     <li className="flex items-start gap-3 px-4 py-3 bg-card">
       <div className="mt-0.5">
-        <StatusBadge status={entry.action} />
+        <StatusBadge status={entry.action} label={localizeStatus(entry.action, common)} />
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm">
-          <span className="font-medium">{entry.actorName ?? systemLabel}</span>
-          {' '}
-          <span className="text-muted-foreground">{entry.action}</span>
+          <span className="font-medium">{actor}</span>{' '}
+          <span className="text-muted-foreground">{localizeStatus(entry.action, common)}</span>
           {entry.contentTitle && (
-            <> the <span className="font-medium">{entry.contentType}</span> &ldquo;{entry.contentTitle}&rdquo;</>
+            <>
+              {' '}· <span className="font-medium">{entry.contentType ? localizeType(entry.contentType, common) : entry.contentType}</span> &ldquo;{entry.contentTitle}&rdquo;
+            </>
           )}
         </p>
         {entry.notes && <p className="mt-0.5 text-xs text-muted-foreground truncate">{entry.notes}</p>}

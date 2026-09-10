@@ -134,8 +134,19 @@ export async function submitStory(
 
     try {
         const supabase = createAdminClient();
+        // Link authenticated submits to the account so /account/dashboard can
+        // show history via RLS (submitted_by = auth.uid()). Guests stay null
+        // and fall back to the guest_email policy.
+        let submittedBy: string | null = null;
+        try {
+            const session = await getSessionUser();
+            submittedBy = session.user?.id ?? null;
+        } catch {
+            submittedBy = null;
+        }
         const { error } = await supabase.from("submissions").insert({
             submission_type: submissionType,
+            submitted_by: submittedBy,
             guest_name: guestName,
             guest_email: guestEmail || null,
             guest_phone: guestPhone || null,

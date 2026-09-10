@@ -294,7 +294,7 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                     <AdSlot
                         ad={null}
                         dict={dict}
-                        advertiseHref="/advertise"
+                        advertiseHref={localePath(locale, "/advertise")}
                         variant="rail"
                         className="lg:sticky lg:top-24"
                     />

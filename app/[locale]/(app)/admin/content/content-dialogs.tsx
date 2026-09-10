@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import { createContentItem, deleteContentItem, saveContentItem, getContentItemEditData as fetchEditDataAction } from '@/lib/admin/actions'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
+import { useToast } from '@/components/admin/toast'
 import {
   Dialog,
   DialogContent,
@@ -49,6 +50,7 @@ export function ContentCreateDialog({
   categoriesByType: Record<string, Option[]>
 }) {
   const { run, loading } = useAdminMutation()
+  const { addToast } = useToast()
   const [open, setOpen] = useState(false)
 
   const [type, setType] = useState<(typeof CONTENT_TYPES)[number]>('news')
@@ -127,6 +129,14 @@ export function ContentCreateDialog({
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
+    if (publish === 'schedule' && !scheduledFor.trim()) {
+      addToast(copy.scheduledFor ?? 'Pick a date/time first.', 'error')
+      return
+    }
+    if (type === 'listing' && price.trim() !== '' && Number.isNaN(Number(price))) {
+      addToast(copy.priceLabel ?? 'Enter a valid price.', 'error')
+      return
+    }
     const draft: Parameters<typeof createContentItem>[0]['draft'] = {
       slugBase: enTitle.trim() || type,
       verification: (verification || null) as never,
@@ -399,7 +409,7 @@ export function ContentCreateDialog({
               </div>
               {publish === 'schedule' && (
                 <Field label={copy.scheduledFor}>
-                  <input type="datetime-local" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} className={inputCls} />
+                  <input type="datetime-local" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} required className={inputCls} />
                 </Field>
               )}
               <Field label={`${copy.expiresAt} (${copy.optional})`}>

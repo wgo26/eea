@@ -904,6 +904,7 @@ export type ModerationEntry = {
   toStatus: string | null
   notes: string | null
   createdAt: string | null
+  actorId: string | null
   actorName: string | null
   contentTitle: string | null
   contentType: string | null
@@ -928,7 +929,7 @@ export async function getRecentModeration(options?: {
   try {
     let query = db()
         .from('moderation_log')
-        .select(`id, action, from_status, to_status, notes, created_at, submission_id, entity_type,
+        .select(`id, action, from_status, to_status, notes, created_at, submission_id, entity_type, actor_id,
           actor:profiles(display_name, full_name),
           content:content_items(type, translations:content_translations(locale, title))`, { count: 'exact' })
         .order('created_at', { ascending: false })
@@ -952,6 +953,7 @@ export async function getRecentModeration(options?: {
         toStatus: row.to_status,
         notes: row.notes,
         createdAt: row.created_at,
+        actorId: (row as { actor_id?: string | null }).actor_id ?? null,
         actorName: (actor as { display_name: string | null; full_name: string | null } | undefined)?.display_name ?? (actor as { full_name: string | null } | undefined)?.full_name ?? null,
         contentTitle: t?.title ?? null,
         contentType: content?.type ?? null,
@@ -1044,6 +1046,8 @@ export type MediaAssetRow = {
   backupVerifiedAt: string | null
   verificationStatus: string | null
   createdAt: string | null
+  /** Set when a content item references this asset — drives the delete warning. */
+  contentItemId: string | null
 }
 
 /** Per-asset rows for the storage table (aggregates live in getStorageStats). */
@@ -1060,7 +1064,7 @@ export async function getMediaAssets(options?: {
 
   let query = db()
     .from('media_assets')
-    .select('id, kind, provider, destination, public_url, storage_key, mime_type, file_size_bytes, backed_up_at, backup_verified_at, verification_status, created_at', { count: 'exact' })
+    .select('id, kind, provider, destination, public_url, storage_key, mime_type, file_size_bytes, backed_up_at, backup_verified_at, verification_status, created_at, content_item_id', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
   if (options?.kind && options.kind !== 'all') query = query.eq('kind', options.kind)
@@ -1083,6 +1087,7 @@ export async function getMediaAssets(options?: {
       backupVerifiedAt: (r.backup_verified_at as string | null) ?? null,
       verificationStatus: (r.verification_status as string | null) ?? null,
       createdAt: (r.created_at as string | null) ?? null,
+      contentItemId: (r.content_item_id as string | null) ?? null,
     })),
     total: count ?? 0,
   }
@@ -1114,17 +1119,18 @@ export type ReportRow = {
   missingLocale: boolean
 }
 
-export async function getReports(options?: { status?: string; limit?: number; reportType?: string; locale?: Locale }): Promise<ReportRow[]> {
+export async function getReports(options?: { status?: string; limit?: number; offset?: number; reportType?: string; locale?: Locale }): Promise<ReportRow[]> {
   const status = options?.status ?? 'all'
   const limit = options?.limit ?? 100
+  const offset = options?.offset ?? 0
   const locale = options?.locale ?? 'en'
   let query = db()
     .from('reports')
     .select(`id, report_type, reporter_id, content_item_id, media_id, subject, description, evidence_url,
       status, resolution, created_at, updated_at, resolved_at,
-      content:content_items(id, type, slug, status, translations:content_translations(locale, title))`)
+      content:content_items(id, type, slug, status, translations:content_translations(locale, title))`, { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .range(offset, offset + limit - 1)
   if (status !== 'all') query = query.eq('status', status)
   if (options?.reportType) query = query.eq('report_type', options.reportType)
 
@@ -1182,9 +1188,10 @@ export type CorrectionRow = {
   missingLocale: boolean
 }
 
-export async function getCorrections(options?: { status?: string; limit?: number; locale?: Locale }): Promise<CorrectionRow[]> {
+export async function getCorrections(options?: { status?: string; limit?: number; offset?: number; locale?: Locale }): Promise<CorrectionRow[]> {
   const status = options?.status ?? 'all'
   const limit = options?.limit ?? 100
+  const offset = options?.offset ?? 0
   const locale = options?.locale ?? 'en'
   let query = db()
     .from('corrections')
@@ -1192,7 +1199,7 @@ export async function getCorrections(options?: { status?: string; limit?: number
       status, resolution, created_at, resolved_at,
       content:content_items(id, type, slug, status, translations:content_translations(locale, title))`)
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .range(offset, offset + limit - 1)
   if (status !== 'all') query = query.eq('status', status)
 
   const { data } = await safe(query)
@@ -1225,6 +1232,28 @@ export async function getCorrections(options?: { status?: string; limit?: number
       missingLocale,
     }
   })
+}
+
+/** Unfiltered totals for trust-safety tab badges (badges must not reflect the active status filter). */
+export async function getTrustSafetyCounts(): Promise<{ reports: number; corrections: number }> {
+  if (!hasDatabase()) return { reports: 0, corrections: 0 }
+  const [reportsRes, correctionsRes] = await Promise.all([
+    safe(db().from('reports').select('id', { count: 'exact', head: true })),
+    safe(db().from('corrections').select('id', { count: 'exact', head: true })),
+  ])
+  return { reports: reportsRes.count ?? 0, corrections: correctionsRes.count ?? 0 }
+}
+
+/** Filtered totals for trust-safety pagination (respects the active status pill). */
+export async function getTrustSafetyFilteredCounts(status: string): Promise<{ reports: number; corrections: number }> {
+  if (!hasDatabase()) return { reports: 0, corrections: 0 }
+  const applyStatus = (q: ReturnType<typeof db> extends never ? never :any) => (status === 'all' ? q : q.eq('status', status))
+  // Typed loosely to avoid Supabase query-builder generics friction.
+  const [reportsRes, correctionsRes] = await Promise.all([
+    safe(applyStatus(db().from('reports').select('id', { count: 'exact', head: true }))),
+    safe(applyStatus(db().from('corrections').select('id', { count: 'exact', head: true }))),
+  ])
+  return { reports: reportsRes.count ?? 0, corrections: correctionsRes.count ?? 0 }
 }
 
 /**

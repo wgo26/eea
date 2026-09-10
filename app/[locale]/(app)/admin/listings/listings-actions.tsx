@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { expireListing, relistListing, moderateListing, updateListing } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
@@ -30,6 +31,7 @@ const inputCls =
  */
 export function ListingActions({ listing, copy, common, locale }: { listing: AdminListingRow; copy: Copy; common: CommonCopy; locale: Locale }) {
   const { addToast } = useToast()
+  const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [priceOpen, setPriceOpen] = useState(false)
@@ -43,7 +45,10 @@ export function ListingActions({ listing, copy, common, locale }: { listing: Adm
     setBusy(true)
     const result = await action()
     setBusy(false)
-    if (result.ok) addToast(toast, 'success')
+    if (result.ok) {
+      addToast(toast, 'success')
+      router.refresh()
+    }
     else addToast(result.error, 'error')
   }
 
@@ -54,6 +59,7 @@ export function ListingActions({ listing, copy, common, locale }: { listing: Adm
     if (result.ok) {
       setConfirmRemove(false)
       addToast(copy.toastRemoved, 'success')
+      router.refresh()
     } else addToast(result.error, 'error')
   }
 
@@ -64,6 +70,10 @@ export function ListingActions({ listing, copy, common, locale }: { listing: Adm
   }
 
   async function handlePriceSave() {
+    if (price.trim() !== '' && Number.isNaN(Number(price))) {
+      addToast(copy.priceLabel ?? 'Enter a valid price.', 'error')
+      return
+    }
     setBusy(true)
     const result = await updateListing(listing.contentItemId, {
       price: price.trim() === '' ? null : Number(price),
@@ -73,6 +83,7 @@ export function ListingActions({ listing, copy, common, locale }: { listing: Adm
     if (result.ok) {
       setPriceOpen(false)
       addToast(copy.toastPriceSaved, 'success')
+      router.refresh()
     } else addToast(result.error, 'error')
   }
 

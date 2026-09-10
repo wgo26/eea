@@ -770,8 +770,115 @@ below.*
   migration's statements ran. The file has never applied (each attempt
   rolled back), so it was **renumbered** to
   `20260921120000_production_phase1_3_fixes.sql` — never reuse a version
-  prefix. `scripts/verify-migrations.mjs` now treats duplicate timestamps as
-  an ERROR instead of a warning so CI catches this class before `db push`.
+   prefix. `scripts/verify-migrations.mjs` now treats duplicate timestamps as
+   an ERROR instead of a warning so CI catches this class before `db push`.
+- 2026-09-09 — **Dummy-content deletes + hardcoded-poll removal** (`tsc
+  --noEmit` clean, eslint clean, 52 vitest tests green, migration manifest
+  clean, bare-href audit zero findings): `getActivePolls` no longer falls
+  back to the hardcoded `lib/polls-demo.ts` list (file deleted) — deleting
+  every poll in `/admin/polls` now empties the news-page poll module (which
+  renders its dictionary empty state) instead of resurrecting demo polls;
+  every other public query already returned `[]` on empty, so polls were the
+  last unmanaged hardcoded surface. Admin deletes hardened:
+  `deleteContentItem`/`deletePoll`/`deleteFundraiser` authorize first, then
+  run the destructive work on the service-role client (bypassing RLS) with
+  surfaced per-step errors — previously the session client was RLS-blocked
+  (`poll_votes` had no staff SELECT/DELETE policy, `fundraisers` lacked a
+  DELETE grant), so seeded content with activity could not be removed.
+  Migration `20260925000001_poll_fundraiser_delete_policies.sql` adds the
+  missing staff-read/admin-delete `poll_votes` policies + grants and the
+  `fundraisers` DELETE grant for the session-client path. Apply with
+  `supabase db push`.
+- 2026-09-09 — **Empty-DB audit + `verify:clean` proof tool** (`tsc --noEmit`
+  clean, eslint clean, 52 vitest tests green, bare-href audit zero findings):
+  audited every public route for content renderable with all tables empty —
+  no unmanaged hardcoded content remains (only dictionary UI labels and the
+  intentional About/Advertise dictionary fallbacks, both admin-overridable).
+  Removed the dead `poll.source === "demo"` vote branch (type narrowed to
+  `"database"`), the unused `NAV_LINKS`/`FOOTER_LINKS` constants and the
+  unused `SUBMIT_TYPES` labels; the news stats strip now hides when every
+  count is zero instead of reading "0 more stories". New
+  `scripts/verify-clean.mjs` (`npm run verify:clean`, read-only) reports
+  leftover demo-identifier rows (exit 1) plus per-table totals — live run
+  confirms zero demo rows; the only non-zero leftovers are the operator's
+  own uploads, emptied homepage slots, self-created empty categories, and
+  real   user activity, each named in the report.
+- 2026-09-09 — **Culture header hardcoded stats fixed** (`tsc --noEmit`
+  clean, eslint clean, 60 vitest tests green): the `/culture` hero showed
+  `Fresh = articles.length || 12` (12 on an empty site — the reported phantom
+  number) and a hardcoded `Scenes = 6`, all with hardcoded English labels
+  (the French page rendered English). Counts are now real
+  (`articles.length`, `upcomingEvents.length`, `SUB_SECTIONS.length`) and
+  every label comes from new `culture.statScenes/statEvents/statFresh/
+  sceneEyebrow/sceneTitle/sceneActive/thisWeek` dictionary keys (en+fr);
+  sub-section pills and scene-map nodes also moved onto the existing
+  `culture.music/art/…` keys, the empty-events box reuses `noEvents`, and
+  dates format with the request locale.
+- 2026-09-09 — **Dynamic site icon follows the uploaded logo** (`tsc
+  --noEmit` clean, eslint clean, 60 vitest tests green, bare-href audit zero
+  findings, `npm run build` green): the browser tab icon no longer serves
+  the static demo mark. The `app/favicon.ico` + `app/icon.svg` image files
+  are replaced by route handlers at the same URLs (`app/favicon.ico/route.ts`,
+  `app/icon.svg/route.ts`, both `force-dynamic`) that read `site_logo_url`
+  via `getPublicSiteSettings` (`lib/site-icon.ts`): an uploaded logo is
+  307-redirected to (the same setting the header/footer use, so the branding
+  panel's "the same logo feeds the browser tab icon" promise is now true), a
+  cleared logo re-serves the built-in mark — same empty-value semantics as
+  the wordmark. Root metadata pins `<link rel="icon" href="/icon.svg">`
+  (browsers prefer the SVG-capable URL); both URLs are proxy-exempt
+  (favicon explicitly, `/icon.svg` by the asset-extension rule) and the
+  underlying read is `site`-tagged, so `saveSiteSetting` revalidates the
+  icon. `lib/site-icon.test.ts` covers URL validation + fallback.
+- 2026-09-09 — **Per-asset delete in the Storage tab** (`tsc --noEmit`
+  clean, eslint clean, 63 vitest tests green, bare-href audit zero findings,
+  `npm run build` green): `/admin/storage-backup` rows gain a Delete button
+  (`AssetDeleteButton`, ConfirmDialog instead of `window.confirm`) backed by
+  `deleteMediaAsset` — admin-only (`assertAdmin`, the `manageStorage`
+  capability), service-role client after authorization (RLS can never veto
+  an admin cleanup), stored object removed from its provider first
+  (`deleteStoredMedia`: R2 via `deleteFromR2`, Supabase Storage via the
+  bucket client), then the `media_assets` row (cascades
+  `media_text_variants` + pending `storage_tasks`; ad creatives fall back to
+  null via SET NULL), then a `storage:asset:delete` audit entry. The row's
+  `content_item_id` (`getMediaAssets` now selects it) drives an extra
+  warning in the confirm dialog when a content item references the file.
+  The B2 backup copy is intentionally kept — it is the disaster-recovery
+  mirror and no B2 delete path is wired. `lib/admin/actions-storage.test.ts`
+  covers not-found, R2 cleanup + audit payload, and link-only assets.
+- 2026-09-10 — **Pre-handover hardening batch** (`tsc --noEmit` clean, eslint
+  clean, vitest green, bare-href audit zero, `npm run build` green):
+  - **Social cards for every route**: default `og:image` (1200×630, generated
+    once by `scripts/generate-og-default.mjs` → `public/og-default.png`) in the
+    root layout's `openGraph`/`twitter`, so homepage, section indexes,
+    advertise, locations, and search share a branded card; the one page that
+    set `openGraph` without images (`locations/[place]`) now sets it too.
+    Detail pages that set their own cover keep it (Next shallow-merges
+    metadata per segment — page `openGraph` replaces the layout's by design).
+  - **Last two hand-rolled dialogs migrated** to the shadcn `Dialog` primitive
+    (focus trap, Escape, keyboard nav): the moderation approve-with-content
+    drawer (`review-actions.tsx`) and the media-library `MediaPicker`.
+    Verified: no `fixed inset-0` overlay divs remain in admin components.
+  - **Skip-to-content link** on the public shell (`#main-content`, localized
+    via `dict.common.skipToContent` in both dictionaries).
+  - **Nightly ops digest**: `/api/cron/ops-digest` (CRON_SECRET-guarded)
+    posts a queue summary (moderation pending, legal inbox open, ad campaigns
+    pending, storage pending backup/verification, staff count) to a
+    Discord/Slack webhook when `DIGEST_WEBHOOK_URL` is set; no-op otherwise.
+    Wired into `vercel.json` + `scheduled-jobs.yml` (06:00 UTC); doubles as a
+    watchdog since it posts even on an empty queue.
+  - **Docs & hygiene**: scratch notes (`m.md`, `implementation_plan.md`,
+    `scaffold_plan.md`, `Phase 1 … bli.txt`) archived to `docs/history/`;
+    regenerated debt list as [`docs/known-issues.md`](../../docs/known-issues.md)
+    (corrects ~10 outdated claims in `m.md`); client-facing
+    [`docs/admin-manual.md`](../../docs/admin-manual.md) and
+    [`docs/observability.md`](../../docs/observability.md) (Sentry +
+    `SENTRY_DSN`, uptime monitor, digest webhook); `.gitattributes` (LF
+    enforced) to stop CRLF churn; `og:default` npm script.
+  - **Remaining per the plan** (tracked in known-issues, not blockers):
+    per-event email notifications (only the digest exists), sentry SDK install,
+    uptime monitor configuration, pg_dump→B2 + restore drill, listing edit
+    bridge, image-optimization sweep.
+
 
 
 

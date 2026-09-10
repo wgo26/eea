@@ -50,7 +50,7 @@ function firstParam(value: string | string[] | undefined): string | undefined {
     return Array.isArray(value) ? value[0] : value;
 }
 
-function buildHref(params: {
+function buildCanonicalHref(params: {
     search?: string;
     category?: string;
     location?: string;
@@ -104,6 +104,7 @@ export default async function BuySellPage({
     const { locale: raw } = await params;
     const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
+    const hrefL = (args: Parameters<typeof buildCanonicalHref>[0]) => localePath(locale, buildCanonicalHref(args));
 
     const sp = await searchParams;
     const search = firstParam(sp.q)?.trim() || undefined;
@@ -120,7 +121,11 @@ export default async function BuySellPage({
         getFeaturedListing(locale),
         getListings({ search, category, location, sort, locale, page }),
     ]);
-    const { listings, pageCount, total } = list;
+    const { listings: allListings, pageCount, total } = list;
+    const listings =
+        !isFiltered && page === 1 && featured
+            ? allListings.filter((listing) => listing.id !== featured.id)
+            : allListings;
 
     const pages =
         pageCount <= 7
@@ -157,7 +162,7 @@ export default async function BuySellPage({
                 className="mb-8 flex flex-wrap items-center gap-1.5"
             >
                 <Link
-                    href={buildHref({ search, location, sort })}
+                    href={hrefL({ search, location, sort })}
                     aria-current={!category ? "page" : undefined}
                     className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
                         !category
@@ -170,7 +175,7 @@ export default async function BuySellPage({
                 {CATEGORY_SLUGS.map(({ slug, key }) => (
                     <Link
                         key={slug}
-                        href={buildHref({ search, location, sort, category: slug })}
+                        href={hrefL({ search, location, sort, category: slug })}
                         aria-current={category === slug ? "page" : undefined}
                         className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
                             category === slug
@@ -200,21 +205,21 @@ export default async function BuySellPage({
                                 <Tag className="h-3 w-3" aria-hidden />
                                 {dict.buySell.sortBy}:
                                 <Link
-                                    href={buildHref({ search, category, location, sort: "newest" })}
+                                    href={hrefL({ search, category, location, sort: "newest" })}
                                     className={`ml-1 transition-colors ${sort === "newest" ? "text-foreground" : "hover:text-foreground"}`}
                                 >
                                     {dict.buySell.sortNewest}
                                 </Link>
                                 <span className="text-border">·</span>
                                 <Link
-                                    href={buildHref({ search, category, location, sort: "price_asc" })}
+                                    href={hrefL({ search, category, location, sort: "price_asc" })}
                                     className={`transition-colors ${sort === "price_asc" ? "text-foreground" : "hover:text-foreground"}`}
                                 >
                                     {dict.buySell.sortPriceAsc}
                                 </Link>
                                 <span className="text-border">·</span>
                                 <Link
-                                    href={buildHref({ search, category, location, sort: "price_desc" })}
+                                    href={hrefL({ search, category, location, sort: "price_desc" })}
                                     className={`transition-colors ${sort === "price_desc" ? "text-foreground" : "hover:text-foreground"}`}
                                 >
                                     {dict.buySell.sortPriceDesc}
@@ -360,14 +365,14 @@ export default async function BuySellPage({
                                 {page > 1 ? (
                                     <PaginationItem>
                                         <PaginationPrevious
-                                            href={buildHref({ search, category, location, sort, page: page - 1 })}
+                                            href={hrefL({ search, category, location, sort, page: page - 1 })}
                                         />
                                     </PaginationItem>
                                 ) : null}
                                 {pages.map((p) => (
                                     <PaginationItem key={p}>
                                         <PaginationLink
-                                            href={buildHref({ search, category, location, sort, page: p })}
+                                            href={hrefL({ search, category, location, sort, page: p })}
                                             isActive={p === page}
                                         >
                                             {p}
@@ -377,7 +382,7 @@ export default async function BuySellPage({
                                 {page < pageCount ? (
                                     <PaginationItem>
                                         <PaginationNext
-                                            href={buildHref({ search, category, location, sort, page: page + 1 })}
+                                            href={hrefL({ search, category, location, sort, page: page + 1 })}
                                         />
                                     </PaginationItem>
                                 ) : null}
@@ -403,7 +408,6 @@ export default async function BuySellPage({
                                 className="space-y-2"
                             >
                                 {category ? <input type="hidden" name="category" value={category} /> : null}
-                                {location ? <input type="hidden" name="location" value={location} /> : null}
                                 {sort !== "newest" ? <input type="hidden" name="sort" value={sort} /> : null}
                                 <Input
                                     type="search"
@@ -412,6 +416,21 @@ export default async function BuySellPage({
                                     placeholder={dict.buySell.searchPlaceholder}
                                     aria-label={dict.buySell.searchLabel}
                                 />
+                                <Input
+                                    type="search"
+                                    name="location"
+                                    defaultValue={location ?? ""}
+                                    placeholder={dict.buySell.fieldLocationPlaceholder}
+                                    aria-label={dict.buySell.locations}
+                                />
+                                {location ? (
+                                    <Link
+                                        href={hrefL({ search, category, sort })}
+                                        className="inline-block text-xs font-semibold text-muted-foreground underline-offset-4 hover:underline"
+                                    >
+                                        {dict.buySell.allLocations}
+                                    </Link>
+                                ) : null}
                                 <Button type="submit" className="w-full">
                                     <Search data-icon="inline-start" aria-hidden />
                                     {dict.nav.search}
@@ -423,7 +442,7 @@ export default async function BuySellPage({
                     <AdSlot
                         ad={null}
                         dict={dict}
-                        advertiseHref="/advertise"
+                        advertiseHref={localePath(locale, "/advertise")}
                         variant="rail"
                         className="lg:sticky lg:top-24"
                     />

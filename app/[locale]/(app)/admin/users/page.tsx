@@ -65,6 +65,8 @@ export default async function Page({
 
       <div className="flex flex-col sm:flex-row gap-3">
         <form action={localePath(locale, '/admin/users')} method="GET" className="flex-1">
+          {role !== 'all' && <input type="hidden" name="role" value={role} />}
+          {status !== 'all' && <input type="hidden" name="status" value={status} />}
           <input
             type="text"
             name="q"
@@ -77,7 +79,7 @@ export default async function Page({
           {ROLE_FILTERS.map((f) => (
             <a
               key={f.key}
-              href={`${localePath(locale, '/admin/users')}?role=${f.key}${search ? `&q=${encodeURIComponent(search)}` : ''}`}
+              href={`${localePath(locale, '/admin/users')}?role=${f.key}${status !== 'all' ? `&status=${status}` : ''}${search ? `&q=${encodeURIComponent(search)}` : ''}`}
               className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
                 role === f.key
                   ? 'bg-primary text-primary-foreground border-primary'
@@ -123,7 +125,7 @@ function UserCell({ row, copy, href }: { row: UserRow; copy: ReturnType<typeof g
   return (
     <div className="min-w-0 flex items-center gap-3">
       {row.avatarUrl ? (
-        <Image src={row.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover bg-muted shrink-0" />
+        <Image src={row.avatarUrl} alt="" width={32} height={32} className="h-8 w-8 rounded-full object-cover bg-muted shrink-0" />
       ) : (
         <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground shrink-0">
           {(row.displayName ?? row.email ?? 'U').charAt(0).toUpperCase()}

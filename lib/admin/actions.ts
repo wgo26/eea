@@ -599,23 +599,34 @@ export async function createContentItem(input: {
  * refs first, then removes translations, media, type-specific rows, and the
  * item itself. Cascades handle content_tags, saved_content, etc. but we
  * explicitly clear the SET NULL ref (homepage_slots) and audit the deletion.
+ *
+ * The destructive work runs on the service-role client (bypassing RLS) after
+ * the `assertAdmin` authorization check, so an admin delete can never be
+ * blocked by a missing RLS grant/policy on a child table (the exact failure
+ * that made seeded "dummy" content undeletable). Defense in depth is kept:
+ * page guard → `assertAdmin` here → the RPC's own `is_admin()` check.
  */
 export async function deleteContentItem(contentItemId: string): Promise<ActionResult> {
   try {
-    const { supabase, user } = await assertAdmin()
-    const { data: item } = await supabase.from('content_items').select('id, slug, type').eq('id', contentItemId).limit(1)
+    const { user } = await assertAdmin()
+    // Service-role: authorization already happened above; RLS must not be
+    // able to veto an admin hard-delete (missing grants on child tables
+    // previously surfaced as "new row violates row-level security policy").
+    const admin = createAdminClient()
+    const { data: item, error: lookupErr } = await admin.from('content_items').select('id, slug, type').eq('id', contentItemId).limit(1)
+    if (lookupErr) return { ok: false, error: lookupErr.message }
     const row = (item ?? [])[0] as { id: string; slug: string; type: string } | undefined
     if (!row) return { ok: false, error: 'Content item not found.' }
 
-    const { data: mediaRows } = await supabase
+    const { data: mediaRows } = await admin
       .from('media_assets')
       .select('id, provider, storage_key')
       .eq('content_item_id', contentItemId)
     for (const media of mediaRows ?? []) {
-      await deleteStoredMedia(supabase, media as { provider: string; storage_key: string | null })
+      await deleteStoredMedia(admin, media as { provider: string; storage_key: string | null })
     }
 
-    const { error } = await supabase.rpc('admin_delete_content_item', {
+    const { error } = await admin.rpc('admin_delete_content_item', {
       p_content_item_id: contentItemId,
       p_actor_id: user.id,
       p_note: `${row.type}/${row.slug}`,
@@ -979,18 +990,59 @@ export async function reorderHomepageSlot(slotId: string, direction: 'up' | 'dow
   } catch (e) { return fail(e) }
 }
 
-export async function queueStorageVerification(mediaId?: string): Promise<ActionResult> {
+export async function queueStorageVerification(mediaId?: string): Promise<ActionResult & { count?: number }> {
   try {
     const { supabase, user } = await assertAdmin()
     let query = supabase.from('media_assets').select('id').eq('verification_status', 'pending')
     if (mediaId) query = query.eq('id', mediaId)
     const { data, error } = await query
     if (error) return { ok: false, error: error.message }
+    if (!data?.length) return { ok: false, error: 'Nothing to verify — no pending assets found.' }
     if (data?.length) {
       const { error: taskError } = await supabase.from('storage_tasks').insert(data.map((row) => ({ media_id: row.id, task_type: 'verify' })))
       if (taskError) return { ok: false, error: taskError.message }
     }
     await audit(supabase, user.id, { action: 'storage:verify:queue', notes: `count=${data?.length ?? 0}` })
+    revalidateLocalized('/admin/storage-backup')
+    return { ok: true, count: data?.length ?? 0 }
+  } catch (e) { return fail(e) }
+}
+
+/**
+ * Permanently delete one media asset from the Storage tab (admin-only): the
+ * stored object is removed from its provider first, then the metadata row
+ * (cascades media_text_variants + pending storage_tasks; ad creatives fall
+ * back to null via their SET NULL FK). Mirrors deleteContentItem's hardened
+ * pattern — authorize (assertAdmin) → destructive work on the service-role
+ * client so RLS can never veto an admin cleanup → surfaced per-step errors →
+ * audit. The B2 backup copy is intentionally left in place: it is the
+ * disaster-recovery mirror, and no B2 delete path is wired.
+ */
+export async function deleteMediaAsset(mediaId: string): Promise<ActionResult> {
+  try {
+    const { user } = await assertAdmin()
+    const admin = createAdminClient()
+    const { data: rows, error: lookupErr } = await admin
+      .from('media_assets')
+      .select('id, provider, storage_key, content_item_id')
+      .eq('id', mediaId)
+      .limit(1)
+    if (lookupErr) return { ok: false, error: lookupErr.message }
+    const row = (rows ?? [])[0] as
+      | { id: string; provider: string; storage_key: string | null; content_item_id: string | null }
+      | undefined
+    if (!row) return { ok: false, error: 'Asset not found.' }
+
+    await deleteStoredMedia(admin, row)
+
+    const { error } = await admin.from('media_assets').delete().eq('id', mediaId)
+    if (error) return { ok: false, error: error.message }
+
+    await audit(admin, user.id, {
+      action: 'storage:asset:delete',
+      entityType: 'media_asset',
+      notes: row.storage_key ?? row.id,
+    })
     revalidateLocalized('/admin/storage-backup')
     return { ok: true }
   } catch (e) { return fail(e) }
@@ -1120,9 +1172,13 @@ export async function updateUserProfile(
   } catch (e) { return fail(e) }
 }
 
-export async function inviteUser(email: string, role: AppRole = 'contributor'): Promise<ActionResult> {
+export async function inviteUser(email: string, role: AppRole = 'contributor', confirmPassword?: string): Promise<ActionResult> {
   try {
-    const { supabase, user } = await assertAdmin()
+    // Inviting an admin is privilege escalation — require step-up reauth,
+    // mirroring setUserRole's admin gate.
+    const { supabase, user } = role === 'admin'
+      ? await assertReauth(confirmPassword)
+      : await assertAdmin()
     const normalized = email.trim().toLowerCase()
     if (!/^\S+@\S+\.\S+$/.test(normalized)) return { ok: false, error: 'Enter a valid email address.' }
     const { data, error } = await createAdminClient().auth.admin.inviteUserByEmail(normalized)
@@ -1217,8 +1273,12 @@ export async function approveAdInquiry(campaignId: string, input: { slotId: stri
   try {
     const { supabase, user } = await assertCapability('manageAds')
     if (input.startsAt && input.endsAt && new Date(input.endsAt) <= new Date(input.startsAt)) return { ok: false, error: 'Campaign end must be after its start.' }
-    const { data: overlap } = await supabase.from('ad_campaigns').select('id').eq('ad_slot_id', input.slotId).eq('status', 'active').lt('starts_at', input.endsAt ?? '9999-12-31').gt('ends_at', input.startsAt ?? '1900-01-01')
-    if ((overlap ?? []).some((row) => row.id !== campaignId)) return { ok: false, error: 'This slot is already booked for the selected dates.' }
+    // Overlap check only makes sense with a real date window — dateless
+    // approvals (run indefinitely) must not be blocked by dated campaigns.
+    if (input.startsAt && input.endsAt) {
+      const { data: overlap } = await supabase.from('ad_campaigns').select('id').eq('ad_slot_id', input.slotId).eq('status', 'active').lt('starts_at', input.endsAt).gt('ends_at', input.startsAt)
+      if ((overlap ?? []).some((row) => row.id !== campaignId)) return { ok: false, error: 'This slot is already booked for the selected dates.' }
+    }
     const { error } = await supabase.from('ad_campaigns').update({ ad_slot_id: input.slotId, starts_at: input.startsAt ?? null, ends_at: input.endsAt ?? null, agreed_price: input.agreedPrice ?? null, currency: input.currency?.toUpperCase() ?? null, status: 'active', approved_at: new Date().toISOString(), approved_by: user.id }).eq('id', campaignId).eq('status', 'pending')
     if (error) return { ok: false, error: error.message }
     await supabase.from('ad_inquiry_events').insert({ campaign_id: campaignId, actor_id: user.id, event_type: 'approved' })
@@ -1484,8 +1544,15 @@ export async function updatePoll(
 
 export async function deletePoll(pollId: string, override = false): Promise<ActionResult> {
   try {
-    const { supabase, user } = await assertCapability('managePolls')
-    const { count } = await supabase.from('poll_votes').select('id', { count: 'exact', head: true }).eq('poll_id', pollId)
+    const { user } = await assertCapability('managePolls')
+    // Service-role for the destructive work (after the capability check):
+    // `poll_votes` has no staff-readable SELECT policy, so a session-client
+    // count always undercounted to 0 (hiding the override checkbox) and the
+    // session-client vote delete was RLS-blocked — polls with ballots could
+    // never be removed from the command center.
+    const admin = createAdminClient()
+    const { count, error: countErr } = await admin.from('poll_votes').select('id', { count: 'exact', head: true }).eq('poll_id', pollId)
+    if (countErr) return { ok: false, error: countErr.message }
     const voteCount = count ?? 0
 
     if (voteCount > 0 && !override) {
@@ -1499,12 +1566,14 @@ export async function deletePoll(pollId: string, override = false): Promise<Acti
       await assertAdmin()
     }
 
-    await supabase.from('poll_votes').delete().eq('poll_id', pollId)
-    await supabase.from('poll_options').delete().eq('poll_id', pollId)
-    const { error } = await supabase.from('polls').delete().eq('id', pollId)
+    const { error: votesErr } = await admin.from('poll_votes').delete().eq('poll_id', pollId)
+    if (votesErr) return { ok: false, error: votesErr.message }
+    const { error: optionsErr } = await admin.from('poll_options').delete().eq('poll_id', pollId)
+    if (optionsErr) return { ok: false, error: optionsErr.message }
+    const { error } = await admin.from('polls').delete().eq('id', pollId)
     if (error) return { ok: false, error: error.message }
 
-    await audit(supabase, user.id, {
+    await audit(admin, user.id, {
       action: override ? 'poll:delete:override' : 'poll:delete',
       notes: `poll=${pollId} votes=${voteCount}`,
     })
@@ -1815,13 +1884,17 @@ export async function reopenFundraiser(contentItemId: string): Promise<ActionRes
 
 export async function deleteFundraiser(contentItemId: string): Promise<ActionResult> {
   try {
-    const { supabase } = await assertAdmin()
-    const { data: fundraiser } = await supabase
+    await assertAdmin()
+    // Service-role lookup (after the admin check): the session client has no
+    // DELETE-adjacent guarantees on fundraisers and previously surfaced RLS
+    // errors instead of deleting seeded "dummy" campaigns.
+    const admin = createAdminClient()
+    const { data: fundraiser, error: lookupErr } = await admin
       .from('fundraisers')
       .select('content_item_id')
       .eq('content_item_id', contentItemId)
       .single()
-    if (!fundraiser) return { ok: false, error: 'Fundraiser not found.' }
+    if (lookupErr || !fundraiser) return { ok: false, error: 'Fundraiser not found.' }
     const result = await deleteContentItem(contentItemId)
     if (result.ok) {
       revalidateLocalized('/admin/fundraisers')
@@ -1838,18 +1911,28 @@ export async function deleteFundraiser(contentItemId: string): Promise<ActionRes
 /* Storage / backup                                                    */
 /* ------------------------------------------------------------------ */
 
-export async function triggerBackup(): Promise<ActionResult> {
+export async function triggerBackup(): Promise<ActionResult & { count?: number }> {
   try {
     const { supabase, user } = await assertAdmin()
+    // Scope today: R2-hosted originals only (Supabase-hosted + B2 mirror are
+    // out of scope for the delta backup). Count first so the UI can report
+    // honestly instead of toasting success on zero rows.
+    const { data: pending, error: lookupError } = await supabase
+      .from('media_assets')
+      .select('id')
+      .eq('provider', 'r2')
+      .is('backed_up_at', null)
+    if (lookupError) return { ok: false, error: lookupError.message }
+    if (!pending?.length) return { ok: false, error: 'Nothing to queue — all R2 assets are already backed up.' }
     const { error } = await supabase
       .from('media_assets')
       .update({ backup_requested_at: new Date().toISOString() })
       .eq('provider', 'r2')
       .is('backed_up_at', null)
     if (error) return { ok: false, error: error.message }
-    await audit(supabase, user.id, { action: 'backup:trigger' })
+    await audit(supabase, user.id, { action: 'backup:trigger', notes: `count=${pending.length} scope=r2` })
     revalidateLocalized('/admin/storage-backup')
-    return { ok: true }
+    return { ok: true, count: pending.length }
   } catch (e) {
     return fail(e)
   }

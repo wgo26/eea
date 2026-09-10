@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 import { SiteHeader } from '@/components/site-header'
 import { SiteFooter } from '@/components/site-footer'
 import { getPublicSiteSettings } from '@/lib/admin/queries'
+import { getDictionary } from '@/lib/i18n'
+import { getRequestLocale } from '@/lib/i18n/server'
 
 /**
  * PublicShell (checklist item 2) — the browsing chrome: global header +
@@ -17,12 +19,21 @@ import { getPublicSiteSettings } from '@/lib/admin/queries'
  */
 export async function PublicShell({ children }: { children: ReactNode }) {
   const settings = await getPublicSiteSettings()
+  const locale = await getRequestLocale()
+  const dict = getDictionary(locale)
   return (
     <>
+      {/* a11y: keyboard bypass past the global nav into the page content. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
+      >
+        {dict.common.skipToContent}
+      </a>
       <SiteHeader
         branding={{ logoUrl: settings.logoUrl, siteName: settings.siteName, siteTagline: settings.siteTagline, siteNameFr: settings.siteNameFr, siteTaglineFr: settings.siteTaglineFr }}
       />
-      <main className="flex-1">{children}</main>
+      <main id="main-content" className="flex-1">{children}</main>
       <SiteFooter
         socialLinks={{ facebook: settings.facebookUrl, youtube: settings.youtubeUrl }}
         branding={{ logoUrl: settings.logoUrl, siteName: settings.siteName, siteNameFr: settings.siteNameFr }}

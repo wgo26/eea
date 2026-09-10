@@ -9,11 +9,11 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { MobileNav } from "@/components/mobile-nav";
 import { getDictionary, locales, type Locale } from "@/lib/i18n";
 
-/** Prefixes a canonical path with /fr when the active locale is French. */
+/** Prefixes a canonical path with the active locale (prefix-all model). */
 export function localeHref(locale: Locale, path: string): string {
     if (path.startsWith("http") || path.startsWith("/fr") || path.startsWith("/en")) return path;
-    if (locale === "fr") return path === "/" ? "/fr" : `/fr${path}`;
-    return path;
+    if (path === "/") return `/${locale}`;
+    return `/${locale}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 /** Detects the active locale from the URL (en/fr prefix), defaulting to English. */

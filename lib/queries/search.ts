@@ -77,7 +77,7 @@ function pickLocalized<T extends { locale: string }>(
     );
 }
 
-/** Canonical detail hrefs, matching the real page routes (not locale-prefixed). */
+/** Canonical detail paths (locale-free — callers prefix via localePath). */
 function detailHref(type: string, slug: string | null, id: string): string {
     const key = slug ?? id;
     switch (type) {
@@ -92,7 +92,7 @@ function detailHref(type: string, slug: string | null, id: string): string {
         case "listing":
             return `/buy-sell/${id}`;
         default:
-            return `/search`;
+            return `/`;
     }
 }
 

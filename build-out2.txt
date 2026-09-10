@@ -1,0 +1,58 @@
+
+> eea@0.1.0 build
+> next build
+
+▲ Next.js 16.3.4 (Turbopack)
+- Environments: .env
+✓ Running next.config.ts took 319ms
+
+  Creating an optimized production build ...
+Turbopack build encountered 1 warning:
+./lib/observability/logger.ts:71:27
+Warning: Module not found: Can't resolve '@sentry/nextjs'
+  [90m69 |[0m     [90m// at build time (import of a string-typed specifier resolves to `any`).[0m
+  [90m70 |[0m     [36mconst[0m specifier: string = [32m"@sentry/nextjs"[0m;
+[33m[1m>[0m [90m71 |[0m     [36mconst[0m sentry = ([36mawait[0m [36mimport[0m(specifier).[36mcatch[0m(() => [36mnull[0m)) [36mas[0m {
+  [90m   |[0m                           [33m[1m^^^^^^^^^^^^^^^^^[0m
+  [90m72 |[0m       captureMessage?: (msg: string, opts?: unknown) => [36mvoid[0m;
+  [90m73 |[0m       captureException?: (err: unknown) => [36mvoid[0m;
+  [90m74 |[0m     } | [36mnull[0m;
+
+
+
+Import traces:
+  #1 [App Route]:
+    ./lib/observability/logger.ts
+    ./app/api/cron/storage-backup/route.ts
+
+  #2 [Server Component]:
+    ./lib/observability/logger.ts
+    ./lib/public/actions.ts
+
+  #3 [Server Component]:
+    ./lib/observability/logger.ts
+    ./lib/queries/about.ts
+    ./app/[locale]/(public)/about/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+✓ Finished writing to filesystem cache in 14.1s
+
+> Build error occurred
+Error: Turbopack build failed with 1 error:
+./app/[locale]/(app)/admin/trust-safety/page.tsx:185:8
+Error: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  [90m183 |[0m           ]}
+  [90m184 |[0m         />
+[31m[1m>[0m [90m185 |[0m       )}
+  [90m    |[0m        [31m[1m^[0m
+  [90m186 |[0m     </div>
+  [90m187 |[0m   )
+  [90m188 |[0m }
+
+Parsing ecmascript source code failed
+
+
+    at <unknown> (./app/[locale]/(app)/admin/trust-safety/page.tsx:185:8)
+Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file c:\ws\deps\uv\src\win\async.c, line 76

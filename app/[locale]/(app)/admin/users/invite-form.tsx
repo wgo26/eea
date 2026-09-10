@@ -16,16 +16,18 @@ export function InviteForm({ copy, common }: { copy: Copy; common: Dictionary['a
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<AppRole>('contributor')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    const result = await inviteUser(email.trim(), role)
+    const result = await inviteUser(email.trim(), role, role === 'admin' ? password : undefined)
     setLoading(false)
     if (result.ok) {
       addToast(copy.toastInvited, 'success')
       setEmail('')
+      setPassword('')
       setOpen(false)
     } else {
       addToast(result.error, 'error')
@@ -80,7 +82,7 @@ export function InviteForm({ copy, common }: { copy: Copy; common: Dictionary['a
         <div className="flex items-end gap-2">
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || (role === 'admin' && !password)}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
             {loading ? common.working : copy.inviteSubmit}
@@ -94,6 +96,19 @@ export function InviteForm({ copy, common }: { copy: Copy; common: Dictionary['a
           </button>
         </div>
       </div>
+      {role === 'admin' && (
+        <label className="mt-3 flex flex-col gap-1.5 text-xs text-muted-foreground">
+          <span>{copy.reauthPasswordLabel}</span>
+          <input
+            type="password"
+            required
+            value={password}
+            autoComplete="current-password"
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary sm:max-w-xs"
+          />
+        </label>
+      )}
     </form>
   )
 }

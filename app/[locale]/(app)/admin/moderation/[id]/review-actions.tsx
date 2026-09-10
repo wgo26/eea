@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   approveSubmissionWithContent,
   rejectSubmission,
@@ -10,6 +11,14 @@ import {
 } from '@/lib/admin/actions'
 import type { ContentDraftInput } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { MediaUploader, type UploadedPhoto } from '@/components/admin/media-uploader'
 import type { Dictionary } from '@/lib/i18n'
 import type { SubmissionRow } from '@/lib/admin/queries'
@@ -314,6 +323,7 @@ function ApproveDrawer({
   onClose: () => void
 }) {
   const { addToast } = useToast()
+  const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [publish, setPublish] = useState<'now' | 'schedule' | 'draft'>('now')
   const [scheduledFor, setScheduledFor] = useState('')
@@ -349,6 +359,14 @@ function ApproveDrawer({
   const [organization, setOrganization] = useState(prefill.organization)
 
   async function handleApprove() {
+    if (publish === 'schedule' && !scheduledFor.trim()) {
+      addToast(copy.scheduledFor ?? 'Pick a date/time first.', 'error')
+      return
+    }
+    if (isListing && price.trim() !== '' && Number.isNaN(Number(price))) {
+      addToast(copy.priceLabel ?? 'Enter a valid price.', 'error')
+      return
+    }
     setBusy(true)
     const draft: ContentDraftInput = {
       slugBase: enTitle.trim() || 'submission',
@@ -395,18 +413,21 @@ function ApproveDrawer({
         'success',
       )
       onClose()
+      router.refresh()
     } else {
       addToast(result.error, 'error')
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4">
-      <div className="relative z-10 my-8 w-full max-w-2xl rounded-lg border border-border bg-card p-6 shadow-xl">
-        <h3 className="text-lg font-semibold">{copy.createContentTitle}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{copy.createContentBody}</p>
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{copy.createContentTitle}</DialogTitle>
+          <DialogDescription>{copy.createContentBody}</DialogDescription>
+        </DialogHeader>
 
-        <div className="mt-4 grid gap-3">
+        <div className="grid gap-3">
           <Field label={copy.enTitle}>
             <input value={enTitle} onChange={(e) => setEnTitle(e.target.value)} className={inputCls} />
           </Field>
@@ -545,7 +566,7 @@ function ApproveDrawer({
             </div>
             {publish === 'schedule' && (
               <Field label={copy.scheduledFor}>
-                <input type="datetime-local" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} className={inputCls} />
+                <input type="datetime-local" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} required className={inputCls} />
               </Field>
             )}
             <Field label={`${copy.expiresAt} (${copy.optional})`}>
@@ -554,7 +575,7 @@ function ApproveDrawer({
           </div>
         </div>
 
-        <div className="mt-5 flex justify-end gap-2">
+        <DialogFooter>
           <button
             type="button"
             onClick={onClose}
@@ -571,8 +592,8 @@ function ApproveDrawer({
           >
             {busy ? '…' : copy.approveWithContent}
           </button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

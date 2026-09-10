@@ -30,6 +30,7 @@ import {
     PaginationPrevious,
 } from "@/components/ui/pagination";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
+import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
 import { getFundraisers, getFundraiserStats } from "@/lib/queries/fundraisers";
 import { getActivePolls } from "@/lib/queries/polls";
 import {
@@ -50,10 +51,22 @@ export async function generateMetadata({
     const { locale: raw } = await params;
     const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
+    let ogImage: string | null = null;
+    try {
+        const featured = await getFeaturedNews(locale);
+        ogImage = featured?.imageUrl ?? null;
+    } catch {
+        ogImage = null;
+    }
     return {
         title: dict.news.title,
         description: dict.news.tagline,
         alternates: buildAlternates(locale, "/news"),
+        openGraph: {
+            title: dict.news.title,
+            description: dict.news.tagline,
+            images: [{ url: ogImage ?? DEFAULT_OG_IMAGE, width: 1200, height: 630 }],
+        },
     };
 }
 
@@ -70,7 +83,7 @@ function firstParam(value: string | string[] | undefined): string | undefined {
 }
 
 /** Stable hrefs for pagination, facets and sorting that preserve active filters. */
-function buildHref(params: {
+function buildCanonicalHref(params: {
     search?: string;
     category?: string;
     location?: string;
@@ -97,6 +110,7 @@ export default async function NewsPage({
     const { locale: raw } = await params;
     const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
+    const hrefL = (args: Parameters<typeof buildCanonicalHref>[0]) => localePath(locale, buildCanonicalHref(args));
     const searchParamsResolved = await searchParams;
     const search = firstParam(searchParamsResolved.q)?.trim() || undefined;
     const category = firstParam(searchParamsResolved.category)?.trim() || undefined;
@@ -172,8 +186,8 @@ export default async function NewsPage({
                 </p>
             </header>
 
-            {/* Stats strip */}
-            {browseMode ? (
+            {/* Stats strip — hidden on a wiped site so it never reads "0 more stories". */}
+            {browseMode && (stats.articles > 0 || stats.places > 0 || stats.contributors > 0) ? (
                 <section
                     aria-label={dict.news.latest}
                     className="mb-8 flex flex-wrap items-center gap-x-8 gap-y-2 border-y py-3.5 text-sm text-muted-foreground"
@@ -266,7 +280,7 @@ export default async function NewsPage({
                     className="mb-8 flex flex-wrap items-center gap-1.5"
                 >
                     <Link
-                        href={buildHref({ search, location, sort })}
+                        href={hrefL({ search, location, sort })}
                         aria-current={!category ? "page" : undefined}
                         className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${category
                                 ? "bg-muted text-muted-foreground hover:bg-accent"
@@ -278,7 +292,7 @@ export default async function NewsPage({
                     {categories.map((facet) => (
                         <Link
                             key={facet.id}
-                            href={buildHref({ search, location, sort, category: facet.slug })}
+                            href={hrefL({ search, location, sort, category: facet.slug })}
                             aria-current={category === facet.slug ? "page" : undefined}
                             className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${category === facet.slug
                                     ? "bg-primary text-primary-foreground"
@@ -304,7 +318,7 @@ export default async function NewsPage({
                                 {dict.news.sortBy}
                             </span>
                             <Link
-                                href={buildHref({ search, category, location })}
+                                href={hrefL({ search, category, location })}
                                 aria-current={sort === "newest" ? "page" : undefined}
                                 className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${sort === "newest"
                                         ? "bg-foreground text-background"
@@ -314,7 +328,7 @@ export default async function NewsPage({
                                 {dict.news.sortNewest}
                             </Link>
                             <Link
-                                href={buildHref({ search, category, location, sort: "most_read" })}
+                                href={hrefL({ search, category, location, sort: "most_read" })}
                                 aria-current={sort === "most_read" ? "page" : undefined}
                                 className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${sort === "most_read"
                                         ? "bg-foreground text-background"
@@ -362,7 +376,7 @@ export default async function NewsPage({
                                 {page > 1 ? (
                                     <PaginationItem>
                                         <PaginationPrevious
-                                            href={buildHref({
+                                            href={hrefL({
                                                 search,
                                                 category,
                                                 location,
@@ -375,7 +389,7 @@ export default async function NewsPage({
                                 {pages.map((p) => (
                                     <PaginationItem key={p}>
                                         <PaginationLink
-                                            href={buildHref({
+                                            href={hrefL({
                                                 search,
                                                 category,
                                                 location,
@@ -391,7 +405,7 @@ export default async function NewsPage({
                                 {page < pageCount ? (
                                     <PaginationItem>
                                         <PaginationNext
-                                            href={buildHref({
+                                            href={hrefL({
                                                 search,
                                                 category,
                                                 location,
@@ -504,7 +518,7 @@ export default async function NewsPage({
                                     {locations.map((loc) => (
                                         <li key={loc.slug}>
                                             <Link
-                                                href={buildHref({
+                                                href={hrefL({
                                                     search,
                                                     category,
                                                     sort,
@@ -538,7 +552,7 @@ export default async function NewsPage({
                     <AdSlot
                         ad={null}
                         dict={dict}
-                        advertiseHref="/advertise"
+                        advertiseHref={localePath(locale, "/advertise")}
                         variant="rail"
                         className="lg:sticky lg:top-24"
                     />

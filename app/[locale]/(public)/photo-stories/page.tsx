@@ -19,6 +19,7 @@ import {
     PaginationPrevious,
 } from "@/components/ui/pagination";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
+import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
 import {
     getFeaturedPhotoStory,
     getMostViewedPhotoStories,
@@ -36,10 +37,22 @@ export async function generateMetadata({
     const { locale: raw } = await params;
     const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
+    let ogImage: string | null = null;
+    try {
+        const featured = await getFeaturedPhotoStory();
+        ogImage = featured?.imageUrl ?? null;
+    } catch {
+        ogImage = null;
+    }
     return {
         title: dict.photoStories.title,
         description: dict.photoStories.tagline,
         alternates: buildAlternates(locale, "/photo-stories"),
+        openGraph: {
+            title: dict.photoStories.title,
+            description: dict.photoStories.tagline,
+            images: [{ url: ogImage ?? DEFAULT_OG_IMAGE, width: 1200, height: 630 }],
+        },
     };
 }
 
@@ -55,7 +68,7 @@ function firstParam(value: string | string[] | undefined): string | undefined {
 }
 
 /** Stable hrefs for pagination + facet links that preserve active filters. */
-function buildHref(params: {
+function buildCanonicalHref(params: {
     search?: string;
     category?: string;
     location?: string;
@@ -80,6 +93,7 @@ export default async function PhotoStoriesPage({
     const { locale: raw } = await params;
     const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
+    const hrefL = (args: Parameters<typeof buildCanonicalHref>[0]) => localePath(locale, buildCanonicalHref(args));
 
     const sp = await searchParams;
     const search = firstParam(sp.q)?.trim() || undefined;
@@ -176,7 +190,7 @@ export default async function PhotoStoriesPage({
                     className="mb-8 flex flex-wrap items-center gap-1.5"
                 >
                     <Link
-                        href={buildHref({ search, location })}
+                        href={hrefL({ search, location })}
                         aria-current={!category ? "page" : undefined}
                         className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${category
                                 ? "bg-muted text-muted-foreground hover:bg-accent"
@@ -188,7 +202,7 @@ export default async function PhotoStoriesPage({
                     {categories.map((facet) => (
                         <Link
                             key={facet.id}
-                            href={buildHref({ search, location, category: facet.slug })}
+                            href={hrefL({ search, location, category: facet.slug })}
                             aria-current={category === facet.slug ? "page" : undefined}
                             className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${category === facet.slug
                                     ? "bg-primary text-primary-foreground"
@@ -248,7 +262,7 @@ export default async function PhotoStoriesPage({
                                 {page > 1 ? (
                                     <PaginationItem>
                                         <PaginationPrevious
-                                            href={buildHref({
+                                            href={hrefL({
                                                 search,
                                                 category,
                                                 location,
@@ -260,7 +274,7 @@ export default async function PhotoStoriesPage({
                                 {pages.map((p) => (
                                     <PaginationItem key={p}>
                                         <PaginationLink
-                                            href={buildHref({ search, category, location, page: p })}
+                                            href={hrefL({ search, category, location, page: p })}
                                             isActive={p === page}
                                         >
                                             {p}
@@ -270,7 +284,7 @@ export default async function PhotoStoriesPage({
                                 {page < pageCount ? (
                                     <PaginationItem>
                                         <PaginationNext
-                                            href={buildHref({
+                                            href={hrefL({
                                                 search,
                                                 category,
                                                 location,
@@ -383,7 +397,7 @@ export default async function PhotoStoriesPage({
                                     {locations.map((loc) => (
                                         <li key={loc.slug}>
                                             <Link
-                                                href={buildHref({
+                                                href={hrefL({
                                                     search,
                                                     category,
                                                     location: loc.slug,
@@ -414,7 +428,7 @@ export default async function PhotoStoriesPage({
                     <AdSlot
                         ad={null}
                         dict={dict}
-                        advertiseHref="/advertise"
+                        advertiseHref={localePath(locale, "/advertise")}
                         variant="rail"
                         className="lg:sticky lg:top-24"
                     />

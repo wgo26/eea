@@ -141,23 +141,11 @@ export function NoticeCard({ notice, dict, locale, className }: NoticeCardProps)
 
                     {/* Actions */}
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                        {notice.contactPhone ? (
-                            <a
-                                href={`tel:${notice.contactPhone.replace(/\s+/g, "")}`}
-                                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors hover:bg-muted"
-                            >
+                        {notice.hasContact && notice.organizationName ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold text-muted-foreground">
                                 <Phone className="h-3.5 w-3.5" aria-hidden />
-                                {notice.contactPhone}
-                            </a>
-                        ) : null}
-                        {notice.contactEmail ? (
-                            <a
-                                href={`mailto:${notice.contactEmail}`}
-                                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors hover:bg-muted"
-                            >
-                                <Mail className="h-3.5 w-3.5" aria-hidden />
-                                {dict.notices.contact}
-                            </a>
+                                {notice.organizationName}
+                            </span>
                         ) : null}
                         <a
                             href={whatsappHref(shareUrl, `${notice.title} —`)}

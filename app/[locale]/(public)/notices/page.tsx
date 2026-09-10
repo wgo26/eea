@@ -46,6 +46,7 @@ type NoticesSearchParams = {
     q?: string | string[];
     type?: string | string[];
     location?: string | string[];
+    status?: string | string[];
     page?: string | string[];
 };
 
@@ -53,16 +54,18 @@ function firstParam(value: string | string[] | undefined): string | undefined {
     return Array.isArray(value) ? value[0] : value;
 }
 
-function buildHref(params: {
+function buildCanonicalHref(params: {
     search?: string;
     type?: string;
     location?: string;
+    status?: string;
     page?: number;
 }): string {
     const qs = new URLSearchParams();
     if (params.search) qs.set("q", params.search);
     if (params.type) qs.set("type", params.type);
     if (params.location) qs.set("location", params.location);
+    if (params.status && params.status !== "active") qs.set("status", params.status);
     if (params.page && params.page > 1) qs.set("page", String(params.page));
     const query = qs.toString();
     return query ? `/notices?${query}` : "/notices";
@@ -78,25 +81,42 @@ export default async function NoticesPage({
     const { locale: raw } = await params;
     const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
+    const hrefL = (args: Parameters<typeof buildCanonicalHref>[0]) => localePath(locale, buildCanonicalHref(args));
 
     const searchParamsResolved = await searchParams;
     const search = firstParam(searchParamsResolved.q)?.trim() || undefined;
     const noticeType = firstParam(searchParamsResolved.type)?.trim() || undefined;
     const location = firstParam(searchParamsResolved.location)?.trim() || undefined;
+    const rawStatus = firstParam(searchParamsResolved.status)?.trim();
+    const status: "all" | "active" | "expiring" | "expired" =
+        rawStatus === "all" || rawStatus === "expiring" || rawStatus === "expired"
+            ? rawStatus
+            : "active";
     const page = Math.max(
         1,
         Number.parseInt(firstParam(searchParamsResolved.page) ?? "1", 10) || 1,
     );
-    const isFiltered = Boolean(search || noticeType || location);
+    const isFiltered = Boolean(search || noticeType || location || status !== "active");
     const browseMode = !isFiltered && page === 1;
+
+    const statuses = [
+        { value: "all" as const, label: dict.notices.allStatuses },
+        { value: "active" as const, label: dict.notices.statusActive },
+        { value: "expiring" as const, label: dict.notices.statusExpiring },
+        { value: "expired" as const, label: dict.notices.statusExpired },
+    ];
 
     const [featured, list, types, locations] = await Promise.all([
         getFeaturedNotice(locale),
-        getNotices({ search, noticeType, location, locale, page }),
+        getNotices({ search, noticeType, location, status, locale, page }),
         getNoticeTypes(),
         getNoticesLocations(),
     ]);
-    const { notices, pageCount } = list;
+    const { notices: allNotices, pageCount } = list;
+    const notices =
+        browseMode && featured
+            ? allNotices.filter((notice) => notice.id !== featured.id)
+            : allNotices;
 
     const pages =
         pageCount <= 7
@@ -192,7 +212,7 @@ export default async function NoticesPage({
                     className="mb-8 flex flex-wrap items-center gap-1.5"
                 >
                     <Link
-                        href={buildHref({ search, location })}
+                        href={hrefL({ search, location, status })}
                         aria-current={!noticeType ? "page" : undefined}
                         className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${!noticeType
                                 ? "bg-primary text-primary-foreground"
@@ -204,7 +224,7 @@ export default async function NoticesPage({
                     {types.map((facet) => (
                         <Link
                             key={facet.type}
-                            href={buildHref({ search, location, type: facet.type })}
+                            href={hrefL({ search, location, status, type: facet.type })}
                             aria-current={noticeType === facet.type ? "page" : undefined}
                             className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${noticeType === facet.type
                                     ? "bg-primary text-primary-foreground"
@@ -217,6 +237,25 @@ export default async function NoticesPage({
                     ))}
                 </nav>
             ) : null}
+
+            <nav
+                aria-label={dict.notices.board}
+                className="mb-8 flex flex-wrap items-center gap-1.5"
+            >
+                {statuses.map((s) => (
+                    <Link
+                        key={s.value}
+                        href={hrefL({ search, type: noticeType, location, status: s.value })}
+                        aria-current={status === s.value ? "page" : undefined}
+                        className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${status === s.value
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-muted-foreground hover:bg-accent"
+                            }`}
+                    >
+                        {s.label}
+                    </Link>
+                ))}
+            </nav>
 
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div>
@@ -316,10 +355,11 @@ export default async function NoticesPage({
                                 {page > 1 ? (
                                     <PaginationItem>
                                         <PaginationPrevious
-                                            href={buildHref({
+                                            href={hrefL({
                                                 search,
                                                 type: noticeType,
                                                 location,
+                                                status,
                                                 page: page - 1,
                                             })}
                                         />
@@ -328,7 +368,7 @@ export default async function NoticesPage({
                                 {pages.map((p) => (
                                     <PaginationItem key={p}>
                                         <PaginationLink
-                                            href={buildHref({ search, type: noticeType, location, page: p })}
+                                            href={hrefL({ search, type: noticeType, location, status, page: p })}
                                             isActive={p === page}
                                         >
                                             {p}
@@ -338,10 +378,11 @@ export default async function NoticesPage({
                                 {page < pageCount ? (
                                     <PaginationItem>
                                         <PaginationNext
-                                            href={buildHref({
+                                            href={hrefL({
                                                 search,
                                                 type: noticeType,
                                                 location,
+                                                status,
                                                 page: page + 1,
                                             })}
                                         />
@@ -373,6 +414,9 @@ export default async function NoticesPage({
                                 {location ? (
                                     <input type="hidden" name="location" value={location} />
                                 ) : null}
+                                {status !== "active" ? (
+                                    <input type="hidden" name="status" value={status} />
+                                ) : null}
                                 <Input
                                     type="search"
                                     name="q"
@@ -401,10 +445,11 @@ export default async function NoticesPage({
                                     {locations.map((loc) => (
                                         <li key={loc.slug}>
                                             <Link
-                                                href={buildHref({
+                                                href={hrefL({
                                                     search,
                                                     type: noticeType,
                                                     location: loc.slug,
+                                                    status,
                                                 })}
                                                 aria-current={location === loc.slug ? "page" : undefined}
                                                 className={`inline-block rounded-full border px-2.5 py-1 text-xs transition-colors hover:bg-muted ${location === loc.slug
@@ -432,7 +477,7 @@ export default async function NoticesPage({
                     <AdSlot
                         ad={null}
                         dict={dict}
-                        advertiseHref="/advertise"
+                        advertiseHref={localePath(locale, "/advertise")}
                         variant="rail"
                         className="lg:sticky lg:top-24"
                     />

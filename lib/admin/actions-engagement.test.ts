@@ -30,6 +30,10 @@ vi.mock('./auth', () => ({
   revalidateLocalized: vi.fn(),
 }))
 
+vi.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: vi.fn().mockReturnValue(mockSupabaseClient()),
+}))
+
 function mockSupabaseClient(overrides: Record<string, unknown> = {}) {
   const chain: Record<string, unknown> = {
     select: vi.fn().mockReturnThis(),

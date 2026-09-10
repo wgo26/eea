@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { buildAlternates } from "@/lib/i18n/urls";
 import { getHomeData } from "@/lib/queries/home";
+import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
 import { HomeHero } from "@/components/home/home-hero";
 import { EmptySection, StoryCard } from "@/components/home/story-card";
 import { SectionHeader } from "@/components/home/section-header";
@@ -34,10 +35,29 @@ export async function generateMetadata({
     const { locale: raw } = await params;
     const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
+    // Most-shared URL: use the hero cover when available so WhatsApp/FB
+    // renders a photo, falling back to the branded default.
+    let ogImage: string | null = null;
+    try {
+        const data = await getHomeData(locale);
+        ogImage =
+            data.hero?.imageUrl ??
+            data.featured[0]?.imageUrl ??
+            data.photoStories[0]?.imageUrl ??
+            data.news[0]?.imageUrl ??
+            null;
+    } catch {
+        ogImage = null;
+    }
     return {
         title: dict.meta.title,
         description: dict.meta.description,
         alternates: buildAlternates(locale, "/"),
+        openGraph: {
+            title: dict.meta.title,
+            description: dict.meta.description,
+            images: [{ url: ogImage ?? DEFAULT_OG_IMAGE, width: 1200, height: 630 }],
+        },
     };
 }
 

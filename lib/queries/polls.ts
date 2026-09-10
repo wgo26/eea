@@ -2,23 +2,20 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/observability/logger";
-import { DEMO_POLLS } from "@/lib/polls-demo";
 import type { Locale } from "@/lib/i18n";
 
 /**
  * Data access for the Community Poll module on the news page.
  *
- * Two modes, deliberately:
+ * Reads `polls`, `poll_options` and the `poll_results` aggregate view
+ * created by `supabase/migrations/20260902000000_community_polls.sql`.
  *
- *  1. Database mode — reads `polls`, `poll_options` and the `poll_results`
- *     aggregate view created by
- *     `supabase/migrations/20260902000000_community_polls.sql`.
- *  2. Demo mode — if those tables have not been created yet (PGRST205), the
- *     curated list in `lib/polls-demo.ts` is returned instead. The page
- *     therefore renders correctly before the migration is applied.
- *
- * Every failure path resolves to the demo list or an empty array: a missing
- * table or a DB hiccup must never take the news page down.
+ * There is deliberately NO demo fallback: every poll rendered here is a row
+ * the staff manage in the admin command center (`/admin/polls`). Deleting
+ * the last poll empties the module (the page renders its dictionary-driven
+ * empty state) instead of resurrecting hardcoded content. Every failure
+ * path resolves to an empty array: a missing table or a DB hiccup must
+ * never take the news page down.
  */
 
 export type PollOptionData = {
@@ -35,8 +32,10 @@ export type PollData = {
     href: string | null;
     options: PollOptionData[];
     totalVotes: number;
-    /** Where this poll came from — drives whether votes can be persisted. */
-    source: "database" | "demo";
+    /** Origin marker, kept for forward compatibility — every poll rendered
+     *  here is a database row managed in `/admin/polls` (there is no demo
+     *  source; an empty table renders the dictionary empty state). */
+    source: "database";
 };
 
 const MISSING_TABLE_CODES = new Set(["PGRST205", "42P01"]);
@@ -53,31 +52,13 @@ function hasDatabase(): boolean {
     );
 }
 
-/** Demo fallback, converted to the shared shape. */
-function demoPolls(): PollData[] {
-    return DEMO_POLLS.map((poll) => {
-        const closesAt =
-            poll.closesInDays === null
-                ? null
-                : new Date(Date.now() + poll.closesInDays * 86_400_000).toISOString();
-        return {
-            id: poll.id,
-            question: poll.question,
-            closesAt,
-            href: null,
-            options: poll.options.map((o) => ({ id: o.id, label: o.label, votes: o.votes })),
-            totalVotes: poll.options.reduce((sum, o) => sum + o.votes, 0),
-            source: "demo" as const,
-        };
-    });
-}
-
 /**
- * Active polls, newest first. Falls back to the curated demo list when the
- * polls tables have not been created yet.
+ * Active polls, newest first. Returns an empty array when there are no
+ * active polls, the tables are missing, or the database is unreachable —
+ * the news page then renders its empty state instead of hardcoded polls.
  */
 export async function getActivePolls(limit = 3): Promise<PollData[]> {
-    if (!hasDatabase()) return demoPolls();
+    if (!hasDatabase()) return [];
 
     const supabase = createAdminClient();
     const pollsResult = await supabase
@@ -92,10 +73,10 @@ export async function getActivePolls(limit = 3): Promise<PollData[]> {
     if (pollsResult.error) {
         if (isMissingTable(pollsResult.error)) {
             // Expected until the migration is applied — not worth a console error.
-            return demoPolls();
+            return [];
         }
         logger.error("polls", "active polls query failed", { error: pollsResult.error.message });
-        return demoPolls();
+        return [];
     }
 
     const rows = (pollsResult.data ?? []) as unknown as {
@@ -106,7 +87,9 @@ export async function getActivePolls(limit = 3): Promise<PollData[]> {
         story: { slug: string } | null;
         poll_options: { id: string; label: string; sort_order: number | null }[] | null;
     }[];
-    if (rows.length === 0) return demoPolls();
+    // Zero rows means the staff deleted (or never created) every poll:
+    // render nothing rather than hardcoded demo content.
+    if (rows.length === 0) return [];
 
     // Tallies come from the aggregate view (raw ballots are never readable).
     const resultsResult = await supabase
