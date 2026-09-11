@@ -99,20 +99,22 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
     run: (password: string) => Promise<void>
   } | null>(null)
 
-  // Edit profile dialog — display/full name; email is auth-managed and read-only here.
+  // Edit profile dialog — display/full name + phone; email is auth-managed and read-only here.
   const [profileOpen, setProfileOpen] = useState(false)
   const [profileDisplayName, setProfileDisplayName] = useState(user.displayName ?? '')
   const [profileFullName, setProfileFullName] = useState(user.fullName ?? '')
+  const [profilePhone, setProfilePhone] = useState(user.phone ?? '')
 
   function openProfile() {
     setProfileDisplayName(user.displayName ?? '')
     setProfileFullName(user.fullName ?? '')
+    setProfilePhone(user.phone ?? '')
     setProfileOpen(true)
   }
 
   async function handleProfileSave() {
     setLoading(true)
-    const result = await updateUserProfile(user.id, { displayName: profileDisplayName, fullName: profileFullName })
+    const result = await updateUserProfile(user.id, { displayName: profileDisplayName, fullName: profileFullName, phone: profilePhone })
     setLoading(false)
     if (result.ok) {
       addToast(copy.saved, 'success')
@@ -264,6 +266,16 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
                 value={profileFullName}
                 maxLength={80}
                 onChange={(e) => setProfileFullName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="profile-phone">{copy.profilePhone}</Label>
+              <Input
+                id="profile-phone"
+                value={profilePhone}
+                maxLength={30}
+                placeholder="+237 …"
+                onChange={(e) => setProfilePhone(e.target.value)}
               />
             </div>
           </div>

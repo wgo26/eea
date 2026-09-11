@@ -1,0 +1,122 @@
+﻿    <category/>
+    <blogger:filename/>
+    <link/>
+    <enclosure/>
+    <blogger:trashed/>
+  </entry>
+  
+=== FIRST COMMENT ENTRY (first 2200 chars) ===
+
+    <id>tag:blogger.com,1999:blog-426198324410599347.post-3826889756861322802</id>
+    <blogger:parent>tag:blogger.com,1999:blog-426198324410599347.post-6369140948457934780</blogger:parent>
+    <blogger:inReplyTo/>
+    <blogger:type>COMMENT</blogger:type>
+    <blogger:status>LIVE</blogger:status>
+    <author>
+      <name></name>
+      <blogger:type>BLOGGER</blogger:type>
+    </author>
+    <content type='html'>Great message on NCDs. Hope Gov&amp;#39;t bands alcohop, clubs and drugs around schools</content>
+    <blogger:created>2020-09-13T13:38:31.962Z</blogger:created>
+    <published>2020-09-13T13:38:31.962Z</published>
+    <updated>2020-09-13T13:38:31.962Z</updated>
+    <blogger:trashed/>
+  </entry>
+  
+=== ALL blogger:filename VALUES ===
+<blogger:filename>/2026/06/bamenda-hosts-key-workshop-to-reshape.html</blogger:filename>
+<blogger:filename>/2020/04/where-is-ambassador.html</blogger:filename>
+<blogger:filename>/2021/01/anglophone-crisis-pictures-of.html</blogger:filename>
+<blogger:filename>/2025/06/mendakwe-hospital-gets-vital-upgrades.html</blogger:filename>
+<blogger:filename>/2020/10/government-delegate-of-bamenda-city.html</blogger:filename>
+<blogger:filename>/2020/03/the-centre-for-human-rights-and.html</blogger:filename>
+<blogger:filename>/2026/06/by-wirngo-peter-tardzenyuy-63rd-board.html</blogger:filename>
+<blogger:filename>/2020/10/spaco-lee-popularly-pidgin-english.html</blogger:filename>
+<blogger:filename>/2026/04/earth-day-2026-quiet-morning-loud.html</blogger:filename>
+<blogger:filename>/2020/05/bamenda-city-council-mayor-message-to.html</blogger:filename>
+<blogger:filename>/2021/05/some-public-figures-that-died-within.html</blogger:filename>
+<blogger:filename>/2026/03/minhdu-north-west-holds-2026-first.html</blogger:filename>
+<blogger:filename>/2026/07/cameroon-targets-more-local-rice-as.html</blogger:filename>
+<blogger:filename>/2020/10/a-lady-objected-minat-boss-while-he-was.html</blogger:filename>
+<blogger:filename>/2019/07/ghost-town-evening-shoting-leaves.html</blogger:filename>
+<blogger:filename>/2020/04/blog-post.html</blogger:filename>
+<blogger:filename>/2019/07/cameroon-minister-of-higher-education.html</blogger:filename>
+<blogger:filename>/2019/07/gunshots-now-wake-people-up-from-bed.html</blogger:filename>
+<blogger:filename>/2020/05/fire-accident-in-k-town-street-bamenda.html</blogger:filename>
+<blogger:filename>/2021/02/cameroon-mount-cameroon-race-of-hope.html</blogger:filename>
+<blogger:filename>/2019/07/hundreds-of-internally-displaced.html</blogger:filename>
+<blogger:filename>/2019/10/information-reaching-wirngo-peter.html</blogger:filename>
+<blogger:filename>/2021/04/minddevel-nominations.html</blogger:filename>
+<blogger:filename>/2020/09/the-united-states-senate-committee-on.html</blogger:filename>
+<blogger:filename>/2026/06/gce-leak-scandal-minister-rights.html</blogger:filename>
+<blogger:filename>/2025/07/cameroon-bar-association-mbah-eric.html</blogger:filename>
+<blogger:filename>/2026/05/north-west-gendarmerie-assesses.html</blogger:filename>
+<blogger:filename>/2021/01/a-sierra-leonean-has-new-app-supfrica.html</blogger:filename>
+<blogger:filename>/2026/08/nkwen-fondom-honours-dreamland-ceo.html</blogger:filename>
+<blogger:filename>/2020/04/disciplinary-meases-to-be-taken-against.html</blogger:filename>
+<blogger:filename>/2026/06/north-west-youth-sports-jamboree.html</blogger:filename>
+<blogger:filename>/2025/06/bamenda-celebrates-world-environment.html</blogger:filename>
+<blogger:filename>/2021/04/sabc-group-in-partnership-with-bcc_18.html</blogger:filename>
+<blogger:filename>/2020/08/bamenda-city-cleanup-campaign.html</blogger:filename>
+<blogger:filename>/2026/06/from-pulpit-to-public-scrutiny-story.html</blogger:filename>
+<blogger:filename>/2020/10/different-factions-of-anglophone.html</blogger:filename>
+<blogger:filename>/2026/06/four-killed-in-night-attack-on-drinking.html</blogger:filename>
+<blogger:filename>/2025/07/mbengwi-hosts-meta-unity-and-sports.html</blogger:filename>
+<blogger:filename>/2026/09/gbhs-bamenda-gets-new-look-as-dreamland.html</blogger:filename>
+<blogger:filename>/2020/04/minister-of-higher-education-instructs.html</blogger:filename>
+<blogger:filename>/2026/04/bir-tightens-grip-on-batibo-axis-with.html</blogger:filename>
+<blogger:filename>/2019/07/the-african-charter-on-rights-and.html</blogger:filename>
+<blogger:filename>/2020/12/prof-fru-angwafor-north-west-regional_22.html</blogger:filename>
+<blogger:filename>/2026/05/ngoketunjia-leaders-preach-peace-unity.html</blogger:filename>
+<blogger:filename>/2019/07/18-year-old-emmanuela-lost-her-2-year.html</blogger:filename>
+<blogger:filename>/2026/03/bamenda-city-council-clears-commercial.html</blogger:filename>
+<blogger:filename>/2020/05/blog-post.html</blogger:filename>
+<blogger:filename>/2020/09/wirngos-studio-24wirngopetout.html</blogger:filename>
+<blogger:filename>/2019/10/official-statemantesfrom-wirngo-peter.html</blogger:filename>
+<blogger:filename>/2026/04/bamenda-celebrates-academic-excellence.html</blogger:filename>
+<blogger:filename>/2026/04/senate-announces-death-of-former.html</blogger:filename>
+<blogger:filename>/2025/06/bright-light-projects-leads-charge-in.html</blogger:filename>
+<blogger:filename>/2019/10/blog-post.html</blogger:filename>
+<blogger:filename>/2026/06/sdf-returns-to-bamenda-with-strong.html</blogger:filename>
+<blogger:filename>/2020/08/achobong-paul-lord-mayor-to-bamenda.html</blogger:filename>
+<blogger:filename>/2026/03/north-west-court-of-appeal-opens-its.html</blogger:filename>
+<blogger:filename>/2019/07/where-is-mr-suh-amanwi-his-family-needs.html</blogger:filename>
+<blogger:filename>/2026/05/ex-students-of-gths-bamenda-return-to.html</blogger:filename>
+<blogger:filename>/2020/04/bamenda-city-council-mayor-achombong.html</blogger:filename>
+<blogger:filename>/2019/07/ghost-town-today-in-bamenda.html</blogger:filename>
+<blogger:filename>/2026/03/cpdm-marks-41st-anniversary-at-historic.html</blogger:filename>
+<blogger:filename>/2026/03/bamenda-urban-crossing-project-at-43-as.html</blogger:filename>
+<blogger:filename>/2019/11/wipe-your-tears-official-music-video.html</blogger:filename>
+<blogger:filename>/2020/05/bcc-mayor-achobong-paul-reassure.html</blogger:filename>
+<blogger:filename>/2026/07/antic-launches-digital-capacity.html</blogger:filename>
+<blogger:filename>/2020/09/north-west-city-mayor-and.html</blogger:filename>
+<blogger:filename>/2026/06/njingum-musa-carries-cameroons-voice-to.html</blogger:filename>
+<blogger:filename>/2026/09/north-west-region-launches-20262027.html</blogger:filename>
+<blogger:filename>/2025/06/dr-tama-mumah-emmanuel-and-family.html</blogger:filename>
+<blogger:filename>/2020/10/bamenda-protesters-of-kumba-massacre.html</blogger:filename>
+<blogger:filename>/2025/07/nwra-opens-june-2025-ordinary-session.html</blogger:filename>
+<blogger:filename>/2026/08/north-west-health-officials-launch-week.html</blogger:filename>
+<blogger:filename>/2019/08/a-child-given-birth-to-and-trown-at.html</blogger:filename>
+<blogger:filename>/2020/11/the-bamenda-man-has-not-gone-to-work.html</blogger:filename>
+<blogger:filename>/2021/01/happy-new-year-2021.html</blogger:filename>
+<blogger:filename>/2020/05/bamenda-ii-council-organizes-3-day.html</blogger:filename>
+<blogger:filename>/2020/09/rada-reconciliation-and-development.html</blogger:filename>
+<blogger:filename>/2026/03/final-preparations-intensify-at-bamenda.html</blogger:filename>
+<blogger:filename>/2020/05/nwr-governor-adolf-lele-lafrique-visits.html</blogger:filename>
+<blogger:filename>/2020/05/bike-riders-protest-bamenda-city-reform.html</blogger:filename>
+<blogger:filename>/2020/04/president-put-bir-base-i-trust-them.html</blogger:filename>
+<blogger:filename>/2026/03/women-in-ngoketunjia-mark-international.html</blogger:filename>
+<blogger:filename>/2026/07/bamenda-city-mayor-c2d-officials.html</blogger:filename>
+<blogger:filename>/2019/07/the-african-charter-on-rights-and_11.html</blogger:filename>
+<blogger:filename>/2021/05/francis-ngannou-is-in-buea.html</blogger:filename>
+<blogger:filename>/2021/04/sabc-group-in-partnership-with-bcc.html</blogger:filename>
+<blogger:filename>/2020/11/bamenda-ii-mayor-chenwi-peter-visit-ddr.html</blogger:filename>
+<blogger:filename>/2020/04/president-put-bird-base-i-trust-them.html</blogger:filename>
+<blogger:filename>/2020/11/fai-yengo-francis-bamendavisits-ex.html</blogger:filename>
+<blogger:filename>/2026/08/healthy-babies-begins-with-informed.html</blogger:filename>
+<blogger:filename>/2026/05/national-commission-for-promotion-of.html</blogger:filename>
+<blogger:filename>/2020/10/mayor-achobong-paul-1st-100-days-in.html</blogger:filename>
+<blogger:filename>/2026/03/women-in-uniform-celebrate-strength-and.html</blogger:filename>
+<blogger:filename>/2019/11/httpskatorzag.html</blogger:filename>
+<blogger:filename>/2026/06/world-cup-live.html</blogger:filename>
+<blogger:filename>/2020/12/bamenda-30th-december-eve-saw-ravishing.html</blogger:filename>

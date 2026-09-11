@@ -1,0 +1,114 @@
+﻿
+=== FEED HEAD ===
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns='http://www.w3.org/2005/Atom' xmlns:blogger='http://schemas.google.com/blogger/2018'>
+  <id>tag:blogger.com,1999:blog-426198324410599347</id>
+  <title>EAGLE EYE AFRICA</title>
+  <entry>
+    <id>tag:blogger.com,1999:blog-426198324410599347.post-126186913167950319</id>
+    <blogger:type>POST</blogger:type>
+    <blogger:status>LIVE</blogger:status>
+    <author>
+      <name>EAGLE EYE AFRICA</name>
+      <uri>http://eagleeyeafrica.blogspot.com</uri>
+      <blogger:type>BLOGGER</blogger:type>
+    </author>
+    <title>Bamenda Hosts Key Workshop to Reshape Humanitarian Coordination in Northwest and Southwest Regions</title>
+    <content type='html'>&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;By Wirngo Peter Tardzenyuy&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;table align="center" cellpadding="0" cellspacing="0" class="tr-caption-container" style="margin-left: auto; margin-right: auto;"&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td style="text-align: center;"&gt;&lt;a href="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEin8pzsgS2IE5EiOwntL6ITKyW2NB9TJptOJbGivePrRMWPAqE00npBSqUlYZ5hThGxL-C4IVAo_IxGamdqEiPg0Ni_croYMZtR_ykq8LK9AnfAZXvbeqITt6lhPHQLbBmhx25vcel3COm3GzA24jmwvjUu9kyW3-NtVuvVvH-9qftatNO8F3idEU9eweZv/s1536/1001531157.png" imageanchor="1" style="margin-left: auto; margin-right: auto;"&gt;&lt;img border="0" data-original-height="1024" data-original-width="1536" height="214" src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEin8pzsgS2IE5EiOwntL6ITKyW2NB9TJptOJbGivePrRMWPAqE00npBSqUlYZ5hThGxL-C4IVAo_IxGamdqEiPg0Ni_croYMZtR_ykq8LK9AnfAZXvbeqITt6lhPHQLbBmhx25vcel3COm3GzA24jmwvjUu9kyW3-NtVuvVvH-9qftatNO8F3idEU9eweZv/w320-h214/1001531157.png" title="Bamenda Hosts Key Workshop to Reshape Humanitarian Coordination in Northwest and Southwest Regions" width="320" /&gt;&lt;/a&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td class="tr-caption" style="text-align: center;"&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;br /&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;Senior United Nations officials, regional authorities, humanitarian partners, and civil society actors have gathered in Bamenda for a crucial two-day workshop aimed at redefining how humanitarian assistance is coordinated and delivered in Cameroonâ€™s Northwest and Southwest regions.&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;The Area-Based Coordination (ABC) Transition Workshop, taking place from June 17â€“18, 2026, marks a significant step in ongoing efforts to localize humanitarian response mechanisms. The initiative is part of a broader transition process launched in 2025, which seeks to gradually phase out the internationally led humanitarian cluster system and replace it with a nationally driven coordination framework by 2027.&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;The opening ceremony brought together representatives from UN agencies, international and national NGOs, humanitarian coordination structures, technical sector leads, and government officials from the Northwest, Southwest, and YaoundÃ©.&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;The workshop was officially opened by Saidou Ali, Secretary General at the Northwest Governorâ€™s Office, who represented the Governor of the Northwest Region, Adolphe Lele Lâ€™Afrique.&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;Speaking on behalf of the regional administration, Saidou Ali paid tribute to humanitarian workers who continue to provide life-saving support in health, education, nutrition, protection, and other critical sectors despite challenging conditions on the ground.&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;He described the transition as a necessary step toward building stronger local ownership of humanitarian action and ensuring that response systems become more sustainable over the long term.&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;â€œThis transition does not signal the end of humanitarian solidarity,â€ he said. â€œRather, it offers an opportunity to strengthen resilience and create stronger links between humanitarian assistance, recovery, and long-term stability.â€&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;A major focus of the workshop is the shift from sector-based coordination where health, nutrition, shelter, food security, and other sectors operate through separate clusters to an integrated Area-Based Coordination model.&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;Under the new approach, humanitarian actors will coordinate their interventions based on specific geographic areas rather than working through isolated sectoral structures. Organizers say the model is intended to improve efficiency, encourage collaboration, and provide more comprehensive responses to the needs of affected communities.&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;The transition comes at a time when humanitarian funding is declining globally, leading many international organizations to reduce their operational footprint in Cameroon. Participants acknowledged that adapting coordination mechanisms to this new reality is essential to maintaining effective support for vulnerable populations.&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;Throughout the workshop, stakeholders are reviewing lessons learned since the transition process began in July 2025 and identifying practical measures to strengthen collaboration between humanitarian actors and local, divisional, and regional authorities.&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;By the end of the meeting, participants are expected to adopt a six-month operational roadmap that will guide the final phase of the transition through the end of 2026. The roadmap will also outline key actions required before the full deactivation of the traditional cluster system and the establishment of nationally anchored coordination structures in 2027.&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;The workshop concludes on June 18 with technical working sessions focused on capacity building, defining localized coordination zones, and reinforcing national leadership mechanisms to ensure that affected communities remain at the center of humanitarian action.&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;EAGLE EYE AFRICA (EEA)
+=== TYPE COUNTS ===
+=== TRASHED ALL vs NONEMPTY ===
+139
+0
+=== GIT STATUS ===
+?? TODO.md
+?? docs/Blogger/
+?? scratch-analyze.mjs
+?? scratch-analyze2.mjs
+?? scratch-analyze2.out.txt
+?? scratch-inspect.out.txt
+?? scratch-manual-grep.txt
+=== DOCS/BLOGGER TREE ===
+C:\Users\Fame\apps\eea\docs\Blogger\Albums
+C:\Users\Fame\apps\eea\docs\Blogger\Blogs
+C:\Users\Fame\apps\eea\docs\Blogger\Comments
+C:\Users\Fame\apps\eea\docs\Blogger\Profile
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Wirngo Peter Tardzenyuy News Outlets
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\1eb96a0383992cb798aca77ac8325f65(1).jpg
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\1eb96a0383992cb798aca77ac8325f65(2).jpg
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\1eb96a0383992cb798aca77ac8325f65(3).jpg
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\1eb96a0383992cb798aca77ac8325f65.jpg
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\1eb96a0383992cb798aca77ac8325f65.jpg(1).json
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\1eb96a0383992cb798aca77ac8325f65.jpg(2).json
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\1eb96a0383992cb798aca77ac8325f65.jpg(3).json
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\1eb96a0383992cb798aca77ac8325f65.jpg.json
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\Eagle-eye-Recovered(1).png
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\Eagle-eye-Recovered(10).png
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\Eagle-eye-Recovered(11).png
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\Eagle-eye-Recovered(12).png
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\Eagle-eye-Recovered(13).png
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\Eagle-eye-Recovered(14).png
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\Eagle-eye-Recovered(2).png
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\Eagle-eye-Recovered(3).png
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\Eagle-eye-Recovered(4).png
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\Eagle-eye-Recovered(5).png
+C:\Users\Fame\apps\eea\docs\Blogger\Albums\Blogger Pictures\Eagle-eye-Recovered(6).png
+=== SCRIPTS DIRS ===
+
+Name                    Length
+----                    ------
+add-alternates.mjs        4959
+apply-migrations.mjs      1612
+check-policies.mjs         800
+db-probe.mjs              4000
+find-bare-hrefs.mjs       2605
+generate-og-default.mjs   2155
+localize-hrefs.mjs        2745
+localize-metadata.mjs     3177
+scaffold-routes.mjs       8489
+seed-about-legal.mjs      1753
+seed-demo.mjs            29363
+seed-fundraisers.mjs     11286
+teardown-demo.mjs         8285
+verify-backup.mjs         5229
+verify-clean.mjs          8033
+verify-migrations.mjs     2971
+verify-sitemap.mjs        2912
+
+
+=== VERIFY-MIGRATIONS HEAD ===
+/**
+ * Migration manifest verification (audit Â§6.1 â€” CI migration gate).
+ *
+ * Static checks over supabase/migrations that need no database:
+ *   - every file is named <YYYYMMDDHHMMSS>_<snake_case_name>.sql (the format
+ *     the Supabase CLI requires â€” a malformed name breaks `db lint`/`push`);
+ *   - no migration file is empty (an empty file silently no-ops in prod);
+ *   - duplicate timestamps are an ERROR: `supabase_migrations` PK is
+ *     (version), so two files sharing a timestamp can never both be recorded â€”
+ *     `db push` fails with a duplicate-key violation after running the second
+ *     migration's statements (which then roll back). This repo originally
+ *     shipped one such pair (20260921000000_db_maintenance +
+ *     _production_phase1_3_fixes); the latter was renumbered to
+ *     20260921120000 after exactly that failure. Never reuse a version prefix.
+ *
+ * Live SQL linting (`supabase db lint`) is the CI workflow's conditional step.
+ *
+ * Usage: node scripts/verify-migrations.mjs  (exit 1 on any error so CI gates)
+ */
+import { readdirSync, readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const dir = join(root, "supabase", "migrations");
+const NAME_RE = /^(\d{14})_[a-z0-9_]+\.sql$/;
+
+let files;
+try {
+    files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
+} catch {
+    console.error(`ERROR: cannot read migration directory ${dir}`);
+    process.exit(1);
+}
+

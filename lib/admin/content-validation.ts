@@ -7,6 +7,8 @@ export type ContentDraftInput = {
   translations: { locale: 'en' | 'fr'; title: string; excerpt?: string; body?: string }[]
   photos?: { url: string; alt?: string; caption?: string; credit?: string }[]
   keepPhotoIds?: string[]
+  /** Supporting video/audio/document links (Phase B) — stored as media_assets with kind. */
+  attachments?: { url: string; kind?: 'video' | 'audio' | 'document' | 'image'; caption?: string }[]
   listing?: {
     price?: number | null
     currency?: string
@@ -43,6 +45,9 @@ export function validateContentDraft(input: ContentDraftInput, requireBilingual:
   if (requireBilingual && !fr?.title?.trim()) return 'A French title is required before publishing.'
   for (const photo of input.photos ?? []) {
     if (!/^https?:\/\//i.test(photo.url.trim())) return `Photo links must start with http:// or https:// (${photo.url}).`
+  }
+  for (const att of input.attachments ?? []) {
+    if (!/^https?:\/\//i.test(att.url.trim())) return `Media links must start with http:// or https:// (${att.url}).`
   }
   if (input.verification && !VERIFICATION_VALUES.includes(input.verification)) return 'Unknown verification value.'
   if (input.event) {

@@ -3,6 +3,7 @@ import { ArrowRight, CalendarDays, MapPin } from "lucide-react";
 import { formatDate, type Dictionary, type Locale } from "@/lib/i18n";
 import { verificationBadgeInfo } from "@/lib/verification";
 import type { StoryCardData } from "@/lib/queries/home";
+import { SmartImage } from "@/components/media/smart-image";
 
 type HeroSlideProps = {
     story: StoryCardData;
@@ -10,6 +11,8 @@ type HeroSlideProps = {
     locale: Locale;
     /** The lead story renders an <h1>; slides inside the carousel use <h2>. */
     headingLevel?: "h1" | "h2";
+    /** Only the first visible slide preloads (LCP); the rest lazy-load. */
+    priority?: boolean;
 };
 
 /**
@@ -22,6 +25,7 @@ export function HeroSlide({
     dict,
     locale,
     headingLevel: Heading = "h2",
+    priority = false,
 }: HeroSlideProps) {
     const badge = verificationBadgeInfo(story.verification ?? null, dict);
 
@@ -34,12 +38,17 @@ export function HeroSlide({
             className="group relative flex h-[400px] min-w-0 flex-col justify-end overflow-hidden rounded-3xl sm:h-[440px] lg:h-[560px]"
             aria-label={story.title}
         >
-            <div
-                className="absolute inset-0 bg-muted bg-cover bg-center transition-transform duration-500 group-hover:scale-[1.03]"
-                style={story.imageUrl ? { backgroundImage: `url(${story.imageUrl})` } : undefined}
-                role="img"
-                aria-label={story.title}
-            />
+            {story.imageUrl ? (
+                <SmartImage
+                    src={story.imageUrl}
+                    alt={story.title}
+                    sizes="100vw"
+                    priority={priority}
+                    className="absolute inset-0 bg-muted object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                />
+            ) : (
+                <div className="absolute inset-0 bg-muted" aria-hidden />
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/55 to-black/15" aria-hidden />
             <div className="relative min-w-0 p-5 sm:p-6 md:p-10">
                 <span className="inline-flex w-fit items-center rounded-full bg-primary px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.18em] text-primary-foreground shadow-sm">

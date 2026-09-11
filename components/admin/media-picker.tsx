@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useDebouncedValue } from '@/hooks/use-debounce'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { formatDuration } from '@/lib/media/attachments'
 
 type MediaAsset = {
   id: string
@@ -13,6 +14,7 @@ type MediaAsset = {
   width: number | null
   height: number | null
   provider: string
+  duration_seconds: number | null
 }
 
 /**
@@ -48,7 +50,7 @@ export function MediaPicker({
 }) {
   const [q, setQ] = useState('')
   const debouncedQ = useDebouncedValue(q, 350)
-  const [kind, setKind] = useState<'all' | 'image' | 'video'>('all')
+  const [kind, setKind] = useState<'all' | 'image' | 'video' | 'audio' | 'document'>('all')
   const [assets, setAssets] = useState<MediaAsset[]>([])
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
@@ -115,11 +117,14 @@ export function MediaPicker({
           />
           <select
             value={kind}
-            onChange={(e) => { setKind(e.target.value as 'all' | 'image' | 'video'); setPage(1) }}
+            onChange={(e) => { setKind(e.target.value as 'all' | 'image' | 'video' | 'audio' | 'document'); setPage(1) }}
             className="h-8 rounded-md border border-border bg-background px-2 text-sm"
           >
             <option value="all">{copy.all}</option>
             <option value="image">{copy.images}</option>
+            <option value="video">Video</option>
+            <option value="audio">Audio</option>
+            <option value="document">PDF</option>
           </select>
         </div>
 
@@ -147,11 +152,18 @@ export function MediaPicker({
                   {asset.kind === 'image' ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img src={asset.public_url} alt="" className="h-full w-full object-cover" />
+                  ) : asset.kind === 'video' ? (
+                    <video src={asset.public_url} preload="metadata" muted playsInline className="h-full w-full object-cover" />
                   ) : (
                     <div className="flex h-full items-center justify-center">
                       <span className="text-xs text-muted-foreground">{asset.kind}</span>
                     </div>
                   )}
+                  {(asset.kind === 'video' || asset.kind === 'audio') && formatDuration(asset.duration_seconds) ? (
+                    <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-white">
+                      {formatDuration(asset.duration_seconds)}
+                    </span>
+                  ) : null}
                   <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/30 group-hover:opacity-100">
                     <span className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground">
                       {copy.select}

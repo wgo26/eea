@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { submitStory } from "@/lib/public/actions";
-import { PhotoUploadField } from "@/components/submit/photo-field";
+import { MediaField } from "@/components/submit/media-field";
 import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import type { SubmitState } from "@/lib/public/types";
 import { localePath } from "@/lib/i18n/urls";
@@ -148,7 +148,13 @@ export function SubmitForm({ type, dict, canUpload = false }: { type: SubmitType
                         </Field>
                     </div>
                     <Field label={f.photos} htmlFor="photos" hint={f.photosHint}>
-                        <PhotoUploadField name="photos" placeholder={f.photosPlaceholder} canUpload={canUpload} />
+                        <MediaField kind="image" name="photos" placeholder={f.photosPlaceholder} canUpload={canUpload} />
+                    </Field>
+                    <Field label={f.videos} htmlFor="videos" hint={f.videosHint}>
+                        <MediaField kind="video" name="videos" placeholder={f.videosPlaceholder} canUpload={canUpload} />
+                    </Field>
+                    <Field label={f.audios} htmlFor="audios" hint={f.audiosHint}>
+                        <MediaField kind="audio" name="audios" placeholder={f.audiosPlaceholder} canUpload={canUpload} />
                     </Field>
                     <Field label={f.description} htmlFor="description">
                         <Textarea id="description" name="description" placeholder={f.descriptionPlaceholder} />
@@ -178,7 +184,13 @@ export function SubmitForm({ type, dict, canUpload = false }: { type: SubmitType
                         </Field>
                     </div>
                     <Field label={f.photos} htmlFor="photos" hint={f.photosHint}>
-                        <PhotoUploadField name="photos" placeholder={f.photosPlaceholder} canUpload={canUpload} />
+                        <MediaField kind="image" name="photos" placeholder={f.photosPlaceholder} canUpload={canUpload} />
+                    </Field>
+                    <Field label={f.videos} htmlFor="videos" hint={f.videosHint}>
+                        <MediaField kind="video" name="videos" placeholder={f.videosPlaceholder} canUpload={canUpload} />
+                    </Field>
+                    <Field label={f.audios} htmlFor="audios" hint={f.audiosHint}>
+                        <MediaField kind="audio" name="audios" placeholder={f.audiosPlaceholder} canUpload={canUpload} />
                     </Field>
                 </>
             ) : null}
@@ -200,7 +212,13 @@ export function SubmitForm({ type, dict, canUpload = false }: { type: SubmitType
                         <Input id="location" name="location" placeholder={f.locationPlaceholder} />
                     </Field>
                     <Field label={f.photos} htmlFor="photos" hint={f.photosHint}>
-                        <PhotoUploadField name="photos" placeholder={f.photosPlaceholder} canUpload={canUpload} />
+                        <MediaField kind="image" name="photos" placeholder={f.photosPlaceholder} canUpload={canUpload} />
+                    </Field>
+                    <Field label={f.videos} htmlFor="videos" hint={f.videosHint}>
+                        <MediaField kind="video" name="videos" placeholder={f.videosPlaceholder} canUpload={canUpload} />
+                    </Field>
+                    <Field label={f.audios} htmlFor="audios" hint={f.audiosHint}>
+                        <MediaField kind="audio" name="audios" placeholder={f.audiosPlaceholder} canUpload={canUpload} />
                     </Field>
                 </>
             ) : null}
@@ -244,6 +262,15 @@ export function SubmitForm({ type, dict, canUpload = false }: { type: SubmitType
                     </Field>
                     <Field label={f.doc} htmlFor="doc">
                         <Input id="doc" name="doc" placeholder={f.docPlaceholder} />
+                    </Field>
+                    <Field label={f.photos} htmlFor="photos" hint={f.photosHint}>
+                        <MediaField kind="image" name="photos" placeholder={f.photosPlaceholder} canUpload={canUpload} />
+                    </Field>
+                    <Field label={f.videos} htmlFor="videos" hint={f.videosHint}>
+                        <MediaField kind="video" name="videos" placeholder={f.videosPlaceholder} canUpload={canUpload} />
+                    </Field>
+                    <Field label={f.audios} htmlFor="audios" hint={f.audiosHint}>
+                        <MediaField kind="audio" name="audios" placeholder={f.audiosPlaceholder} canUpload={canUpload} />
                     </Field>
                 </>
             ) : null}
@@ -302,7 +329,13 @@ export function SubmitForm({ type, dict, canUpload = false }: { type: SubmitType
                         <Input id="location" name="location" placeholder={f.locationPlaceholder} />
                     </Field>
                     <Field label={f.photos} htmlFor="photos" hint={f.photosHint}>
-                        <PhotoUploadField name="photos" placeholder={f.photosPlaceholder} canUpload={canUpload} />
+                        <MediaField kind="image" name="photos" placeholder={f.photosPlaceholder} canUpload={canUpload} />
+                    </Field>
+                    <Field label={f.videos} htmlFor="videos" hint={f.videosHint}>
+                        <MediaField kind="video" name="videos" placeholder={f.videosPlaceholder} canUpload={canUpload} />
+                    </Field>
+                    <Field label={f.audios} htmlFor="audios" hint={f.audiosHint}>
+                        <MediaField kind="audio" name="audios" placeholder={f.audiosPlaceholder} canUpload={canUpload} />
                     </Field>
                 </>
             ) : null}

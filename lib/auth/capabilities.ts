@@ -20,6 +20,7 @@ export type Capability =
   | 'manageUsers'
   | 'manageAds'
   | 'manageStorage'
+  | 'manageNotifications'
   | 'viewAuditLog'
 
 const ROLE_CAPABILITIES: Record<AppRole, Capability[]> = {
@@ -34,9 +35,10 @@ const ROLE_CAPABILITIES: Record<AppRole, Capability[]> = {
     'manageUsers',
     'manageAds',
     'manageStorage',
+    'manageNotifications',
     'viewAuditLog',
   ],
-  editor: ['viewDashboard', 'moderate', 'manageContent', 'managePolls', 'manageFundraisers', 'managePolicies', 'manageSiteContent'],
+  editor: ['viewDashboard', 'moderate', 'manageContent', 'managePolls', 'manageFundraisers', 'managePolicies', 'manageSiteContent', 'manageNotifications'],
   // Contributor/advertiser capabilities are scoped to their own rows by RLS
   // and queries — they grant no admin-area access.
   contributor: [],
@@ -54,7 +56,8 @@ const CAPABILITY_WEIGHT: Record<Capability, number> = {
   manageSiteContent: 8,
   manageAds: 9,
   manageStorage: 10,
-  manageUsers: 11,
+  manageNotifications: 11,
+  manageUsers: 12,
 }
 
 /** Union of all capabilities granted by the user's roles. */

@@ -52,7 +52,9 @@ export const DEMO_AD_SLOT_KEYS = [
   'homepage-inline-bottom',
 ]
 
-// Demo polls seeded by migration 20260902000000_community_polls.sql.
+// Legacy demo polls (originally seeded by migration 20260902000000 — the
+// seeder is gone and 20260926000001_remove_demo_polls.sql deletes the rows;
+// kept listed so the sweep + teardown still catch any stragglers).
 export const DEMO_POLL_SLUGS = [
   'mankon-market-priority',
   'rainy-season-readiness',

@@ -6,6 +6,7 @@ import { logger } from "@/lib/observability/logger";
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 import type { StoryCardData } from "@/lib/queries/home";
+import { mapAttachments, supportingMedia } from "@/lib/media/attachments";
 
 /**
  * Data access for the Photo Stories vertical (spec §3.2).
@@ -77,6 +78,8 @@ type RawStoryRow = {
               sort_order: number | null;
               width: number | null;
               height: number | null;
+              kind: string | null;
+              mime_type: string | null;
           }[]
         | null;
 };
@@ -85,7 +88,7 @@ const STORY_SELECT = `id, slug, verification, published_at, view_count,
     location:locations(name),
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title, excerpt, body),
-    media:media_assets(public_url, alt_text, caption, photographer_credit, is_cover, sort_order, width, height)`;
+    media:media_assets(public_url, alt_text, caption, photographer_credit, is_cover, sort_order, width, height, kind, mime_type)`;
 
 type QueryResult<T> = {
     data: T | null;
@@ -183,6 +186,7 @@ function sanitizePhrase(input: string): string {
 /** Orders embedded media rows by `sort_order` into the essay gallery. */
 function mapPhotos(row: RawStoryRow): PhotoStoryPhoto[] {
     return (row.media ?? [])
+        .filter((m) => (m.kind ?? 'image') === 'image')
         .slice()
         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
         .map((photo, index) => ({
@@ -205,6 +209,7 @@ function toCard(row: RawStoryRow, locale: Locale): PhotoStoryData | null {
     const location = asOne(row.location);
     const category = asOne(row.category);
     const photos = mapPhotos(row);
+    const allMedia = mapAttachments(row.media ?? []);
     const cover = photos[0] ?? null;
     return {
         id: row.id,
@@ -224,6 +229,9 @@ function toCard(row: RawStoryRow, locale: Locale): PhotoStoryData | null {
         viewCount: Number(row.view_count ?? 0),
         body: translation.body ?? null,
         photos,
+        hasVideo: allMedia.some((m) => m.kind === 'video'),
+        hasAudio: allMedia.some((m) => m.kind === 'audio'),
+        attachments: supportingMedia(allMedia),
     };
 }
 
@@ -232,7 +240,7 @@ const FEATURED_SELECT = `id, slug, verification, published_at, view_count,
     location:locations(name),
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title, excerpt, body),
-    media:media_assets!inner(public_url, alt_text, caption, photographer_credit, is_cover, sort_order, width, height)`;
+    media:media_assets!inner(public_url, alt_text, caption, photographer_credit, is_cover, sort_order, width, height, kind, mime_type)`;
 
 /**
  * Full-bleed featured story for the landing page: the newest essay with at

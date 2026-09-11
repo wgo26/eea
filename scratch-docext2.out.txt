@@ -1,0 +1,15 @@
+﻿
+Count Name 
+----- ---- 
+  511 .json
+  326 .jpg 
+  100 .png 
+   19      
+    9 .jpeg
+    7 .mp4 
+    4 .csv 
+    3 .atom
+    1 .xml 
+    1 .html
+
+

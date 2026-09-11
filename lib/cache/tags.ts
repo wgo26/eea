@@ -13,6 +13,8 @@
  *   - `culture` — every cached culture/event query (articles, events, facets)
  *   - `site`  — public site config (footer social links) read by the shell on
  *     every public page; invalidated by the site-settings admin mutation.
+ *   - `ads`   — active ad creatives per slot (`lib/queries/ads.ts`); invalidated
+ *     by every ad/slot/campaign mutation so creative swaps land immediately.
  *
  * Invalidation uses the two-argument `revalidateTag(tag, profile)` form — the
  * single-argument form is deprecated in Next.js 16. `max` serves stale content
@@ -32,6 +34,7 @@ export const CACHE_TAGS = {
     stories: "stories",
     culture: "culture",
     site: "site",
+    ads: "ads",
 } as const;
 
 /** Cache/revalidate window for public content data + ISR pages (5 minutes). */

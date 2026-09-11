@@ -412,7 +412,7 @@ export type ContentEditData = ContentRow & {
   locationId: string | null
   categoryId: string | null
   photos: { id: string; url: string; alt: string | null; caption: string | null; credit: string | null }[]
-  listing: { price: number | null; currency: string | null; contactPhone: string | null; contactEmail: string | null; whatsappNumber: string | null; sellerName: string | null } | null
+  listing: { price: number | null; currency: string | null; contactPhone: string | null; contactEmail: string | null; whatsappNumber: string | null; sellerName: string | null; listingStatus: string | null; sellerVerified: boolean } | null
   notice: { noticeType: string; organizationName: string | null; contactPhone: string | null; isOfficial: boolean; noticeDate: string | null; expiryDate: string | null } | null
   event: { startsAt: string | null; endsAt: string | null; venueName: string | null; ticketUrl: string | null; organizerName: string | null; organizerPhone: string | null; organizerEmail: string | null } | null
 }
@@ -422,7 +422,7 @@ export async function getContentItemEditData(contentItemId: string): Promise<Con
   const { data } = await safe(
     db()
       .from('content_items')
-      .select('id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by, location_id, category_id, translations:content_translations(locale, title, excerpt, body), location:locations(name), category:categories!category_id(category_translations(locale, name)), media:media_assets(id, public_url, caption, alt_text, photographer_credit, sort_order), listing:listings(price, currency, contact_phone, contact_email, whatsapp_number), notice:notices(notice_type, organization_name, contact_phone, is_official, notice_date, expiry_date), event:events(starts_at, ends_at, venue_name, ticket_url, organizer_name, organizer_phone, organizer_email)')
+      .select('id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by, location_id, category_id, translations:content_translations(locale, title, excerpt, body), location:locations(name), category:categories!category_id(category_translations(locale, name)), media:media_assets(id, public_url, caption, alt_text, photographer_credit, sort_order), listing:listings(price, currency, contact_phone, contact_email, whatsapp_number, seller_name, listing_status, seller_is_verified), notice:notices(notice_type, organization_name, contact_phone, is_official, notice_date, expiry_date), event:events(starts_at, ends_at, venue_name, ticket_url, organizer_name, organizer_phone, organizer_email)')
       .eq('id', contentItemId)
       .limit(1),
   )
@@ -433,7 +433,7 @@ export async function getContentItemEditData(contentItemId: string): Promise<Con
   const en = translations.find((t) => t.locale === 'en')
   const fr = translations.find((t) => t.locale === 'fr')
   const media = (Array.isArray(row.media) ? row.media : row.media ? [row.media] : []) as { id: string; public_url: string; caption: string | null; alt_text: string | null; photographer_credit: string | null }[]
-  const listingRaw = (Array.isArray(row.listing) ? row.listing[0] : row.listing) as { price: number | string | null; currency: string | null; contact_phone: string | null; contact_email: string | null; whatsapp_number: string | null; seller_name?: string | null } | null | undefined
+  const listingRaw = (Array.isArray(row.listing) ? row.listing[0] : row.listing) as { price: number | string | null; currency: string | null; contact_phone: string | null; contact_email: string | null; whatsapp_number: string | null; seller_name?: string | null; listing_status?: string | null; seller_is_verified?: boolean | null } | null | undefined
   const noticeRaw = (Array.isArray(row.notice) ? row.notice[0] : row.notice) as { notice_type: string; organization_name: string | null; contact_phone: string | null; is_official: boolean; notice_date: string | null; expiry_date: string | null } | null | undefined
   const eventRaw = (Array.isArray(row.event) ? row.event[0] : row.event) as { starts_at: string | null; ends_at: string | null; venue_name: string | null; ticket_url: string | null; organizer_name: string | null; organizer_phone: string | null; organizer_email: string | null } | null | undefined
   return {
@@ -447,7 +447,7 @@ export async function getContentItemEditData(contentItemId: string): Promise<Con
     locationId: row.location_id as string | null,
     categoryId: row.category_id as string | null,
     photos: [...media].sort((a, b) => (a as unknown as { sort_order: number }).sort_order - (b as unknown as { sort_order: number }).sort_order).map((m) => ({ id: m.id, url: m.public_url, alt: m.alt_text ?? null, caption: m.caption, credit: m.photographer_credit })),
-    listing: listingRaw ? { price: listingRaw.price === null ? null : Number(listingRaw.price), currency: listingRaw.currency, contactPhone: listingRaw.contact_phone, contactEmail: listingRaw.contact_email, whatsappNumber: listingRaw.whatsapp_number, sellerName: (listingRaw.seller_name as string | null) ?? null } : null,
+    listing: listingRaw ? { price: listingRaw.price === null ? null : Number(listingRaw.price), currency: listingRaw.currency, contactPhone: listingRaw.contact_phone, contactEmail: listingRaw.contact_email, whatsappNumber: listingRaw.whatsapp_number, sellerName: (listingRaw.seller_name as string | null) ?? null, listingStatus: (listingRaw.listing_status as string | null) ?? null, sellerVerified: !!listingRaw.seller_is_verified } : null,
     notice: noticeRaw ? { noticeType: noticeRaw.notice_type, organizationName: noticeRaw.organization_name, contactPhone: noticeRaw.contact_phone, isOfficial: !!noticeRaw.is_official, noticeDate: noticeRaw.notice_date, expiryDate: noticeRaw.expiry_date } : null,
     event: eventRaw ? { startsAt: eventRaw.starts_at, endsAt: eventRaw.ends_at, venueName: eventRaw.venue_name, ticketUrl: eventRaw.ticket_url, organizerName: eventRaw.organizer_name, organizerPhone: eventRaw.organizer_phone, organizerEmail: eventRaw.organizer_email } : null,
   }
@@ -729,6 +729,9 @@ export type AdSlotRow = {
   name: string
   placement: string
   dimensions: string
+  mobileDimensions: string | null
+  allowedFormats: string[]
+  maxDurationSeconds: number | null
   capacity: number
   basePrice: number | null
   currency: string | null
@@ -752,14 +755,33 @@ export type AdCampaignRow = {
   slotName: string | null
   impressions: number
   clicks: number
+  creativeType: string
+  creativeStatus: string
+  creativeRejectionReason: string | null
+  creativeHtml: string | null
+  creativeWidth: number | null
+  creativeHeight: number | null
+  imageUrl: string | null
+  mobileImageUrl: string | null
+  posterUrl: string | null
+  durationSeconds: number | null
+  budgetLimit: number | null
+  impressionLimit: number | null
+  clickLimit: number | null
+  invoiceReference: string | null
 }
 
 export async function getAdSlots(): Promise<AdSlotRow[]> {
   const { data } = await safe(
     db()
       .from('ad_slots')
-      .select(`id, slot_key, name, placement, dimensions, capacity, base_price, currency, is_active,
+      .select(`id, slot_key, name, placement, dimensions, mobile_dimensions, allowed_formats, max_duration_seconds, capacity, base_price, currency, is_active,
         campaigns:ad_campaigns(id, name, status, destination_url, copy_text, starts_at, ends_at, agreed_price, currency, payment_status,
+          creative_type, creative_status, creative_rejection_reason, creative_html, creative_width, creative_height,
+          budget_limit, impression_limit, click_limit, invoice_reference,
+          creative:media_assets!ad_campaigns_creative_media_id_fkey(public_url, duration_seconds),
+          mobile_creative:media_assets!ad_campaigns_mobile_creative_media_id_fkey(public_url, duration_seconds),
+          poster:media_assets!ad_campaigns_poster_media_id_fkey(public_url),
           advertiser:advertisers(company_name),
           events:ad_events(id, event_type))`)
       .order('slot_key', { ascending: true }),
@@ -777,6 +799,9 @@ export async function getAdSlots(): Promise<AdSlotRow[]> {
       name: row.name,
       placement: row.placement,
       dimensions: row.dimensions,
+      mobileDimensions: (row.mobile_dimensions as string | null) ?? null,
+      allowedFormats: Array.isArray(row.allowed_formats) ? (row.allowed_formats as string[]) : ['image', 'sponsored'],
+      maxDurationSeconds: (row.max_duration_seconds as number | null) ?? null,
       capacity: row.capacity ?? 1,
       basePrice: row.base_price,
       currency: row.currency,
@@ -798,10 +823,40 @@ export async function getAdSlots(): Promise<AdSlotRow[]> {
             slotName: row.name as string,
             impressions,
             clicks,
+            ...mapCampaignCreative(active),
           }
         : null,
     }
   })
+}
+
+/** Shared mapper: creative columns → AdCampaignRow creative fields. */
+function mapCampaignCreative(active: Record<string, unknown>): Pick<
+  AdCampaignRow,
+  | 'creativeType' | 'creativeStatus' | 'creativeRejectionReason' | 'creativeHtml'
+  | 'creativeWidth' | 'creativeHeight' | 'imageUrl' | 'mobileImageUrl'
+  | 'posterUrl' | 'durationSeconds' | 'budgetLimit' | 'impressionLimit'
+  | 'clickLimit' | 'invoiceReference'
+> {
+  const one = (v: unknown) => (Array.isArray(v) ? v[0] : v) as { public_url?: string | null; duration_seconds?: number | null } | undefined
+  const creative = one(active.creative)
+  const mobile = one(active.mobile_creative)
+  return {
+    creativeType: (active.creative_type as string) ?? 'sponsored',
+    creativeStatus: (active.creative_status as string) ?? 'pending',
+    creativeRejectionReason: (active.creative_rejection_reason as string | null) ?? null,
+    creativeHtml: (active.creative_html as string | null) ?? null,
+    creativeWidth: (active.creative_width as number | null) ?? null,
+    creativeHeight: (active.creative_height as number | null) ?? null,
+    imageUrl: creative?.public_url ?? null,
+    mobileImageUrl: mobile?.public_url ?? null,
+    posterUrl: one(active.poster)?.public_url ?? null,
+    durationSeconds: (creative?.duration_seconds ?? mobile?.duration_seconds ?? null) as number | null,
+    budgetLimit: active.budget_limit == null ? null : Number(active.budget_limit),
+    impressionLimit: (active.impression_limit as number | null) ?? null,
+    clickLimit: (active.click_limit as number | null) ?? null,
+    invoiceReference: (active.invoice_reference as string | null) ?? null,
+  }
 }
 
 export async function getAdvertisers() {
@@ -861,8 +916,13 @@ export async function getCampaigns(limit = 100): Promise<AdCampaignRow[]> {
     db()
       .from('ad_campaigns')
       .select(`id, name, status, destination_url, copy_text, starts_at, ends_at, agreed_price, currency, payment_status,
+        creative_type, creative_status, creative_rejection_reason, creative_html, creative_width, creative_height,
+        budget_limit, impression_limit, click_limit, invoice_reference,
+        creative:media_assets!ad_campaigns_creative_media_id_fkey(public_url, duration_seconds),
+        mobile_creative:media_assets!ad_campaigns_mobile_creative_media_id_fkey(public_url, duration_seconds),
+        poster:media_assets!ad_campaigns_poster_media_id_fkey(public_url),
         advertiser:advertisers(company_name),
-        slot:ad_slots(name),
+        slot:ad_slots(id, name),
         events:ad_events(event_type)`)
       .order('created_at', { ascending: false })
       .limit(limit),
@@ -889,6 +949,7 @@ export async function getCampaigns(limit = 100): Promise<AdCampaignRow[]> {
       slotName: (slot as { name?: string } | undefined)?.name ?? null,
       impressions,
       clicks,
+      ...mapCampaignCreative(row),
     }
   })
 }
@@ -1247,12 +1308,15 @@ export async function getTrustSafetyCounts(): Promise<{ reports: number; correct
 /** Filtered totals for trust-safety pagination (respects the active status pill). */
 export async function getTrustSafetyFilteredCounts(status: string): Promise<{ reports: number; corrections: number }> {
   if (!hasDatabase()) return { reports: 0, corrections: 0 }
-  const applyStatus = (q: ReturnType<typeof db> extends never ? never :any) => (status === 'all' ? q : q.eq('status', status))
-  // Typed loosely to avoid Supabase query-builder generics friction.
-  const [reportsRes, correctionsRes] = await Promise.all([
-    safe(applyStatus(db().from('reports').select('id', { count: 'exact', head: true }))),
-    safe(applyStatus(db().from('corrections').select('id', { count: 'exact', head: true }))),
-  ])
+  const reportsQuery =
+    status === 'all'
+      ? db().from('reports').select('id', { count: 'exact', head: true })
+      : db().from('reports').select('id', { count: 'exact', head: true }).eq('status', status)
+  const correctionsQuery =
+    status === 'all'
+      ? db().from('corrections').select('id', { count: 'exact', head: true })
+      : db().from('corrections').select('id', { count: 'exact', head: true }).eq('status', status)
+  const [reportsRes, correctionsRes] = await Promise.all([safe(reportsQuery), safe(correctionsQuery)])
   return { reports: reportsRes.count ?? 0, corrections: correctionsRes.count ?? 0 }
 }
 
@@ -1314,6 +1378,9 @@ export type AdminListingRow = {
   publishedAt: string | null
   sellerName: string | null
   contactPhone: string | null
+  contactEmail: string | null
+  whatsappNumber: string | null
+  sellerVerified: boolean
 }
 
 /**
@@ -1330,7 +1397,7 @@ export async function getListingsAdmin(options?: { status?: string; limit?: numb
 
   const select = `id, slug, status, is_featured, expires_at, published_at,
     translations:content_translations(locale, title),
-    listing:listings${status !== 'all' ? '!inner' : ''}(price, currency, listing_status, seller_name, contact_phone)`
+    listing:listings${status !== 'all' ? '!inner' : ''}(price, currency, listing_status, seller_name, seller_is_verified, contact_phone, contact_email, whatsapp_number)`
 
   let query = db()
     .from('content_items')
@@ -1368,6 +1435,9 @@ export async function getListingsAdmin(options?: { status?: string; limit?: numb
       publishedAt: (row.published_at as string | null) ?? null,
       sellerName: (l ? (l.seller_name as string | null) : null) ?? null,
       contactPhone: (l ? (l.contact_phone as string | null) : null) ?? null,
+      contactEmail: (l ? (l.contact_email as string | null) : null) ?? null,
+      whatsappNumber: (l ? (l.whatsapp_number as string | null) : null) ?? null,
+      sellerVerified: !!l?.seller_is_verified,
     }
   })
   return { rows, total: count ?? 0 }

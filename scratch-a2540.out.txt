@@ -1,0 +1,70 @@
+﻿      content_item_id: contentItemId,
+      actor_id: user.id,
+    })
+
+    revalidatePublicContentCache()
+    revalidateLocalized('/admin/listings')
+    revalidateLocalized('/admin/content')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/** Relist an expired / sold / removed listing for a fresh window (default 30 days). */
+export async function relistListing(contentItemId: string, days = 30): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageContent')
+    const now = new Date().toISOString()
+    if (days <= 0 || days > 365) return { ok: false, error: 'The relist window must be between 1 and 365 days.' }
+
+    const { data: item } = await supabase
+      .from('content_items')
+      .select('id, type, status, published_at')
+      .eq('id', contentItemId)
+      .single()
+    if (!item) return { ok: false, error: 'Listing not found.' }
+    if (item.type !== 'listing') return { ok: false, error: 'This content item is not a listing.' }
+
+    const expiresAt = new Date(Date.now() + days * 86_400_000).toISOString()
+    const { error } = await supabase
+      .from('listings')
+      .update({ listing_status: 'active', renewed_at: now })
+      .eq('content_item_id', contentItemId)
+    if (error) return { ok: false, error: error.message }
+
+    const patch: Record<string, unknown> = { expires_at: expiresAt, is_archived: false }
+    if (item.status !== 'published') {
+      patch.status = 'published'
+      patch.published_at = item.published_at ?? now
+    }
+    await supabase.from('content_items').update(patch).eq('id', contentItemId)
+
+    await supabase.from('moderation_log').insert({
+      action: 'listing:relisted',
+      content_item_id: contentItemId,
+      actor_id: user.id,
+    })
+
+    revalidatePublicContentCache()
+    revalidateLocalized('/admin/listings')
+    revalidateLocalized('/admin/content')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/**
+ * Listing moderation: mark sold (the item stays visible with a sold badge) or
+ * remove it (hidden from the site immediately and the content item archived).
+ */
+export async function moderateListing(contentItemId: string, action: 'sold' | 'remove'): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageContent')
+    const now = new Date().toISOString()
+
+    const { data: item } = await supabase.from('content_items').select('id, type').eq('id', contentItemId).single()
+    if (!item) return { ok: false, error: 'Listing not found.' }
+    if (item.type !== 'listing') return { ok: false, error: 'This content item is not a listing.' }
+

@@ -1,0 +1,100 @@
+﻿      actor_id: user.id,
+    })
+
+    revalidatePublicContentCache()
+    revalidateLocalized('/admin/content')
+    revalidateLocalized('/admin/moderation/[id]')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+const CONTENT_TYPES = ['photo_story', 'news', 'listing', 'notice', 'culture'] as const
+
+/**
+ * Admin direct-publish (Phase 2): create a content item without a submission.
+ * Handles every content_type, bilingual translations, photos, and the per-type
+ * extension rows (listings/notices/events). Editors can create; publishes
+ * require both locales, drafts don't.
+ */
+export async function createContentItem(input: {
+  type: string
+  draft: ContentDraftInput
+  publish: 'now' | 'schedule' | 'draft'
+  scheduledFor?: string
+  expiresAt?: string | null
+}): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageContent')
+    const now = new Date().toISOString()
+    const type = input.type.trim()
+    if (!(CONTENT_TYPES as readonly string[]).includes(type)) return { ok: false, error: 'Unknown content type.' }
+    const validationError = validateContentDraft(input.draft, input.publish !== 'draft')
+    if (validationError) return { ok: false, error: validationError }
+    if (input.publish === 'schedule' && !input.scheduledFor) return { ok: false, error: 'A schedule date is required when scheduling.' }
+
+    const statusPatch =
+      input.publish === 'now' ? { status: 'published', published_at: now } :
+      input.publish === 'schedule' ? { status: 'scheduled', scheduled_for: input.scheduledFor } :
+      ({ status: 'draft' } as const)
+    const slug = await uniqueSlug(supabase, input.draft.slugBase || type)
+
+    const { data: created, error: createErr } = await supabase
+      .from('content_items')
+      .insert({
+        type,
+        slug,
+        status: 'draft',
+        verification: input.draft.verification ?? null,
+        location_id: input.draft.locationId || null,
+        category_id: input.draft.categoryId || null,
+        author_id: user.id,
+        expires_at: input.expiresAt || null,
+      })
+      .select('id')
+      .single()
+    if (createErr || !created) return { ok: false, error: createErr?.message ?? 'Could not create the content item.' }
+
+    try {
+      await upsertTranslations(supabase, created.id, input.draft.translations)
+      if ((input.draft.photos ?? []).length > 0) {
+        await syncPhotos(supabase, created.id, input.draft.photos ?? [], [], input.draft.photographerCredit ?? null)
+      }
+      if (type === 'listing') {
+        const { error: lErr } = await supabase.from('listings').insert({
+          content_item_id: created.id,
+          price: input.draft.listing?.price ?? null,
+          currency: input.draft.listing?.currency?.toUpperCase().slice(0, 3) ?? 'XAF',
+          listing_status: 'active',
+          contact_phone: input.draft.listing?.contactPhone ?? null,
+          contact_email: input.draft.listing?.contactEmail ?? null,
+          whatsapp_number: input.draft.listing?.whatsappNumber ?? null,
+        })
+        if (lErr) throw new Error(`Could not create the listing: ${lErr.message}`)
+      }
+      if (type === 'notice') {
+        const { error: nErr } = await supabase.from('notices').insert({
+          content_item_id: created.id,
+          notice_type: input.draft.notice?.noticeType ?? 'other',
+          organization_name: input.draft.notice?.organizationName ?? null,
+          contact_phone: input.draft.notice?.contactPhone ?? null,
+          notice_date: input.draft.notice?.noticeDate ?? null,
+          expiry_date: input.draft.notice?.expiryDate ?? input.expiresAt ?? null,
+          is_official: input.draft.verification === 'official_source' || input.draft.notice?.isOfficial === true,
+        })
+        if (nErr) throw new Error(`Could not create the notice: ${nErr.message}`)
+      }
+      if (type === 'culture' && input.draft.event) {
+        const e = input.draft.event
+        if (e.startsAt || e.endsAt || e.venueName || e.ticketUrl || e.organizerName || e.organizerPhone || e.organizerEmail) {
+          const { error: eErr } = await supabase.from('events').insert({
+            content_item_id: created.id,
+            starts_at: e.startsAt ?? null,
+            ends_at: e.endsAt ?? null,
+            venue_name: e.venueName ?? null,
+            ticket_url: e.ticketUrl?.trim() || null,
+            organizer_name: e.organizerName ?? null,
+            organizer_phone: e.organizerPhone ?? null,
+            organizer_email: e.organizerEmail ?? null,
+          })

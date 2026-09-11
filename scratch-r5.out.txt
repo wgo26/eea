@@ -1,0 +1,130 @@
+﻿C:\Users\Fame\apps\eea\supabase\config.toml:32: # Maximum amount of time to wait for health check when starting the local database.
+C:\Users\Fame\apps\eea\supabase\config.toml:35: # server_version;` on the remote database to check.
+C:\Users\Fame\apps\eea\supabase\config.toml:348: # If enabled, the nonce check will be skipped. Required for local sign in with Google auth.
+C:\Users\Fame\apps\eea\supabase\config.toml:349: skip_nonce_check = false
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:246: published_at   timestamptz,
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:567: published_at  timestamptz not null default now(),
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:606: published_at  timestamptz,
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:633: create index if not exists content_items_status_published_idx on public.content_items (status, published_at desc);
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:918: on public.profiles for update using (id = auth.uid()) with check (id = auth.uid());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:927: using (user_id = auth.uid()) with check (user_id = auth.uid());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:932: using (user_id = auth.uid()) with check (user_id = auth.uid());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:941: using (user_id = auth.uid()) with check (user_id = auth.uid());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:946: using (requester_id = auth.uid() or requester_email is not null) with check (true);
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:950: on public.submissions for insert with check (true);
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:959: on public.reports for insert with check (true);
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:968: on public.corrections for insert with check (true);
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:976: on public.takedown_requests for insert with check (true);
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:987: using (owner_id = auth.uid() or public.is_staff()) with check (owner_id = auth.uid() or public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:995: on public.digest_subscribers for all using (true) with check (true);
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1001: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1006: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1011: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1016: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1021: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1026: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1031: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1036: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1041: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1046: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1051: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1056: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1061: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1066: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1071: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1075: on public.submissions for update using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1080: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1084: on public.reports for update using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1088: on public.corrections for update using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1092: on public.takedown_requests for update using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1097: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1102: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1107: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1112: using (public.is_admin()) with check (public.is_admin());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1116: on public.profiles for update using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1120: on public.businesses for update using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1125: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1130: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260901000000_init_schema.sql:1134: on public.data_requests for update using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260902000000_community_polls.sql:92: with check (true);
+C:\Users\Fame\apps\eea\supabase\migrations\20260903000000_admin_polls_fundraisers.sql:6: -- (defense in depth: page guard → action check → RLS), so they need:
+C:\Users\Fame\apps\eea\supabase\migrations\20260903000000_admin_polls_fundraisers.sql:24: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260903000000_admin_polls_fundraisers.sql:29: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260904000000_phase3_content_loop.sql:71: published_at = coalesce(published_at, now()),
+C:\Users\Fame\apps\eea\supabase\migrations\20260906000000_about_admin.sql:11: -- session client (page guard → action check → RLS).
+C:\Users\Fame\apps\eea\supabase\migrations\20260906000000_about_admin.sql:42: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260906000000_about_admin.sql:55: on public.reports for update using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260907000000_admin_asset_storage.sql:32: with check (
+C:\Users\Fame\apps\eea\supabase\migrations\20260907000000_admin_asset_storage.sql:43: with check (bucket_id = 'admin-asset' and public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260909000000_taxonomy_admin.sql:25: with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260909000000_taxonomy_admin.sql:29: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260909000000_taxonomy_admin.sql:44: with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260909000000_taxonomy_admin.sql:48: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260909000000_taxonomy_admin.sql:63: with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260909000000_taxonomy_admin.sql:67: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260910000000_content_hard_delete.sql:22: on public.content_items for insert with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260910000000_content_hard_delete.sql:25: on public.content_items for update using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260910000000_content_hard_delete.sql:37: on public.content_translations for insert with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260910000000_content_hard_delete.sql:40: on public.content_translations for update using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260910000000_content_hard_delete.sql:52: on public.media_assets for insert with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260910000000_content_hard_delete.sql:55: on public.media_assets for update using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260910000000_content_hard_delete.sql:67: on public.listings for insert with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260910000000_content_hard_delete.sql:70: on public.listings for update using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260910000000_content_hard_delete.sql:82: on public.notices for insert with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260910000000_content_hard_delete.sql:85: on public.notices for update using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260910000000_content_hard_delete.sql:97: on public.events for insert with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260910000000_content_hard_delete.sql:100: on public.events for update using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260912000000_admin_integrity.sql:27: with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260914000000_phase3_engagement_hardening.sql:22: with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260914000000_phase3_engagement_hardening.sql:26: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260914000000_phase3_engagement_hardening.sql:40: check (coalesce(goal_amount, 0) >= 0 and raised_amount >= 0);
+C:\Users\Fame\apps\eea\supabase\migrations\20260914000000_phase3_engagement_hardening.sql:44: check (currency in ('XAF', 'EUR', 'USD', 'GBP'));
+C:\Users\Fame\apps\eea\supabase\migrations\20260914000000_phase3_engagement_hardening.sql:54: check (payout_method is null or payout_method in ('momo', 'bank'));
+C:\Users\Fame\apps\eea\supabase\migrations\20260916000000_command_center_ops.sql:24: event_type text not null check (event_type in ('received', 'approved', 'rejected', 'updated')),
+C:\Users\Fame\apps\eea\supabase\migrations\20260916000000_command_center_ops.sql:36: create policy "Admins write ad inquiry events" on public.ad_inquiry_events for all using (public.is_admin()) with check (public.is_admin());
+C:\Users\Fame\apps\eea\supabase\migrations\20260917000000_command_center_hardening.sql:5: add constraint ad_slots_capacity_positive check (capacity > 0);
+C:\Users\Fame\apps\eea\supabase\migrations\20260917000000_command_center_hardening.sql:14: add constraint ad_campaigns_budget_nonnegative check (budget_limit is null or budget_limit >= 0),
+C:\Users\Fame\apps\eea\supabase\migrations\20260917000000_command_center_hardening.sql:15: add constraint ad_campaigns_impression_limit_positive check (impression_limit is null or impression_limit > 0),
+C:\Users\Fame\apps\eea\supabase\migrations\20260917000000_command_center_hardening.sql:16: add constraint ad_campaigns_click_limit_positive check (click_limit is null or click_limit > 0),
+C:\Users\Fame\apps\eea\supabase\migrations\20260917000000_command_center_hardening.sql:17: add constraint ad_campaigns_creative_status_valid check (creative_status in ('pending', 'approved', 'rejected'));
+C:\Users\Fame\apps\eea\supabase\migrations\20260917000000_command_center_hardening.sql:29: add column if not exists checksum text,
+C:\Users\Fame\apps\eea\supabase\migrations\20260917000000_command_center_hardening.sql:32: add constraint media_assets_verification_status_valid check (verification_status in ('pending', 'verified', 'failed'));
+C:\Users\Fame\apps\eea\supabase\migrations\20260917000000_command_center_hardening.sql:41: task_type text not null check (task_type in ('verify', 'backup', 'delete', 'orphan_scan')),
+C:\Users\Fame\apps\eea\supabase\migrations\20260917000000_command_center_hardening.sql:42: status text not null default 'pending' check (status in ('pending', 'processing', 'completed', 'failed')),
+C:\Users\Fame\apps\eea\supabase\migrations\20260917000000_command_center_hardening.sql:43: attempts integer not null default 0 check (attempts >= 0),
+C:\Users\Fame\apps\eea\supabase\migrations\20260917000000_command_center_hardening.sql:106: for all using (public.is_admin()) with check (public.is_admin());
+C:\Users\Fame\apps\eea\supabase\migrations\20260917000000_command_center_hardening.sql:111: for insert with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260918000000_abuse_hardening.sql:5: --    app-level checks in lib/admin/actions.ts so a direct SQL write through a
+C:\Users\Fame\apps\eea\supabase\migrations\20260918000000_abuse_hardening.sql:26: create or replace function public.check_rate_limit(
+C:\Users\Fame\apps\eea\supabase\migrations\20260918000000_abuse_hardening.sql:69: revoke all on function public.check_rate_limit(text, integer, integer)
+C:\Users\Fame\apps\eea\supabase\migrations\20260918000000_abuse_hardening.sql:71: grant execute on function public.check_rate_limit(text, integer, integer)
+C:\Users\Fame\apps\eea\supabase\migrations\20260919000000_privacy_and_views.sql:34: with check (uploaded_by = auth.uid());
+C:\Users\Fame\apps\eea\supabase\migrations\20260920000000_backup_hardening.sql:6: --   2. No checksum — a truncated R2 fetch or partial B2 PUT was marked done.
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:12: --      engine level so a forgotten app-layer check can never write garbage.
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:53: -- Deep purge of stale rate-limit buckets. The check_rate_limit RPC only
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:78: where n.nspname = 'public' and p.proname = 'check_rate_limit'
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:80: v_missing := v_missing || 'fn:check_rate_limit';
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:143: 'checkedAt', now(),
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:171: where conname = 'submissions_payload_object_check'
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:175: add constraint submissions_payload_object_check
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:176: check (payload is null or jsonb_typeof(payload) = 'object');
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:187: where conname = 'submissions_guest_name_len_check'
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:191: add constraint submissions_guest_name_len_check
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:192: check (guest_name is null or char_length(guest_name) <= 160) not valid;
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:197: where conname = 'submissions_guest_phone_len_check'
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:201: add constraint submissions_guest_phone_len_check
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:202: check (guest_phone is null or char_length(guest_phone) <= 32) not valid;
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:207: where conname = 'submissions_guest_email_format_check'
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:211: add constraint submissions_guest_email_format_check
+C:\Users\Fame\apps\eea\supabase\migrations\20260921000000_db_maintenance.sql:212: check (guest_email is null or guest_email ~*
+C:\Users\Fame\apps\eea\supabase\migrations\20260921120000_production_phase1_3_fixes.sql:19: --   3. Anonymous INSERT RLS policies used WITH CHECK (true), so a forgotten
+C:\Users\Fame\apps\eea\supabase\migrations\20260921120000_production_phase1_3_fixes.sql:20: --      app-level check meant unconstrained writes. They now validate payload
+C:\Users\Fame\apps\eea\supabase\migrations\20260921120000_production_phase1_3_fixes.sql:64: with check (
+C:\Users\Fame\apps\eea\supabase\migrations\20260921120000_production_phase1_3_fixes.sql:75: with check (
+C:\Users\Fame\apps\eea\supabase\migrations\20260921120000_production_phase1_3_fixes.sql:84: with check (
+C:\Users\Fame\apps\eea\supabase\migrations\20260921120000_production_phase1_3_fixes.sql:94: with check (
+C:\Users\Fame\apps\eea\supabase\migrations\20260921120000_production_phase1_3_fixes.sql:109: with check (
+C:\Users\Fame\apps\eea\supabase\migrations\20260922000000_site_content.sql:18: -- (defense in depth: page guard → action check → RLS).
+C:\Users\Fame\apps\eea\supabase\migrations\20260922000000_site_content.sql:47: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260922000000_site_content.sql:72: using (public.is_staff()) with check (public.is_staff());
+C:\Users\Fame\apps\eea\supabase\migrations\20260925000001_poll_fundraiser_delete_policies.sql:11: --     (defense in depth: page guard → action check → RLS).

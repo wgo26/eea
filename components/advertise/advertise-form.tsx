@@ -21,6 +21,13 @@ const PLACEMENTS: { value: string; key: keyof Dictionary["advertise"]["placement
     { value: "other", key: "other" },
 ];
 
+const FORMATS: { value: string; key: keyof Dictionary["advertise"]["formatOptions"] }[] = [
+    { value: "image", key: "image" },
+    { value: "video", key: "video" },
+    { value: "audio", key: "audio" },
+    { value: "other", key: "other" },
+];
+
 export function AdvertiseForm({ dict }: { dict: Dictionary }) {
     const [state, formAction, pending] = useActionState<SubmitState, FormData>(
         submitAdvertiseInquiry,
@@ -62,23 +69,43 @@ export function AdvertiseForm({ dict }: { dict: Dictionary }) {
                     <Input id="phone" name="phone" placeholder={f.phonePlaceholder} />
                 </div>
             </div>
-            <div className="space-y-1.5">
-                <Label htmlFor="placement">{f.placement}</Label>
-                <select
-                    id="placement"
-                    name="placement"
-                    defaultValue=""
-                    className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-sm shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-                >
-                    <option value="" disabled>
-                        {f.placementPlaceholder}
-                    </option>
-                    {PLACEMENTS.map((p) => (
-                        <option key={p.value} value={p.value}>
-                            {dict.advertise.placementOptions[p.key]}
+            <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                    <Label htmlFor="placement">{f.placement}</Label>
+                    <select
+                        id="placement"
+                        name="placement"
+                        defaultValue=""
+                        className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-sm shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                    >
+                        <option value="" disabled>
+                            {f.placementPlaceholder}
                         </option>
-                    ))}
-                </select>
+                        {PLACEMENTS.map((p) => (
+                            <option key={p.value} value={p.value}>
+                                {dict.advertise.placementOptions[p.key]}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+                <div className="space-y-1.5">
+                    <Label htmlFor="format">{f.format}</Label>
+                    <select
+                        id="format"
+                        name="format"
+                        defaultValue=""
+                        className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-sm shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                    >
+                        <option value="" disabled>
+                            {f.formatPlaceholder}
+                        </option>
+                        {FORMATS.map((p) => (
+                            <option key={p.value} value={p.value}>
+                                {dict.advertise.formatOptions[p.key]}
+                            </option>
+                        ))}
+                    </select>
+                </div>
             </div>
             <div className="space-y-1.5">
                 <Label htmlFor="message">{f.message}</Label>

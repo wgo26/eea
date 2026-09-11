@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // One-off investigation scripts at the repo root — not app code and
+    // deliberately outside the lint contract (CommonJS, loose style).
+    "scratch-*",
+    "scratch/**",
+    "db.js",
   ]),
 ]);
 

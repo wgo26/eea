@@ -25,6 +25,7 @@ function envImagePattern(raw: string | undefined): RemoteImagePattern | null {
 /** Remote image hosts: seed placeholders plus the configured storage backends. */
 const storagePatterns: RemoteImagePattern[] = [
   envImagePattern(process.env.R2_PUBLIC_BASE_URL),
+  envImagePattern(process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL),
   envImagePattern(process.env.NEXT_PUBLIC_SUPABASE_URL),
   process.env.CLOUDINARY_CLOUD_NAME
     ? { protocol: "https", hostname: "res.cloudinary.com" }

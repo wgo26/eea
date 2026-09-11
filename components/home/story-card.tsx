@@ -3,6 +3,8 @@ import { ArrowRight, Camera, Clock, MapPin } from "lucide-react";
 import { formatDate, timeAgo, type Dictionary, type Locale } from "@/lib/i18n";
 import { verificationBadgeInfo } from "@/lib/verification";
 import type { StoryCardData } from "@/lib/queries/home";
+import { MediaBadge } from "@/components/media/media-attachment";
+import { SmartImage } from "@/components/media/smart-image";
 import { cn } from "@/lib/utils";
 
 type StoryCardProps = {
@@ -36,12 +38,21 @@ export function StoryCard({
           className
         )}
       >
-        <div
-          className="h-20 w-28 shrink-0 rounded-xl bg-muted bg-cover bg-center"
-          style={story.imageUrl ? { backgroundImage: `url(${story.imageUrl})` } : undefined}
-          role="img"
-          aria-label={story.title}
-        />
+      <div
+        className="relative h-20 w-28 shrink-0 overflow-hidden rounded-xl bg-muted"
+      >
+        {story.imageUrl ? (
+          <SmartImage
+            src={story.imageUrl}
+            alt={story.title}
+            fill={false}
+            width={112}
+            height={80}
+            sizes="112px"
+            className="h-20 w-28 object-cover"
+          />
+        ) : null}
+      </div>
         <div className="min-w-0 flex-1 py-1">
           <div className="flex flex-wrap items-center gap-1.5">
             {story.category ? (
@@ -91,11 +102,16 @@ export function StoryCard({
       )}
     >
       <div
-        className="relative aspect-[16/10] w-full bg-muted bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.02]"
-        style={story.imageUrl ? { backgroundImage: `url(${story.imageUrl})` } : undefined}
-        role="img"
-        aria-label={story.title}
+        className="relative aspect-[16/10] w-full overflow-hidden bg-muted"
       >
+        {story.imageUrl ? (
+          <SmartImage
+            src={story.imageUrl}
+            alt={story.title}
+            sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+          />
+        ) : null}
         {badge ? (
           <span
             className={cn(
@@ -106,6 +122,12 @@ export function StoryCard({
             {badge.label}
           </span>
         ) : null}
+        {(story.hasVideo || story.hasAudio) && (
+          <span className="absolute bottom-2 left-2 flex gap-1.5">
+            {story.hasVideo ? <MediaBadge kind="video" /> : null}
+            {story.hasAudio ? <MediaBadge kind="audio" /> : null}
+          </span>
+        )}
       </div>
       <div className="flex flex-1 flex-col p-4">
         <div className="flex flex-wrap items-center gap-1.5">

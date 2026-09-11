@@ -97,68 +97,13 @@ grant insert on public.poll_votes to anon, authenticated;
 grant select on public.poll_results to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- 4. Demo content
+-- 4. Demo content — REMOVED
 --
--- Skipped automatically if polls already exist, so re-running is safe.
+-- This migration originally seeded 3 hardcoded demo polls
+-- ('mankon-market-priority', 'rainy-season-readiness', 'what-to-cover-next').
+-- They are gone: polls are now created by staff from /admin/polls and
+-- published through the normal workflow. 20260926000001_remove_demo_polls.sql
+-- deletes the legacy rows from databases that already ran the old version;
+-- lib/admin/demo-data.ts keeps the slugs listed so the "Remove demo data"
+-- sweep and scripts/teardown-demo.mjs still catch any stragglers.
 -- ---------------------------------------------------------------------------
-do $$
-declare
-    v_poll_id uuid;
-begin
-    if exists (select 1 from public.polls limit 1) then
-        raise notice 'polls already seeded — skipping';
-        return;
-    end if;
-
-    -- Poll 1 -------------------------------------------------------------
-    insert into public.polls (slug, question, locale, is_active, closes_at)
-    values (
-        'mankon-market-priority',
-        'Mankon market traders have one repair budget this year. Where should it go?',
-        'en',
-        true,
-        now() + interval '14 days'
-    )
-    returning id into v_poll_id;
-
-    insert into public.poll_options (poll_id, label, sort_order) values
-        (v_poll_id, 'Fix the drainage channels', 1),
-        (v_poll_id, 'Rebuild the meat section roof', 2),
-        (v_poll_id, 'Resurface the access road', 3),
-        (v_poll_id, 'More lighting and security', 4);
-
-    -- Poll 2 -------------------------------------------------------------
-    insert into public.polls (slug, question, locale, is_active, closes_at)
-    values (
-        'rainy-season-readiness',
-        'How ready is your neighbourhood for the rainy season?',
-        'en',
-        true,
-        now() + interval '7 days'
-    )
-    returning id into v_poll_id;
-
-    insert into public.poll_options (poll_id, label, sort_order) values
-        (v_poll_id, 'Ready — drains have been cleared', 1),
-        (v_poll_id, 'Partly — some streets still flood', 2),
-        (v_poll_id, 'Not ready at all', 3);
-
-    -- Poll 3 -------------------------------------------------------------
-    insert into public.polls (slug, question, locale, is_active, closes_at)
-    values (
-        'what-to-cover-next',
-        'What should Eagle Eye investigate next in Bamenda?',
-        'en',
-        true,
-        now() + interval '30 days'
-    )
-    returning id into v_poll_id;
-
-    insert into public.poll_options (poll_id, label, sort_order) values
-        (v_poll_id, 'Water supply interruptions', 1),
-        (v_poll_id, 'The cost of school materials', 2),
-        (v_poll_id, 'Waste collection gaps', 3),
-        (v_poll_id, 'Transport fares', 4);
-
-    raise notice 'seeded 3 demo polls';
-end $$;

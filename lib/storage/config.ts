@@ -17,9 +17,21 @@ export const DESTINATION_PROVIDER: Record<StorageDestination, StorageProvider> =
 }
 
 export const MAX_FILE_SIZE_BYTES: Record<StorageDestination, number> = {
-  public_photo: 15 * 1024 * 1024, // 15MB — photo story / news / listing / notice images
-  admin_asset: 5 * 1024 * 1024, // 5MB — avatars, ad creatives, small internal assets
+  public_photo: 50 * 1024 * 1024, // 50MB ceiling — per-kind caps in MAX_KIND_BYTES apply first
+  admin_asset: 25 * 1024 * 1024, // 25MB — avatars, ad creatives, small internal assets
   backup: Number.POSITIVE_INFINITY, // backup mirror copies whatever the source already validated
+}
+
+/**
+ * Per-kind upload budgets (Phase A+B). Video/audio are editorially capped:
+ * short clips + voice notes, not full-length uploads — keeps storage costs,
+ * moderation load and low-bandwidth playback sane.
+ */
+export const MAX_KIND_BYTES: Record<MediaKind, number> = {
+  image: 15 * 1024 * 1024, // 15MB
+  video: 50 * 1024 * 1024, // 50MB, ~1-3 min phone clip
+  audio: 25 * 1024 * 1024, // 25MB, ~10 min voice note
+  document: 10 * 1024 * 1024, // 10MB PDF
 }
 
 // Allowlist, not denylist — anything not explicitly listed is rejected,
@@ -27,8 +39,8 @@ export const MAX_FILE_SIZE_BYTES: Record<StorageDestination, number> = {
 // rather than by trying to enumerate every dangerous type.
 export const ALLOWED_MIME_TYPES: Record<MediaKind, string[]> = {
   image: ['image/jpeg', 'image/png', 'image/webp'],
-  video: ['video/mp4', 'video/quicktime'],
-  audio: ['audio/mpeg', 'audio/mp4', 'audio/wav'],
+  video: ['video/mp4', 'video/quicktime', 'video/webm'],
+  audio: ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/ogg', 'audio/webm'],
   document: ['application/pdf'],
 }
 

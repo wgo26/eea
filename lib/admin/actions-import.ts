@@ -18,7 +18,7 @@ function revalidateLocalized(path: string) {
 
 export type ImportPostItem = Pick<
   BloggerPost,
-  'title' | 'bodyHtml' | 'publishedAt' | 'labels' | 'originalUrl'
+  'title' | 'bodyHtml' | 'publishedAt' | 'labels' | 'originalUrl' | 'status' | 'filename' | 'metaDescription'
 >
 
 export type ImportPostsResult = {
@@ -64,9 +64,14 @@ async function ensureTag(
  * Import parsed export posts (Blogger/Atom-style content exports) as content
  * drafts (admin/editor with manageContent). Every post becomes a draft with
  * its English translation, its inline images registered as media rows
- * (hotlinked — no re-upload), and its source labels mapped to tags. Nothing
- * publishes: editors review and publish from /admin/content, adding the
- * French translation there.
+ * (hotlinked — no re-upload), and its source labels mapped to tags. Source
+ * metadata is preserved: the Blogger per-post meta description becomes the
+ * SEO description, and the original public path (blogger:filename) is the
+ * preferred slug so old links keep working. Everything imports as a draft —
+ * nothing publishes: editors review and publish from /admin/content, adding
+ * the French translation there. Publishing preserves an already-set
+ * published_at, and the original source date is stamped on the draft so it
+ * survives the publish flip.
  */
 export async function importPosts(
   items: ImportPostItem[],
@@ -97,7 +102,13 @@ export async function importPosts(
     }
 
     try {
-      const slug = await uniqueSlug(admin, title)
+      // Preserve the source URL slug when the export provides it
+      // (blogger:filename, e.g. /2020/10/post-title.html → post-title) so old
+      // links keep resolving; fall back to the title otherwise.
+      const slugBase = item.filename
+        ? (item.filename.split('/').pop() ?? '').replace(/\.html?$/i, '')
+        : ''
+      const slug = await uniqueSlug(admin, slugBase || title)
       const { data: created, error: createErr } = await admin
         .from('content_items')
         .insert({
@@ -105,6 +116,10 @@ export async function importPosts(
           slug,
           status: 'draft',
           author_id: user.id,
+          // Live posts keep their original publish date (the status flip to
+          // published preserves an existing published_at); never-published
+          // Blogger drafts keep published_at null like any native draft.
+          ...(item.status !== 'DRAFT' && item.publishedAt ? { published_at: item.publishedAt } : {}),
         })
         .select('id')
         .single()
@@ -120,6 +135,8 @@ export async function importPosts(
             title,
             excerpt: makeExcerpt(bodyHtml),
             body: bodyHtml,
+            // Blogger's per-post meta description, when the author set one.
+            seo_description: item.metaDescription ?? null,
           },
           { onConflict: 'content_item_id,locale,voice' },
         )
@@ -155,7 +172,7 @@ export async function importPosts(
           action: 'content:import',
           content_item_id: contentId,
           actor_id: user.id,
-          notes: `${contentType}/${slug} source=${item.originalUrl ?? 'export'} published=${item.publishedAt ?? 'unknown'}`,
+          notes: `${contentType}/${slug} source=${item.originalUrl ?? item.filename ?? 'export'} published=${item.publishedAt ?? 'unknown'} bloggerStatus=${item.status ?? 'classic'}`,
         })
 
         result.imported.push({ title, slug })

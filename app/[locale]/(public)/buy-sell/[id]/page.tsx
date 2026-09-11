@@ -12,6 +12,7 @@ import {
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
 import { StoryCard } from "@/components/home/story-card";
+import { SupportingMedia } from "@/components/media/supporting-media";
 import { RevealContact } from "@/components/buy-sell/reveal-contact";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import {
     getSimilarListings,
     type ListingData,
 } from "@/lib/queries/buy-sell";
+import { getAdForSlot } from "@/lib/queries/ads";
 
 type ListingPageProps = { params: Promise<{ locale: string; id: string }> };
 
@@ -75,12 +77,15 @@ export default async function ListingPage({ params }: ListingPageProps) {
     if (!listing) notFound();
 
     const shareUrl = `${SITE.url}${localePath(locale, `/buy-sell/${listing.id}`)}`;
-    const similar = await getSimilarListings(
-        listing.id,
-        { category: listing.category ?? undefined, locationSlug: listing.locationSlug },
-        locale,
-        3,
-    );
+    const [similar, inlineAd] = await Promise.all([
+        getSimilarListings(
+            listing.id,
+            { category: listing.category ?? undefined, locationSlug: listing.locationSlug },
+            locale,
+            3,
+        ),
+        getAdForSlot("buy-sell-inline"),
+    ]);
 
     const photos = listing.photos ?? [];
     const [cover, ...rest] = photos;
@@ -227,6 +232,15 @@ export default async function ListingPage({ params }: ListingPageProps) {
                 </section>
             </div>
 
+            {(listing.attachments ?? []).length > 0 ? (
+                <SupportingMedia
+                    items={listing.attachments ?? []}
+                    title={listing.title}
+                    heading={dict.common.supportingMedia}
+                    description={dict.common.supportingMediaBody}
+                />
+            ) : null}
+
             {/* Similar listings */}
             {similar.length > 0 ? (
                 <section className="mt-12">
@@ -248,7 +262,7 @@ export default async function ListingPage({ params }: ListingPageProps) {
             ) : null}
 
             <AdSlot
-                ad={null}
+                ad={inlineAd}
                 dict={dict}
                 advertiseHref={localePath(locale, "/advertise")}
                 variant="inline-bottom"

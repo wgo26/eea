@@ -438,6 +438,7 @@ export default async function Page() {
                         <h2 className="text-xl font-semibold">{t.contributorTools}</h2>
                         <div className="mt-5 space-y-3">
                             <ActionLink href={p("/submit")} label={t.linkSubmit} />
+                            <ActionLink href={p("/account/listings")} label={dict.buySell.myListings} />
                             <ActionLink href={p("/contributors")} label={t.linkBrowseContributors} />
                             <ActionLink href={p("/")} label={t.linkExploreCommunity} />
                             <ProfileEditDialog copy={t} common={common} initial={profileInitial} />

@@ -33,18 +33,30 @@ function payloadValue(value: unknown): string {
 
 /** Keys that suggest image content, even without a file extension. */
 const PHOTO_KEY_RE = /photo|image|picture|cover/i
+const AV_KEY_RE = /video|audio|media|clip|voice|sound/i
 const URL_RE = /https?:\/\/[^\s'",;\\]+/g
 
-/** Pull image URLs out of a flattened payload value (photos arrive comma-joined). */
+function kindOfUrl(url: string): 'video' | 'audio' | 'image' | 'file' {
+  if (/\.(mp4|mov|webm|m4v)(\?.*)?$/i.test(url) || /youtube\.com|youtu\.be|vimeo\.com/i.test(url)) return 'video'
+  if (/\.(mp3|m4a|wav|ogg|oga|opus|weba)(\?.*)?$/i.test(url) || /soundcloud\.com|spotify\.com|audiomack\.com/i.test(url)) return 'audio'
+  if (/\.(jpe?g|png|webp|gif|avif)(\?.*)?$/i.test(url) || url.includes('/uploads') || url.includes('/media')) return 'image'
+  return 'file'
+}
+
+/** Pull media URLs out of a flattened payload value (photos/videos/audios arrive newline-joined). */
 function extractPhotoUrls(key: string, value: string): string[] {
   if (!value.includes('http')) return []
   const urls = value.match(URL_RE) ?? []
   if (urls.length === 0) return []
+  // Video/audio keys return their URLs directly so the reviewer gets a
+  // player instead of a broken image thumbnail.
+  if (/video|audio/i.test(key)) return urls
   const imageUrls = urls.filter(
     (u) => /\.(jpe?g|png|webp|gif|avif)(\?.*)?$/i.test(u) || u.includes('/uploads') || u.includes('/media'),
   )
   // A photo-ish payload key wins even when the URLs lack a recognizable extension.
   if (PHOTO_KEY_RE.test(key)) return urls
+  if (AV_KEY_RE.test(key)) return urls
   return imageUrls
 }
 
@@ -140,12 +152,25 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                     <dt className="text-xs font-medium text-muted-foreground">{labelFor(key)}</dt>
                     {photos.length > 0 ? (
                       <dd className="flex flex-wrap gap-2">
-                        {photos.map((url) => (
-                          <a key={url} href={url} target="_blank" rel="noreferrer" className="block">
-                            {/* eslint-disable-next-line @next/next/no-img-element -- external photo hosts, thumbnail preview */}
-                            <img src={url} alt="" className="h-16 w-16 rounded border border-border object-cover" />
-                          </a>
-                        ))}
+                        {photos.map((url) => {
+                          const kind = kindOfUrl(url)
+                          if (kind === 'video') {
+                            return (
+                              <video key={url} src={url} controls preload="metadata" playsInline className="h-24 max-w-48 rounded border border-border bg-black" />
+                            )
+                          }
+                          if (kind === 'audio') {
+                            return (
+                              <audio key={url} src={url} controls preload="none" className="w-56" />
+                            )
+                          }
+                          return (
+                            <a key={url} href={url} target="_blank" rel="noreferrer" className="block">
+                              {/* eslint-disable-next-line @next/next/no-img-element -- external photo hosts, thumbnail preview */}
+                              <img src={url} alt="" className="h-16 w-16 rounded border border-border object-cover" />
+                            </a>
+                          )
+                        })}
                       </dd>
                     ) : (
                       <dd className="whitespace-pre-wrap break-words text-sm">{value}</dd>

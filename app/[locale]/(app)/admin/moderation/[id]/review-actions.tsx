@@ -58,6 +58,8 @@ function prefillFromPayload(payload: Record<string, unknown> | null) {
     payloadLocale: isFr ? 'fr' : enFirst || /^en/i.test(explicitLocale) ? 'en' : explicitLocale || null,
     price: str(p.price),
     photos: str(p.photos),
+    videos: str(p.videos),
+    audios: str(p.audios),
     organization: str(p.organization),
     noticeType: str(p.noticeType),
   }
@@ -335,6 +337,8 @@ function ApproveDrawer({
   const [enBody, setEnBody] = useState(prefill.bodyEn)
   const [frBody, setFrBody] = useState(prefill.bodyFr)
   const [photos, setPhotos] = useState(prefill.photos)
+  const [videos, setVideos] = useState(prefill.videos)
+  const [audios, setAudios] = useState(prefill.audios)
   // Photo URLs from the payload prefill the uploader as editable thumbnails
   // ("url - caption" lines); adding uploads/URLs keeps the same line format.
   const [newPhotos, setNewPhotos] = useState<UploadedPhoto[]>(() =>
@@ -383,6 +387,16 @@ function ApproveDrawer({
         .map((line) => line.trim())
         .filter(Boolean)
         .map((url) => ({ url })),
+      attachments: [
+        ...videos.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+          const [url, ...rest] = line.split(/\s+-\s+/)
+          return { url, kind: 'video' as const, caption: rest.join(' - ') || undefined }
+        }),
+        ...audios.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+          const [url, ...rest] = line.split(/\s+-\s+/)
+          return { url, kind: 'audio' as const, caption: rest.join(' - ') || undefined }
+        }),
+      ],
     }
     if (isListing) {
       draft.listing = {
@@ -484,6 +498,14 @@ function ApproveDrawer({
               }}
             />
           </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label={copy.videosLabel} hint={copy.videosHint}>
+              <textarea value={videos} onChange={(e) => setVideos(e.target.value)} rows={3} className={inputCls} placeholder="https://…" />
+            </Field>
+            <Field label={copy.audiosLabel} hint={copy.audiosHint}>
+              <textarea value={audios} onChange={(e) => setAudios(e.target.value)} rows={3} className={inputCls} placeholder="https://…" />
+            </Field>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label={copy.photographerCredit}>
               <input value={credit} onChange={(e) => setCredit(e.target.value)} className={inputCls} />

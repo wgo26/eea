@@ -79,6 +79,11 @@ export default async function ContributorsPage() {
                                                         aria-hidden
                                                     />
                                                 ) : null}
+                                                {c.isFeatured ? (
+                                                    <Badge className="bg-amber-500/90 text-white">
+                                                        {dict.contributors.featured}
+                                                    </Badge>
+                                                ) : null}
                                             </div>
                                             {c.locationName ? (
                                                 <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">

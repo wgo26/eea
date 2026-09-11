@@ -55,7 +55,7 @@ export function HomeHero({ featured, secondary, dict, locale, submitHref, photoS
                         <HeroCarousel stories={featured} dict={dict} locale={locale} />
                     </div>
                 ) : (
-                    <HeroSlide story={featured[0]} dict={dict} locale={locale} headingLevel="h1" />
+                    <HeroSlide story={featured[0]} dict={dict} locale={locale} headingLevel="h1" priority />
                 )}
                 <aside className="flex min-w-0 flex-col gap-3">
                     {/* <aside className="flex flex-col gap-3"> */}

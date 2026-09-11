@@ -1,0 +1,8 @@
+﻿C:\Users\Fame\apps\eea\lib\queries\about.ts
+C:\Users\Fame\apps\eea\lib\queries\buy-sell.ts
+C:\Users\Fame\apps\eea\lib\queries\contributors.ts
+C:\Users\Fame\apps\eea\lib\queries\news.ts
+C:\Users\Fame\apps\eea\lib\queries\notices.ts
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts
+C:\Users\Fame\apps\eea\lib\queries\search.ts
+C:\Users\Fame\apps\eea\app\sitemap.ts

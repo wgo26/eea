@@ -11,7 +11,7 @@ import type { StorageDestination } from '@/lib/storage/types'
 // For multi-instance production, move this to Redis/Upstash.
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 20;
-const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const hits = new Map<string, { count: number; resetAt: number }>();
 
 function rateLimited(ip: string): boolean {
@@ -42,6 +42,7 @@ export async function POST(request: Request) {
   const file = form.get('file')
   const destinationRaw = form.get('destination')
   const contentItemId = form.get('contentItemId')
+  const durationRaw = form.get('durationSeconds')
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'Missing file.' }, { status: 400 })
@@ -133,10 +134,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Empty file.' }, { status: 400 })
   }
   if (buffer.byteLength > MAX_UPLOAD_BYTES) {
-    return NextResponse.json({ error: 'File too large (max 12 MB).' }, { status: 413 })
+    return NextResponse.json({ error: 'File too large (max 50 MB; video 50 MB, audio 25 MB, images 15 MB).' }, { status: 413 })
   }
 
   try {
+    const parsedDuration = typeof durationRaw === 'string' ? Number(durationRaw) : NaN
     const result = await uploadMedia(supabase, {
       buffer,
       originalFilename: file.name,
@@ -144,6 +146,7 @@ export async function POST(request: Request) {
       destination,
       contentItemId: typeof contentItemId === 'string' ? contentItemId : null,
       uploadedBy: user.id,
+      durationSeconds: Number.isFinite(parsedDuration) && parsedDuration > 0 ? parsedDuration : null,
     })
 
     return NextResponse.json(result, { status: 201 })

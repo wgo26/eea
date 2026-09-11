@@ -1,0 +1,127 @@
+﻿C:\Users\Fame\apps\eea\app\sitemap.ts:56: .select("type, id, slug, published_at, expires_at")
+C:\Users\Fame\apps\eea\app\sitemap.ts:59: .lte("published_at", nowIso)
+C:\Users\Fame\apps\eea\app\sitemap.ts:86: published_at: string | null;
+C:\Users\Fame\apps\eea\app\sitemap.ts:95: if (row.published_at) entry.lastModified = new Date(row.published_at);
+C:\Users\Fame\apps\eea\app\[locale]\(app)\account\dashboard\page.tsx:28: published_at?: string | null;
+C:\Users\Fame\apps\eea\app\[locale]\(app)\account\dashboard\page.tsx:35: published_at: string | null;
+C:\Users\Fame\apps\eea\app\[locale]\(app)\account\dashboard\page.tsx:153: published_at: row.published_at,
+C:\Users\Fame\apps\eea\app\[locale]\(app)\account\dashboard\page.tsx:182: .select("id, type, status, published_at, translations:content_translations(locale, title)")
+C:\Users\Fame\apps\eea\app\[locale]\(app)\account\dashboard\page.tsx:184: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\admin\actions.ts:288: input.publish === 'now' ? { status: 'published', published_at: now } :
+C:\Users\Fame\apps\eea\lib\admin\actions.ts:497: input.publish === 'now' ? { status: 'published', published_at: now } :
+C:\Users\Fame\apps\eea\lib\admin\actions.ts:840: if (status === 'published') patch.published_at = new Date().toISOString()
+C:\Users\Fame\apps\eea\lib\admin\actions.ts:2562: .select('id, type, status, published_at')
+C:\Users\Fame\apps\eea\lib\admin\actions.ts:2578: patch.published_at = item.published_at ?? now
+C:\Users\Fame\apps\eea\lib\admin\queries.ts:105: safe(db().from('content_items').select('id', { count: 'exact', head: true }).eq('status', 'published').gte('published_at', today.toISOString())),
+C:\Users\Fame\apps\eea\lib\admin\queries.ts:326: const CONTENT_SELECT = `id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, updated_at, author_id, submitted_by,
+C:\Users\Fame\apps\eea\lib\admin\queries.ts:388: publishedAt: row.published_at as string | null,
+C:\Users\Fame\apps\eea\lib\admin\queries.ts:425: .select('id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by, location_id, category_id, translations:content_translations(locale, title, excerpt, body), location:locations(name), category:categories!category_id(category_translations(locale, name)), media:media_assets(id, public_url, caption, alt_text, photographer_credit, sort_order), listing:listings(price, currency, contact_phone, contact_email, whatsapp_number), notice:notices(notice_type, organization_name, contact_phone, is_official, notice_date, expiry_date), event:events(starts_at, ends_at, venue_name, ticket_url, organizer_name, organizer_phone, organizer_email)')
+C:\Users\Fame\apps\eea\lib\admin\queries.ts:686: .select('id, type, slug, status, published_at, translations:content_translations(locale, title)', { count: 'exact' })
+C:\Users\Fame\apps\eea\lib\admin\queries.ts:709: publishedAt: r.published_at as string | null,
+C:\Users\Fame\apps\eea\lib\admin\queries.ts:1270: .update({ status: 'published', published_at: nowIso })
+C:\Users\Fame\apps\eea\lib\admin\queries.ts:1331: const select = `id, slug, status, is_featured, expires_at, published_at,
+C:\Users\Fame\apps\eea\lib\admin\queries.ts:1339: .order('published_at', { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\admin\queries.ts:1368: publishedAt: (row.published_at as string | null) ?? null,
+C:\Users\Fame\apps\eea\lib\admin\queries.ts:1714: .select('id, policy_type, locale, version, is_current, published_at, content')
+C:\Users\Fame\apps\eea\lib\admin\queries.ts:1715: .order('published_at', { ascending: false })
+C:\Users\Fame\apps\eea\lib\admin\queries.ts:1724: published_at: string | null
+C:\Users\Fame\apps\eea\lib\admin\queries.ts:1732: publishedAt: row.published_at,
+C:\Users\Fame\apps\eea\lib\admin\queries.ts:2127: published_at, scheduled_for, expires_at,
+C:\Users\Fame\apps\eea\lib\admin\queries.ts:2162: publishedAt: (row.published_at as string | null) ?? null,
+C:\Users\Fame\apps\eea\lib\queries\about.ts:78: .select("id, policy_type, locale, content, version, published_at")
+C:\Users\Fame\apps\eea\lib\queries\about.ts:89: published_at: string | null;
+C:\Users\Fame\apps\eea\lib\queries\about.ts:107: publishedAt: chosen.published_at ?? null,
+C:\Users\Fame\apps\eea\lib\queries\buy-sell.ts:63: published_at: string | null;
+C:\Users\Fame\apps\eea\lib\queries\buy-sell.ts:98: const LISTING_SELECT = `id, slug, verification, published_at, expires_at,
+C:\Users\Fame\apps\eea\lib\queries\buy-sell.ts:187: .not("published_at", "is", null);
+C:\Users\Fame\apps\eea\lib\queries\buy-sell.ts:225: publishedAt: row.published_at,
+C:\Users\Fame\apps\eea\lib\queries\buy-sell.ts:288: query = query.order("published_at", { ascending: false, nullsFirst: false });
+C:\Users\Fame\apps\eea\lib\queries\buy-sell.ts:374: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\buy-sell.ts:407: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\buy-sell.ts:450: const LISTING_DETAIL_SELECT = `id, slug, verification, published_at, expires_at,
+C:\Users\Fame\apps\eea\lib\queries\buy-sell.ts:551: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\contributors.ts:119: published_at: string | null;
+C:\Users\Fame\apps\eea\lib\queries\contributors.ts:162: publishedAt: row.published_at,
+C:\Users\Fame\apps\eea\lib\queries\contributors.ts:201: .not("published_at", "is", null),
+C:\Users\Fame\apps\eea\lib\queries\contributors.ts:271: `id, type, slug, published_at,
+C:\Users\Fame\apps\eea\lib\queries\contributors.ts:279: .not("published_at", "is", null)
+C:\Users\Fame\apps\eea\lib\queries\contributors.ts:280: .order("published_at", { ascending: false })
+C:\Users\Fame\apps\eea\lib\queries\contributors.ts:325: `id, type, slug, published_at,
+C:\Users\Fame\apps\eea\lib\queries\contributors.ts:333: .not("published_at", "is", null)
+C:\Users\Fame\apps\eea\lib\queries\contributors.ts:334: .order("published_at", { ascending: false })
+C:\Users\Fame\apps\eea\lib\queries\culture.ts:58: published_at: string | null;
+C:\Users\Fame\apps\eea\lib\queries\culture.ts:85: const CULTURE_SELECT = `id, slug, verification, published_at, view_count,
+C:\Users\Fame\apps\eea\lib\queries\culture.ts:94: const CULTURE_SELECT_LEFT = `id, slug, verification, published_at, view_count,
+C:\Users\Fame\apps\eea\lib\queries\culture.ts:157: .not("published_at", "is", null);
+C:\Users\Fame\apps\eea\lib\queries\culture.ts:199: publishedAt: row.published_at,
+C:\Users\Fame\apps\eea\lib\queries\culture.ts:265: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\culture.ts:361: .not("published_at", "is", null)
+C:\Users\Fame\apps\eea\lib\queries\culture.ts:362: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\culture.ts:395: .not("published_at", "is", null)
+C:\Users\Fame\apps\eea\lib\queries\culture.ts:477: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\fundraisers.ts:51: published_at: string | null;
+C:\Users\Fame\apps\eea\lib\queries\fundraisers.ts:79: const FUNDRAISER_SELECT = `id, slug, verification, published_at, expires_at,
+C:\Users\Fame\apps\eea\lib\queries\fundraisers.ts:150: publishedAt: row.published_at,
+C:\Users\Fame\apps\eea\lib\queries\fundraisers.ts:164: .not("published_at", "is", null);
+C:\Users\Fame\apps\eea\lib\queries\fundraisers.ts:182: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\home.ts:60: published_at: string | null;
+C:\Users\Fame\apps\eea\lib\queries\home.ts:139: publishedAt: item.published_at,
+C:\Users\Fame\apps\eea\lib\queries\home.ts:199: `id, type, slug, verification, published_at,
+C:\Users\Fame\apps\eea\lib\queries\home.ts:209: .not("published_at", "is", null)
+C:\Users\Fame\apps\eea\lib\queries\home.ts:210: .order("published_at", { ascending: false })
+C:\Users\Fame\apps\eea\lib\queries\locations.ts:115: published_at: string | null;
+C:\Users\Fame\apps\eea\lib\queries\locations.ts:155: publishedAt: row.published_at,
+C:\Users\Fame\apps\eea\lib\queries\locations.ts:166: const CONTENT_SELECT = `id, type, slug, published_at,
+C:\Users\Fame\apps\eea\lib\queries\locations.ts:231: .not("published_at", "is", null);
+C:\Users\Fame\apps\eea\lib\queries\locations.ts:238: query.order("published_at", { ascending: false }).limit(50),
+C:\Users\Fame\apps\eea\lib\queries\locations.ts:265: .not("published_at", "is", null),
+C:\Users\Fame\apps\eea\lib\queries\news.ts:39: published_at: string | null;
+C:\Users\Fame\apps\eea\lib\queries\news.ts:55: const STORY_SELECT = `id, slug, verification, published_at, view_count,
+C:\Users\Fame\apps\eea\lib\queries\news.ts:155: .not("published_at", "is", null);
+C:\Users\Fame\apps\eea\lib\queries\news.ts:180: publishedAt: row.published_at,
+C:\Users\Fame\apps\eea\lib\queries\news.ts:272: .not("published_at", "is", null),
+C:\Users\Fame\apps\eea\lib\queries\news.ts:347: * Phase 4.1: cached (tag `news`); the `published_at` cursor keeps the cache
+C:\Users\Fame\apps\eea\lib\queries\news.ts:358: .gt("published_at", publishedAt)
+C:\Users\Fame\apps\eea\lib\queries\news.ts:359: .order("published_at", { ascending: true })
+C:\Users\Fame\apps\eea\lib\queries\news.ts:362: .lt("published_at", publishedAt)
+C:\Users\Fame\apps\eea\lib\queries\news.ts:363: .order("published_at", { ascending: false })
+C:\Users\Fame\apps\eea\lib\queries\news.ts:442: .select("author:profiles!content_items_author_id_fkey(id), location:locations(name), published_at")
+C:\Users\Fame\apps\eea\lib\queries\news.ts:451: published_at?: string | null;
+C:\Users\Fame\apps\eea\lib\queries\news.ts:464: if (row.published_at && new Date(row.published_at).getTime() >= weekAgo) {
+C:\Users\Fame\apps\eea\lib\queries\news.ts:505: .not("published_at", "is", null)
+C:\Users\Fame\apps\eea\lib\queries\news.ts:506: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\news.ts:514: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\news.ts:544: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\news.ts:618: sort === "most_read" ? "view_count" : "published_at",
+C:\Users\Fame\apps\eea\lib\queries\news.ts:682: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\notices.ts:78: published_at: string | null;
+C:\Users\Fame\apps\eea\lib\queries\notices.ts:108: const NOTICE_SELECT = `id, slug, verification, published_at,
+C:\Users\Fame\apps\eea\lib\queries\notices.ts:215: .not("published_at", "is", null);
+C:\Users\Fame\apps\eea\lib\queries\notices.ts:246: publishedAt: row.published_at,
+C:\Users\Fame\apps\eea\lib\queries\notices.ts:393: query = query.order("published_at", { ascending: false, nullsFirst: false });
+C:\Users\Fame\apps\eea\lib\queries\notices.ts:571: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\notices.ts:603: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\notices.ts:615: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\notices.ts:644: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:60: published_at: string | null;
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:84: const STORY_SELECT = `id, slug, verification, published_at, view_count,
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:172: .not("published_at", "is", null);
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:223: publishedAt: row.published_at,
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:231: const FEATURED_SELECT = `id, slug, verification, published_at, view_count,
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:250: .not("published_at", "is", null)
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:251: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:258: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:317: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:389: .not("published_at", "is", null),
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:504: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:618: * Phase 4.1: cached (tag `stories`); the `published_at` cursor keeps the cache
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:629: .gt("published_at", publishedAt)
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:630: .order("published_at", { ascending: true })
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:633: .lt("published_at", publishedAt)
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:634: .order("published_at", { ascending: false })
+C:\Users\Fame\apps\eea\lib\queries\photo-stories.ts:675: .not("published_at", "is", null),
+C:\Users\Fame\apps\eea\lib\queries\search.ts:111: published_at: string | null;
+C:\Users\Fame\apps\eea\lib\queries\search.ts:121: const SEARCH_SELECT = `id, type, slug, published_at,
+C:\Users\Fame\apps\eea\lib\queries\search.ts:173: .not("published_at", "is", null)
+C:\Users\Fame\apps\eea\lib\queries\search.ts:182: .order("published_at", { ascending: false, nullsFirst: false })
+C:\Users\Fame\apps\eea\lib\queries\search.ts:200: publishedAt: row.published_at,

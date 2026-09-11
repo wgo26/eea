@@ -11,6 +11,8 @@ export type ContributorProfile = {
     bio: string | null;
     avatarUrl: string | null;
     isVerified: boolean;
+    /** Staff spotlight flag (admin user curation). Featured sort first. */
+    isFeatured: boolean;
     locationName: string | null;
     publishedCount: number;
     photoCount: number;
@@ -109,6 +111,8 @@ type RawContributorRow = {
     bio: string | null;
     avatar_url: string | null;
     is_verified: boolean | null;
+    contributor_featured: boolean | null;
+    contributor_bio_override: string | null;
     location?: { name: string | null } | { name: string | null }[] | null;
 };
 
@@ -126,6 +130,7 @@ type RawContentRow = {
 };
 
 const CONTRIBUTOR_SELECT = `id, display_name, full_name, bio, avatar_url, is_verified,
+    contributor_featured, contributor_bio_override,
     location:locations(name)`;
 
 /** Maps a raw contributor row to the public shape. */
@@ -135,9 +140,10 @@ function mapContributor(raw: RawContributorRow): ContributorProfile {
         id: raw.id,
         displayName: raw.display_name,
         fullName: raw.full_name,
-        bio: raw.bio,
+        bio: raw.contributor_bio_override ?? raw.bio,
         avatarUrl: raw.avatar_url,
         isVerified: raw.is_verified ?? false,
+        isFeatured: raw.contributor_featured ?? false,
         locationName: location?.name ?? null,
         publishedCount: 0,
         photoCount: 0,
@@ -239,6 +245,8 @@ export async function getContributors(
             },
         ];
     });
+    // Staff spotlight first, then alphabetical — curation visibly matters.
+    contributors.sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured));
 
     return {
         contributors,

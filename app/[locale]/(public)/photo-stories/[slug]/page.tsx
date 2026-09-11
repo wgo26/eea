@@ -15,6 +15,7 @@ import {
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
 import { StoryCard } from "@/components/home/story-card";
+import { SupportingMedia } from "@/components/media/supporting-media";
 import { GalleryGrid } from "@/components/photo-stories/gallery-grid";
 import { StoryBody } from "@/components/photo-stories/story-body";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,7 @@ import {
     getOtherPhotoStories,
     getPhotoStoryBySlug,
 } from "@/lib/queries/photo-stories";
+import { getAdForSlot } from "@/lib/queries/ads";
 
 type PhotoStoryPageProps = { params: Promise<{ locale: string; slug: string }> };
 
@@ -75,9 +77,10 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
     const story = await getPhotoStoryBySlug(slug, locale);
     if (!story) notFound();
 
-    const [related, adjacent] = await Promise.all([
+    const [related, adjacent, railAd] = await Promise.all([
         getOtherPhotoStories(story.id, locale),
         getAdjacentPhotoStories(story.id, story.publishedAt ?? new Date().toISOString(), locale),
+        getAdForSlot("photo-story-rail"),
     ]);
     const badge = verificationBadgeInfo(story.verification ?? null, dict);
     const shareUrl = `${SITE.url}${localePath(locale, `/photo-stories/${story.slug}`)}`;
@@ -155,6 +158,15 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                 <section className="mt-12" aria-label={story.title}>
                     <StoryBody body={story.body} />
                 </section>
+            ) : null}
+
+            {(story.attachments ?? []).length > 0 ? (
+                <SupportingMedia
+                    items={story.attachments ?? []}
+                    title={story.title}
+                    heading={dict.common.supportingMedia}
+                    description={dict.common.supportingMediaBody}
+                />
             ) : null}
 
             {/* Prev / next essay navigation */}
@@ -292,7 +304,7 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                     </Card>
 
                     <AdSlot
-                        ad={null}
+                        ad={railAd}
                         dict={dict}
                         advertiseHref={localePath(locale, "/advertise")}
                         variant="rail"

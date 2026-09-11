@@ -1,6 +1,6 @@
 import { fileTypeFromBuffer } from 'file-type'
 import sharp from 'sharp'
-import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, mimeToKind } from './config'
+import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MAX_KIND_BYTES, mimeToKind } from './config'
 import { logger } from '@/lib/observability/logger'
 import { StorageValidationError } from './types'
 import type { MediaKind, StorageDestination } from './types'
@@ -53,9 +53,16 @@ export async function validateUpload(
     throw new StorageValidationError(`File type "${sniffed.mime}" is not allowed.`)
   }
 
-  // Belt-and-braces: the sniffed type must also be in the allowlist for its
-  // kind (mimeToKind already guarantees this, but this keeps the intent
-  // explicit rather than implicit in a lookup).
+  // Per-kind budget applies before the destination ceiling, so a 40MB video
+  // is rejected with a kind-specific message even where the destination
+  // would allow it. Belt-and-braces: the sniffed type must also be in the
+  // allowlist for its kind.
+  const kindMax = MAX_KIND_BYTES[kind]
+  if (buffer.byteLength > kindMax) {
+    throw new StorageValidationError(
+      `This ${kind} is too large (${Math.round(buffer.byteLength / 1024 / 1024)}MB, max ${Math.round(kindMax / 1024 / 1024)}MB). Shorter clips / lower bitrates upload best.`
+    )
+  }
   if (!ALLOWED_MIME_TYPES[kind].includes(sniffed.mime)) {
     throw new StorageValidationError(`File type "${sniffed.mime}" is not allowed for ${kind}.`)
   }

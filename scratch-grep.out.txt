@@ -1,0 +1,58 @@
+﻿
+=== EN-APP IMPORT KEYS ===
+555: importButton: 'Import posts',
+556: importTitle: 'Import posts',
+557: importDescription:
+558: 'Upload a content export (.xml or .zip). Posts are previewed first, then imported as drafts — nothing publishes automatically.',
+559: importFileLabel: 'Export file',
+560: importFileHint:
+562: importChooseFile: 'Choose .xml or .zip file',
+563: importNoPosts: 'No posts found in this file. Check it is a supported export (an XML feed with entries).',
+564: importBadZip: 'This .zip file could not be read. Unzip it locally and upload the .xml inside.',
+565: importFound: '{n} post(s) found',
+566: importSelectAll: 'Select all',
+567: importClear: 'Clear',
+568: importSelected: '{n} selected',
+569: importTypeLabel: 'Import as',
+570: importStart: 'Import selected as drafts',
+571: importWorking: 'Importing…',
+572: importParsing: 'Reading file…',
+573: importDone: '{n} draft(s) imported. Review them under Drafts, add the French translation, then publish.',
+574: importFailed: '{n} post(s) failed — see details below.',
+575: importBack: 'Back to content',
+576: importColTitle: 'Title',
+577: importColDate: 'Published',
+578: importColLabels: 'Labels',
+579: importColImages: 'Images',
+=== FR-APP IMPORT KEYS ===
+555: importButton: 'Importer des articles',
+556: importTitle: 'Importer des articles',
+557: importDescription:
+558: 'Téléversez un export de contenu (.xml ou .zip). Les articles sont prévisualisés puis importés en brouillons — rien n’est publié automatiquement.',
+559: importFileLabel: 'Fichier d’export',
+560: importFileHint:
+562: importChooseFile: 'Choisir un fichier .xml ou .zip',
+563: importNoPosts: 'Aucun article trouvé dans ce fichier. Vérifiez qu’il s’agit d’un export pris en charge (flux XML avec entrées).',
+564: importBadZip: 'Ce fichier .zip n’a pas pu être lu. Décompressez-le et téléversez le fichier .xml qu’il contient.',
+565: importFound: '{n} article(s) trouvé(s)',
+566: importSelectAll: 'Tout sélectionner',
+567: importClear: 'Effacer',
+568: importSelected: '{n} sélectionné(s)',
+569: importTypeLabel: 'Importer comme',
+570: importStart: 'Importer la sélection en brouillons',
+571: importWorking: 'Import en cours…',
+572: importParsing: 'Lecture du fichier…',
+573: importDone: '{n} brouillon(s) importé(s). Relisez-les sous Brouillons, ajoutez la traduction française, puis publiez.',
+574: importFailed: '{n} article(s) en échec — voir détails ci-dessous.',
+575: importBack: 'Retour au contenu',
+576: importColTitle: 'Titre',
+577: importColDate: 'Publié',
+578: importColLabels: 'Libellés',
+579: importColImages: 'Images',
+=== ADMIN-MANUAL import mentions ===
+=== CHECKLIST import/Blogger mentions ===
+583: rename dropped (callers still use it) and the missing `AdminContext` import.
+658: `components/ui/chart.tsx` (sole `recharts` importer — dep removed);
+665: physical install lingered, masking the break). `globals.css` imports
+667: remove it without also removing that import.
+=== updateContentStatus in tests ===

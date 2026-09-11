@@ -1,0 +1,40 @@
+﻿import { appStringsEn } from './en-app'
+
+export const en = {
+  meta: {
+    title: 'Eagle Eye Africa â€” Community News, Photo Stories & More',
+    description:
+      'A community-first African media platform: local journalism, photo stories, community notices, buy & sell and culture â€” seen by the community, verified by Eagle Eye.',
+  },
+  nav: {
+    home: 'Home',
+    photoStories: 'Photo Stories',
+    news: 'Community News',
+    buySell: 'Buy & Sell',
+    notices: 'Notices',
+    culture: 'Culture',
+    submit: 'Submit a Story',
+    search: 'Search',
+    about: 'About',
+    advertise: 'Advertise',
+    locations: 'Locations',
+    contributors: 'Contributors',
+  },
+  header: {
+    searchPlaceholder: 'Search stories, notices, listingsâ€¦',
+    tagline: 'Seen by the community. Verified by Eagle Eye.',
+    menu: 'Menu',
+    close: 'Close',
+  },
+  theme: { label: 'Theme', light: 'Light', dark: 'Dark', system: 'System' },
+  language: { label: 'Language' },
+  badges: {
+    verified: 'Verified',
+    community: 'Community submission',
+    official: 'Official source',
+    developing: 'Developing',
+  },
+  hero: {
+    featured: 'Featured story',
+    readStory: 'Read the full story',
+    by: 'By',

@@ -1,0 +1,8 @@
+Initialising login role...
+Connecting to remote database...
+Do you want to push these migrations to the remote database?
+ • 20260926000000_submission_av_media.sql
+ • 20260926000001_remove_demo_polls.sql
+ • 20260927000000_blogger_import.sql
+
+ [Y/n] 

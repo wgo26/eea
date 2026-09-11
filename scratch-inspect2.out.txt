@@ -1,0 +1,41 @@
+﻿
+=== SIZES ===
+
+Name      Length
+----      ------
+feed.atom 806331
+
+
+=== TYPE COUNTS ===
+
+Name                                   Count
+----                                   -----
+<blogger:type>POST</blogger:type>        133
+<blogger:type>BLOGGER</blogger:type>     138
+<blogger:type>PAGE</blogger:type>          1
+<blogger:type>COMMENT</blogger:type>       5
+<blogger:type>ANONYMOUS</blogger:type>     1
+
+
+=== ENTRY COUNT ===
+0
+=== ALTERNATE LINKS (expect 0) ===
+0
+=== FILENAME NONEMPTY ===
+120
+=== PUBLISHED MIN/MAX ===
+2019-06-30T14:26:00.001Z
+2026-09-04T06:12:56.873Z
+=== TEST FILES ===
+C:\Users\Fame\apps\eea\lib\admin\actions-content.test.ts
+C:\Users\Fame\apps\eea\lib\admin\actions-engagement.test.ts
+C:\Users\Fame\apps\eea\lib\admin\actions-site.test.ts
+C:\Users\Fame\apps\eea\lib\admin\actions-storage.test.ts
+C:\Users\Fame\apps\eea\lib\admin\actions-taxonomy.test.ts
+C:\Users\Fame\apps\eea\lib\admin\actions.test.ts
+C:\Users\Fame\apps\eea\lib\admin\blogger.test.ts
+C:\Users\Fame\apps\eea\lib\admin\zip-reader.test.ts
+C:\Users\Fame\apps\eea\lib\i18n\parity.test.ts
+C:\Users\Fame\apps\eea\lib\i18n\urls.test.ts
+C:\Users\Fame\apps\eea\lib\public\reveal-contact.test.ts
+C:\Users\Fame\apps\eea\lib\site-icon.test.ts

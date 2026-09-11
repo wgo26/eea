@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from('media_assets')
-    .select('id, public_url, mime_type, file_size_bytes, kind, width, height, provider', { count: 'exact' })
+    .select('id, public_url, mime_type, file_size_bytes, kind, width, height, provider, duration_seconds', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range((page - 1) * pageSize, page * pageSize - 1)
   if (kind !== 'all') query = query.eq('kind', kind)

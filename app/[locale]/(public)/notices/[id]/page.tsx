@@ -14,6 +14,7 @@ import {
 
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
+import { SupportingMedia } from "@/components/media/supporting-media";
 import { VerificationBadge } from "@/components/verification-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -165,6 +166,17 @@ export default async function NoticePage({ params }: NoticePageProps) {
                         dangerouslySetInnerHTML={{ __html: notice.body }}
                     />
                 </section>
+            ) : null}
+
+            {(notice.attachments ?? []).length > 0 ? (
+                <div className="max-w-4xl">
+                    <SupportingMedia
+                        items={notice.attachments ?? []}
+                        title={notice.title}
+                        heading={dict.common.supportingMedia}
+                        description={dict.common.supportingMediaBody}
+                    />
+                </div>
             ) : null}
 
             <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">

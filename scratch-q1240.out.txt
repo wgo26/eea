@@ -1,0 +1,70 @@
+﻿  const [reportsRes, correctionsRes] = await Promise.all([
+    safe(db().from('reports').select('id', { count: 'exact', head: true })),
+    safe(db().from('corrections').select('id', { count: 'exact', head: true })),
+  ])
+  return { reports: reportsRes.count ?? 0, corrections: correctionsRes.count ?? 0 }
+}
+
+/** Filtered totals for trust-safety pagination (respects the active status pill). */
+export async function getTrustSafetyFilteredCounts(status: string): Promise<{ reports: number; corrections: number }> {
+  if (!hasDatabase()) return { reports: 0, corrections: 0 }
+  const applyStatus = (q: ReturnType<typeof db> extends never ? never :any) => (status === 'all' ? q : q.eq('status', status))
+  // Typed loosely to avoid Supabase query-builder generics friction.
+  const [reportsRes, correctionsRes] = await Promise.all([
+    safe(applyStatus(db().from('reports').select('id', { count: 'exact', head: true }))),
+    safe(applyStatus(db().from('corrections').select('id', { count: 'exact', head: true }))),
+  ])
+  return { reports: reportsRes.count ?? 0, corrections: correctionsRes.count ?? 0 }
+}
+
+/**
+ * Code-level fallback for the pg_cron job (migration
+ * 20260904000000_phase3_content_loop.sql): flips due `scheduled` items to
+ * `published` and expires overdue active listings. Called on admin loads â€”
+ * cheap (indexed updates) and idempotent.
+ */
+export async function runDueContentSweep(): Promise<void> {
+  const nowIso = new Date().toISOString()
+  await safe(
+    db()
+      .from('content_items')
+      .update({ status: 'published', published_at: nowIso })
+      .eq('status', 'scheduled')
+      .not('scheduled_for', 'is', null)
+      .lte('scheduled_for', nowIso),
+  )
+  const { data: dueListings } = await safe(
+    db()
+      .from('content_items')
+      .select('id')
+      .eq('is_archived', false)
+      .not('expires_at', 'is', null)
+      .lte('expires_at', nowIso)
+      .limit(500),
+  )
+  const dueIds = ((dueListings ?? []) as { id: string }[]).map((r) => r.id)
+  if (dueIds.length > 0) {
+    await safe(
+      db()
+        .from('listings')
+        .update({ listing_status: 'expired' })
+        .in('content_item_id', dueIds)
+        .eq('listing_status', 'active'),
+    )
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Listings lifecycle queue (Phase 3 buy & sell manager)              */
+/* ------------------------------------------------------------------ */
+
+export type AdminListingRow = {
+  contentItemId: string
+  slug: string | null
+  title: string | null
+  titleEn: string | null
+  titleFr: string | null
+  /** True when the item has translations but none in the requested locale. */
+  missingLocale: boolean
+  price: number | null
+  currency: string | null

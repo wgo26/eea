@@ -1,0 +1,50 @@
+﻿moderation_log for some-public-figures: [
+ {
+  "created_at": "2026-09-11T10:18:08.834795+00:00",
+  "action": "content:import:cli",
+  "to_status": null,
+  "actor_id": null
+ },
+ {
+  "created_at": "2026-09-11T10:18:19.208962+00:00",
+  "action": "status:published",
+  "to_status": "published",
+  "actor_id": "02b5d3c8-db5f-4f23-a241-b6af77c98919"
+ },
+ {
+  "created_at": "2026-09-11T10:29:50.559873+00:00",
+  "action": "edit_content",
+  "to_status": null,
+  "actor_id": "02b5d3c8-db5f-4f23-a241-b6af77c98919"
+ },
+ {
+  "created_at": "2026-09-11T10:30:44.668613+00:00",
+  "action": "edit_content",
+  "to_status": null,
+  "actor_id": "02b5d3c8-db5f-4f23-a241-b6af77c98919"
+ },
+ {
+  "created_at": "2026-09-11T10:54:52.565668+00:00",
+  "action": "content:featured",
+  "to_status": "featured",
+  "actor_id": "02b5d3c8-db5f-4f23-a241-b6af77c98919"
+ }
+]
+row now: [{"status":"published","published_at":"2026-09-11T10:18:19.034+00:00","created_at":"2026-09-11T10:17:51.841416+00:00","updated_at":"2026-09-11T10:54:52.469049+00:00"}]
+
+blogger rows created per minute:
+  2026-09-11T10:17: 13
+  2026-09-11T10:18: 24
+  2026-09-11T10:19: 7
+  2026-09-11T10:20: 11
+  2026-09-11T10:21: 9
+  2026-09-11T10:22: 2
+  2026-09-11T10:27: 6
+  2026-09-11T10:28: 11
+  2026-09-11T10:29: 15
+  2026-09-11T10:30: 20
+  2026-09-11T10:31: 6
+  2026-09-11T10:32: 2
+  2026-09-11T10:33: 7
+
+import-related moderation_log rows: 100

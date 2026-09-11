@@ -1,0 +1,37 @@
+﻿about.ts:157: .eq("status", "published"),
+buy-sell.ts:49: listingStatus: string | null;
+buy-sell.ts:86: listing_status: string | null;
+buy-sell.ts:92: listing_status: string | null;
+buy-sell.ts:103: listing:listings(price, currency, listing_status, seller_name)`;
+buy-sell.ts:185: .eq("status", "published")
+buy-sell.ts:232: listingStatus: listing?.listing_status ?? null,
+buy-sell.ts:455: listing:listings(price, currency, listing_status, seller_name, seller_is_verified, contact_phone, contact_email, whatsapp_number)`;
+buy-sell.ts:470: .eq("status", "published")
+buy-sell.ts:509: listing_status: string | null;
+contributors.ts:199: .eq("status", "published")
+contributors.ts:277: .eq("status", "published")
+contributors.ts:331: .eq("status", "published")
+news.ts:153: .eq("status", "published")
+news.ts:270: .eq("status", "published")
+news.ts:444: .eq("status", "published")
+news.ts:503: .eq("status", "published")
+notices.ts:45: export type NoticeStatus = "all" | "active" | "expiring" | "expired";
+notices.ts:213: .eq("status", "published")
+notices.ts:283: * Notice ids matching a lifecycle status. Done on the `notices` table where
+notices.ts:287: async function statusIds(status: NoticeStatus): Promise<string[] | null> {
+notices.ts:288: if (status === "all") return null;
+notices.ts:293: if (status === "expiring") {
+notices.ts:309: if (status === "expired") {
+notices.ts:337: * `status` narrows by lifecycle (active / expiring / expired), `sort` switches
+notices.ts:342: * lookups (`searchIds`/`statusIds`) stay uncached — they return null-vs-empty
+notices.ts:350: status: NoticeStatus;
+notices.ts:365: statusIds(args.status),
+notices.ts:419: status?: NoticeStatus;
+notices.ts:435: status: options.status ?? "all",
+photo-stories.ts:170: .eq("status", "published")
+photo-stories.ts:248: .eq("status", "published")
+photo-stories.ts:387: .eq("status", "published")
+photo-stories.ts:582: .eq("status", "published")
+photo-stories.ts:673: .eq("status", "published")
+search.ts:171: .eq("status", "published")
+sitemap.ts:57: .eq("status", "published")

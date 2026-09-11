@@ -1,0 +1,60 @@
+﻿            ticket_url: e.ticketUrl?.trim() || null,
+            organizer_name: e.organizerName ?? null,
+            organizer_phone: e.organizerPhone ?? null,
+            organizer_email: e.organizerEmail ?? null,
+          })
+          if (eErr) throw new Error(`Could not create the event: ${eErr.message}`)
+        }
+      }
+    } catch (e) {
+      const { data: mediaRows } = await supabase
+        .from('media_assets')
+        .select('id, provider, storage_key')
+        .eq('content_item_id', created.id)
+      for (const media of mediaRows ?? []) {
+        await deleteStoredMedia(supabase, media as { provider: string; storage_key: string | null })
+      }
+      await supabase.from('media_assets').delete().eq('content_item_id', created.id)
+      await supabase.from('content_items').delete().eq('id', created.id)
+      return fail(e)
+    }
+
+    if (input.publish !== 'draft') {
+      const { error: flipErr } = await supabase.from('content_items').update(statusPatch).eq('id', created.id)
+      if (flipErr) return { ok: false, error: flipErr.message }
+    }
+
+    await audit(supabase, user.id, {
+      action: `content:create:${input.publish === 'now' ? 'publish' : input.publish === 'schedule' ? 'schedule' : 'draft'}`,
+      contentItemId: created.id,
+      toStatus: input.publish === 'now' ? 'published' : input.publish === 'schedule' ? 'scheduled' : 'draft',
+      notes: `${type}/${slug}`,
+    })
+
+    if (input.publish !== 'draft') revalidatePublicContentCache()
+    revalidateLocalized('/admin/content')
+    revalidateLocalized('/admin/dashboard')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/**
+ * Hard-delete a content item (admin only, Phase 2). Clears homepage slot
+ * refs first, then removes translations, media, type-specific rows, and the
+ * item itself. Cascades handle content_tags, saved_content, etc. but we
+ * explicitly clear the SET NULL ref (homepage_slots) and audit the deletion.
+ *
+ * The destructive work runs on the service-role client (bypassing RLS) after
+ * the `assertAdmin` authorization check, so an admin delete can never be
+ * blocked by a missing RLS grant/policy on a child table (the exact failure
+ * that made seeded "dummy" content undeletable). Defense in depth is kept:
+ * page guard â†’ `assertAdmin` here â†’ the RPC's own `is_admin()` check.
+ */
+export async function deleteContentItem(contentItemId: string): Promise<ActionResult> {
+  try {
+    const { user } = await assertAdmin()
+    // Service-role: authorization already happened above; RLS must not be
+    // able to veto an admin hard-delete (missing grants on child tables
+    // previously surfaced as "new row violates row-level security policy").

@@ -32,6 +32,53 @@ const SAMPLE = `<?xml version='1.0' encoding='UTF-8' ?>
   </entry>
 </feed>`
 
+const TAKEOUT_SAMPLE = `<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns='http://www.w3.org/2005/Atom' xmlns:blogger='http://schemas.google.com/blogger/2018'>
+  <id>tag:blogger.com,1999:blog-426198324410599347</id>
+  <title>EAGLE EYE AFRICA</title>
+  <entry>
+    <id>tag:blogger.com,1999:blog-426198324410599347.post-126186913167950319</id>
+    <blogger:type>POST</blogger:type>
+    <blogger:status>LIVE</blogger:status>
+    <author><name>EAGLE EYE AFRICA</name></author>
+    <title>Workshop &amp;#39;reshape&amp;#39; coordination</title>
+    <content type='html'>&lt;div&gt;By Wirngo Peter&lt;/div&gt;&lt;img src="https://blogger.googleusercontent.com/img/x/w320-h214/1001531157.png" /&gt;</content>
+    <blogger:metaDescription>Workshop summary for SEO</blogger:metaDescription>
+    <blogger:created>2026-06-18T01:42:56.898Z</blogger:created>
+    <published>2026-06-18T01:45:55.218Z</published>
+    <updated>2026-06-18T01:45:55.218Z</updated>
+    <blogger:location/>
+    <category/>
+    <blogger:filename>/2026/06/bamenda-hosts-key-workshop.html</blogger:filename>
+    <link/>
+    <enclosure/>
+    <blogger:trashed/>
+  </entry>
+  <entry>
+    <id>tag:blogger.com,1999:blog-426198324410599347.post-793021033970468890</id>
+    <blogger:type>POST</blogger:type>
+    <blogger:status>DRAFT</blogger:status>
+    <title>Bamenda Celebrates World Environment Day 2025: "Beating Plastic Pollution"</title>
+    <content type='html'>&lt;div&gt;Draft body&lt;/div&gt;</content>
+    <blogger:filename>/2025/06/world-environment-day-2025.html</blogger:filename>
+    <published>2025-06-04T16:52:00Z</published>
+  </entry>
+  <entry>
+    <id>tag:blogger.com,1999:blog-426198324410599347.page-1</id>
+    <blogger:type>PAGE</blogger:type>
+    <blogger:status>DRAFT</blogger:status>
+    <title>An about page</title>
+    <content type='html'>&lt;div&gt;page body&lt;/div&gt;</content>
+  </entry>
+  <entry>
+    <id>tag:blogger.com,1999:blog-426198324410599347.comment-1</id>
+    <blogger:type>COMMENT</blogger:type>
+    <blogger:status>LIVE</blogger:status>
+    <title>A comment</title>
+    <content type='html'>&lt;div&gt;comment body&lt;/div&gt;</content>
+  </entry>
+</feed>`
+
 describe('parseBloggerExport', () => {
   it('keeps posts and skips comments', () => {
     const posts = parseBloggerExport(SAMPLE)
@@ -50,6 +97,28 @@ describe('parseBloggerExport', () => {
 
   it('throws on empty input', () => {
     expect(() => parseBloggerExport('  ')).toThrow()
+  })
+
+  it('parses the Google Takeout format (blogger:type/status/filename)', () => {
+    const posts = parseBloggerExport(TAKEOUT_SAMPLE)
+    // 2 posts; the PAGE and COMMENT entries are skipped.
+    expect(posts).toHaveLength(2)
+    expect(posts[0].status).toBe('LIVE')
+    expect(posts[0].filename).toBe('/2026/06/bamenda-hosts-key-workshop.html')
+    expect(posts[0].metaDescription).toBe('Workshop summary for SEO')
+    expect(posts[0].publishedAt).toBe('2026-06-18T01:45:55.218Z')
+    // Double-escaped entities in Takeout titles are fully unescaped.
+    expect(posts[0].title).toBe("Workshop 'reshape' coordination")
+    expect(posts[0].bodyHtml).toContain('1001531157.png')
+    expect(posts[1].status).toBe('DRAFT')
+    expect(posts[1].title).toContain('Beating Plastic Pollution')
+  })
+
+  it('marks classic-format posts as status null', () => {
+    const posts = parseBloggerExport(SAMPLE)
+    expect(posts[0].status).toBeNull()
+    expect(posts[0].filename).toBeNull()
+    expect(posts[0].metaDescription).toBeNull()
   })
 })
 

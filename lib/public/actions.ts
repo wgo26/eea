@@ -7,6 +7,7 @@ import type { SubmitState } from "@/lib/public/types";
 import { checkRateLimit, type RateLimitOptions } from "@/lib/security/rate-limit";
 import { verifyTurnstileToken } from "@/lib/security/turnstile";
 import { honeypotTripped } from "@/lib/security/honeypot";
+import { enqueueStaffAlert, enqueueUser } from "@/lib/notify/queue";
 
 /** Per-action abuse budgets (per IP, fixed window — migration 20260918000000). */
 const RATE_LIMITS = {
@@ -33,6 +34,8 @@ const PAYLOAD_FIELDS = [
     "location",
     "date",
     "photos",
+    "videos",
+    "audios",
     "noticeType",
     "organization",
     "expiry",
@@ -119,13 +122,25 @@ export async function submitStory(
         const value = str(formData.get(field));
         if (value) payload[field] = value;
     }
-    // photos come as newline-separated links → normalise to an array
-    if (payload.photos) {
-        payload.photos = payload.photos
-            .split("\n")
-            .map((line) => line.trim())
-            .filter(Boolean)
-            .join("\n");
+    // photos/videos/audios come as newline-separated links → normalise to
+    // http(s)-only URL lists. Non-URL lines (and javascript:/data: schemes)
+    // are dropped at intake so they can never reach stored payloads or
+    // rendered href/src attributes.
+    for (const key of ["photos", "videos", "audios"] as const) {
+        if (payload[key]) {
+            payload[key] = payload[key]
+                .split("\n")
+                .map((line) => line.trim())
+                // Keep the full line (captions after " - " survive), but only
+                // when it opens with an http(s) URL.
+                .filter((line) => /^https?:\/\/\S+/i.test(line))
+                .join("\n");
+            if (!payload[key]) delete payload[key];
+        }
+    }
+    // doc is a single supporting link — same http(s)-only rule.
+    if (payload.doc && !/^https?:\/\/\S+$/i.test(payload.doc.trim())) {
+        delete payload.doc;
     }
 
     if (Object.keys(payload).length === 0) {
@@ -159,6 +174,18 @@ export async function submitStory(
             logger.error("submitStory", "insert failed", { error: error.message });
             return { ok: false, error: "db" };
         }
+        // Notify (best-effort, never fails the submission): staff get a
+        // moderation alert, signed-in contributors get an in-app receipt.
+        const storyTitle =
+            payload.headline || payload.item || payload.what || payload.message || submissionType;
+        void enqueueStaffAlert("submission.received", {
+            type: submissionType,
+            title: storyTitle.slice(0, 140),
+            from: guestName.slice(0, 80),
+        });
+        void enqueueUser("submission.confirmation", submittedBy, {
+            title: storyTitle.slice(0, 140),
+        }, "/account/submissions");
         return { ok: true };
     } catch (err) {
         logger.error("submitStory", "insert exception", { error: err instanceof Error ? err.message : String(err) });
@@ -182,6 +209,7 @@ export async function submitAdvertiseInquiry(
     const email = str(formData.get("email"));
     const phone = str(formData.get("phone"));
     const placement = str(formData.get("placement"));
+    const format = str(formData.get("format"));
     const message = str(formData.get("message"));
 
     if (!companyName || !email) {
@@ -234,7 +262,7 @@ export async function submitAdvertiseInquiry(
             advertiser_id: advertiser?.id ?? null,
             name: companyName,
             status: "pending",
-            copy_text: [placement ? `[Placement: ${placement}]` : "", message]
+            copy_text: [placement ? `[Placement: ${placement}]` : "", format ? `[Format: ${format}]` : "", message]
                 .filter(Boolean)
                 .join("\n\n"),
         });
@@ -242,6 +270,12 @@ export async function submitAdvertiseInquiry(
             logger.error("advertise", "campaign insert failed", { error: campError.message });
             return { ok: false, error: "db" };
         }
+        void enqueueStaffAlert("advertise.inquiry", {
+            company: companyName.slice(0, 80),
+            email: email.slice(0, 80),
+            placement: placement || "unspecified",
+            format: format || "unspecified",
+        });
         return { ok: true };
     } catch (err) {
         logger.error("advertise", "insert exception", { error: err instanceof Error ? err.message : String(err) });
@@ -286,6 +320,7 @@ export async function submitContactRequest(
             logger.error("contact", "insert failed", { error: error.message });
             return { ok: false, error: "db" };
         }
+        void enqueueStaffAlert("legal.contact", { from: `${name} <${email}>`.slice(0, 120), topic });
         return { ok: true };
     } catch (err) {
         logger.error("contact", "insert exception", { error: err instanceof Error ? err.message : String(err) });
@@ -338,6 +373,10 @@ export async function submitTakedownReport(
             logger.error("takedown", "insert failed", { error: error.message });
             return { ok: false, error: "db" };
         }
+        void enqueueStaffAlert("legal.takedown", {
+            from: `${name}${email ? ` <${email}>` : ""}`.slice(0, 120),
+            url: contentUrl.slice(0, 200) || null,
+        });
         return { ok: true };
     } catch (err) {
         logger.error("takedown", "insert exception", { error: err instanceof Error ? err.message : String(err) });
@@ -377,6 +416,7 @@ export async function submitDataRequest(
             logger.error("data-request", "insert failed", { error: error.message });
             return { ok: false, error: "db" };
         }
+        void enqueueStaffAlert("legal.data_request", { from: email.slice(0, 120), type });
         return { ok: true };
     } catch (err) {
         logger.error("data-request", "insert exception", { error: err instanceof Error ? err.message : String(err) });
@@ -445,6 +485,7 @@ export async function submitArticleCorrection(
             return { ok: false, error: "db" };
         }
 
+        void enqueueStaffAlert("content.correction", { title: `article ${slug}`.slice(0, 140) });
         return { ok: true };
     } catch (err) {
         logger.error("submitArticleCorrection", "insert exception", { error: err instanceof Error ? err.message : String(err) });

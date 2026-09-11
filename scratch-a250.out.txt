@@ -1,0 +1,100 @@
+﻿ * mode (now / scheduled / draft). Replaces the old bare-row approve that
+ * left approved submissions unpublishable.
+ */
+export async function approveSubmissionWithContent(input: {
+  submissionId: string
+  draft: ContentDraftInput
+  publish: 'now' | 'schedule' | 'draft'
+  scheduledFor?: string
+  expiresAt?: string | null
+  notes?: string
+}): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('moderate')
+    const now = new Date().toISOString()
+
+    const { data: sub } = await supabase
+      .from('submissions')
+      .select('id, submission_type, status, content_item_id, submitted_by')
+      .eq('id', input.submissionId)
+      .single()
+    if (!sub) return { ok: false, error: 'Submission not found.' }
+    if (sub.content_item_id) {
+      return { ok: false, error: 'This submission already has a content item â€” use the edit drawer on it instead.' }
+    }
+    if (!['pending', 'in_review', 'needs_clarification'].includes(sub.status)) {
+      return { ok: false, error: `Submission is ${sub.status} and cannot be approved.` }
+    }
+
+    const contentType = SUBMISSION_TO_CONTENT[sub.submission_type]
+    if (!contentType) return { ok: false, error: `Unknown submission type ${sub.submission_type}.` }
+
+    const validationError = validateContentDraft(input.draft, input.publish !== 'draft')
+    if (validationError) return { ok: false, error: validationError }
+    if (input.publish === 'schedule' && !input.scheduledFor) {
+      return { ok: false, error: 'A schedule date is required when scheduling.' }
+    }
+
+    const statusPatch =
+      input.publish === 'now' ? { status: 'published', published_at: now } :
+      input.publish === 'schedule' ? { status: 'scheduled', scheduled_for: input.scheduledFor } :
+      { status: 'draft' }
+    const expiresAt = input.expiresAt || null
+
+    const slug = await uniqueSlug(supabase, input.draft.slugBase || 'submission')
+    const { data: created, error: createErr } = await supabase
+      .from('content_items')
+      .insert({
+        type: contentType,
+        slug,
+        status: 'draft', // flipped to the target status once child rows exist
+        verification: input.draft.verification ?? null,
+        location_id: input.draft.locationId || null,
+        category_id: input.draft.categoryId || null,
+        submitted_by: sub.submitted_by ?? null,
+        expires_at: expiresAt,
+      })
+      .select('id')
+      .single()
+    if (createErr || !created) return { ok: false, error: createErr?.message ?? 'Could not create the content item.' }
+
+    try {
+      await upsertTranslations(supabase, created.id, input.draft.translations)
+      if ((input.draft.photos ?? []).length > 0) {
+        await syncPhotos(supabase, created.id, input.draft.photos ?? [], [], input.draft.photographerCredit ?? null)
+      }
+      if (contentType === 'listing') {
+        const { error: lErr } = await supabase.from('listings').insert({
+          content_item_id: created.id,
+          price: input.draft.listing?.price ?? null,
+          currency: input.draft.listing?.currency?.toUpperCase().slice(0, 3) ?? 'XAF',
+          listing_status: 'active',
+          contact_phone: input.draft.listing?.contactPhone ?? null,
+          contact_email: input.draft.listing?.contactEmail ?? null,
+          whatsapp_number: input.draft.listing?.whatsappNumber ?? null,
+        })
+        if (lErr) throw new Error(`Could not create the listing: ${lErr.message}`)
+      }
+      if (contentType === 'notice') {
+        const { error: nErr } = await supabase.from('notices').insert({
+          content_item_id: created.id,
+          notice_type: input.draft.notice?.noticeType ?? 'other',
+          organization_name: input.draft.notice?.organizationName ?? null,
+          contact_phone: input.draft.notice?.contactPhone ?? null,
+          notice_date: input.draft.notice?.noticeDate ?? null,
+          expiry_date: input.draft.notice?.expiryDate ?? expiresAt,
+          is_official: input.draft.verification === 'official_source' || input.draft.notice?.isOfficial === true,
+        })
+        if (nErr) throw new Error(`Could not create the notice: ${nErr.message}`)
+      }
+    } catch (e) {
+      // Roll the half-built item back so a retry doesn't collide on the slug.
+      await supabase.from('content_items').delete().eq('id', created.id)
+      return fail(e)
+    }
+
+    const { error: flipErr } = await supabase.from('content_items').update(statusPatch).eq('id', created.id)
+    if (flipErr) return { ok: false, error: flipErr.message }
+
+    const approvePatch: Record<string, unknown> = {
+      status: 'approved', reviewed_at: now, reviewed_by: user.id, content_item_id: created.id,

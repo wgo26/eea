@@ -1,0 +1,25 @@
+﻿actions-import.ts:24: export type ImportPostsResult = {
+actions-import.ts:71: export async function importPosts(
+actions-import.ts:74: ): Promise<ImportPostsResult> {
+actions-import.ts:78: const result: ImportPostsResult = { imported: [], failed: [] }
+blogger.ts:11: * mirrored DOMParser logic in the import client — in the browser. Keep the
+zip-reader.test.ts:2: import { crc32, readZipEntries, xmlFilesFromZip } from './zip-reader'
+zip-reader.test.ts:105: describe('readZipEntries', () => {
+zip-reader.test.ts:109: const entries = await readZipEntries(buf)
+zip-reader.test.ts:118: const entries = await readZipEntries(buf)
+zip-reader.test.ts:129: const entries = await readZipEntries(buf)
+zip-reader.test.ts:135: await expect(readZipEntries(buf)).rejects.toThrow(/Not a ZIP archive/)
+zip-reader.test.ts:140: await expect(readZipEntries(buf)).rejects.toThrow(/CRC mismatch/)
+zip-reader.test.ts:144: describe('xmlFilesFromZip', () => {
+zip-reader.test.ts:152: const files = await xmlFilesFromZip(buf)
+zip-reader.test.ts:160: expect(await xmlFilesFromZip(buf)).toEqual([])
+zip-reader.ts:87: export async function readZipEntries(buffer: ArrayBuffer): Promise<ZipEntry[]> {
+zip-reader.ts:158: export async function xmlFilesFromZip(buffer: ArrayBuffer): Promise<{ name: string; xml: string }[]> {
+zip-reader.ts:159: const entries = await readZipEntries(buffer)
+import-client.tsx:5: import { importPosts, type ImportPostType } from '@/lib/admin/actions-import'
+import-client.tsx:6: import { xmlFilesFromZip } from '@/lib/admin/zip-reader'
+import-client.tsx:30: * happens in the browser with DOMParser (mirrors lib/admin/blogger.ts: only
+import-client.tsx:129: xmlFiles = await xmlFilesFromZip(await file.arrayBuffer())
+import-client.tsx:141: const parser = new DOMParser()
+import-client.tsx:188: const res = await importPosts(batch, importType)
+import-client.tsx:222: accept=".xml,.atom,.zip,text/xml,application/atom+xml,application/zip"

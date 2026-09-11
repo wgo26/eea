@@ -5,6 +5,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/observability/logger";
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
+import type { MediaAttachment } from "@/lib/media/attachments";
+import { mapAttachments, supportingMedia } from "@/lib/media/attachments";
 
 /**
  * Data access for the Buy & Sell vertical.
@@ -50,6 +52,9 @@ export type ListingData = {
     expiresAt: string | null;
     photos?: ListingPhoto[];
     body?: string | null;
+    hasVideo?: boolean;
+    hasAudio?: boolean;
+    attachments?: MediaAttachment[];
 };
 
 /** Raw row shape returned by the shared listing select.
@@ -74,9 +79,12 @@ type RawListingRow = {
         | {
               public_url: string | null;
               alt_text: string | null;
+              caption: string | null;
               is_cover: boolean | null;
               sort_order: number | null;
               photographer_credit: string | null;
+              kind: string | null;
+              mime_type: string | null;
           }[]
         | null;
     listing?:
@@ -99,7 +107,7 @@ const LISTING_SELECT = `id, slug, verification, published_at, expires_at,
     location:locations(name, slug),
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title, excerpt, body),
-    media:media_assets(public_url, alt_text, is_cover, sort_order, photographer_credit),
+    media:media_assets(public_url, alt_text, caption, is_cover, sort_order, photographer_credit, kind, mime_type),
     listing:listings(price, currency, listing_status, seller_name)`;
 
 type QueryResult<T> = {
@@ -190,6 +198,7 @@ function publishedListings(countExact = false) {
 /** Orders embedded media rows by `sort_order` into the photo gallery. */
 function mapPhotos(row: RawListingRow): ListingPhoto[] {
     return (row.media ?? [])
+        .filter((m) => (m.kind ?? 'image') === 'image')
         .slice()
         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
         .map((photo) => ({
@@ -207,6 +216,7 @@ function toListing(row: RawListingRow, locale: Locale): ListingData | null {
     const category = asOne(row.category);
     const listing = asOne(row.listing);
     const photos = mapPhotos(row);
+    const allMedia = mapAttachments(row.media ?? []);
     const cover = photos[0] ?? null;
     return {
         id: row.id,
@@ -233,6 +243,9 @@ function toListing(row: RawListingRow, locale: Locale): ListingData | null {
         expiresAt: row.expires_at,
         photos,
         body: translation.body ?? null,
+        hasVideo: allMedia.some((m) => m.kind === 'video'),
+        hasAudio: allMedia.some((m) => m.kind === 'audio'),
+        attachments: supportingMedia(allMedia),
     };
 }
 
@@ -451,7 +464,7 @@ const LISTING_DETAIL_SELECT = `id, slug, verification, published_at, expires_at,
     location:locations(name, slug),
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title, excerpt, body),
-    media:media_assets(public_url, alt_text, is_cover, sort_order, photographer_credit),
+    media:media_assets(public_url, alt_text, caption, is_cover, sort_order, photographer_credit, kind, mime_type),
     listing:listings(price, currency, listing_status, seller_name, seller_is_verified, contact_phone, contact_email, whatsapp_number)`;
 
 /**
@@ -591,6 +604,66 @@ export async function getSimilarListings(
         );
     } catch (err) {
         logCacheFailure("getSimilarListings", err);
+        return [];
+    }
+}
+
+export type OwnListing = {
+    id: string;
+    title: string;
+    price: number | null;
+    currency: string | null;
+    listingStatus: string;
+    contentStatus: string;
+    expiresAt: string | null;
+    publishedAt: string | null;
+};
+
+/**
+ * Seller's own listings (P1-1c "manage my listing"). Uncached by design —
+ * owners must see lifecycle changes instantly after their own actions.
+ * No PII leaves this query (contacts stay behind revealSellerContact).
+ */
+export async function getUserListings(userId: string, locale: Locale = 'en'): Promise<OwnListing[]> {
+    if (!hasDatabase() || !userId) return [];
+    try {
+        const { data, error } = await createAdminClient()
+            .from('content_items')
+            .select(`id, status, expires_at, published_at,
+                translations:content_translations(locale, title),
+                listing:listings(price, currency, listing_status)`)
+            .eq('type', 'listing')
+            .or(`submitted_by.eq.${userId},author_id.eq.${userId}`)
+            .order('published_at', { ascending: false, nullsFirst: false })
+            .limit(50);
+        if (error) {
+            logger.error('buy-sell', 'own listings failed', { error: error.message });
+            return [];
+        }
+        type OwnRow = {
+            id: string;
+            status: string;
+            expires_at: string | null;
+            published_at: string | null;
+            translations?: { locale: string; title: string | null }[] | null;
+            listing?: { price: number | null; currency: string | null; listing_status: string | null } | { price: number | null; currency: string | null; listing_status: string | null }[] | null;
+        };
+        return ((data ?? []) as unknown as OwnRow[]).map((row) => {
+            const translation = pickLocalized(row.translations, locale);
+            const listing = asOne(row.listing);
+            return {
+                id: row.id,
+                title: translation?.title ?? 'Untitled',
+                price: listing?.price ?? null,
+                currency: listing?.currency ?? null,
+                listingStatus: listing?.listing_status ?? 'active',
+                contentStatus: row.status,
+                expiresAt: row.expires_at,
+                publishedAt: row.published_at,
+            };
+        });
+    } catch (err) {
+        logger.error('buy-sell', 'own listings exception', { error: err instanceof Error ? err.message : String(err) });
         return [];
     }
 }

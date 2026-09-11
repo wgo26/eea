@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { DataTable } from '@/components/admin/data-table'
 import { BulkActionsBar } from '@/components/admin/bulk-actions'
@@ -10,6 +11,7 @@ import { updateContentStatus, archiveContent, deleteContentItem } from '@/lib/ad
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { localizeStatus, localizeType } from '@/lib/admin/labels'
 import { formatRelative } from '@/lib/admin/format'
+import { localePath } from '@/lib/i18n/urls'
 import { ContentActions } from './content-actions'
 import { ContentDeleteButton, ContentEditTrigger } from './content-dialogs'
 import type { Dictionary, Locale } from '@/lib/i18n'
@@ -262,6 +264,14 @@ export function ContentTable({
       header: '',
       render: (r) => (
         <div className="flex items-center justify-end gap-2">
+          {r.type === 'listing' ? (
+            <Link
+              href={localePath(locale, '/admin/listings')}
+              className="text-xs text-primary hover:underline"
+            >
+              {copy.openInListings}
+            </Link>
+          ) : null}
           <ContentEditTrigger
             content={r}
             copy={copy}

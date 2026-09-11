@@ -1,0 +1,45 @@
+﻿        followsCountRes,
+        advertiserRes,
+    ] = await Promise.all([
+        supabase.from("user_roles").select("role").eq("user_id", user.id),
+        supabase.from("profiles").select("full_name, display_name, bio").eq("id", user.id).maybeSingle(),
+        applySubmissionScope(
+            supabase
+                .from("submissions")
+                .select("id, status, submission_type, submitted_at", { count: "exact" })
+                .order("submitted_at", { ascending: false }),
+        ).limit(5),
+        applySubmissionScope(
+            supabase.from("submissions").select("id", { count: "exact", head: true }),
+        ),
+        supabase
+            .from("content_items")
+            .select("id, type, status, published_at, translations:content_translations(locale, title)")
+            .eq("author_id", user.id)
+            .order("published_at", { ascending: false, nullsFirst: false })
+            .limit(5),
+        supabase
+            .from("content_items")
+            .select("id", { count: "exact", head: true })
+            .eq("author_id", user.id)
+            .eq("status", "published"),
+        supabase
+            .from("content_items")
+            .select("id", { count: "exact", head: true })
+            .eq("author_id", user.id)
+            .eq("status", "draft"),
+        supabase.from("saved_content").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+        supabase.from("content_follows").select("user_id", { count: "exact", head: true }).eq("user_id", user.id),
+        // Advertiser stats: own campaigns via advertisers.user_id (RLS allows).
+        supabase
+            .from("advertisers")
+            .select("id, ad_campaigns(id, name, status, agreed_price, currency)")
+            .eq("user_id", user.id),
+    ]);
+
+    const roles = (rolesRes.data ?? []).map((row: { role?: string }) => row.role).filter(Boolean) as string[];
+    const profile = profileRes.data as { display_name?: string | null; full_name?: string | null; bio?: string | null } | null;
+    const email = user.email ?? "";
+    const displayName = profile?.display_name || profile?.full_name || (email ? email.split("@")[0] : t.member);
+    const submissions = (submissionsRes.data ?? []) as SubmissionRow[];
+    const submissionsTotal = submissionsCountRes.count ?? submissions.length;

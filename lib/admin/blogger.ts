@@ -2,14 +2,19 @@
  * Blogspot (Blogger export) parsing + import helpers.
  *
  * A downloaded Blogspot backup is an Atom feed: `<feed>` containing one
- * `<entry>` per post / comment / template / setting. Only entries whose
- * Blogger kind category is `...#post` are real blog posts — everything else
- * (comments `kind#comment`, templates, settings) is skipped.
+ * `<entry>` per post / comment / template / setting. Two export formats are
+ * supported:
+ *   - Classic: entries carry a Blogger kind category whose term ends in
+ *     `kind#post` — everything else (comments `kind#comment`, templates,
+ *     settings) is skipped.
+ *   - Google Takeout / newer exports: entries carry `<blogger:type>POST`
+ *     (vs PAGE / COMMENT / TEMPLATE) and `<blogger:status>` (LIVE/DRAFT).
  *
  * The parser here is intentionally dependency-free (regex over the raw XML)
  * so it runs identically in vitest (node), in Server Actions, and — via the
  * mirrored DOMParser logic in the import client — in the browser. Keep the
- * two parsers in sync: entry filter = kind term contains `kind#post`.
+ * two parsers in sync: entry filter = kind term contains `kind#post` OR
+ * `<blogger:type>` is POST.
  */
 
 export type BloggerPost = {
@@ -22,23 +27,43 @@ export type BloggerPost = {
   labels: string[]
   originalUrl: string | null
   authorName: string | null
+  /**
+   * Blogger's own publish status when present (new Takeout export ships
+   * `<blogger:status>` per entry): 'LIVE' | 'DRAFT' | 'SCHEDULED' | null.
+   * The classic export has no status element — null then, and callers
+   * should treat null as LIVE (the classic export only contains live posts).
+   */
+  status: 'LIVE' | 'DRAFT' | 'SCHEDULED' | null
+  /** Original public path, e.g. /2020/10/government-delegate-of-bamenda-city.html */
+  filename: string | null
+  /** Per-post meta description (SEO) when the author set one. */
+  metaDescription: string | null
 }
 
 function unescapeXmlEntities(value: string): string {
-  return value
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, code: string) => {
-      const n = Number(code)
-      return Number.isFinite(n) ? String.fromCharCode(n) : _
-    })
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, code: string) => {
-      const n = parseInt(code, 16)
-      return Number.isFinite(n) ? String.fromCharCode(n) : _
-    })
-    .replace(/&amp;/g, '&')
+  // Takeout exports double-escape some fields (e.g. &amp;#39; in titles), so
+  // iterate until the value is stable (bounded — 3 passes is plenty and
+  // guards against pathological input).
+  let out = value
+  for (let i = 0; i < 3; i++) {
+    const next = out
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&#(\d+);/g, (_, code: string) => {
+        const n = Number(code)
+        return Number.isFinite(n) ? String.fromCharCode(n) : _
+      })
+      .replace(/&#x([0-9a-fA-F]+);/g, (_, code: string) => {
+        const n = parseInt(code, 16)
+        return Number.isFinite(n) ? String.fromCharCode(n) : _
+      })
+      .replace(/&amp;/g, '&')
+    if (next === out) break
+    out = next
+  }
+  return out
 }
 
 /** First capturing group of `pattern` in `haystack`, trimmed, or null. */
@@ -57,10 +82,14 @@ export function parseBloggerExport(xml: string): BloggerPost[] {
   const posts: BloggerPost[] = []
 
   for (const entry of entries) {
-    // Kind filter: only real posts. Blogger marks them with a category whose
-    // term ends in kind#post (scheme …/g/2005#kind). Comments use kind#comment.
+    // Kind filter: only real posts. Classic exports mark them with a category
+    // whose term ends in kind#post (scheme …/g/2005#kind); Takeout-style
+    // exports mark them with <blogger:type>POST</blogger:type>. Comments use
+    // kind#comment / <blogger:type>COMMENT</blogger:type> and are skipped.
     const kindTerms = [...entry.matchAll(/<category\b[^>]*\bterm=(["'])(.*?)\1/gi)].map((m) => m[2])
-    const isPost = kindTerms.some((t) => t.includes('kind#post'))
+    const isPost =
+      kindTerms.some((t) => t.includes('kind#post')) ||
+      /<blogger:type>\s*POST\s*<\/blogger:type>/i.test(entry)
     if (!isPost) continue
 
     const rawTitle = firstGroup(entry, /<title\b[^>]*>([\s\S]*?)<\/title\s*>/i)
@@ -100,6 +129,18 @@ export function parseBloggerExport(xml: string): BloggerPost[] {
     const textFallback = stripHtml(bodyHtml).split(/\s+/).slice(0, 8).join(' ').trim()
     const title = unescapeXmlEntities(rawTitle ?? '').trim() || textFallback || 'Untitled import'
 
+    // Takeout-format extras: status, original URL path and meta description.
+    const statusRaw = firstGroup(entry, /<blogger:status\b[^>]*>([\s\S]*?)<\/blogger:status\s*>/i)
+    const status =
+      statusRaw && /^(LIVE|DRAFT|SCHEDULED)$/i.test(statusRaw.toUpperCase())
+        ? (statusRaw.toUpperCase() as 'LIVE' | 'DRAFT' | 'SCHEDULED')
+        : null
+    const filename = firstGroup(entry, /<blogger:filename\b[^>]*>([\s\S]*?)<\/blogger:filename\s*>/i)
+    const metaDescription = firstGroup(
+      entry,
+      /<blogger:metaDescription\b[^>]*>([\s\S]*?)<\/blogger:metaDescription\s*>/i,
+    )
+
     posts.push({
       bloggerId: bloggerId ?? originalUrl ?? `${title}-${posts.length}`,
       title,
@@ -109,6 +150,9 @@ export function parseBloggerExport(xml: string): BloggerPost[] {
       labels,
       originalUrl,
       authorName: authorName ? unescapeXmlEntities(authorName) : null,
+      status,
+      filename: filename ? unescapeXmlEntities(filename) : null,
+      metaDescription: metaDescription ? unescapeXmlEntities(metaDescription) : null,
     })
   }
 

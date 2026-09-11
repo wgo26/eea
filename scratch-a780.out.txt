@@ -1,0 +1,180 @@
+﻿      return { ok: false, error: `Submission is ${sub.status} and cannot be reopened.` }
+    }
+
+    await supabase
+      .from('submissions')
+      .update({ status: 'in_review', reviewed_at: new Date().toISOString() })
+      .eq('id', submissionId)
+    await supabase.from('moderation_log').insert({
+      action: 'reopen',
+      from_status: sub.status,
+      to_status: 'in_review',
+      submission_id: submissionId,
+      actor_id: user.id,
+    })
+
+    revalidateLocalized('/admin/moderation')
+    revalidateLocalized('/admin/moderation/[id]')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/**
+ * Permanent submission delete (admin only, Phase 2 cleanup). Removes the
+ * submission row + its moderation_log history; approved submissions keep
+ * their already-published content item.
+ */
+export async function deleteSubmission(submissionId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertAdmin()
+    const { data: row } = await supabase.from('submissions').select('id, status, submission_type').eq('id', submissionId).limit(1)
+    const found = (row ?? [])[0] as { id: string; status: string; submission_type: string } | undefined
+    if (!found) return { ok: false, error: 'Submission not found.' }
+
+    const { error } = await supabase.from('submissions').delete().eq('id', submissionId)
+    if (error) return { ok: false, error: error.message }
+
+    await audit(supabase, user.id, {
+      action: 'moderation:delete',
+      submissionId,
+      notes: `${found.submission_type}/${found.status}`,
+    })
+    revalidateLocalized('/admin/moderation')
+    revalidateLocalized('/admin/moderation/[id]')
+    revalidateLocalized('/admin/dashboard')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Content status transitions                                          */
+/* ------------------------------------------------------------------ */
+
+export async function updateContentStatus(contentId: string, status: string, scheduledFor?: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertStaff()
+    const patch: Record<string, unknown> = { status }
+    if (status === 'published') patch.published_at = new Date().toISOString()
+    if (status === 'scheduled' && scheduledFor) patch.scheduled_for = scheduledFor
+
+    const { error } = await supabase.from('content_items').update(patch).eq('id', contentId)
+    if (error) return { ok: false, error: error.message }
+
+    await supabase.from('moderation_log').insert({
+      action: `status:${status}`, to_status: status, content_item_id: contentId, actor_id: user.id,
+    })
+
+    revalidatePublicContentCache()
+    revalidateLocalized('/admin/content')
+    revalidateLocalized('/admin/dashboard')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function setContentFeatured(contentId: string, isFeatured: boolean): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertStaff()
+    const { error } = await supabase.from('content_items').update({ is_featured: isFeatured }).eq('id', contentId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, {
+      action: 'content:featured',
+      contentItemId: contentId,
+      toStatus: isFeatured ? 'featured' : 'unfeatured',
+    })
+    revalidatePublicContentCache()
+    revalidateLocalized('/admin/content')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function archiveContent(contentId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertStaff()
+    const { error } = await supabase.from('content_items').update({ is_archived: true, is_featured: false }).eq('id', contentId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: 'content:archive', contentItemId: contentId })
+    revalidatePublicContentCache()
+    revalidateLocalized('/admin/content')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Homepage curation                                                  */
+/* ------------------------------------------------------------------ */
+
+export async function assignHomepageSlot(slotId: string, contentItemId: string | null): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertStaff()
+    const { error } = await supabase.from('homepage_slots').update({ content_item_id: contentItemId }).eq('id', slotId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, {
+      action: 'slot:assign',
+      notes: `slot=${slotId} content=${contentItemId ?? 'none'}`,
+    })
+    revalidatePublicContentCache()
+    revalidateLocalized('/admin/content')
+    revalidateLocalized('/admin/dashboard')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function toggleSlotActive(slotId: string, isActive: boolean): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertStaff()
+    const { error } = await supabase.from('homepage_slots').update({ is_active: isActive }).eq('id', slotId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, {
+      action: 'slot:status',
+      toStatus: isActive ? 'active' : 'inactive',
+      notes: `slot=${slotId}`,
+    })
+    revalidatePublicContentCache()
+    revalidateLocalized('/admin/content')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function createHomepageSlot(input: { slotKey: string; sortOrder?: number; startsAt?: string | null; endsAt?: string | null }): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageContent')
+    const slotKey = input.slotKey.trim()
+    if (!slotKey) return { ok: false, error: 'A slot key is required.' }
+    if (input.startsAt && input.endsAt && new Date(input.endsAt) <= new Date(input.startsAt)) return { ok: false, error: 'Slot end must be after its start.' }
+    const { error } = await supabase.from('homepage_slots').insert({ slot_key: slotKey, sort_order: input.sortOrder ?? 0, starts_at: input.startsAt || null, ends_at: input.endsAt || null, created_by: user.id })
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: 'slot:create', entityType: 'homepage_slot', notes: slotKey })
+    revalidatePublicContentCache()
+    revalidateLocalized('/admin/content')
+    revalidateLocalized('/')
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+/** Delete a homepage slot (staff). Content keeps its own status â€” only the slot goes away. */
+export async function deleteHomepageSlot(slotId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageContent')
+    const { data: row } = await supabase.from('homepage_slots').select('id, slot_key').eq('id', slotId).limit(1)
+    const found = (row ?? [])[0] as { id: string; slot_key: string } | undefined
+    if (!found) return { ok: false, error: 'Slot not found.' }
+
+    const { error } = await supabase.from('homepage_slots').delete().eq('id', slotId)
+    if (error) return { ok: false, error: error.message }
+
+    await audit(supabase, user.id, { action: 'slot:delete', entityType: 'homepage_slot', notes: found.slot_key })
+    revalidatePublicContentCache()

@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/admin/page-header'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { formatDateTime } from '@/lib/admin/format'
 import { UserActions } from '../user-actions'
-import { DangerZone, RoleManager, StatusControls } from './user-detail-client'
+import { DangerZone, CurationControls, RoleManager, StatusControls } from './user-detail-client'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<{ title: string }> {
   const { id } = await params
@@ -114,6 +114,15 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           </div>
         </section>
       </div>
+
+      {/* Contributor spotlight */}
+      <section aria-label={t.curationHeading} className="rounded-lg border border-border bg-card p-5">
+        <h2 className="text-sm font-semibold">{t.curationHeading}</h2>
+        <p className="mt-1 text-xs text-muted-foreground">{t.curationBody}</p>
+        <div className="mt-3">
+          <CurationControls user={user} copy={t} common={dict.admin.common} />
+        </div>
+      </section>
 
       {/* Activity */}
       <section aria-label={t.activityHeading} className="rounded-lg border border-border bg-card p-5">

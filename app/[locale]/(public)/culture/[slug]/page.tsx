@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, Clock, Landmark, MapPin, Tag, User } from "lucide-react";
 
 import { ShareButtons } from "@/components/share-buttons";
+import { SupportingMedia } from "@/components/media/supporting-media";
 import { SITE } from "@/lib/constants";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getCultureBySlug, getCultureArticles } from "@/lib/queries/culture";
@@ -222,6 +223,15 @@ export default async function CultureDetailPage({ params }: Props) {
                     <div
                         className="prose prose-neutral dark:prose-invert max-w-none"
                         dangerouslySetInnerHTML={{ __html: article.body }}
+                    />
+                ) : null}
+
+                {(article.attachments ?? []).length > 0 ? (
+                    <SupportingMedia
+                        items={article.attachments ?? []}
+                        title={article.title}
+                        heading={dict.common.supportingMedia}
+                        description={dict.common.supportingMediaBody}
                     />
                 ) : null}
 

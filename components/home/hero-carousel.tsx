@@ -155,7 +155,7 @@ export function HeroCarousel({ stories, dict, locale }: HeroCarouselProps) {
                             className="min-w-0 shrink-0 grow-0 basis-full"
                             inert={index !== interactive}
                         >
-                            <HeroSlide story={story} dict={dict} locale={locale} />
+                            <HeroSlide story={story} dict={dict} locale={locale} priority={index === 0} />
                         </div>
                     ))}
                 </div>

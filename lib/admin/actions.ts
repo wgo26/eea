@@ -9,6 +9,8 @@ import { deleteFromR2 } from '@/lib/storage/providers/r2'
 import { storageConfig } from '@/lib/storage/config'
 import { validateContentDraft, type ContentDraftInput } from './content-validation'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isAdFormat, sanitizeCreativeHtml, validateCreative, type AdFormat } from '@/lib/ads/creatives'
+import { enqueueUser, listingNotifyTarget, submissionNotifyTarget } from '@/lib/notify/queue'
 
 export type { ContentDraftInput } from './content-validation'
 
@@ -40,6 +42,12 @@ function revalidateLocalized(path: string) {
  */
 function revalidatePublicContentCache() {
     revalidateTag(CACHE_TAGS.news, 'max')
+    revalidateTag(CACHE_TAGS.home, 'max')
+}
+
+/** On-demand invalidation for the ad-serving cache (lib/queries/ads.ts). */
+function revalidateAdsCache() {
+    revalidateTag(CACHE_TAGS.ads, 'max')
     revalidateTag(CACHE_TAGS.home, 'max')
 }
 
@@ -128,6 +136,7 @@ async function syncPhotos(
   photos: { url: string; caption?: string; credit?: string }[],
   keepPhotoIds: string[],
   credit: string | null,
+  attachments: { url: string; kind?: 'video' | 'audio' | 'document' | 'image'; caption?: string }[] = [],
 ): Promise<void> {
   const { data: existing } = await supabase
     .from('media_assets')
@@ -141,14 +150,15 @@ async function syncPhotos(
     }
   }
   const newPhotos = photos.filter((p) => p.url.trim())
-  if (newPhotos.length === 0) return
+  const newAttachments = attachments.filter((a) => a.url.trim())
+  if (newPhotos.length === 0 && newAttachments.length === 0) return
   const { count } = await supabase
     .from('media_assets')
     .select('id', { count: 'exact', head: true })
     .eq('content_item_id', contentItemId)
   const startIndex = count ?? 0
-  const { error } = await supabase.from('media_assets').insert(
-    newPhotos.map((photo, index) => ({
+  const rows = [
+    ...newPhotos.map((photo, index) => ({
       content_item_id: contentItemId,
       kind: 'image' as const,
       provider: 'r2' as const,
@@ -160,7 +170,20 @@ async function syncPhotos(
       sort_order: startIndex + index,
       is_cover: startIndex + index === 0,
     })),
-  )
+    ...newAttachments.map((att, index) => ({
+      content_item_id: contentItemId,
+      kind: (att.kind ?? 'video') as 'video' | 'audio' | 'document' | 'image',
+      provider: 'r2' as const,
+      destination: 'public_photo' as const,
+      public_url: att.url.trim(),
+      caption: att.caption?.trim() || null,
+      alt_text: att.caption?.trim() || null,
+      photographer_credit: credit,
+      sort_order: startIndex + newPhotos.length + index,
+      is_cover: false,
+    })),
+  ]
+  const { error } = await supabase.from('media_assets').insert(rows)
   if (error) throw new Error(`Could not save photos: ${error.message}`)
 }
 
@@ -237,6 +260,9 @@ export async function approveSubmission(submissionId: string, notes?: string): P
 
     revalidateLocalized('/admin/moderation')
     revalidateLocalized('/admin/moderation/[id]')
+    void submissionNotifyTarget(supabase, submissionId).then((t) =>
+      enqueueUser('submission.approved', t.userId, { title: t.title }, '/account/submissions'),
+    )
     return { ok: true }
   } catch (e) {
     return fail(e)
@@ -309,8 +335,8 @@ export async function approveSubmissionWithContent(input: {
 
     try {
       await upsertTranslations(supabase, created.id, input.draft.translations)
-      if ((input.draft.photos ?? []).length > 0) {
-        await syncPhotos(supabase, created.id, input.draft.photos ?? [], [], input.draft.photographerCredit ?? null)
+      if ((input.draft.photos ?? []).length > 0 || (input.draft.attachments ?? []).length > 0) {
+        await syncPhotos(supabase, created.id, input.draft.photos ?? [], [], input.draft.photographerCredit ?? null, input.draft.attachments ?? [])
       }
       if (contentType === 'listing') {
         const { error: lErr } = await supabase.from('listings').insert({
@@ -365,6 +391,10 @@ export async function approveSubmissionWithContent(input: {
     revalidateLocalized('/admin/moderation/[id]')
     revalidateLocalized('/admin/content')
     revalidateLocalized('/admin/dashboard')
+    if (input.publish !== 'draft') {
+      const enTitle = input.draft.translations.find((t) => t.locale === 'en')?.title?.trim() || 'your submission'
+      void enqueueUser('submission.approved', sub.submitted_by, { title: enTitle.slice(0, 140) }, '/account/submissions')
+    }
     return { ok: true }
   } catch (e) {
     return fail(e)
@@ -398,8 +428,8 @@ export async function saveContentItem(contentItemId: string, draft: ContentDraft
     }
 
     await upsertTranslations(supabase, contentItemId, draft.translations)
-    if (draft.photos || draft.keepPhotoIds) {
-      await syncPhotos(supabase, contentItemId, draft.photos ?? [], draft.keepPhotoIds ?? [], draft.photographerCredit ?? null)
+    if (draft.photos || draft.keepPhotoIds || draft.attachments) {
+      await syncPhotos(supabase, contentItemId, draft.photos ?? [], draft.keepPhotoIds ?? [], draft.photographerCredit ?? null, draft.attachments ?? [])
     }
 
     if (item.type === 'listing' && draft.listing) {
@@ -517,8 +547,8 @@ export async function createContentItem(input: {
 
     try {
       await upsertTranslations(supabase, created.id, input.draft.translations)
-      if ((input.draft.photos ?? []).length > 0) {
-        await syncPhotos(supabase, created.id, input.draft.photos ?? [], [], input.draft.photographerCredit ?? null)
+      if ((input.draft.photos ?? []).length > 0 || (input.draft.attachments ?? []).length > 0) {
+        await syncPhotos(supabase, created.id, input.draft.photos ?? [], [], input.draft.photographerCredit ?? null, input.draft.attachments ?? [])
       }
       if (type === 'listing') {
         const { error: lErr } = await supabase.from('listings').insert({
@@ -675,6 +705,9 @@ export async function rejectSubmission(submissionId: string, reason: string): Pr
 
     revalidateLocalized('/admin/moderation')
     revalidateLocalized('/admin/moderation/[id]')
+    void submissionNotifyTarget(supabase, submissionId).then((t) =>
+      enqueueUser('submission.rejected', t.userId, { title: t.title, reason: reason.trim().slice(0, 280) }, '/account/submissions'),
+    )
     return { ok: true }
   } catch (e) {
     return fail(e)
@@ -760,6 +793,9 @@ export async function requestClarification(submissionId: string, question: strin
 
     revalidateLocalized('/admin/moderation')
     revalidateLocalized('/admin/moderation/[id]')
+    void submissionNotifyTarget(supabase, submissionId).then((t) =>
+      enqueueUser('submission.clarification', t.userId, { title: t.title, question: question.trim().slice(0, 280) }, '/account/submissions'),
+    )
     return { ok: true }
   } catch (e) {
     return fail(e)
@@ -837,7 +873,18 @@ export async function updateContentStatus(contentId: string, status: string, sch
   try {
     const { supabase, user } = await assertStaff()
     const patch: Record<string, unknown> = { status }
-    if (status === 'published') patch.published_at = new Date().toISOString()
+    // Publish stamps published_at only when the row doesn't already carry one
+    // (imported posts keep their original source date; native drafts have
+    // published_at null, so they get "now" exactly as before).
+    if (status === 'published') {
+      const { data: current } = await supabase
+        .from('content_items')
+        .select('published_at')
+        .eq('id', contentId)
+        .limit(1)
+      const existing = (current ?? [])[0] as { published_at: string | null } | undefined
+      patch.published_at = existing?.published_at ?? new Date().toISOString()
+    }
     if (status === 'scheduled' && scheduledFor) patch.scheduled_for = scheduledFor
 
     const { error } = await supabase.from('content_items').update(patch).eq('id', contentId)
@@ -1156,13 +1203,18 @@ export async function updateContributorCuration(userId: string, input: { feature
 
 export async function updateUserProfile(
   userId: string,
-  input: { displayName?: string | null; fullName?: string | null },
+  input: { displayName?: string | null; fullName?: string | null; phone?: string | null },
 ): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertCapability('manageUsers')
     const patch: Record<string, string | null> = {}
     if (input.displayName !== undefined) patch.display_name = input.displayName?.trim() || null
     if (input.fullName !== undefined) patch.full_name = input.fullName?.trim() || null
+    if (input.phone !== undefined) {
+      const phone = input.phone?.trim() || null
+      if (phone && !/^[+\d][\d\s\-().]{5,29}$/.test(phone)) return { ok: false, error: 'Enter a valid phone number.' }
+      patch.phone = phone
+    }
     if (Object.keys(patch).length === 0) return { ok: false, error: 'Nothing to update.' }
     const { error } = await supabase.from('profiles').update(patch).eq('id', userId)
     if (error) return { ok: false, error: error.message }
@@ -1223,11 +1275,40 @@ export async function createAdCampaign(input: {
   endsAt?: string
   agreedPrice?: number
   currency?: string
+  creativeType?: string
+  creativeMediaId?: string | null
+  mobileCreativeMediaId?: string | null
+  posterMediaId?: string | null
+  creativeHtml?: string | null
+  creativeWidth?: number | null
+  creativeHeight?: number | null
 }): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertCapability('manageAds')
     if (input.destinationUrl && !/^https:\/\//i.test(input.destinationUrl.trim())) return { ok: false, error: 'Ad destination must use https://.' }
     if (input.startsAt && input.endsAt && new Date(input.endsAt) <= new Date(input.startsAt)) return { ok: false, error: 'Campaign end must be after its start.' }
+    const creativeType: AdFormat = isAdFormat(input.creativeType) ? input.creativeType : 'sponsored'
+    const creative = await resolveCreativeMedia(supabase, {
+      creativeMediaId: input.creativeMediaId,
+      mobileCreativeMediaId: input.mobileCreativeMediaId,
+      posterMediaId: input.posterMediaId,
+      kind: creativeType,
+    })
+    if (typeof creative === 'string') return { ok: false, error: creative }
+    const slot = await getSlotConstraints(supabase, input.slotId)
+    const html = creativeType === 'html' ? sanitizeCreativeHtml(input.creativeHtml) : null
+    const creativeError = validateCreative({
+      format: creativeType,
+      allowedFormats: slot?.allowedFormats ?? null,
+      maxDurationSeconds: slot?.maxDurationSeconds ?? null,
+      desktopUrl: creative.desktopUrl,
+      mobileUrl: creative.mobileUrl,
+      posterUrl: creative.posterUrl,
+      html: creativeType === 'html' ? (html ?? input.creativeHtml ?? null) : null,
+      durationSeconds: creative.durationSeconds,
+      destinationUrl: input.destinationUrl,
+    })
+    if (creativeError) return { ok: false, error: creativeError }
     const { error } = await supabase.from('ad_campaigns').insert({
       ad_slot_id: input.slotId,
       advertiser_id: input.advertiserId,
@@ -1239,13 +1320,127 @@ export async function createAdCampaign(input: {
       agreed_price: input.agreedPrice ?? null,
       currency: input.currency ?? null,
       status: 'active',
+      creative_type: creativeType,
+      creative_media_id: creative.desktopId,
+      mobile_creative_media_id: creative.mobileId,
+      poster_media_id: creative.posterId,
+      creative_html: html,
+      creative_width: input.creativeWidth ?? null,
+      creative_height: input.creativeHeight ?? null,
+      creative_status: creativeType === 'sponsored' ? 'approved' : 'pending',
     })
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, {
       action: 'ad:campaign:create',
-      notes: `${input.name} slot=${input.slotId} advertiser=${input.advertiserId}`,
+      notes: `${input.name} slot=${input.slotId} advertiser=${input.advertiserId} format=${creativeType}`,
     })
     revalidateLocalized('/admin/ads')
+    revalidateAdsCache()
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/**
+ * Resolve creative media references (media_assets id OR https URL) to public
+ * https URLs (+ duration) for validation, creating lightweight media_assets
+ * rows for pasted URLs so the FK columns stay the single source of truth
+ * (same pattern as content syncPhotos). Returns the urls or an error string.
+ */
+async function resolveCreativeMedia(
+  supabase: AdminContext['supabase'],
+  input: { creativeMediaId?: string | null; mobileCreativeMediaId?: string | null; posterMediaId?: string | null; kind?: AdFormat },
+): Promise<{ desktopId: string | null; mobileId: string | null; posterId: string | null; desktopUrl: string | null; mobileUrl: string | null; posterUrl: string | null; durationSeconds: number | null } | string> {
+  const pick = async (ref: string | null | undefined, kind: AdFormat): Promise<{ id: string; url: string | null; duration: number | null } | string> => {
+    if (!ref) return { id: '', url: null, duration: null } as unknown as { id: string; url: string | null; duration: number | null }
+    const value = ref.trim()
+    if (/^https?:\/\//i.test(value)) {
+      if (!/^https:\/\//i.test(value)) return 'Creative links must use https://.'
+      const { data: existing } = await supabase.from('media_assets').select('id, public_url, duration_seconds').eq('public_url', value).limit(1).maybeSingle()
+      if (existing) {
+        const row = existing as { id: string; public_url: string | null; duration_seconds: number | null }
+        return { id: row.id, url: row.public_url, duration: row.duration_seconds }
+      }
+      const { data: inserted, error } = await supabase
+        .from('media_assets')
+        .insert({ kind, provider: 'r2', destination: 'public_photo', public_url: value })
+        .select('id, public_url, duration_seconds')
+        .single()
+      if (error || !inserted) return 'Could not save the creative link.'
+      const row = inserted as { id: string; public_url: string | null; duration_seconds: number | null }
+      return { id: row.id, url: row.public_url, duration: row.duration_seconds }
+    }
+    const { data, error } = await supabase.from('media_assets').select('id, public_url, duration_seconds').eq('id', value).maybeSingle()
+    if (error) return 'Could not verify creative media.'
+    if (!data) return 'A selected creative file no longer exists.'
+    const row = data as { id: string; public_url: string | null; duration_seconds: number | null }
+    return { id: row.id, url: row.public_url, duration: row.duration_seconds }
+  }
+  const kind = input.kind ?? 'image'
+  const desktop = await pick(input.creativeMediaId, kind === 'sponsored' || kind === 'html' ? 'image' : kind)
+  if (typeof desktop === 'string') return desktop
+  const mobile = await pick(input.mobileCreativeMediaId, kind === 'video' ? 'video' : 'image')
+  if (typeof mobile === 'string') return mobile
+  const poster = await pick(input.posterMediaId, 'image')
+  if (typeof poster === 'string') return poster
+  const durations = [desktop.duration, mobile.duration].filter((d): d is number => typeof d === 'number')
+  return {
+    desktopId: input.creativeMediaId ? desktop.id || null : null,
+    mobileId: input.mobileCreativeMediaId ? mobile.id || null : null,
+    posterId: input.posterMediaId ? poster.id || null : null,
+    desktopUrl: desktop.url,
+    mobileUrl: mobile.url,
+    posterUrl: poster.url,
+    durationSeconds: durations.length > 0 ? Math.max(...durations) : null,
+  }
+}
+
+async function getSlotConstraints(
+  supabase: AdminContext['supabase'],
+  slotId: string,
+): Promise<{ allowedFormats: string[]; maxDurationSeconds: number | null } | null> {
+  const { data } = await supabase.from('ad_slots').select('allowed_formats, max_duration_seconds').eq('id', slotId).maybeSingle()
+  if (!data) return null
+  return {
+    allowedFormats: Array.isArray((data as { allowed_formats: unknown }).allowed_formats)
+      ? ((data as { allowed_formats: string[] }).allowed_formats)
+      : [],
+    maxDurationSeconds: (data as { max_duration_seconds: number | null }).max_duration_seconds ?? null,
+  }
+}
+
+/** Approve a campaign's custom creative — only approved creative renders publicly. */
+export async function approveCreative(campaignId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageAds')
+    const { error } = await supabase
+      .from('ad_campaigns')
+      .update({ creative_status: 'approved', creative_rejection_reason: null })
+      .eq('id', campaignId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: 'ad:creative:approve', entityType: 'ad_campaign', entityId: campaignId })
+    revalidateLocalized('/admin/ads')
+    revalidateAdsCache()
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/** Reject a campaign's custom creative with a reason — falls back to the text card. */
+export async function rejectCreative(campaignId: string, reason: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageAds')
+    if (!reason.trim()) return { ok: false, error: 'A rejection reason is required.' }
+    const { error } = await supabase
+      .from('ad_campaigns')
+      .update({ creative_status: 'rejected', creative_rejection_reason: reason.trim() })
+      .eq('id', campaignId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: 'ad:creative:reject', entityType: 'ad_campaign', entityId: campaignId, notes: reason.trim() })
+    revalidateLocalized('/admin/ads')
+    revalidateAdsCache()
     return { ok: true }
   } catch (e) {
     return fail(e)
@@ -1263,6 +1458,7 @@ export async function updateCampaignStatus(campaignId: string, status: string): 
       notes: `campaign=${campaignId}`,
     })
     revalidateLocalized('/admin/ads')
+    revalidateAdsCache()
     return { ok: true }
   } catch (e) {
     return fail(e)
@@ -1284,6 +1480,20 @@ export async function approveAdInquiry(campaignId: string, input: { slotId: stri
     await supabase.from('ad_inquiry_events').insert({ campaign_id: campaignId, actor_id: user.id, event_type: 'approved' })
     await audit(supabase, user.id, { action: 'ad:inquiry:approve', notes: `campaign=${campaignId}` })
     revalidateLocalized('/admin/ads')
+    revalidateAdsCache()
+    // Close the loop with the advertiser when the inquiry maps to an account.
+    void supabase
+      .from('ad_campaigns')
+      .select('name, advertiser:advertisers(user_id)')
+      .eq('id', campaignId)
+      .maybeSingle()
+      .then((res) => {
+        const row = res.data as { name?: string; advertiser?: { user_id?: string | null } | { user_id?: string | null }[] | null } | null
+        const adv = Array.isArray(row?.advertiser) ? row.advertiser[0] : row?.advertiser
+        if (adv?.user_id) {
+          void enqueueUser('advertise.approved', adv.user_id, { company: (row?.name ?? 'your campaign').slice(0, 120) }, '/account/dashboard')
+        }
+      })
     return { ok: true }
   } catch (e) { return fail(e) }
 }
@@ -1319,16 +1529,23 @@ export async function deleteAdInquiry(campaignId: string): Promise<ActionResult>
   } catch (e) { return fail(e) }
 }
 
-export async function updateAdSlot(slotId: string, input: { name?: string; placement?: string | null; dimensions?: string | null; capacity?: number; basePrice?: number | null; currency?: string | null; isActive?: boolean }): Promise<ActionResult> {
+export async function updateAdSlot(slotId: string, input: { name?: string; placement?: string | null; dimensions?: string | null; mobileDimensions?: string | null; allowedFormats?: string[]; maxDurationSeconds?: number | null; capacity?: number; basePrice?: number | null; currency?: string | null; isActive?: boolean }): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertCapability('manageAds')
     if (input.capacity != null && (!Number.isInteger(input.capacity) || input.capacity < 1)) return { ok: false, error: 'Capacity must be a positive whole number.' }
-    const patch = { name: input.name?.trim(), placement: input.placement?.trim() || null, dimensions: input.dimensions?.trim() || null, capacity: input.capacity, base_price: input.basePrice ?? null, currency: input.currency?.toUpperCase() || null, is_active: input.isActive }
+    if (input.allowedFormats !== undefined) {
+      const valid = input.allowedFormats.filter((f) => isAdFormat(f))
+      if (valid.length === 0) return { ok: false, error: 'A slot must accept at least one format.' }
+      input = { ...input, allowedFormats: valid }
+    }
+    if (input.maxDurationSeconds != null && (!Number.isInteger(input.maxDurationSeconds) || input.maxDurationSeconds < 1)) return { ok: false, error: 'Max duration must be a positive whole number of seconds.' }
+    const patch = { name: input.name?.trim(), placement: input.placement?.trim() || null, dimensions: input.dimensions?.trim() || null, mobile_dimensions: input.mobileDimensions?.trim() || null, allowed_formats: input.allowedFormats, max_duration_seconds: input.maxDurationSeconds ?? null, capacity: input.capacity, base_price: input.basePrice ?? null, currency: input.currency?.toUpperCase() || null, is_active: input.isActive }
     if (patch.name === '') return { ok: false, error: 'Slot name is required.' }
     const { error } = await supabase.from('ad_slots').update(patch).eq('id', slotId)
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'ad:slot:update', notes: `slot=${slotId}` })
     revalidateLocalized('/admin/ads')
+    revalidateAdsCache()
     return { ok: true }
   } catch (e) { return fail(e) }
 }
@@ -1365,21 +1582,69 @@ export async function deleteAdvertiser(advertiserId: string): Promise<ActionResu
   } catch (e) { return fail(e) }
 }
 
-export async function updateAdCampaign(campaignId: string, input: { name?: string; slotId?: string | null; destinationUrl?: string | null; copyText?: string | null; startsAt?: string | null; endsAt?: string | null; agreedPrice?: number | null; currency?: string | null; budgetLimit?: number | null; impressionLimit?: number | null; clickLimit?: number | null }): Promise<ActionResult> {
+export async function updateAdCampaign(campaignId: string, input: { name?: string; slotId?: string | null; destinationUrl?: string | null; copyText?: string | null; startsAt?: string | null; endsAt?: string | null; agreedPrice?: number | null; currency?: string | null; budgetLimit?: number | null; impressionLimit?: number | null; clickLimit?: number | null; creativeType?: string; creativeMediaId?: string | null; mobileCreativeMediaId?: string | null; posterMediaId?: string | null; creativeHtml?: string | null; creativeWidth?: number | null; creativeHeight?: number | null }): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertCapability('manageAds')
     if (input.destinationUrl && !/^https:\/\//i.test(input.destinationUrl.trim())) return { ok: false, error: 'Ad destination must use https://.' }
     if (input.startsAt && input.endsAt && new Date(input.endsAt) <= new Date(input.startsAt)) return { ok: false, error: 'Campaign end must be after its start.' }
     if (input.agreedPrice != null && input.agreedPrice < 0) return { ok: false, error: 'Price cannot be negative.' }
-    const { error } = await supabase.from('ad_campaigns').update({
+    const patch: Record<string, unknown> = {
       name: input.name?.trim(), ad_slot_id: input.slotId, destination_url: input.destinationUrl?.trim() || null,
       copy_text: input.copyText?.trim() || null, starts_at: input.startsAt || null, ends_at: input.endsAt || null,
       agreed_price: input.agreedPrice ?? null, currency: input.currency?.toUpperCase() || null,
       budget_limit: input.budgetLimit ?? null, impression_limit: input.impressionLimit ?? null, click_limit: input.clickLimit ?? null,
-    }).eq('id', campaignId)
+    }
+    const touchesCreative =
+      input.creativeType !== undefined || input.creativeMediaId !== undefined ||
+      input.mobileCreativeMediaId !== undefined || input.posterMediaId !== undefined ||
+      input.creativeHtml !== undefined || input.creativeWidth !== undefined || input.creativeHeight !== undefined
+    if (touchesCreative) {
+      // Load current creative so partial edits validate against the whole.
+      const { data: current } = await supabase
+        .from('ad_campaigns')
+        .select('creative_type, creative_media_id, mobile_creative_media_id, poster_media_id, creative_html, ad_slot_id')
+        .eq('id', campaignId)
+        .maybeSingle()
+      const cur = (current ?? {}) as { creative_type?: string; creative_media_id?: string | null; mobile_creative_media_id?: string | null; poster_media_id?: string | null; creative_html?: string | null; ad_slot_id?: string | null }
+      const creativeType: AdFormat = isAdFormat(input.creativeType) ? input.creativeType : isAdFormat(cur.creative_type) ? cur.creative_type : 'sponsored'
+      const creative = await resolveCreativeMedia(supabase, {
+        creativeMediaId: input.creativeMediaId !== undefined ? input.creativeMediaId : (cur.creative_media_id ?? null),
+        mobileCreativeMediaId: input.mobileCreativeMediaId !== undefined ? input.mobileCreativeMediaId : (cur.mobile_creative_media_id ?? null),
+        posterMediaId: input.posterMediaId !== undefined ? input.posterMediaId : (cur.poster_media_id ?? null),
+        kind: creativeType,
+      })
+      if (typeof creative === 'string') return { ok: false, error: creative }
+      const slot = await getSlotConstraints(supabase, input.slotId ?? cur.ad_slot_id ?? '')
+      const html = creativeType === 'html' ? sanitizeCreativeHtml(input.creativeHtml !== undefined ? input.creativeHtml : (cur.creative_html ?? null)) : null
+      const creativeError = validateCreative({
+        format: creativeType,
+        allowedFormats: slot?.allowedFormats ?? null,
+        maxDurationSeconds: slot?.maxDurationSeconds ?? null,
+        desktopUrl: creative.desktopUrl,
+        mobileUrl: creative.mobileUrl,
+        posterUrl: creative.posterUrl,
+        html: creativeType === 'html' ? (html ?? input.creativeHtml ?? null) : null,
+        durationSeconds: creative.durationSeconds,
+        destinationUrl: input.destinationUrl ?? undefined,
+      })
+      if (creativeError) return { ok: false, error: creativeError }
+      patch.creative_type = creativeType
+      if (input.creativeMediaId !== undefined) patch.creative_media_id = creative.desktopId
+      if (input.mobileCreativeMediaId !== undefined) patch.mobile_creative_media_id = creative.mobileId
+      if (input.posterMediaId !== undefined) patch.poster_media_id = creative.posterId
+      if (creativeType === 'html') patch.creative_html = html
+      else if (input.creativeHtml !== undefined) patch.creative_html = null
+      if (input.creativeWidth !== undefined) patch.creative_width = input.creativeWidth
+      if (input.creativeHeight !== undefined) patch.creative_height = input.creativeHeight
+      // Swapping the creative re-arms moderation — the new asset renders
+      // only after approval (sponsored text stays live throughout).
+      if (creativeType !== 'sponsored') patch.creative_status = 'pending'
+    }
+    const { error } = await supabase.from('ad_campaigns').update(patch).eq('id', campaignId)
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'ad:campaign:update', entityType: 'ad_campaign', entityId: campaignId })
     revalidateLocalized('/admin/ads')
+    revalidateAdsCache()
     return { ok: true }
   } catch (e) { return fail(e) }
 }
@@ -1391,19 +1656,24 @@ export async function deleteAdCampaign(campaignId: string): Promise<ActionResult
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'ad:campaign:delete', entityType: 'ad_campaign', entityId: campaignId })
     revalidateLocalized('/admin/ads')
+    revalidateAdsCache()
     return { ok: true }
   } catch (e) { return fail(e) }
 }
 
-export async function createAdSlot(input: { slotKey: string; name: string; placement?: string; dimensions?: string; capacity?: number; basePrice?: number; currency?: string }): Promise<ActionResult> {
+export async function createAdSlot(input: { slotKey: string; name: string; placement?: string; dimensions?: string; mobileDimensions?: string; allowedFormats?: string[]; maxDurationSeconds?: number | null; capacity?: number; basePrice?: number; currency?: string }): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertCapability('manageAds')
     const slotKey = input.slotKey.trim().toLowerCase()
     if (!/^[a-z0-9_-]+$/.test(slotKey) || !input.name.trim()) return { ok: false, error: 'Slot key and name are required.' }
-    const { error } = await supabase.from('ad_slots').insert({ slot_key: slotKey, name: input.name.trim(), placement: input.placement?.trim() || null, dimensions: input.dimensions?.trim() || null, capacity: input.capacity ?? 1, base_price: input.basePrice ?? null, currency: input.currency?.toUpperCase() || null })
+    const allowedFormats = (input.allowedFormats ?? ['image', 'sponsored']).filter((f) => isAdFormat(f))
+    if (allowedFormats.length === 0) return { ok: false, error: 'A slot must accept at least one format.' }
+    if (input.maxDurationSeconds != null && (!Number.isInteger(input.maxDurationSeconds) || input.maxDurationSeconds < 1)) return { ok: false, error: 'Max duration must be a positive whole number of seconds.' }
+    const { error } = await supabase.from('ad_slots').insert({ slot_key: slotKey, name: input.name.trim(), placement: input.placement?.trim() || null, dimensions: input.dimensions?.trim() || null, mobile_dimensions: input.mobileDimensions?.trim() || null, allowed_formats: allowedFormats, max_duration_seconds: input.maxDurationSeconds ?? null, capacity: input.capacity ?? 1, base_price: input.basePrice ?? null, currency: input.currency?.toUpperCase() || null })
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'ad:slot:create', entityType: 'ad_slot', notes: slotKey })
     revalidateLocalized('/admin/ads')
+    revalidateAdsCache()
     return { ok: true }
   } catch (e) { return fail(e) }
 }
@@ -1417,6 +1687,7 @@ export async function deleteAdSlot(slotId: string): Promise<ActionResult> {
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'ad:slot:delete', entityType: 'ad_slot', entityId: slotId })
     revalidateLocalized('/admin/ads')
+    revalidateAdsCache()
     return { ok: true }
   } catch (e) { return fail(e) }
 }
@@ -2478,18 +2749,24 @@ export async function resolveDataRequest(
 /** Quick edit of listing commerce fields (price/currency) from the listings manager. */
 export async function updateListing(
   contentItemId: string,
-  input: { price?: number | null; currency?: string | null },
+  input: { price?: number | null; currency?: string | null; sellerName?: string | null; contactPhone?: string | null; contactEmail?: string | null; whatsappNumber?: string | null },
 ): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertCapability('manageContent')
     const patch: Record<string, unknown> = {}
     if (input.price !== undefined) patch.price = input.price
     if (input.currency !== undefined) patch.currency = input.currency?.trim().toUpperCase() || null
+    if (input.sellerName !== undefined) patch.seller_name = input.sellerName?.trim() || null
+    if (input.contactPhone !== undefined) patch.contact_phone = input.contactPhone?.trim() || null
+    if (input.contactEmail !== undefined) patch.contact_email = input.contactEmail?.trim() || null
+    if (input.whatsappNumber !== undefined) patch.whatsapp_number = input.whatsappNumber?.trim() || null
     if (Object.keys(patch).length === 0) return { ok: false, error: 'Nothing to update.' }
     const { error } = await supabase.from('listings').update(patch).eq('content_item_id', contentItemId)
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'listing:update', entityType: 'listing', entityId: contentItemId })
+    revalidatePublicContentCache()
     revalidateLocalized('/admin/listings')
+    revalidateLocalized('/admin/content')
     return { ok: true }
   } catch (e) { return fail(e) }
 }
@@ -2544,6 +2821,10 @@ export async function expireListing(contentItemId: string): Promise<ActionResult
     revalidatePublicContentCache()
     revalidateLocalized('/admin/listings')
     revalidateLocalized('/admin/content')
+    revalidateLocalized('/account/listings')
+    void listingNotifyTarget(supabase, contentItemId).then((t) =>
+      enqueueUser('listing.update', t.userId, { title: t.title, status: 'expired' }, '/account/listings'),
+    )
     return { ok: true }
   } catch (e) {
     return fail(e)
@@ -2588,6 +2869,10 @@ export async function relistListing(contentItemId: string, days = 30): Promise<A
     revalidatePublicContentCache()
     revalidateLocalized('/admin/listings')
     revalidateLocalized('/admin/content')
+    revalidateLocalized('/account/listings')
+    void listingNotifyTarget(supabase, contentItemId).then((t) =>
+      enqueueUser('listing.update', t.userId, { title: t.title, status: 'relisted and live again' }, '/account/listings'),
+    )
     return { ok: true }
   } catch (e) {
     return fail(e)
@@ -2631,6 +2916,10 @@ export async function moderateListing(contentItemId: string, action: 'sold' | 'r
     revalidatePublicContentCache()
     revalidateLocalized('/admin/listings')
     revalidateLocalized('/admin/content')
+    revalidateLocalized('/account/listings')
+    void listingNotifyTarget(supabase, contentItemId).then((t) =>
+      enqueueUser('listing.update', t.userId, { title: t.title, status: action === 'sold' ? 'marked as sold' : 'removed by moderation' }, '/account/listings'),
+    )
     return { ok: true }
   } catch (e) {
     return fail(e)

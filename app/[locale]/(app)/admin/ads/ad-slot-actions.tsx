@@ -26,6 +26,9 @@ export function AdSlotActions({ slot, copy }: { slot: AdSlotRow; copy: Copy }) {
   const [name, setName] = useState(slot.name)
   const [placement, setPlacement] = useState(slot.placement ?? '')
   const [dimensions, setDimensions] = useState(slot.dimensions ?? '')
+  const [mobileDimensions, setMobileDimensions] = useState(slot.mobileDimensions ?? '')
+  const [formats, setFormats] = useState<string[]>(slot.allowedFormats ?? ['image', 'sponsored'])
+  const [maxDuration, setMaxDuration] = useState(slot.maxDurationSeconds != null ? String(slot.maxDurationSeconds) : '')
   const [basePrice, setBasePrice] = useState(slot.basePrice != null ? String(slot.basePrice) : '')
   const [currency, setCurrency] = useState(slot.currency ?? '')
   const [isActive, setIsActive] = useState(slot.isActive)
@@ -34,10 +37,17 @@ export function AdSlotActions({ slot, copy }: { slot: AdSlotRow; copy: Copy }) {
     setName(slot.name)
     setPlacement(slot.placement ?? '')
     setDimensions(slot.dimensions ?? '')
+    setMobileDimensions(slot.mobileDimensions ?? '')
+    setFormats(slot.allowedFormats ?? ['image', 'sponsored'])
+    setMaxDuration(slot.maxDurationSeconds != null ? String(slot.maxDurationSeconds) : '')
     setBasePrice(slot.basePrice != null ? String(slot.basePrice) : '')
     setCurrency(slot.currency ?? '')
     setIsActive(slot.isActive)
     setEditOpen(true)
+  }
+
+  function toggleFormat(format: string) {
+    setFormats((prev) => (prev.includes(format) ? prev.filter((f) => f !== format) : [...prev, format]))
   }
 
   async function handleEdit() {
@@ -47,6 +57,9 @@ export function AdSlotActions({ slot, copy }: { slot: AdSlotRow; copy: Copy }) {
           name: name.trim(),
           placement: placement.trim() || null,
           dimensions: dimensions.trim() || null,
+          mobileDimensions: mobileDimensions.trim() || null,
+          allowedFormats: formats,
+          maxDurationSeconds: maxDuration.trim() ? Number(maxDuration) : null,
           basePrice: basePrice ? Number(basePrice) : null,
           currency: currency.trim() || null,
           isActive,
@@ -121,6 +134,31 @@ export function AdSlotActions({ slot, copy }: { slot: AdSlotRow; copy: Copy }) {
             <label className="space-y-1">
               <span className="text-xs font-medium text-muted-foreground">{copy.colSize}</span>
               <input value={dimensions} onChange={(e) => setDimensions(e.target.value)} className={ui.input} placeholder="e.g. 728×90" />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">{copy.mobileSize}</span>
+              <input value={mobileDimensions} onChange={(e) => setMobileDimensions(e.target.value)} className={ui.input} placeholder="e.g. 320×100" />
+            </label>
+            <div className="space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">{copy.allowedFormats}</span>
+              <div className="flex flex-wrap gap-1.5">
+                {['image', 'video', 'audio', 'html', 'sponsored'].map((format) => (
+                  <button
+                    key={format}
+                    type="button"
+                    onClick={() => toggleFormat(format)}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      formats.includes(format) ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {format}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">{copy.maxDuration}</span>
+              <input type="number" min="1" step="1" value={maxDuration} onChange={(e) => setMaxDuration(e.target.value)} className={ui.input} placeholder="15" />
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="space-y-1">

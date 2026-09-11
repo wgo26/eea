@@ -19,6 +19,12 @@ type PreviewPost = {
   labels: string[]
   originalUrl: string | null
   imageCount: number
+  /** Blogger status when the export provides it (Takeout format). */
+  status: 'LIVE' | 'DRAFT' | 'SCHEDULED' | null
+  /** Original public path, e.g. /2020/10/post-title.html */
+  filename: string | null
+  /** Per-post meta description (SEO) when set. */
+  metaDescription: string | null
 }
 
 function fill(template: string, n: number): string {
@@ -71,6 +77,10 @@ export function ContentImportClient({
           labels.push(term)
         }
       }
+      // Takeout-style exports (mirrors lib/admin/blogger.ts): posts carry
+      // <blogger:type>POST</blogger:type> instead of a kind#post category.
+      const typeEl = entry.getElementsByTagName('blogger:type')[0]
+      if (typeEl?.textContent?.trim().toUpperCase() === 'POST') isPost = true
       if (!isPost) continue
 
       const text = (tag: string): string | null => {
@@ -97,7 +107,23 @@ export function ContentImportClient({
       const publishedAt = publishedRaw && !Number.isNaN(Date.parse(publishedRaw)) ? publishedRaw : null
       const imageCount = (bodyHtml.match(/<img\b[^>]*\bsrc=["']https?:\/\//gi) ?? []).length
       const id = text('id') ?? originalUrl ?? `${title}-${i}`
-      out.push({ key: id, title, bodyHtml, publishedAt, labels, originalUrl, imageCount })
+      const statusRaw = text('blogger:status')
+      const status =
+        statusRaw && /^(LIVE|DRAFT|SCHEDULED)$/i.test(statusRaw)
+          ? (statusRaw.toUpperCase() as 'LIVE' | 'DRAFT' | 'SCHEDULED')
+          : null
+      out.push({
+        key: id,
+        title,
+        bodyHtml,
+        publishedAt,
+        labels,
+        originalUrl,
+        imageCount,
+        status,
+        filename: text('blogger:filename'),
+        metaDescription: text('blogger:metaDescription'),
+      })
     }
     return out
   }
@@ -183,6 +209,9 @@ export function ContentImportClient({
           publishedAt: p.publishedAt,
           labels: p.labels,
           originalUrl: p.originalUrl,
+          status: p.status,
+          filename: p.filename,
+          metaDescription: p.metaDescription,
         }))
         setProgress(`${i + 1}–${Math.min(i + batch.length, selectedPosts.length)} / ${selectedPosts.length}`)
         const res = await importPosts(batch, importType)

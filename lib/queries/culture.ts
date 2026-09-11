@@ -6,6 +6,7 @@ import { logger } from "@/lib/observability/logger";
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 import type { StoryCardData } from "@/lib/queries/home";
+import { mapAttachments, supportingMedia } from "@/lib/media/attachments";
 
 /**
  * Data access for the Culture vertical (spec §3.3).
@@ -74,6 +75,8 @@ type RawCultureRow = {
               photographer_credit: string | null;
               is_cover: boolean | null;
               sort_order: number | null;
+              kind: string | null;
+              mime_type: string | null;
           }[]
         | null;
     events?:
@@ -86,7 +89,7 @@ const CULTURE_SELECT = `id, slug, verification, published_at, view_count,
     location:locations(slug, name),
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title, excerpt, body),
-    media:media_assets(public_url, alt_text, caption, photographer_credit, is_cover, sort_order),
+    media:media_assets(public_url, alt_text, caption, photographer_credit, is_cover, sort_order, kind, mime_type),
     author:profiles!content_items_author_id_fkey(id, display_name),
     events!inner(starts_at, ends_at, venue_name, ticket_url, organizer_name)`;
 
@@ -95,7 +98,7 @@ const CULTURE_SELECT_LEFT = `id, slug, verification, published_at, view_count,
     location:locations(slug, name),
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title, excerpt, body),
-    media:media_assets(public_url, alt_text, caption, photographer_credit, is_cover, sort_order),
+    media:media_assets(public_url, alt_text, caption, photographer_credit, is_cover, sort_order, kind, mime_type),
     author:profiles!content_items_author_id_fkey(id, display_name),
     events(starts_at, ends_at, venue_name, ticket_url, organizer_name)`;
 
@@ -176,7 +179,10 @@ function toCard(row: RawCultureRow, locale: Locale): CultureArticle | null {
     if (!translation?.title) return null;
     const location = asOne(row.location);
     const category = asOne(row.category);
-    const cover = (row.media ?? []).find((m) => m.is_cover) ?? (row.media ?? [])[0] ?? null;
+    const allMedia = mapAttachments(row.media ?? []);
+    const images = allMedia.filter((m) => m.kind === 'image');
+    const cover = (row.media ?? []).find((m) => m.is_cover) ?? null;
+    const coverUrl = cover?.public_url ?? images[0]?.url ?? allMedia[0]?.url ?? null;
     const author = asOne(row.author);
     const event = asOne(row.events);
     const isEvent = Boolean(event?.starts_at);
@@ -189,12 +195,12 @@ function toCard(row: RawCultureRow, locale: Locale): CultureArticle | null {
             : `/culture/${row.slug ?? row.id}`,
         title: translation.title,
         excerpt: translation.excerpt ?? null,
-        imageUrl: cover?.public_url ?? null,
+        imageUrl: coverUrl,
         location: location?.name ?? null,
         category: category
             ? (pickLocalized(category.category_translations, locale)?.name ?? null)
             : null,
-        credit: cover?.photographer_credit ?? null,
+        credit: cover?.photographer_credit ?? images[0]?.credit ?? null,
         verification: row.verification ?? null,
         publishedAt: row.published_at,
         viewCount: Number(row.view_count ?? 0),
@@ -202,6 +208,9 @@ function toCard(row: RawCultureRow, locale: Locale): CultureArticle | null {
         authorName: author?.display_name ?? null,
         authorId: author?.id ?? null,
         locationSlug: location?.slug ?? null,
+        hasVideo: allMedia.some((m) => m.kind === 'video'),
+        hasAudio: allMedia.some((m) => m.kind === 'audio'),
+        attachments: supportingMedia(allMedia),
         eventDate: event?.starts_at ?? null,
         eventTime: event?.ends_at ?? null,
         venue: event?.venue_name ?? null,

@@ -1,0 +1,15 @@
+﻿<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns='http://www.w3.org/2005/Atom' xmlns:blogger='http://schemas.google.com/blogger/2018'>
+  <id>tag:blogger.com,1999:blog-426198324410599347</id>
+  <title>EAGLE EYE AFRICA</title>
+  <entry>
+    <id>tag:blogger.com,1999:blog-426198324410599347.post-126186913167950319</id>
+    <blogger:type>POST</blogger:type>
+    <blogger:status>LIVE</blogger:status>
+    <author>
+      <name>EAGLE EYE AFRICA</name>
+      <uri>http://eagleeyeafrica.blogspot.com</uri>
+      <blogger:type>BLOGGER</blogger:type>
+    </author>
+    <title>Bamenda Hosts Key Workshop to Reshape Humanitarian Coordination in Northwest and Southwest Regions</title>
+    <content type='html'>&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;By Wirngo Peter Tardzenyuy&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;table align="center" cellpadding="0" cells

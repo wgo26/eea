@@ -15,6 +15,8 @@ import {
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
 import { StoryCard } from "@/components/home/story-card";
+import { MediaBadge } from "@/components/media/media-attachment";
+import { SupportingMedia } from "@/components/media/supporting-media";
 import { CorrectionForm } from "@/components/news/correction-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +26,7 @@ import { SITE } from "@/lib/constants";
 import { formatDate, getDictionary, resolveLocale } from "@/lib/i18n";
 import { verificationBadgeInfo } from "@/lib/verification";
 import { getNewsBySlug, getOtherNews } from "@/lib/queries/news";
+import { getAdForSlot } from "@/lib/queries/ads";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 
 type NewsPageProps = { params: Promise<{ locale: string; slug: string }> };
@@ -71,9 +74,11 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
     const article = await getNewsBySlug(slug, locale);
     if (!article) notFound();
 
-    const related = (
-        await getOtherNews(article.id, locale, 3)
-    ).filter((n) => n.id !== article.id);
+    const [related, railAd] = await Promise.all([
+        getOtherNews(article.id, locale, 3),
+        getAdForSlot("news-rail"),
+    ]);
+    const filtered = related.filter((n) => n.id !== article.id);
 
     const badge = verificationBadgeInfo(article.verification ?? null, dict);
     const shareUrl = `${SITE.url}${localePath(locale, `/news/${article.slug}`)}`;
@@ -96,6 +101,8 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
             <header className="mt-4 max-w-4xl">
                 <div className="flex flex-wrap items-center gap-2">
                     {article.category ? <Badge>{article.category}</Badge> : null}
+                    {article.hasVideo ? <MediaBadge kind="video" /> : null}
+                    {article.hasAudio ? <MediaBadge kind="audio" /> : null}
                     {badge ? (
                         <span
                             className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${badge.className}`}
@@ -181,6 +188,17 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                 </section>
             ) : null}
 
+            {(article.attachments ?? []).length > 0 ? (
+                <div className="max-w-4xl">
+                    <SupportingMedia
+                        items={article.attachments ?? []}
+                        title={article.title}
+                        heading={dict.common.supportingMedia}
+                        description={dict.common.supportingMediaBody}
+                    />
+                </div>
+            ) : null}
+
             <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div>
                     {/* Report a correction — inline form (no dead /correction route). */}
@@ -194,14 +212,14 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                         <CorrectionForm slug={article.slug} dict={dict} locale={locale} />
                     </div>
 
-                    {related.length > 0 ? (
+                    {filtered.length > 0 ? (
                         <section>
                             <SectionHeader
                                 title={dict.news.moreStories}
                                 hint={dict.home.sectionHintNews}
                             />
                             <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                                {related.map((item) => (
+                                {filtered.map((item) => (
                                     <StoryCard
                                         key={item.id}
                                         story={item}
@@ -291,7 +309,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                     </Card>
 
                     <AdSlot
-                        ad={null}
+                        ad={railAd}
                         dict={dict}
                         advertiseHref={localePath(locale, "/advertise")}
                         variant="rail"

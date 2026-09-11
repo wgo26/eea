@@ -3,6 +3,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/observability/logger";
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
+import type { MediaAttachment } from "@/lib/media/attachments";
+import { mapAttachments, supportingMedia } from "@/lib/media/attachments";
+import { getAdsForSlots, type AdCreative } from "@/lib/queries/ads";
 
 export type StoryCardData = {
     id: string;
@@ -16,6 +19,11 @@ export type StoryCardData = {
     credit: string | null;
     verification: string | null;
     publishedAt: string | null;
+    /** True when the item carries video/audio supporting media (Phase B badge). */
+    hasVideo?: boolean;
+    hasAudio?: boolean;
+    /** Non-image attachments (video/audio/document) for detail pages. */
+    attachments?: MediaAttachment[];
     /** Notice extras */
     isOfficial?: boolean;
     noticeType?: string | null;
@@ -25,12 +33,8 @@ export type StoryCardData = {
     currency?: string | null;
 };
 
-export type AdCreative = {
-    name: string;
-    copyText: string | null;
-    imageUrl: string | null;
-    destinationUrl: string | null;
-};
+/** Re-exported so existing AdSlot callers keep importing from home. */
+export type { AdCreative };
 
 export type HomeData = {
     hero: StoryCardData | null;
@@ -65,7 +69,7 @@ type RawItem = {
         | null;
     translations?: { locale: string; title: string; excerpt: string | null }[] | null;
     media?:
-        | { public_url: string | null; photographer_credit: string | null; is_cover: boolean | null }[]
+        | { public_url: string | null; photographer_credit: string | null; is_cover: boolean | null; kind: string | null; mime_type: string | null }[]
         | null;
     notices?: { notice_type: string | null; is_official: boolean | null; expiry_date: string | null }[] | null;
     listings?: { price: number | null; currency: string | null }[] | null;
@@ -119,7 +123,9 @@ function mapItem(item: RawItem, locale: Locale): StoryCardData | null {
     const location = asOne(item.location);
     const category = asOne(item.category);
     const media = item.media ?? [];
-    const cover = media.find((m) => m.is_cover) ?? media[0] ?? null;
+    // Cover stays image-first: prefer an image cover, fall back to any media.
+    const images = media.filter((m) => (m.kind ?? 'image') === 'image');
+    const cover = media.find((m) => m.is_cover) ?? images[0] ?? media[0] ?? null;
     const notice = item.notices?.[0] ?? null;
     const listing = item.listings?.[0] ?? null;
 
@@ -137,6 +143,9 @@ function mapItem(item: RawItem, locale: Locale): StoryCardData | null {
         credit: cover?.photographer_credit ?? null,
         verification: item.verification ?? null,
         publishedAt: item.published_at,
+        hasVideo: media.some((m) => m.kind === 'video' || (m.mime_type ?? '').startsWith('video/')),
+        hasAudio: media.some((m) => m.kind === 'audio' || (m.mime_type ?? '').startsWith('audio/')),
+        attachments: supportingMedia(mapAttachments(media)),
         isOfficial: notice?.is_official ?? undefined,
         noticeType: notice?.notice_type ?? undefined,
         expiresAt: notice?.expiry_date ?? undefined,
@@ -160,12 +169,6 @@ async function must<T>(promise: PromiseLike<QueryResult<T>>): Promise<T | null> 
 }
 
 type SlotRow = { slot_key: string; content_item_id: string | null };
-type CampaignRow = {
-    name: string;
-    copy_text: string | null;
-    destination_url: string | null;
-    slot?: { slot_key: string } | { slot_key: string }[] | null;
-};
 
 const emptyHomeData: HomeData = {
     hero: null,
@@ -191,7 +194,7 @@ const getCachedHomeData = unstable_cache(
     async (locale: Locale): Promise<HomeData> => {
         const supabase = createAdminClient();
 
-        const [rawItems, slotRows, campaignRows] = await Promise.all([
+        const [rawItems, slotRows, ads] = await Promise.all([
             must(
             supabase
                 .from("content_items")
@@ -200,7 +203,7 @@ const getCachedHomeData = unstable_cache(
                      location:locations(name),
                      category:categories(category_translations(locale, name)),
                      translations:content_translations(locale, title, excerpt),
-                     media:media_assets(public_url, photographer_credit, is_cover),
+                     media:media_assets(public_url, photographer_credit, is_cover, kind, mime_type),
                      notices(notice_type, is_official, expiry_date),
                      listings(price, currency)`
                 )
@@ -217,12 +220,9 @@ const getCachedHomeData = unstable_cache(
                 .eq("is_active", true)
                 .in("slot_key", ["hero", "secondary"])
         ),
-        must(
-            supabase
-                .from("ad_campaigns")
-                .select("name, copy_text, destination_url, slot:ad_slots(slot_key)")
-                .eq("status", "active")
-        ),
+        // Ad serving lives in lib/queries/ads.ts (window + creative-status
+        // aware); unset slots fall back to the placeholder in AdSlot.
+        getAdsForSlots(["homepage-banner", "homepage-rail-top", "homepage-inline-mid", "homepage-inline-bottom"]),
     ]);
 
     const items = (rawItems ?? [])
@@ -291,22 +291,6 @@ const getCachedHomeData = unstable_cache(
         }
     }
 
-    // Active campaigns on the homepage placements (spec §11). Each slot takes
-    // the first matching active campaign; unset slots fall back to the
-    // "advertise with us" placeholder rendered by the AdSlot component.
-    const assigned: Record<string, AdCreative> = {};
-    for (const raw of campaignRows ?? []) {
-        const c = raw as CampaignRow;
-        const key = asOne(c.slot)?.slot_key;
-        if (!key || assigned[key]) continue;
-        assigned[key] = {
-            name: c.name,
-            copyText: c.copy_text ?? null,
-            imageUrl: null,
-            destinationUrl: c.destination_url ?? null,
-        };
-    }
-
     return {
         hero,
         featured,
@@ -318,16 +302,16 @@ const getCachedHomeData = unstable_cache(
         culture,
         trending,
         ads: {
-            banner: assigned["homepage-banner"] ?? null,
-            rail: assigned["homepage-rail-top"] ?? null,
-            inlineMid: assigned["homepage-inline-mid"] ?? null,
-            inlineBottom: assigned["homepage-inline-bottom"] ?? null,
+            banner: ads["homepage-banner"] ?? null,
+            rail: ads["homepage-rail-top"] ?? null,
+            inlineMid: ads["homepage-inline-mid"] ?? null,
+            inlineBottom: ads["homepage-inline-bottom"] ?? null,
         },
     };
     },
     ["home-data"],
     {
-        tags: [CACHE_TAGS.home, CACHE_TAGS.news],
+        tags: [CACHE_TAGS.home, CACHE_TAGS.news, CACHE_TAGS.ads],
         revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS,
     },
 );

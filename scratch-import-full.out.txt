@@ -1,0 +1,32 @@
+Parsed 133 posts from docs\Blogger\Blogs\EAGLE EYE AFRICA\feed.atom
+  LIVE: 120, DRAFT: 13
+  … 10/133 imported (0 images uploaded)
+  … 20/133 imported (0 images uploaded)
+  … 30/133 imported (0 images uploaded)
+  … 40/133 imported (0 images uploaded)
+  … 50/133 imported (0 images uploaded)
+  … 60/133 imported (0 images uploaded)
+  … 70/133 imported (0 images uploaded)
+  … 80/133 imported (0 images uploaded)
+  … 90/133 imported (0 images uploaded)
+  … 100/133 imported (0 images uploaded)
+  … 110/133 imported (0 images uploaded)
+  … 120/133 imported (0 images uploaded)
+  … 130/133 imported (0 images uploaded)
+FAIL: EAGLE EYE AFRICA (EEA) eagleeyeafrica.blogspot.com — content_items: duplicate key value violates unique constraint "content_items_import_source_id_idx"
+
+Imported: 132 drafts | images uploaded to R2: 0 | still hotlinked: 444 | failed: 1
+
+R2 uploads refused (338 images fell back to hotlinks): Access Denied; read ECONNRESET; getaddrinfo ENOTFOUND eea-storage.e3cbfcceb2dcbfa74c625dec9b0191fd.r2.cloudflarestorage.com
+→ Fix the R2 token (needs Object Read & Write), then run: node scripts/import-blogger.mjs --media-only
+Failures:
+  EAGLE EYE AFRICA (EEA) eagleeyeafrica.blogspot.com — content_items: duplicate key value violates unique constraint "content_items_import_source_id_idx"
+
+Videos not imported (not referenced by any post body; attach via /admin MediaPicker):
+  BAMENDA CITY COUNCIL MAYOR.mp4 (37 MB)
+  Bamenda II Council Organizes A 3 Day Sporting Event.mp4 (62 MB)
+  go (2).mp4 (59 MB)
+  GOVERNMENT DELEGATE OF BAMENDA CITY COUNCIL_1.mp4 (13 MB)
+  Message To Alaghi Dan, Mark and Dr Akwanga.mp4 (64 MB)
+  YouCut_20260512_192150784(1).mp4 (25 MB)
+  YouCut_20260512_192150784.mp4 (25 MB)

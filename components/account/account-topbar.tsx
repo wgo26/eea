@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Eye, LayoutDashboard, LogOut, PenLine, ShieldCheck } from 'lucide-react'
+import { Bell, Eye, LayoutDashboard, LogOut, PenLine, ShieldCheck } from 'lucide-react'
 import { getDictionary } from '@/lib/i18n'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { localePath } from '@/lib/i18n/urls'
@@ -7,6 +7,7 @@ import { getSessionUser } from '@/lib/auth/guards'
 import { getUserRoles, isStaffRoles } from '@/lib/auth/roles'
 import { signOutAction } from '@/lib/auth/actions'
 import { AccountTopbarNav } from './account-topbar-nav'
+import { getUnreadCount } from '@/lib/notify/queries'
 
 /**
  * Account AppShell topbar (checklist items 7 + 11): the logged-in area's
@@ -43,6 +44,12 @@ export async function AccountTopbar() {
       href: localePath(locale, '/account/dashboard'),
       label: dict.account.topbar.dashboard,
       icon: LayoutDashboard,
+    },
+    {
+      href: localePath(locale, '/account/notifications'),
+      label: dict.account.topbar.notifications,
+      icon: Bell,
+      badge: user ? await getUnreadCount() : 0,
     },
     {
       href: localePath(locale, '/submit'),

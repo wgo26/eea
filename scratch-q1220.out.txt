@@ -1,0 +1,140 @@
+﻿      reporterId: row.reporter_id as string | null,
+      reporterName: row.reporter_name as string | null,
+      reporterEmail: row.reporter_email as string | null,
+      correctionText: row.correction_text as string,
+      status: row.status as string,
+      resolution: row.resolution as string | null,
+      createdAt: row.created_at as string | null,
+      resolvedAt: row.resolved_at as string | null,
+      contentTitle: t?.title ?? null,
+      contentType: (content?.type as string | undefined) ?? null,
+      contentSlug: (content?.slug as string | undefined) ?? null,
+      contentStatus: (content?.status as string | undefined) ?? null,
+      missingLocale,
+    }
+  })
+}
+
+/** Unfiltered totals for trust-safety tab badges (badges must not reflect the active status filter). */
+export async function getTrustSafetyCounts(): Promise<{ reports: number; corrections: number }> {
+  if (!hasDatabase()) return { reports: 0, corrections: 0 }
+  const [reportsRes, correctionsRes] = await Promise.all([
+    safe(db().from('reports').select('id', { count: 'exact', head: true })),
+    safe(db().from('corrections').select('id', { count: 'exact', head: true })),
+  ])
+  return { reports: reportsRes.count ?? 0, corrections: correctionsRes.count ?? 0 }
+}
+
+/** Filtered totals for trust-safety pagination (respects the active status pill). */
+export async function getTrustSafetyFilteredCounts(status: string): Promise<{ reports: number; corrections: number }> {
+  if (!hasDatabase()) return { reports: 0, corrections: 0 }
+  const applyStatus = (q: ReturnType<typeof db> extends never ? never :any) => (status === 'all' ? q : q.eq('status', status))
+  // Typed loosely to avoid Supabase query-builder generics friction.
+  const [reportsRes, correctionsRes] = await Promise.all([
+    safe(applyStatus(db().from('reports').select('id', { count: 'exact', head: true }))),
+    safe(applyStatus(db().from('corrections').select('id', { count: 'exact', head: true }))),
+  ])
+  return { reports: reportsRes.count ?? 0, corrections: correctionsRes.count ?? 0 }
+}
+
+/**
+ * Code-level fallback for the pg_cron job (migration
+ * 20260904000000_phase3_content_loop.sql): flips due `scheduled` items to
+ * `published` and expires overdue active listings. Called on admin loads â€”
+ * cheap (indexed updates) and idempotent.
+ */
+export async function runDueContentSweep(): Promise<void> {
+  const nowIso = new Date().toISOString()
+  await safe(
+    db()
+      .from('content_items')
+      .update({ status: 'published', published_at: nowIso })
+      .eq('status', 'scheduled')
+      .not('scheduled_for', 'is', null)
+      .lte('scheduled_for', nowIso),
+  )
+  const { data: dueListings } = await safe(
+    db()
+      .from('content_items')
+      .select('id')
+      .eq('is_archived', false)
+      .not('expires_at', 'is', null)
+      .lte('expires_at', nowIso)
+      .limit(500),
+  )
+  const dueIds = ((dueListings ?? []) as { id: string }[]).map((r) => r.id)
+  if (dueIds.length > 0) {
+    await safe(
+      db()
+        .from('listings')
+        .update({ listing_status: 'expired' })
+        .in('content_item_id', dueIds)
+        .eq('listing_status', 'active'),
+    )
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Listings lifecycle queue (Phase 3 buy & sell manager)              */
+/* ------------------------------------------------------------------ */
+
+export type AdminListingRow = {
+  contentItemId: string
+  slug: string | null
+  title: string | null
+  titleEn: string | null
+  titleFr: string | null
+  /** True when the item has translations but none in the requested locale. */
+  missingLocale: boolean
+  price: number | null
+  currency: string | null
+  listingStatus: string
+  contentStatus: string
+  isFeatured: boolean
+  expiresAt: string | null
+  publishedAt: string | null
+  sellerName: string | null
+  contactPhone: string | null
+}
+
+/**
+ * Listing rows for the lifecycle manager: content item joined with its
+ * listings extension row. When a listing status filter is applied the embed
+ * becomes an inner join so the filter runs in SQL, not after the limit.
+ */
+export async function getListingsAdmin(options?: { status?: string; limit?: number; offset?: number; locale?: Locale; search?: string }): Promise<{ rows: AdminListingRow[]; total: number }> {
+  const status = options?.status ?? 'all'
+  const limit = options?.limit ?? 100
+  const offset = options?.offset ?? 0
+  const locale = options?.locale ?? 'en'
+  const search = options?.search?.trim() ?? ''
+
+  const select = `id, slug, status, is_featured, expires_at, published_at,
+    translations:content_translations(locale, title),
+    listing:listings${status !== 'all' ? '!inner' : ''}(price, currency, listing_status, seller_name, contact_phone)`
+
+  let query = db()
+    .from('content_items')
+    .select(select, { count: 'exact' })
+    .eq('type', 'listing')
+    .order('published_at', { ascending: false, nullsFirst: false })
+    .range(offset, offset + limit - 1)
+  if (status !== 'all') query = query.eq('listing.listing_status', status)
+  if (search) query = query.or(`slug.ilike.%${search}%,translations.title.ilike.%${search}%`)
+
+  const { data, count } = await safe(query)
+  const rows = ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+    const translations = Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []
+    const list = translations as { locale: string; title: string | null }[]
+    const titleEn = list.find((x) => x.locale === 'en')?.title ?? null
+    const titleFr = list.find((x) => x.locale === 'fr')?.title ?? null
+    const t = list.find((x) => x.locale === locale)
+      ?? (translations[0] as { title: string | null } | undefined)
+    const missingLocale = list.length > 0 && !list.some((x) => x.locale === locale)
+    const listing = Array.isArray(row.listing) ? row.listing[0] : row.listing
+    const l = (listing as Record<string, unknown> | null) ?? null
+    return {
+      contentItemId: row.id as string,
+      slug: (row.slug as string | null) ?? null,
+      title: t?.title ?? null,
+      titleEn,

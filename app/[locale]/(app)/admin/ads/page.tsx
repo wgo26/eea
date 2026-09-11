@@ -85,7 +85,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
             columns={[
               { key: 'name', header: t.colSlot, render: (r) => <div className="text-sm font-medium">{r.name}</div> },
               { key: 'placement', header: t.colPlacement, render: (r) => <span className="text-xs text-muted-foreground">{r.placement}</span> },
-              { key: 'dimensions', header: t.colSize, render: (r) => <span className="text-xs font-mono">{r.dimensions}</span> },
+              { key: 'dimensions', header: t.colSize, render: (r) => <span className="text-xs font-mono">{r.mobileDimensions ? `${r.dimensions} / ${r.mobileDimensions}` : r.dimensions}</span> },
+              { key: 'formats', header: t.colFormat, render: (r) => <span className="text-xs text-muted-foreground">{r.allowedFormats.join(' · ')}{r.maxDurationSeconds ? ` · ≤${r.maxDurationSeconds}s` : ''}</span> },
               { key: 'pricing', header: t.colBasePrice, render: (r) => <span className="text-xs">{formatPrice(r.basePrice, r.currency)}</span> },
               { key: 'status', header: t.colStatus, render: (r) => (
                 <span className={`inline-flex items-center gap-1 text-xs font-medium ${r.isActive ? 'text-emerald-600' : 'text-muted-foreground'}`}>
@@ -115,6 +116,28 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
                 </div>
               ) },
               { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} label={campaignStatusLabels[r.status] ?? r.status} /> },
+              { key: 'format', header: t.colFormat, render: (r) => (
+                <div className="text-xs">
+                  <span className="font-medium">{r.creativeType}</span>
+                  {r.creativeType !== 'sponsored' ? (
+                    <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                      r.creativeStatus === 'approved' ? 'bg-emerald-500/15 text-emerald-600' : r.creativeStatus === 'rejected' ? 'bg-destructive/10 text-destructive' : 'bg-amber-500/15 text-amber-600'
+                    }`}>
+                      {r.creativeStatus}
+                    </span>
+                  ) : null}
+                </div>
+              ) },
+              { key: 'creative', header: t.colCreative, render: (r) => (
+                r.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={r.imageUrl} alt="" className="h-8 w-14 rounded border border-border object-cover" />
+                ) : r.creativeType === 'html' && r.creativeHtml ? (
+                  <span className="text-xs text-muted-foreground">HTML</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">—</span>
+                )
+              ) },
               { key: 'slot', header: t.colSlot, render: (r) => <span className="text-xs">{r.slotName ?? '—'}</span> },
               { key: 'dates', header: t.colDates, render: (r) => (
                 <div className="text-xs text-muted-foreground">

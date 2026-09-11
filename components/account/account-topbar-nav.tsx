@@ -9,6 +9,7 @@ type Tab = {
   href: string
   label: string
   icon: ComponentType<{ className?: string }>
+  badge?: number
 }
 
 export function AccountTopbarNav({ tabs }: { tabs: Tab[] }) {
@@ -35,6 +36,14 @@ export function AccountTopbarNav({ tabs }: { tabs: Tab[] }) {
           >
             <tab.icon className="h-4 w-4" aria-hidden />
             <span className="hidden sm:inline">{tab.label}</span>
+            {tab.badge != null && tab.badge > 0 ? (
+              <span
+                aria-label={`${tab.badge} unread`}
+                className="inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold tabular-nums text-primary-foreground"
+              >
+                {tab.badge > 99 ? '99+' : tab.badge}
+              </span>
+            ) : null}
           </Link>
         )
       })}

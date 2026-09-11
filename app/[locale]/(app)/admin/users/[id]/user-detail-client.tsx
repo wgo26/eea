@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { deleteUser, setUserRole, setUserStatus } from '@/lib/admin/actions'
+import { deleteUser, setUserRole, setUserStatus, updateContributorCuration } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { StatusBadge } from '@/components/admin/status-badge'
@@ -263,6 +263,62 @@ export function StatusControls({ user, copy, common }: { user: UserRow; copy: Co
         loading={loading}
         onConfirm={(password) => { void reauth?.run(password) }}
       />
+    </div>
+  )
+}
+
+/**
+ * Contributor spotlight: the previously orphaned updateContributorCuration
+ * action, now wired. Featured contributors surface on the public
+ * contributors page; the bio override replaces the profile bio there.
+ */
+export function CurationControls({ user, copy, common }: { user: UserRow; copy: Copy; common: CommonCopy }) {
+  const { addToast } = useToast()
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [featured, setFeatured] = useState(user.contributorFeatured)
+  const [bioOverride, setBioOverride] = useState(user.contributorBioOverride ?? '')
+
+  async function handleSave() {
+    setLoading(true)
+    const result = await updateContributorCuration(user.id, { featured, bioOverride: bioOverride.trim() || null })
+    setLoading(false)
+    addToast(result.ok ? copy.toastCurationSaved : result.error, result.ok ? 'success' : 'error')
+    if (result.ok) router.refresh()
+  }
+
+  const dirty = featured !== user.contributorFeatured || (bioOverride.trim() || '') !== (user.contributorBioOverride ?? '')
+
+  return (
+    <div className="space-y-3">
+      <label className="flex cursor-pointer items-center gap-2">
+        <input
+          type="checkbox"
+          checked={featured}
+          onChange={(e) => setFeatured(e.target.checked)}
+          className="h-4 w-4 rounded border-border"
+        />
+        <span className="text-sm font-medium">{copy.curationFeatured}</span>
+      </label>
+      <label className="space-y-1">
+        <span className="text-xs font-medium text-muted-foreground">{copy.curationBioOverride}</span>
+        <textarea
+          value={bioOverride}
+          onChange={(e) => setBioOverride(e.target.value)}
+          rows={3}
+          maxLength={500}
+          placeholder={copy.curationBioPlaceholder}
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+      </label>
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={loading || !dirty}
+        className="rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+      >
+        {loading ? '…' : common.save}
+      </button>
     </div>
   )
 }

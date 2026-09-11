@@ -13,6 +13,8 @@ export type SearchResultItem = {
     location: string | null;
     publishedAt: string | null;
     href: string;
+    hasVideo?: boolean;
+    hasAudio?: boolean;
 };
 
 export type SearchResults = {
@@ -114,14 +116,14 @@ type RawSearchRow = {
         | { locale: string; title: string | null; excerpt: string | null }[]
         | null;
     media?:
-        | { public_url: string | null; is_cover: boolean | null }[]
+        | { public_url: string | null; is_cover: boolean | null; kind: string | null; mime_type: string | null }[]
         | null;
 };
 
 const SEARCH_SELECT = `id, type, slug, published_at,
     location:locations(name),
     translations:content_translations(locale, title, excerpt),
-    media:media_assets(public_url, is_cover)`;
+    media:media_assets(public_url, is_cover, kind, mime_type)`;
 
 /**
  * Global search across all five content types. Mirrors the two-step pattern
@@ -188,7 +190,8 @@ export async function getSearchResults(options: {
         if (!translation?.title) return [];
         const location = asOne(row.location);
         const media = row.media ?? [];
-        const cover = media.find((m) => m.is_cover) ?? media[0] ?? null;
+        const images = media.filter((m) => (m.kind ?? 'image') === 'image');
+        const cover = media.find((m) => m.is_cover) ?? images[0] ?? media[0] ?? null;
         return [
             {
                 id: row.id,
@@ -199,6 +202,8 @@ export async function getSearchResults(options: {
                 location: location?.name ?? null,
                 publishedAt: row.published_at,
                 href: detailHref(row.type, row.slug, row.id),
+                hasVideo: media.some((m) => m.kind === 'video' || (m.mime_type ?? '').startsWith('video/')),
+                hasAudio: media.some((m) => m.kind === 'audio' || (m.mime_type ?? '').startsWith('audio/')),
             } satisfies SearchResultItem,
         ];
     });

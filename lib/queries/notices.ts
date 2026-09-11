@@ -5,6 +5,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/observability/logger";
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
+import type { MediaAttachment } from "@/lib/media/attachments";
+import { mapAttachments, supportingMedia } from "@/lib/media/attachments";
 
 /**
  * Data access for the Notices vertical.
@@ -68,6 +70,9 @@ export type NoticeData = {
     /** True when the notice has contact details (values never leave the server — PII-safe like buy-sell). */
     hasContact: boolean;
     body?: string | null;
+    hasVideo?: boolean;
+    hasAudio?: boolean;
+    attachments?: MediaAttachment[];
 };
 
 /** Raw row shape returned by the shared notice select. */
@@ -88,9 +93,12 @@ type RawNoticeRow = {
         | {
               public_url: string | null;
               alt_text: string | null;
+              caption: string | null;
               photographer_credit: string | null;
               is_cover: boolean | null;
               sort_order: number | null;
+              kind: string | null;
+              mime_type: string | null;
           }[]
         | null;
     notices?:
@@ -109,7 +117,7 @@ const NOTICE_SELECT = `id, slug, verification, published_at,
     location:locations(name, slug),
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title, excerpt, body),
-    media:media_assets(public_url, alt_text, photographer_credit, is_cover, sort_order),
+    media:media_assets(public_url, alt_text, caption, photographer_credit, is_cover, sort_order, kind, mime_type),
     notices!inner(notice_type, is_official, expiry_date, organization_name, contact_phone, contact_email)`;
 
 /** Same select, but the location join is inner so `locations.slug` filters. */
@@ -222,8 +230,10 @@ function toNoticeData(row: RawNoticeRow, locale: Locale): NoticeData | null {
 
     const location = asOne(row.location);
     const category = asOne(row.category);
-    const media = row.media ?? [];
-    const cover = media.find((m) => m.is_cover) ?? media[0] ?? null;
+    const allMedia = mapAttachments(row.media ?? []);
+    const images = allMedia.filter((m) => m.kind === 'image');
+    const cover = (row.media ?? []).find((m) => m.is_cover) ?? null;
+    const coverUrl = cover?.public_url ?? images[0]?.url ?? allMedia[0]?.url ?? null;
     const notice = asOne(row.notices);
 
     const slug = row.slug ?? row.id;
@@ -235,13 +245,13 @@ function toNoticeData(row: RawNoticeRow, locale: Locale): NoticeData | null {
         href: `/notices/${slug}`,
         title: translation.title,
         excerpt: translation.excerpt ?? null,
-        imageUrl: cover?.public_url ?? null,
+        imageUrl: coverUrl,
         location: location?.name ?? null,
         locationSlug: location?.slug ?? null,
         category: category
             ? (pickLocalized(category.category_translations, locale)?.name ?? null)
             : null,
-        credit: cover?.photographer_credit ?? null,
+        credit: cover?.photographer_credit ?? images[0]?.credit ?? null,
         verification: row.verification ?? null,
         publishedAt: row.published_at,
         noticeType: notice?.notice_type ?? null,
@@ -250,6 +260,9 @@ function toNoticeData(row: RawNoticeRow, locale: Locale): NoticeData | null {
         organizationName: notice?.organization_name ?? null,
         hasContact,
         body: translation.body ?? null,
+        hasVideo: allMedia.some((m) => m.kind === 'video'),
+        hasAudio: allMedia.some((m) => m.kind === 'audio'),
+        attachments: supportingMedia(allMedia),
     };
 }
 

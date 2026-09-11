@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createAdSlot, createAdvertiser, createAdCampaign } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
+import { MediaUploader, type UploadedPhoto } from '@/components/admin/media-uploader'
 import type { Dictionary } from '@/lib/i18n'
 import type { AdSlotRow } from '@/lib/admin/queries'
 
@@ -52,6 +53,9 @@ function CreateSlotCard({ copy }: { copy: Copy }) {
   const [name, setName] = useState('')
   const [placement, setPlacement] = useState('')
   const [dimensions, setDimensions] = useState('')
+  const [mobileDimensions, setMobileDimensions] = useState('')
+  const [formats, setFormats] = useState<string[]>(['image', 'sponsored'])
+  const [maxDuration, setMaxDuration] = useState('')
   const [loading, setLoading] = useState(false)
 
   if (!open) {
@@ -70,11 +74,14 @@ function CreateSlotCard({ copy }: { copy: Copy }) {
       name: name.trim(),
       placement: placement.trim() || undefined,
       dimensions: dimensions.trim() || undefined,
+      mobileDimensions: mobileDimensions.trim() || undefined,
+      allowedFormats: formats,
+      maxDurationSeconds: maxDuration.trim() ? Number(maxDuration) : undefined,
     })
     setLoading(false)
     if (result.ok) {
       addToast(copy.toastCreated, 'success')
-      setSlotKey(''); setName(''); setPlacement(''); setDimensions('')
+      setSlotKey(''); setName(''); setPlacement(''); setDimensions(''); setMobileDimensions(''); setFormats(['image', 'sponsored']); setMaxDuration('')
       setOpen(false)
     } else {
       addToast(result.error, 'error')
@@ -96,9 +103,36 @@ function CreateSlotCard({ copy }: { copy: Copy }) {
         <span>{copy.colPlacement}</span>
         <input type="text" value={placement} onChange={(e) => setPlacement(e.target.value)} className={input} />
       </label>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+          <span>{copy.colSize}</span>
+          <input type="text" value={dimensions} onChange={(e) => setDimensions(e.target.value)} placeholder="728x90" className={input} />
+        </label>
+        <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+          <span>{copy.mobileSize}</span>
+          <input type="text" value={mobileDimensions} onChange={(e) => setMobileDimensions(e.target.value)} placeholder="320x100" className={input} />
+        </label>
+      </div>
+      <div className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+        <span>{copy.allowedFormats}</span>
+        <div className="flex flex-wrap gap-1.5">
+          {['image', 'video', 'audio', 'html', 'sponsored'].map((format) => (
+            <button
+              key={format}
+              type="button"
+              onClick={() => setFormats((prev) => (prev.includes(format) ? prev.filter((f) => f !== format) : [...prev, format]))}
+              className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                formats.includes(format) ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'
+              }`}
+            >
+              {format}
+            </button>
+          ))}
+        </div>
+      </div>
       <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-        <span>{copy.colSize}</span>
-        <input type="text" value={dimensions} onChange={(e) => setDimensions(e.target.value)} placeholder="728x90" className={input} />
+        <span>{copy.maxDuration}</span>
+        <input type="number" min="1" step="1" value={maxDuration} onChange={(e) => setMaxDuration(e.target.value)} placeholder="15" className={input} />
       </label>
       <div className="flex gap-2">
         <button type="submit" disabled={loading} className={btnPrimary}>{loading ? copy.creating : copy.create}</button>
@@ -188,6 +222,9 @@ function CreateCampaignCard({
   const [advertiserId, setAdvertiserId] = useState(advertisers[0]?.id ?? '')
   const [name, setName] = useState('')
   const [destinationUrl, setDestinationUrl] = useState('')
+  const [copyText, setCopyText] = useState('')
+  const [creativeType, setCreativeType] = useState('sponsored')
+  const [creative, setCreative] = useState<UploadedPhoto[]>([])
   const [loading, setLoading] = useState(false)
 
   if (!open) {
@@ -201,16 +238,20 @@ function CreateCampaignCard({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    const first = creative[0]
     const result = await createAdCampaign({
       slotId,
       advertiserId,
       name: name.trim(),
       destinationUrl: destinationUrl.trim() || undefined,
+      copyText: copyText.trim() || undefined,
+      creativeType,
+      creativeMediaId: first ? (first.assetId ?? first.url) : undefined,
     })
     setLoading(false)
     if (result.ok) {
       addToast(copy.toastCreated, 'success')
-      setName(''); setDestinationUrl('')
+      setName(''); setDestinationUrl(''); setCopyText(''); setCreativeType('sponsored'); setCreative([])
       setOpen(false)
     } else {
       addToast(result.error, 'error')
@@ -246,6 +287,36 @@ function CreateCampaignCard({
         <span>{copy.destinationUrl}</span>
         <input type="url" value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} placeholder="https://…" className={input} />
       </label>
+      <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+        <span>{copy.copyText}</span>
+        <input type="text" value={copyText} onChange={(e) => setCopyText(e.target.value)} className={input} />
+      </label>
+      <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+        <span>{copy.creativeFormat}</span>
+        <select value={creativeType} onChange={(e) => { setCreativeType(e.target.value); setCreative([]) }} className={input}>
+          <option value="sponsored">{copy.formatSponsored}</option>
+          <option value="image">{copy.formatImage}</option>
+          <option value="video">{copy.formatVideo}</option>
+          <option value="audio">{copy.formatAudio}</option>
+        </select>
+      </label>
+      {creativeType !== 'sponsored' ? (
+        <MediaUploader
+          newPhotos={creative}
+          onChange={({ newPhotos: np }) => setCreative(np.slice(0, 1))}
+          destination="public_photo"
+          showAltCaption={false}
+          acceptedTypes={
+            creativeType === 'video'
+              ? 'video/mp4,video/quicktime,video/webm'
+              : creativeType === 'audio'
+                ? 'audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/webm'
+                : 'image/jpeg,image/png,image/webp,image/gif'
+          }
+          maxSizeBytes={creativeType === 'video' ? 50 * 1024 * 1024 : creativeType === 'audio' ? 25 * 1024 * 1024 : 15 * 1024 * 1024}
+          copy={{ label: copy.creativeDesktop, hint: copy.creativeDesktopHint }}
+        />
+      ) : null}
       <div className="flex gap-2">
         <button type="submit" disabled={loading} className={btnPrimary}>{loading ? copy.creating : copy.create}</button>
         <button type="button" onClick={() => setOpen(false)} className={btnGhost}>{copy.cancel}</button>

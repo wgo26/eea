@@ -20,6 +20,9 @@ export type MediaPickerCopy = {
 
 export type UploadedPhoto = {
   url: string
+  kind?: string
+  mimeType?: string
+  durationSeconds?: number | null
   alt?: string
   caption?: string
   credit?: string
@@ -34,6 +37,7 @@ type UploadResult = {
   fileSizeBytes: number
   width?: number | null
   height?: number | null
+  durationSeconds?: number | null
 }
 
 export type ExistingPhoto = {
@@ -99,8 +103,39 @@ type MediaUploaderProps = {
   }
 }
 
-const DEFAULT_COPY: Required<NonNullable<MediaUploaderProps['copy']>> = {
-  label: 'Photos',
+/**
+ * Browser metadata probe for video/audio duration. Creates an object URL
+ * and reads `duration` once metadata loads — no upload involved. Resolves
+ * null for images, unplayable files, or any probe failure (non-fatal: the
+ * upload proceeds without duration_seconds).
+ */
+function probeDuration(file: File): Promise<number | null> {
+  if (!file.type.startsWith('video/') && !file.type.startsWith('audio/')) {
+    return Promise.resolve(null)
+  }
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file)
+    const el = document.createElement(file.type.startsWith('video/') ? 'video' : 'audio')
+    el.preload = 'metadata'
+    const done = (value: number | null) => {
+      URL.revokeObjectURL(url)
+      resolve(value)
+    }
+    const timer = setTimeout(() => done(null), 8000)
+    el.onloadedmetadata = () => {
+      clearTimeout(timer)
+      const d = el.duration
+      done(Number.isFinite(d) && d > 0 ? Math.round(d * 10) / 10 : null)
+    }
+    el.onerror = () => {
+      clearTimeout(timer)
+      done(null)
+    }
+    el.src = url
+  })
+}
+
+const DEFAULT_COPY: Required<NonNullable<MediaUploaderProps['copy']>> = {  label: 'Photos',
   hint: 'Upload images or paste image URLs. The first photo is the cover.',
   drop: 'Drop images here',
   browse: 'Browse files',
@@ -166,7 +201,15 @@ export function MediaUploader({
   }, [keepIds, onChange])
 
   const handleFiles = useCallback(async (files: FileList | File[]) => {
-    const fileArr = Array.from(files).filter((f) => f.type.startsWith('image/'))
+    const acceptList = acceptedTypes.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean)
+    const matchesAccept = (type: string) => {
+      if (acceptList.length === 0) return true
+      return acceptList.some((a) => {
+        if (a.endsWith('/*')) return type.toLowerCase().startsWith(a.slice(0, -1))
+        return type.toLowerCase() === a
+      })
+    }
+    const fileArr = Array.from(files).filter((f) => matchesAccept(f.type || ''))
     if (fileArr.length === 0) {
       addToast(c.wrongType, 'error')
       return
@@ -188,6 +231,11 @@ export function MediaUploader({
         formData.append('file', file)
         formData.append('destination', destination)
         if (contentItemId) formData.append('contentItemId', contentItemId)
+        // Advisory duration for video/audio (browser metadata probe — the
+        // server has no transcoder, so this fills duration_seconds for
+        // moderation triage). Probe failure is non-fatal.
+        const duration = await probeDuration(file)
+        if (duration != null) formData.append('durationSeconds', String(duration))
 
         const res = await fetch('/api/uploads', { method: 'POST', body: formData })
         const data: UploadResult & { error?: string } = await res.json()
@@ -199,6 +247,9 @@ export function MediaUploader({
 
         uploaded.push({
           url: data.publicUrl ?? '',
+          kind: data.kind,
+          mimeType: data.mimeType,
+          durationSeconds: data.durationSeconds ?? null,
           assetId: data.assetId,
         })
       } catch {
@@ -211,7 +262,7 @@ export function MediaUploader({
       addToast(`${uploaded.length} photo${uploaded.length > 1 ? 's' : ''} uploaded.`, 'success')
     }
     setUploading(false)
-  }, [addToast, c, maxSizeBytes, destination, contentItemId, newPhotos, updateNewPhotos])
+  }, [addToast, c, maxSizeBytes, destination, contentItemId, newPhotos, updateNewPhotos, acceptedTypes])
 
   const handleUrlAdd = useCallback(() => {
     const url = urlInput.trim()
@@ -383,12 +434,18 @@ export function MediaUploader({
                     cover && 'ring-2 ring-primary/40',
                   )}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={url}
-                    alt={(photo as { alt?: string }).alt ?? ''}
-                    className="h-28 w-full object-cover"
-                  />
+                  {url.match(/\.(mp4|mov|webm|m4v)(\?|#|$)/i) || (photo as UploadedPhoto).kind === 'video' ? (
+                    <video src={url} preload="metadata" muted playsInline className="h-28 w-full object-cover" />
+                  ) : url.match(/\.(mp3|m4a|wav|ogg|oga|opus|weba)(\?|#|$)/i) || (photo as UploadedPhoto).kind === 'audio' ? (
+                    <span className="flex h-28 w-full items-center justify-center bg-muted text-xs font-medium text-muted-foreground">Audio</span>
+                  ) : (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={url}
+                      alt={(photo as { alt?: string }).alt ?? ''}
+                      className="h-28 w-full object-cover"
+                    />
+                  )}
                   <div className="absolute inset-0 flex flex-col justify-between bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100">
                     <div className="flex justify-end p-1.5">
                       <button

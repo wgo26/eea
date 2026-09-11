@@ -58,6 +58,17 @@ export async function uploadMedia(
   // object never becomes untracked/orphaned storage (audit §1.2). The caller
   // surfaces a 500; storage-side cleanup of the orphaned key is a follow-up
   // best-effort (logged with the key).
+  //
+  // duration_seconds comes from the browser's metadata probe (route-validated
+  // range, video/audio only) — no server-side transcoder exists, so this is
+  // advisory data for moderation triage, never billing input.
+  const rawDuration = input.durationSeconds
+  const durationSeconds =
+    validated.kind === 'video' || validated.kind === 'audio'
+      ? (typeof rawDuration === 'number' && Number.isFinite(rawDuration) && rawDuration > 0 && rawDuration <= 7200
+          ? Math.round(rawDuration * 10) / 10
+          : null)
+      : null
   let assetId: string | undefined = undefined
   try {
     const adminDb = createAdminClient()
@@ -75,6 +86,7 @@ export async function uploadMedia(
         file_size_bytes: validated.buffer.byteLength,
         width: validated.width ?? null,
         height: validated.height ?? null,
+        duration_seconds: durationSeconds,
       })
       .select('id')
       .single()
@@ -101,6 +113,7 @@ export async function uploadMedia(
     fileSizeBytes: validated.buffer.byteLength,
     width: validated.width,
     height: validated.height,
+    durationSeconds,
   }
 }
 
@@ -117,9 +130,12 @@ function extensionFor(mimeType: string, originalFilename: string): string {
     'image/webp': 'webp',
     'video/mp4': 'mp4',
     'video/quicktime': 'mov',
+    'video/webm': 'webm',
     'audio/mpeg': 'mp3',
     'audio/mp4': 'm4a',
     'audio/wav': 'wav',
+    'audio/ogg': 'ogg',
+    'audio/webm': 'weba',
     'application/pdf': 'pdf',
   }
   if (fromMime[mimeType]) return fromMime[mimeType]

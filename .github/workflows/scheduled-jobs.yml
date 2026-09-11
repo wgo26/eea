@@ -1,12 +1,12 @@
 # Scheduled production jobs (deploy/hostinger-business.md → Scheduled jobs).
 #
 # Business Node.js hosting cannot fire the vercel.json crons, so this workflow
-# is the scheduler: it calls the two CRON_SECRET-guarded endpoints nightly.
-# Requires repo secrets: CRON_SECRET (Bearer token). Optional repo variable:
-# PRODUCTION_URL (defaults to the production domain below).
+# is the scheduler: it calls the CRON_SECRET-guarded endpoints. Requires repo
+# secrets: CRON_SECRET (Bearer token). Optional repo variable: PRODUCTION_URL
+# (defaults to the production domain below).
 #
 # GitHub emails the repo's watch settings recipients when a run fails — treat
-# a failed run as a backup/maintenance outage, not noise.
+# a failed run as an ops outage, not noise.
 
 name: Scheduled jobs
 
@@ -14,6 +14,8 @@ on:
   schedule:
     - cron: "0 2 * * *"   # 02:00 UTC — storage backup
     - cron: "30 2 * * *"  # 02:30 UTC — db maintenance
+    - cron: "0 6 * * *"   # 06:00 UTC — ops digest
+    - cron: "*/15 * * * *"  # every 15 min — notification outbox worker
   workflow_dispatch:
     inputs:
       job:
@@ -25,6 +27,7 @@ on:
           - storage-backup
           - db-maintenance
           - ops-digest
+          - notify
           - both
 
 permissions: {}
@@ -88,4 +91,22 @@ jobs:
           cat /tmp/out.txt
           # No-op (200 {skipped:true}) when DIGEST_WEBHOOK_URL is unset; a 5xx
           # (webhook down / DB error) fails the run so the failure surfaces.
+          test "$code" = "200"
+
+  notify:
+    name: Notify worker (outbox → in-app/email/WhatsApp)
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *')
+      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'notify' || inputs.job == 'both'))
+    steps:
+      - name: Call notify endpoint
+        run: |
+          set -euo pipefail
+          url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/notify"
+          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "$url")
+          echo "HTTP $code from $url"
+          cat /tmp/out.txt
           test "$code" = "200"

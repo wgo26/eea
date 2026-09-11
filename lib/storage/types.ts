@@ -16,6 +16,12 @@ export interface UploadInput {
   /** Null when the media belongs to a not-yet-approved submission rather than a published content item. */
   contentItemId?: string | null
   uploadedBy?: string | null
+  /**
+   * Client-probed playback duration in seconds (video/audio only, via the
+   * browser's metadata reader). Informational — the server clamps it to a
+   * sane range but cannot verify it without a transcode pipeline.
+   */
+  durationSeconds?: number | null
 }
 
 export interface UploadResult {
@@ -29,6 +35,7 @@ export interface UploadResult {
   fileSizeBytes: number
   width?: number | null
   height?: number | null
+  durationSeconds?: number | null
 }
 
 export class StorageValidationError extends Error {
