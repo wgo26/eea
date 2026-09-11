@@ -28,6 +28,7 @@ import { verificationBadgeInfo } from "@/lib/verification";
 import { getNewsBySlug, getOtherNews } from "@/lib/queries/news";
 import { getAdForSlot } from "@/lib/queries/ads";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
+import { sanitizeBodyHtml } from "@/lib/security/html";
 
 type NewsPageProps = { params: Promise<{ locale: string; slug: string }> };
 
@@ -82,10 +83,17 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
 
     const badge = verificationBadgeInfo(article.verification ?? null, dict);
     const shareUrl = `${SITE.url}${localePath(locale, `/news/${article.slug}`)}`;
-    const paragraphs = (article.body ?? "")
-        .split(/\n\n+/)
-        .map((p) => p.trim())
-        .filter(Boolean);
+    // Blogger imports store the body as HTML — render it as sanitized rich
+    // text. Native drafts are plain text and keep the blank-line split.
+    const rawBody = article.body ?? "";
+    const isHtmlBody = /<(p|div|br|h[1-6]|img|ul|ol|li|blockquote|figure|table|a)\b/i.test(rawBody);
+    const bodyHtml = isHtmlBody ? sanitizeBodyHtml(rawBody) : null;
+    const paragraphs = isHtmlBody
+        ? []
+        : rawBody
+              .split(/\n\n+/)
+              .map((p) => p.trim())
+              .filter(Boolean);
 
     return (
         <article className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
@@ -180,7 +188,12 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
             ) : null}
 
             {/* Body */}
-            {paragraphs.length > 0 ? (
+            {bodyHtml ? (
+                <div
+                    className="prose prose-neutral dark:prose-invert mt-10 max-w-4xl md:prose-lg"
+                    dangerouslySetInnerHTML={{ __html: bodyHtml }}
+                />
+            ) : paragraphs.length > 0 ? (
                 <section className="mt-10 max-w-4xl space-y-5 text-base leading-relaxed md:text-lg">
                     {paragraphs.map((p, i) => (
                         <p key={i}>{p}</p>

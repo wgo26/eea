@@ -448,6 +448,8 @@ export const appStringsFr = {
       colType: 'Type',
       colStatus: 'Statut',
       colUpdated: 'Mis à jour',
+      colPublished: 'Publié',
+      colAuthor: 'Auteur',
       untitled: 'Sans titre',
       openInListings: 'Gestion des annonces',
       slotUpdated: 'Emplacement mis à jour.',

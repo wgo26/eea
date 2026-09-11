@@ -8,6 +8,9 @@ function getClient() {
     client = new S3Client({
       region: 'auto',
       endpoint: `https://${storageConfig.r2.accountId}.r2.cloudflarestorage.com`,
+      // R2's S3 API has no virtual-hosted DNS (<bucket>.<account>.…), so the
+      // SDK's default addressing fails with ENOTFOUND — force path-style.
+      forcePathStyle: true,
       credentials: {
         accessKeyId: storageConfig.r2.accessKeyId,
         secretAccessKey: storageConfig.r2.secretAccessKey,

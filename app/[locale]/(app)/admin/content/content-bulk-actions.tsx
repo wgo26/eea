@@ -10,7 +10,7 @@ import type { ContentRow } from '@/lib/admin/queries'
 import { updateContentStatus, archiveContent, deleteContentItem } from '@/lib/admin/actions'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { localizeStatus, localizeType } from '@/lib/admin/labels'
-import { formatRelative } from '@/lib/admin/format'
+import { formatDate, formatRelative } from '@/lib/admin/format'
 import { localePath } from '@/lib/i18n/urls'
 import { ContentActions } from './content-actions'
 import { ContentDeleteButton, ContentEditTrigger } from './content-dialogs'
@@ -32,6 +32,8 @@ type ContentCopy = {
   colTitle: string
   colType: string
   colStatus: string
+  colPublished: string
+  colAuthor: string
   colUpdated: string
   untitled: string
   archiveConfirmTitle: string
@@ -117,6 +119,8 @@ export function ContentBulkActions({ rows, canDelete, copy, common }: Props) {
     )},
     { key: 'type', header: copy.colType, render: () => null },
     { key: 'status', header: copy.colStatus, render: () => null },
+    { key: 'published', header: copy.colPublished, render: () => null },
+    { key: 'author', header: copy.colAuthor, render: () => null },
     { key: 'updated', header: copy.colUpdated, render: () => null },
     { key: 'actions', header: '', render: () => null, className: 'text-right' },
   ]
@@ -258,6 +262,8 @@ export function ContentTable({
     },
     { key: 'type', header: copy.colType, render: (r) => <TypeBadge type={r.type} label={localizeType(r.type, typeLabels)} /> },
     { key: 'status', header: copy.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, typeLabels)} /> },
+    { key: 'published', header: copy.colPublished, render: (r) => <span className="text-xs text-muted-foreground">{formatDate(r.publishedAt, locale)}</span> },
+    { key: 'author', header: copy.colAuthor, render: (r) => <span className="text-xs text-muted-foreground">{r.authorName ?? '—'}</span> },
     { key: 'updated', header: copy.colUpdated, render: (r) => <time className="text-xs text-muted-foreground">{formatRelative(r.updatedAt ?? r.createdAt)}</time> },
     {
       key: 'actions',

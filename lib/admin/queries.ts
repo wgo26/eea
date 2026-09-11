@@ -320,6 +320,7 @@ export type ContentRow = {
   categoryName: string | null
   coverUrl: string | null
   authorId: string | null
+  authorName: string | null
   submittedBy: string | null
 }
 
@@ -327,7 +328,8 @@ const CONTENT_SELECT = `id, type, slug, status, verification, is_featured, is_ar
   translations:content_translations(locale, title, excerpt),
   location:locations(name),
   category:categories!category_id(category_translations(locale, name)),
-  cover:media_assets(public_url)`
+  cover:media_assets(public_url),
+  author:profiles!content_items_author_id_fkey(display_name)`
 
 export async function getContentItems(options?: {
   status?: string | 'all'
@@ -376,6 +378,7 @@ function mapContentRow(row: Record<string, unknown>, locale: Locale): ContentRow
   const catName = catTrans.length ? (catTrans as { locale: string; name: string }[]).find((c) => c.locale === locale)?.name ?? (catTrans[0] as { name: string }).name : null
 
   const cover = Array.isArray(row.cover) ? row.cover[0] : row.cover
+  const author = Array.isArray(row.author) ? row.author[0] : row.author
 
   return {
     id: row.id as string,
@@ -397,6 +400,7 @@ function mapContentRow(row: Record<string, unknown>, locale: Locale): ContentRow
     categoryName: catName,
     coverUrl: (cover as { public_url: string } | undefined)?.public_url ?? null,
     authorId: row.author_id as string | null,
+    authorName: (author as { display_name: string } | undefined)?.display_name ?? null,
     submittedBy: row.submitted_by as string | null,
   }
 }
@@ -422,7 +426,7 @@ export async function getContentItemEditData(contentItemId: string): Promise<Con
   const { data } = await safe(
     db()
       .from('content_items')
-      .select('id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by, location_id, category_id, translations:content_translations(locale, title, excerpt, body), location:locations(name), category:categories!category_id(category_translations(locale, name)), media:media_assets(id, public_url, caption, alt_text, photographer_credit, sort_order), listing:listings(price, currency, contact_phone, contact_email, whatsapp_number, seller_name, listing_status, seller_is_verified), notice:notices(notice_type, organization_name, contact_phone, is_official, notice_date, expiry_date), event:events(starts_at, ends_at, venue_name, ticket_url, organizer_name, organizer_phone, organizer_email)')
+      .select('id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by, location_id, category_id, translations:content_translations(locale, title, excerpt, body), location:locations(name), category:categories!category_id(category_translations(locale, name)), media:media_assets(id, public_url, caption, alt_text, photographer_credit, sort_order), author:profiles!content_items_author_id_fkey(display_name), listing:listings(price, currency, contact_phone, contact_email, whatsapp_number, seller_name, listing_status, seller_is_verified), notice:notices(notice_type, organization_name, contact_phone, is_official, notice_date, expiry_date), event:events(starts_at, ends_at, venue_name, ticket_url, organizer_name, organizer_phone, organizer_email)')
       .eq('id', contentItemId)
       .limit(1),
   )

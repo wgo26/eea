@@ -10,6 +10,7 @@ console.log("accountId:", accountId, "bucket:", bucket, "base:", get("R2_PUBLIC_
 const s3 = new S3Client({
     region: "auto",
     endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    forcePathStyle: true,
     credentials: { accessKeyId: get("R2_ACCESS_KEY_ID"), secretAccessKey: get("R2_SECRET_ACCESS_KEY") },
 });
 

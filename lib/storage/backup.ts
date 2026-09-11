@@ -28,6 +28,8 @@ export const BACKUP_LEASE_SECONDS = 600
 const r2Client = new S3Client({
   region: 'auto',
   endpoint: `https://${storageConfig.r2.accountId}.r2.cloudflarestorage.com`,
+  // R2's S3 API has no virtual-hosted DNS — path-style addressing only.
+  forcePathStyle: true,
   credentials: {
     accessKeyId: storageConfig.r2.accessKeyId,
     secretAccessKey: storageConfig.r2.secretAccessKey,

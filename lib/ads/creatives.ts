@@ -7,6 +7,8 @@
  * iframe — sanitized on save (this module) and scriptless at render.
  */
 
+import { sanitizeHtml } from '@/lib/security/html'
+
 export const AD_FORMATS = ['image', 'video', 'audio', 'html', 'sponsored'] as const;
 export type AdFormat = (typeof AD_FORMATS)[number];
 
@@ -22,32 +24,20 @@ const MAX_HTML_CHARS = 20000;
 
 /**
  * Server-side sanitizer for `creative_html` (mirrors the DB length check).
- * Strips active content — scripts, embedded objects, forms, meta/base/link —
- * event-handler attributes and javascript:/data: URLs. Inline CSS and static
- * markup survive; interactivity is intentionally unsupported (the render
- * iframe carries no `allow-scripts` either, so this is defense in depth).
- * Returns the cleaned HTML, or null when nothing safe remains.
+ * Delegates active-content stripping to the shared sanitizer
+ * (lib/security/html.ts) and adds the ad-specific policy: null when nothing
+ * safe remains or when the snippet is plain text (the sponsored/text format
+ * covers that). Inline CSS and static markup survive; interactivity is
+ * intentionally unsupported (the render iframe carries no `allow-scripts`
+ * either, so this is defense in depth).
  */
 export function sanitizeCreativeHtml(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  let html = raw.slice(0, MAX_HTML_CHARS * 2);
-  // Remove whole dangerous elements including their content.
-  html = html.replace(/<(script|object|embed|form|base|meta|link|iframe|frame|frameset)[^>]*>[\s\S]*?<\/\1\s*>/gi, '');
-  html = html.replace(/<(script|object|embed|form|base|meta|link|iframe|frame|frameset)[^>]*\/?>/gi, '');
-  // Strip event-handler attributes (onclick=, onerror=, …).
-  html = html.replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-  // Neutralize javascript:/data:/vbscript: URLs in href/src/action/background.
-  html = html.replace(/\s+(href|src|action|background|xlink:href)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi, (m, attr, _q, d1: string, d2: string, d3: string) => {
-    const url = (d1 ?? d2 ?? d3 ?? '').trim();
-    if (/^(javascript|data|vbscript):/i.test(url)) return ` ${attr}="#"`;
-    return m;
-  });
-  html = html.trim();
-  if (!html) return null;
+  const html = sanitizeHtml(raw, MAX_HTML_CHARS);
+  if (html === null) return null;
   // Plain text without any tag is not an HTML creative — the sponsored/text
   // format covers that (prevents storing "hello" as html).
   if (!/<[a-z][^>]*>/i.test(html)) return null;
-  return html.slice(0, MAX_HTML_CHARS);
+  return html;
 }
 
 export type CreativeValidationInput = {

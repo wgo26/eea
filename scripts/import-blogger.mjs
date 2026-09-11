@@ -62,6 +62,7 @@ const db = createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false } })
 const s3 = new S3Client({
     region: "auto",
     endpoint: `https://${R2.accountId}.r2.cloudflarestorage.com`,
+    forcePathStyle: true, // R2 has no virtual-hosted DNS — path-style only
     credentials: { accessKeyId: R2.accessKeyId, secretAccessKey: R2.secretAccessKey },
 });
 const r2PublicBase = R2.publicBaseUrl.replace(/\/$/, "");

@@ -448,6 +448,8 @@ export const appStringsEn = {
       colType: 'Type',
       colStatus: 'Status',
       colUpdated: 'Updated',
+      colPublished: 'Published',
+      colAuthor: 'Author',
       untitled: 'Untitled',
       openInListings: 'Listings manager',
       slotUpdated: 'Slot updated.',
