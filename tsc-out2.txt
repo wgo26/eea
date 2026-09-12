@@ -1,0 +1,5 @@
+
+> eea@0.1.0 typecheck
+> tsc --noEmit
+
+lib/i18n/en-app.ts(1420,1): error TS1128: Declaration or statement expected.

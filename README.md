@@ -112,6 +112,10 @@ Copy `.env.example` → `.env.local` and fill in the values. Never commit real s
 | `B2_ENDPOINT` / `B2_KEY_ID` / `B2_APPLICATION_KEY` / `B2_BACKUP_BUCKET` | backups | Backblaze B2 — nightly backup mirror |
 | `SUPABASE_ADMIN_ASSET_BUCKET` | — | Admin-asset bucket name (defaults to `admin-asset`) |
 | `CRON_SECRET` | production | Bearer secret guarding `/api/cron/*` (fail-closed) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | notifications | App SMTP for per-event mail, guest receipts + digest fan-out (same host as the Supabase custom SMTP; unset = in-app only) |
+| `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` | notifications | Meta Cloud API free-text sends (24h customer-service window) |
+| `WHATSAPP_TEMPLATE` / `WHATSAPP_TEMPLATE_LANG` | notifications | Approved body-only utility template (`{{1}}`) for out-of-window sends + digest fan-out (bodies in `docs/whatsapp-template.md`) |
+| `WHATSAPP_TEMPLATE_FR` / `WHATSAPP_TEMPLATE_FR_LANG` | notifications | Optional French twin (falls back to the base template when unset) |
 | `TURNSTILE_SECRET_KEY` | — | Enables Cloudflare Turnstile verification when set (feature switch) |
 | `SENTRY_DSN` | — | Error tracking (see [`docs/observability.md`](docs/observability.md); inert until the SDK is installed) |
 | `DIGEST_WEBHOOK_URL` | — | Discord/Slack-compatible webhook for the nightly `/api/cron/ops-digest` summary |
@@ -156,6 +160,7 @@ Shipped hardening: PII-free public listings with a rate-limited contact-reveal a
 | [`docs/observability.md`](docs/observability.md) | Logging, Sentry, uptime monitor, nightly ops-digest setup |
 | [`docs/hosting-architecture.md`](docs/hosting-architecture.md) | Hosting baseline |
 | [`docs/auth-emails.md`](docs/auth-emails.md) | Auth email templates + Supabase dashboard setup |
+| [`docs/whatsapp-template.md`](docs/whatsapp-template.md) | WhatsApp utility-template bodies (EN+FR) + Meta submission pack |
 | [`deploy/`](deploy/) | Hostinger + VPS deployment guides, nginx/systemd configs |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Workflow and PR checklist |
 

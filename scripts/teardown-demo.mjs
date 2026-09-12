@@ -1,7 +1,7 @@
 /**
- * Removes the demo content created by scripts/seed-demo.mjs and
- * scripts/seed-fundraisers.mjs, plus the demo polls seeded by migration
- * 20260902000000_community_polls.sql.
+ * Removes the demo content created by scripts/seed-demo.mjs,
+ * scripts/seed-fundraisers.mjs and scripts/seed-notify.mjs, plus the demo
+ * polls seeded by migration 20260902000000_community_polls.sql.
  *
  * Idempotent and scoped: it only touches rows that match the exact slugs /
  * slot keys used by the seeders, so real editorial content is never affected.
@@ -191,6 +191,23 @@ async function main() {
         const { error } = await db.from("locations").delete().eq("id", loc.id);
         if (error) throw new Error(`location ${loc.slug}: ${error.message}`);
         log(`  deleted location ${loc.slug}`);
+    }
+
+    // 6. Notification demo rows (scripts/seed-notify.mjs markers only —
+    //    real outbox rows and subscribers are user activity, never touched).
+    const { data: demoRows } = await db
+        .from("notification_outbox")
+        .select("id")
+        .filter("data->>demo", "eq", "seed-notify");
+    for (const row of demoRows ?? []) {
+        const { error } = await db.from("notification_outbox").delete().eq("id", row.id);
+        if (error) throw new Error(`notification_outbox demo row: ${error.message}`);
+        log("  deleted notification_outbox demo row");
+    }
+    {
+        const { error } = await db.from("digest_subscribers").delete().eq("email", "demo-notify@example.com");
+        if (error) throw new Error(`digest_subscribers demo row: ${error.message}`);
+        log("  deleted digest demo subscriber (if present)");
     }
 
     log("Done. About/Legal policy versions were intentionally left untouched.");

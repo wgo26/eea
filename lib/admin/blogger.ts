@@ -202,3 +202,91 @@ export function slugify(value: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 80)
 }
+/* -------------------------------------------------------------------------- */
+/* Blogger body normalization                                                  */
+/* -------------------------------------------------------------------------- */
+
+/** Elements that make a <div> structural (kept as-is, not turned into <p>). */
+const BLOCK_TAG = /<(?:div|p|table|ul|ol|dl|blockquote|pre|figure|h[1-6]|img|iframe|video|audio|hr)\b/i
+
+/**
+ * Normalize Blogger composer HTML into clean semantic HTML before a body is
+ * stored. The composer emits one <div> per line — empty <div><br /></div>
+ * spacers, block-edge <br />s and &nbsp; runs — which Tailwind's `prose`
+ * container does not style, so imported posts rendered as one unspaced wall
+ * of text ("scrambled" bodies).
+ *
+ *   - text-only <div> blocks → <p> (attrs carried over, so Blogger centering
+ *     via style="text-align: center" survives)
+ *   - spacer divs / empty paragraphs and block-edge <br>s are dropped
+ *   - HTML comments (Blogger "jump break" markers) are stripped
+ *   - images, caption tables, lists, blockquotes and nested wrappers stay as
+ *     divs — the <p>s inside them get proper prose spacing
+ *
+ * XSS filtering is NOT done here — it stays at the render boundary
+ * (sanitizeBodyHtml in lib/security/html.ts). Idempotent: normalizing an
+ * already-normalized body returns it unchanged.
+ */
+export function normalizeBloggerBody(html: string): string {
+  if (!html || !html.trim()) return html ?? ''
+  let out = html
+
+  // Comments never render; drop them (removes Blogger jump breaks too).
+  out = out.replace(/<!--[\s\S]*?-->/g, '')
+
+  // Spacer <div>s: empty or holding only <br>/&nbsp;/empty spans (they come
+  // in runs, so repeat until stable).
+  const spacerDiv =
+    /<div(?:\s[^>]*)?>(?:\s|<br\s*\/?>|&nbsp;|<span(?:\s[^>]*)?>|<\/span>)*<\/div>/gi
+  for (let pass = 0; pass < 20; pass++) {
+    const next = out.replace(spacerDiv, '')
+    if (next === out) break
+    out = next
+  }
+
+  // Text-only <div> → <p>, innermost first, until nothing changes. The
+  // lookahead keeps nested wrappers intact (their content holds a <div> or
+  // another block element, so they stay divs).
+  for (let pass = 0; pass < 20; pass++) {
+    const next = out.replace(
+      /<div(\s[^>]*)?>((?:(?!<div\b)[\s\S])*?)<\/div>/gi,
+      (match: string, attrs: string | undefined, inner: string) => {
+        if (BLOCK_TAG.test(inner)) return match
+        if (!inner.trim()) return ''
+        return `<p${attrs ?? ''}>${inner}</p>`
+      },
+    )
+    if (next === out) break
+    out = next
+  }
+
+  // Empty paragraphs (including ones holding only spans/brs/nbsp) and breaks
+  // hugging block edges; trim trailing &nbsp;/space runs before block closers
+  // and a trailing <br> at the very end of the body.
+  const cleanups: [RegExp, string][] = [
+    [/<p(?:\s[^>]*)?>(?:\s|<br\s*\/?>|&nbsp;|<span(?:\s[^>]*)?>|<\/span>)*<\/p>/gi, ''],
+    [/(<(?:p|li|blockquote|h[1-6]|td|div)[^>]*>)\s*(?:<br\s*\/?>\s*)+/gi, '$1'],
+    [/(?:<br\s*\/?>\s*)+(<\/(?:p|li|blockquote|h[1-6]|td|div)\s*>)/gi, '$1'],
+    [/(&nbsp;|\s)+(<\/(?:p|li|blockquote|h[1-6]|td|div)\s*>)/gi, '$2'],
+    [/(?:<br\s*\/?>\s*)+$/i, ''],
+  ]
+  for (let pass = 0; pass < 20; pass++) {
+    let next = out
+    for (const [pattern, replacement] of cleanups) next = next.replace(pattern, replacement)
+    if (next === out) break
+    out = next
+  }
+
+  // Stray <br> runs between/around block elements at the top level. Inline
+  // breaks (text <br> text) are preserved — the match requires a tag edge.
+  for (let pass = 0; pass < 20; pass++) {
+    const next = out.replace(
+      /(^|>)(\s*<br\s*\/?>\s*)+(?=<)/g,
+      (_match: string, edge: string) => edge,
+    )
+    if (next === out) break
+    out = next
+  }
+
+  return out.trim()
+}

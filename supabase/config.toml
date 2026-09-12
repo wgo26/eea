@@ -268,7 +268,9 @@ content_path = "supabase/templates/email_change.html"
 [auth.email.notification.password_changed]
 enabled = true
 subject = "Your Eagle Eye Africa password was changed / Securite de votre compte"
-content_path = "supabase/templates/password_changed.html"
+# NOTE: notification-template paths resolve relative to this supabase/ dir
+# (unlike auth.email.template.* which use the project-root form above).
+content_path = "templates/password_changed.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.

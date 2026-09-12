@@ -8,6 +8,7 @@ import type { AppRole } from '@/lib/admin/queries'
 import { deleteFromR2 } from '@/lib/storage/providers/r2'
 import { storageConfig } from '@/lib/storage/config'
 import { validateContentDraft, type ContentDraftInput } from './content-validation'
+import { syncContentTags } from '@/lib/admin/tags'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isAdFormat, sanitizeCreativeHtml, validateCreative, type AdFormat } from '@/lib/ads/creatives'
 import { enqueueUser, listingNotifyTarget, submissionNotifyTarget } from '@/lib/notify/queue'
@@ -202,23 +203,37 @@ async function deleteStoredMedia(
   }
 }
 
-/** Upsert the en/fr translations for a content item. */
+/**
+ * Upsert the en/fr translations for a content item. SEO description and
+ * byline are only written when the caller provides them (undefined = keep
+ * the stored value), so an edit never silently wipes imported SEO text.
+ */
 async function upsertTranslations(
   supabase: AdminContext['supabase'],
   contentItemId: string,
-  translations: { locale: 'en' | 'fr'; title: string; excerpt?: string; body?: string }[],
+  translations: {
+    locale: 'en' | 'fr'
+    title: string
+    excerpt?: string
+    body?: string
+    seoDescription?: string | null
+    byline?: string | null
+  }[],
 ): Promise<void> {
   for (const t of translations) {
     if (!t.title?.trim() && !t.body?.trim()) continue
+    const payload: Record<string, unknown> = {
+      content_item_id: contentItemId,
+      locale: t.locale,
+      voice: 'formal',
+      title: t.title?.trim() || null,
+      excerpt: t.excerpt?.trim() || null,
+      body: t.body?.trim() || null,
+    }
+    if (t.seoDescription !== undefined) payload.seo_description = t.seoDescription?.trim() || null
+    if (t.byline !== undefined) payload.byline = t.byline?.trim() || null
     const { error } = await supabase.from('content_translations').upsert(
-      {
-        content_item_id: contentItemId,
-        locale: t.locale,
-        voice: 'formal',
-        title: t.title?.trim() || null,
-        excerpt: t.excerpt?.trim() || null,
-        body: t.body?.trim() || null,
-      },
+      payload,
       { onConflict: 'content_item_id,locale,voice' },
     )
     if (error) throw new Error(`Could not save the ${t.locale} translation: ${error.message}`)
@@ -413,21 +428,40 @@ export async function saveContentItem(contentItemId: string, draft: ContentDraft
 
     const { data: item } = await supabase
       .from('content_items')
-      .select('id, type')
+      .select('id, type, slug')
       .eq('id', contentItemId)
       .single()
     if (!item) return { ok: false, error: 'Content item not found.' }
 
+    const changed: string[] = []
     const patch: Record<string, unknown> = {}
     if (draft.verification !== undefined) patch.verification = draft.verification
     if (draft.locationId !== undefined) patch.location_id = draft.locationId || null
     if (draft.categoryId !== undefined) patch.category_id = draft.categoryId || null
+    // Publish date: only applied when a non-empty value is sent — clearing it
+    // on a published post would hide it from the public queries.
+    if (draft.publishedAt !== undefined && draft.publishedAt) {
+      const ts = new Date(draft.publishedAt)
+      if (!Number.isNaN(ts.getTime())) {
+        patch.published_at = ts.toISOString()
+        changed.push('publishedAt')
+      }
+    }
+    // Permalink: slugified + collision-suffixed only when the editor changed it.
+    if (draft.slug !== undefined && draft.slug.trim() && draft.slug.trim() !== item.slug) {
+      patch.slug = await uniqueSlug(supabase, draft.slug)
+      changed.push('slug')
+    }
     if (Object.keys(patch).length > 0) {
       const { error } = await supabase.from('content_items').update(patch).eq('id', contentItemId)
       if (error) return { ok: false, error: error.message }
     }
 
     await upsertTranslations(supabase, contentItemId, draft.translations)
+    if (draft.tags !== undefined) {
+      await syncContentTags(supabase, contentItemId, draft.tags)
+      changed.push('tags')
+    }
     if (draft.photos || draft.keepPhotoIds || draft.attachments) {
       await syncPhotos(supabase, contentItemId, draft.photos ?? [], draft.keepPhotoIds ?? [], draft.photographerCredit ?? null, draft.attachments ?? [])
     }
@@ -488,6 +522,7 @@ export async function saveContentItem(contentItemId: string, draft: ContentDraft
       action: 'edit_content',
       content_item_id: contentItemId,
       actor_id: user.id,
+      notes: changed.length > 0 ? `changed: ${changed.join(', ')}` : null,
     })
 
     revalidatePublicContentCache()

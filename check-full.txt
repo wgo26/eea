@@ -1,0 +1,13 @@
+
+> eea@0.1.0 check
+> tsc --noEmit && eslint . && node scripts/find-bare-hrefs.mjs && node scripts/verify-sitemap.mjs && node scripts/verify-migrations.mjs
+
+
+C:\Users\Fame\apps\eea\components\notices\notice-card.tsx
+  2:21  warning  'Mail' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 1 problem (0 errors, 1 warning)
+
+No locale-less internal links found.
+Sitemap routes verified: all static paths + dynamic segments resolve.
+Migration manifest OK: 38 migrations, latest 20261001000002_ads_formats.sql.

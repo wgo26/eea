@@ -15,6 +15,7 @@
     "test": "vitest run",
     "check": "tsc --noEmit && eslint . && node scripts/find-bare-hrefs.mjs && node scripts/verify-sitemap.mjs && node scripts/verify-migrations.mjs",
     "verify:clean": "node scripts/verify-clean.mjs",
+    "notify:env": "node scripts/verify-notify-env.mjs",
     "og:default": "node scripts/generate-og-default.mjs"
   },
   "dependencies": {

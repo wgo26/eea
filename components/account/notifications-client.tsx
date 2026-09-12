@@ -18,15 +18,21 @@ export function NotificationsClient({
   prefs: initialPrefs,
   dict,
   locale,
+  contact,
 }: {
   initial: UserNotification[];
   prefs: NotificationPrefs;
   dict: Dictionary;
   locale: Locale;
+  contact?: { phone: string; email: string };
 }) {
   const t = dict.account.notifications;
   const [items, setItems] = useState(initial);
   const [prefs, setPrefs] = useState(initialPrefs);
+  const [phone, setPhone] = useState(contact?.phone ?? '');
+  const [quietStart, setQuietStart] = useState<string>(initialPrefs.quietStart == null ? '' : String(initialPrefs.quietStart));
+  const [quietEnd, setQuietEnd] = useState<string>(initialPrefs.quietEnd == null ? '' : String(initialPrefs.quietEnd));
+  const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -47,11 +53,22 @@ export function NotificationsClient({
   async function handleSavePrefs(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const res = await saveNotificationPrefs({ inapp: prefs.inapp, email: prefs.email, whatsapp: prefs.whatsapp });
+    setError(null);
+    const res = await saveNotificationPrefs({
+      inapp: prefs.inapp,
+      email: prefs.email,
+      whatsapp: prefs.whatsapp,
+      locale: prefs.locale,
+      phone,
+      quietStart: quietStart === '' ? null : Number(quietStart),
+      quietEnd: quietEnd === '' ? null : Number(quietEnd),
+    });
     setBusy(false);
     if (res.ok) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
+    } else {
+      setError(res.error);
     }
   }
 
@@ -140,6 +157,84 @@ export function NotificationsClient({
               <span className="text-sm font-medium">{label}</span>
             </label>
           ))}
+          <div className="space-y-1.5">
+            <label htmlFor="notif-phone" className="text-sm font-medium">
+              {t.phoneLabel}
+            </label>
+            <input
+              id="notif-phone"
+              type="tel"
+              value={phone}
+              maxLength={32}
+              autoComplete="tel"
+              placeholder={t.phonePlaceholder}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <p className="text-xs text-muted-foreground">{t.phoneHint}</p>
+            {contact?.email ? (
+              <p className="text-xs text-muted-foreground">
+                {t.contactEmailHint} {contact.email}
+              </p>
+            ) : null}
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="notif-locale" className="text-sm font-medium">
+              {t.localeLabel}
+            </label>
+            <select
+              id="notif-locale"
+              value={prefs.locale === 'fr' ? 'fr' : 'en'}
+              onChange={(e) => setPrefs((p) => ({ ...p, locale: e.target.value }))}
+              className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-sm shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+            >
+              <option value="en">{t.localeEn}</option>
+              <option value="fr">{t.localeFr}</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">{t.quietTitle}</p>
+            <p className="text-xs text-muted-foreground">{t.quietBody}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label htmlFor="notif-quiet-start" className="text-xs font-medium text-muted-foreground">
+                  {t.quietStart}
+                </label>
+                <select
+                  id="notif-quiet-start"
+                  value={quietStart}
+                  onChange={(e) => setQuietStart(e.target.value)}
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-sm shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                >
+                  <option value="">{t.quietOff}</option>
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={String(h)}>
+                      {String(h).padStart(2, '0')}:00
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="notif-quiet-end" className="text-xs font-medium text-muted-foreground">
+                  {t.quietEnd}
+                </label>
+                <select
+                  id="notif-quiet-end"
+                  value={quietEnd}
+                  onChange={(e) => setQuietEnd(e.target.value)}
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-sm shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                >
+                  <option value="">{t.quietOff}</option>
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={String(h)}>
+                      {String(h).padStart(2, '0')}:00
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <div className="flex items-center gap-3">
             <button
               type="submit"

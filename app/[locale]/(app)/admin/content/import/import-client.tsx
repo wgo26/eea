@@ -25,6 +25,8 @@ type PreviewPost = {
   filename: string | null
   /** Per-post meta description (SEO) when set. */
   metaDescription: string | null
+  /** Feed author name (<author><name>) — stored as the byline fallback. */
+  authorName: string | null
 }
 
 function fill(template: string, n: number): string {
@@ -112,6 +114,8 @@ export function ContentImportClient({
         statusRaw && /^(LIVE|DRAFT|SCHEDULED)$/i.test(statusRaw)
           ? (statusRaw.toUpperCase() as 'LIVE' | 'DRAFT' | 'SCHEDULED')
           : null
+      const authorEl = entry.getElementsByTagName('author')[0]
+      const authorName = authorEl?.getElementsByTagName('name')[0]?.textContent?.trim() || null
       out.push({
         key: id,
         title,
@@ -123,6 +127,7 @@ export function ContentImportClient({
         status,
         filename: text('blogger:filename'),
         metaDescription: text('blogger:metaDescription'),
+        authorName,
       })
     }
     return out
@@ -212,6 +217,7 @@ export function ContentImportClient({
           status: p.status,
           filename: p.filename,
           metaDescription: p.metaDescription,
+          authorName: p.authorName,
         }))
         setProgress(`${i + 1}–${Math.min(i + batch.length, selectedPosts.length)} / ${selectedPosts.length}`)
         const res = await importPosts(batch, importType)

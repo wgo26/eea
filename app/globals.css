@@ -141,3 +141,20 @@
     color: var(--primary-foreground);
   }
 }
+
+/* Blogger import artifacts inside article prose — lib/security/html.ts keeps
+   static markup + inline CSS, so Blogger's own classes survive; these rules
+   give them sane spacing/alignment inside the typography container. */
+.prose :where(.separator):not(:where([class~="not-prose"] *)) {
+  margin-block: 1.5em;
+  text-align: center;
+}
+.prose :where(.tr-caption):not(:where([class~="not-prose"] *)) {
+  margin-top: 0.5em;
+  font-size: 0.85em;
+  line-height: 1.4;
+  color: var(--tw-prose-captions);
+}
+.prose :where([imageanchor="1"] img):not(:where([class~="not-prose"] *)) {
+  margin-inline: auto;
+}

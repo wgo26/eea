@@ -6,9 +6,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import {
   extractImageUrls,
   makeExcerpt,
+  normalizeBloggerBody,
   slugify,
   type BloggerPost,
 } from '@/lib/admin/blogger'
+import { syncContentTags } from '@/lib/admin/tags'
 
 const LOCALES = ['en', 'fr'] as const
 
@@ -18,7 +20,7 @@ function revalidateLocalized(path: string) {
 
 export type ImportPostItem = Pick<
   BloggerPost,
-  'title' | 'bodyHtml' | 'publishedAt' | 'labels' | 'originalUrl' | 'status' | 'filename' | 'metaDescription'
+  'title' | 'bodyHtml' | 'publishedAt' | 'labels' | 'originalUrl' | 'authorName' | 'status' | 'filename' | 'metaDescription'
 >
 
 export type ImportPostsResult = {
@@ -40,24 +42,6 @@ async function uniqueSlug(
     if (!data || data.length === 0) return candidate
   }
   return `${root}-${Date.now()}`
-}
-
-async function ensureTag(
-  supabase: ReturnType<typeof createAdminClient>,
-  label: string,
-): Promise<string | null> {
-  const slug = slugify(label)
-  if (!slug) return null
-  const { data: existing } = await supabase.from('tags').select('id').eq('slug', slug).limit(1)
-  if (existing?.[0]) return (existing[0] as { id: string }).id
-  const { data: created, error } = await supabase.from('tags').insert({ slug }).select('id').single()
-  if (error || !created) return null
-  const tagId = (created as { id: string }).id
-  await supabase.from('tag_translations').upsert(
-    { tag_id: tagId, locale: 'en', name: label.slice(0, 120) },
-    { onConflict: 'tag_id,locale' },
-  )
-  return tagId
 }
 
 /**
@@ -95,7 +79,9 @@ export async function importPosts(
       result.failed.push({ title: '(untitled)', error: 'Missing title.' })
       continue
     }
-    const bodyHtml = item.bodyHtml?.slice(0, 500_000) ?? ''
+    // Normalize Blogger's div-per-line composer HTML into semantic paragraphs
+    // before storing (mirrors the CLI import; see lib/admin/blogger.ts).
+    const bodyHtml = normalizeBloggerBody(item.bodyHtml?.slice(0, 500_000) ?? '')
     if (!bodyHtml.trim()) {
       result.failed.push({ title, error: 'Empty post body.' })
       continue
@@ -137,6 +123,9 @@ export async function importPosts(
             body: bodyHtml,
             // Blogger's per-post meta description, when the author set one.
             seo_description: item.metaDescription ?? null,
+            // Feed author name (not a site profile) — the public byline
+            // fallback when author_id has no profile display name.
+            byline: item.authorName ?? null,
           },
           { onConflict: 'content_item_id,locale,voice' },
         )
@@ -158,15 +147,8 @@ export async function importPosts(
           if (mErr) throw new Error(`Could not save images: ${mErr.message}`)
         }
 
-        const labels = [...new Set((item.labels ?? []).map((l) => l.trim()).filter(Boolean))].slice(0, 10)
-        for (const label of labels) {
-          const tagId = await ensureTag(admin, label)
-          if (!tagId) continue
-          await admin.from('content_tags').upsert(
-            { content_item_id: contentId, tag_id: tagId },
-            { onConflict: 'content_item_id,tag_id' },
-          )
-        }
+        // Source labels → tags (find-or-create + link; removal-safe diff).
+        await syncContentTags(admin, contentId, item.labels ?? [])
 
         await supabase.from('moderation_log').insert({
           action: 'content:import',

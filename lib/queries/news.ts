@@ -28,6 +28,8 @@ export type NewsArticle = StoryCardData & {
     body?: string | null;
     authorName?: string | null;
     authorId?: string | null;
+    /** Human byline from the translation row (imported posts without a profile author). */
+    byline?: string | null;
     locationSlug?: string | null;
     viewCount?: number;
 };
@@ -45,7 +47,7 @@ type RawStoryRow = {
         | { category_translations: { locale: string; name: string }[] }[]
         | null;
     translations?:
-        | { locale: string; title: string | null; excerpt: string | null; body: string | null }[]
+        | { locale: string; title: string | null; excerpt: string | null; body: string | null; byline: string | null }[]
         | null;
     media?:
         | { public_url: string | null; alt_text: string | null; photographer_credit: string | null; caption: string | null; is_cover: boolean | null; kind: string | null; mime_type: string | null }[]
@@ -56,7 +58,7 @@ type RawStoryRow = {
 const STORY_SELECT = `id, slug, verification, published_at, view_count,
     location:locations(name, slug),
     category:categories(category_translations(locale, name)),
-    translations:content_translations(locale, title, excerpt, body),
+    translations:content_translations(locale, title, excerpt, body, byline),
     media:media_assets(public_url, alt_text, caption, photographer_credit, is_cover, kind, mime_type),
     author:profiles!content_items_author_id_fkey(id, display_name)`;
 
@@ -184,6 +186,7 @@ function toCard(row: RawStoryRow, locale: Locale): NewsArticle | null {
         publishedAt: row.published_at,
         viewCount: Number(row.view_count ?? 0),
         body: translation.body ?? null,
+        byline: translation.byline ?? null,
         authorName: author?.display_name ?? null,
         authorId: author?.id ?? null,
         locationSlug: location?.slug ?? null,

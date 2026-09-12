@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractImageUrls, makeExcerpt, parseBloggerExport } from './blogger'
+import { extractImageUrls, makeExcerpt, normalizeBloggerBody, parseBloggerExport } from './blogger'
 
 const SAMPLE = `<?xml version='1.0' encoding='UTF-8' ?>
 <feed xmlns='http://www.w3.org/2005/Atom' xmlns:blogger='http://schemas.google.com/blogger/2008'>
@@ -134,5 +134,45 @@ describe('makeExcerpt', () => {
   it('strips tags and caps length', () => {
     expect(makeExcerpt('<p>Hello <b>world</b></p>')).toBe('Hello world')
     expect(makeExcerpt(`<p>${'a'.repeat(500)}</p>`, 100)).toHaveLength(100)
+  })
+})
+
+describe('normalizeBloggerBody', () => {
+  it('converts Blogger line divs into paragraphs and drops spacer divs', () => {
+    const body =
+      '<div><br /></div><div>By Wirngo Peter</div><div><br /></div><div>Second line here</div>'
+    expect(normalizeBloggerBody(body)).toBe('<p>By Wirngo Peter</p><p>Second line here</p>')
+  })
+
+  it('keeps structural divs (image separators, caption containers)', () => {
+    const body =
+      '<div><div class="separator" style="clear: both;"><a href="https://x/y.jpg"><img border="0" src="https://x/y.jpg" /></a></div></div>'
+    const out = normalizeBloggerBody(body)
+    expect(out).toContain('<div class="separator"')
+    expect(out).not.toContain('<p class="separator"')
+  })
+
+  it('keeps inline breaks inside a paragraph but drops block-edge ones', () => {
+    expect(normalizeBloggerBody('<div>one<br />two</div>')).toBe('<p>one<br />two</p>')
+    expect(normalizeBloggerBody('<div>one<br /></div><br><p>x</p>')).toBe('<p>one</p><p>x</p>')
+  })
+
+  it('trims trailing &nbsp; runs (Blogger byline artefact)', () => {
+    expect(normalizeBloggerBody('<div>By Wirngo Peter Tardzenyuy&nbsp;</div>')).toBe(
+      '<p>By Wirngo Peter Tardzenyuy</p>',
+    )
+  })
+
+  it('carries over style/dir attributes and is idempotent', () => {
+    const body =
+      '<div><br /></div><div dir="ltr" style="text-align: center;">Centered</div><div>two</div><br />'
+    const once = normalizeBloggerBody(body)
+    expect(once).toBe('<p dir="ltr" style="text-align: center;">Centered</p><p>two</p>')
+    expect(normalizeBloggerBody(once)).toBe(once)
+  })
+
+  it('strips comments (Blogger jump breaks) and leaves plain text alone', () => {
+    expect(normalizeBloggerBody('<div>a</div><!-- more --><div>b</div>')).toBe('<p>a</p><p>b</p>')
+    expect(normalizeBloggerBody('Just text')).toBe('Just text')
   })
 })

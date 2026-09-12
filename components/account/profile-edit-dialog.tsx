@@ -24,7 +24,7 @@ export function ProfileEditDialog({
 }: {
   copy: Copy
   common: Dictionary['admin']['common']
-  initial: { displayName: string; fullName: string; bio: string }
+  initial: { displayName: string; fullName: string; bio: string; phone?: string }
 }) {
   const { addToast } = useToast()
   const router = useRouter()
@@ -32,18 +32,20 @@ export function ProfileEditDialog({
   const [displayName, setDisplayName] = useState(initial.displayName)
   const [fullName, setFullName] = useState(initial.fullName)
   const [bio, setBio] = useState(initial.bio)
+  const [phone, setPhone] = useState(initial.phone ?? '')
   const [loading, setLoading] = useState(false)
 
   function openDialog() {
     setDisplayName(initial.displayName)
     setFullName(initial.fullName)
     setBio(initial.bio)
+    setPhone(initial.phone ?? '')
     setOpen(true)
   }
 
   async function handleSave() {
     setLoading(true)
-    const result = await updateOwnProfile({ displayName, fullName, bio })
+    const result = await updateOwnProfile({ displayName, fullName, bio, phone })
     setLoading(false)
     if (result.ok) {
       addToast(copy.profileSaved ?? copy.member, 'success')
@@ -98,6 +100,19 @@ export function ProfileEditDialog({
                 onChange={(e) => setBio(e.target.value)}
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="member-phone">{copy.profilePhone}</Label>
+              <Input
+                id="member-phone"
+                value={phone}
+                maxLength={32}
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder={copy.profilePhonePlaceholder}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">{copy.profilePhoneHint}</p>
             </div>
           </div>
           <DialogFooter>

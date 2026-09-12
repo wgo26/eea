@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
+import { sendEmail, sendWhatsAppProactive } from '@/lib/notify/channels'
+import { SITE } from '@/lib/constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,6 +33,85 @@ const count = async (fn: (db: ReturnType<typeof createAdminClient>) => Promise<n
   }
 }
 
+type DigestStory = { title: string; path: string };
+
+async function latestStories(): Promise<DigestStory[]> {
+  try {
+    const db = createAdminClient();
+    const { data } = await db
+      .from('content_items')
+      .select('id, type, translations:content_translations(locale, title)')
+      .eq('status', 'published')
+      .order('published_at', { ascending: false, nullsFirst: false })
+      .limit(5);
+    const rows = (data ?? []) as {
+      id: string;
+      type: string | null;
+      translations: { locale: string; title: string | null } | { locale: string; title: string | null }[] | null;
+    }[];
+    return rows.map((r) => {
+      const list = Array.isArray(r.translations) ? r.translations : r.translations ? [r.translations] : [];
+      const title = list.find((t) => t.title)?.title ?? r.type ?? 'Story';
+      const section = r.type === 'news' ? 'news' : r.type === 'photo_story' ? 'photo-stories' : r.type === 'listing' ? 'buy-sell' : r.type === 'notice' ? 'notices' : 'culture';
+      return { title: title.slice(0, 120), path: `/${section}` };
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** Send the day's stories to active digest_subscribers (email + WhatsApp). */
+async function deliverPublicDigest(correlationId: string): Promise<{ emailed: number; whatsapped: number; skipped: number }> {
+  const out = { emailed: 0, whatsapped: 0, skipped: 0 };
+  try {
+    const db = createAdminClient();
+    const { data, error } = await db
+      .from('digest_subscribers')
+      .select('email, phone, whatsapp, locale')
+      .eq('is_active', true)
+      .limit(500);
+    if (error) {
+      logger.error('cron/ops-digest', 'subscriber fetch failed', { correlationId, error: error.message });
+      return out;
+    }
+    const subs = (data ?? []) as { email: string | null; phone: string | null; whatsapp: string | null; locale: string | null }[];
+    if (subs.length === 0) return out;
+    const stories = await latestStories();
+    if (stories.length === 0) {
+      out.skipped = subs.length;
+      return out;
+    }
+    for (const s of subs) {
+      const fr = /^fr/i.test(s.locale ?? '');
+      const lines = stories.map((st) => `• ${st.title}\n  ${SITE.url}/${fr ? 'fr' : 'en'}${st.path}`).join('\n');
+      const title = fr ? 'Eagle Eye Africa — résumé du jour' : 'Eagle Eye Africa — daily digest';
+      const body = fr
+        ? `Voici les histoires vérifiées du jour :\n\n${lines}\n\nPour arrêter : répondez STOP ou visitez ${SITE.url}/fr/digest.`
+        : `Here are today's verified stories:\n\n${lines}\n\nTo stop: reply STOP or visit ${SITE.url}/en/digest.`;
+      const url = `${SITE.url}/${fr ? 'fr' : 'en'}/digest`;
+      if (s.email && /^\S+@\S+\.\S+$/.test(s.email)) {
+        const res = await sendEmail(s.email, title, title, body, url);
+        if (res.delivered) out.emailed += 1;
+        else out.skipped += 1;
+      }
+      const phone = s.whatsapp ?? s.phone;
+      if (phone) {
+        // Digest recipients are never in the 24h window: template first when
+        // WHATSAPP_TEMPLATE is configured (per-subscriber locale), else
+        // best-effort free text.
+        const res = await sendWhatsAppProactive(phone, `${title}\n${body}`, s.locale);
+        if (res.delivered) out.whatsapped += 1;
+      }
+    }
+  } catch (err) {
+    logger.error('cron/ops-digest', 'public fan-out exception', {
+      correlationId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return out;
+}
+
 async function runDigest(request: Request) {
   const correlationId = generateCorrelationId()
   const startedAt = Date.now()
@@ -50,8 +131,11 @@ async function runDigest(request: Request) {
   }
 
   if (!webhook) {
-    logger.info('cron/ops-digest', 'DIGEST_WEBHOOK_URL unset — digest skipped', { correlationId })
-    return NextResponse.json({ ok: true, skipped: true, reason: 'DIGEST_WEBHOOK_URL not configured' })
+    // Ops webhook unset — still deliver the public subscriber digest so the
+    // user-facing loop never depends on staff webhook config.
+    const fanout = await deliverPublicDigest(correlationId);
+    logger.info('cron/ops-digest', 'DIGEST_WEBHOOK_URL unset — ops skipped, public fan-out ran', { correlationId, fanout })
+    return NextResponse.json({ ok: true, skipped: true, reason: 'DIGEST_WEBHOOK_URL not configured', fanout })
   }
 
   const moderationPending = await count(async (db) => {
@@ -148,12 +232,18 @@ async function runDigest(request: Request) {
     staffCount,
   }
 
+  // Public daily-digest fan-out (gap B): active opt-in subscribers get the
+  // day's published stories by email and/or WhatsApp. Best-effort — a fan-out
+  // failure never fails the ops webhook above.
+  const fanout = await deliverPublicDigest(correlationId)
+
   logger.info('cron/ops-digest', 'digest delivered', {
     correlationId,
     durationMs: Date.now() - startedAt,
     counts,
+    fanout,
   })
-  return NextResponse.json({ ok: true, correlationId, counts })
+  return NextResponse.json({ ok: true, correlationId, counts, fanout })
 }
 
 export async function POST(request: Request) {

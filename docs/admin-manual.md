@@ -116,6 +116,21 @@ server blocks conflicting bookings.
 Who did what, when — the compliance record. Filter by action/entity/date and
 **Export CSV**. Audit entries are never deleted by the UI.
 
+## Notifications `/admin/notifications`
+
+- **Channels** shows what is live: email (SMTP), WhatsApp (Cloud API), the
+  out-of-window utility template, and the ops-digest webhook. Anything
+  unconfigured is skipped honestly — in-app delivery always works.
+- **Queue**: every submission, inquiry and decision lands here. Failed or
+  skipped rows get a per-row **Retry**; rows to a direct recipient offer a
+  prefilled **wa.me** link (staff rows fan out to the whole roster, so use
+  **Copy text** and send by hand instead).
+- **Send test to me** delivers on all your enabled channels and reports
+  `Sent X · skipped Y · failed Z` — if WhatsApp shows skipped, check the
+  channel dots above before assuming a bug.
+- **Digest subscribers** is the opt-in daily-brief list from `/digest`;
+  the toggle unsubscribes without deleting the row.
+
 ## Golden rules
 
 1. **Archive, don't delete** when in doubt — delete is irreversible.

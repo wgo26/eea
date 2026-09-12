@@ -530,6 +530,15 @@ function ContentEditForm({
   const [locationId, setLocationId] = useState(data.locationId ?? '')
   const [categoryId, setCategoryId] = useState(data.categoryId ?? '')
 
+  // Permalink + editorial extras the import already carries (slug, publish
+  // date, byline, per-post SEO description, tags).
+  const [slugInput, setSlugInput] = useState(data.slug ?? '')
+  const [publishedAtInput, setPublishedAtInput] = useState(data.publishedAt ? data.publishedAt.slice(0, 16) : '')
+  const [byline, setByline] = useState(data.byline ?? '')
+  const [enSeoDescription, setEnSeoDescription] = useState(data.enSeoDescription ?? '')
+  const [frSeoDescription, setFrSeoDescription] = useState(data.frSeoDescription ?? '')
+  const [tagsInput, setTagsInput] = useState(data.tags.map((t) => t.name).filter(Boolean).join(', '))
+
   const isListing = data.type === 'listing'
   const isNotice = data.type === 'notice'
   const isCulture = data.type === 'culture'
@@ -558,14 +567,20 @@ function ContentEditForm({
     e.preventDefault()
     const draft: Parameters<typeof saveContentItem>[1] = {
       slugBase: enTitle.trim() || data.slug || data.type,
+      // Permalink: empty input falls back to the stored slug (never cleared).
+      slug: slugInput.trim() || data.slug || undefined,
+      // Publish date: empty input leaves the stored value untouched.
+      publishedAt: publishedAtInput ? new Date(publishedAtInput).toISOString() : undefined,
       verification: (verification || null) as never,
       locationId: locationId || null,
       categoryId: categoryId || null,
       photographerCredit: credit.trim() || null,
+      // Byline is a single editorial field shared by both locale rows.
       translations: [
-        { locale: 'en', title: enTitle, excerpt: enExcerpt, body: enBody },
-        { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody },
+        { locale: 'en', title: enTitle, excerpt: enExcerpt, body: enBody, seoDescription: enSeoDescription, byline },
+        { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody, seoDescription: frSeoDescription, byline },
       ],
+      tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
       photos: newPhotos.map((p) => ({ url: p.url, alt: p.alt, caption: p.caption })),
       keepPhotoIds: keepIds,
     }
@@ -623,12 +638,37 @@ function ContentEditForm({
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={copy.enBody}>
-          <textarea value={enBody} onChange={(e) => setEnBody(e.target.value)} rows={4} className={inputCls} />
+          <textarea value={enBody} onChange={(e) => setEnBody(e.target.value)} rows={8} className={inputCls} />
         </Field>
         <Field label={copy.frBody}>
-          <textarea value={frBody} onChange={(e) => setFrBody(e.target.value)} rows={4} className={inputCls} />
+          <textarea value={frBody} onChange={(e) => setFrBody(e.target.value)} rows={8} className={inputCls} />
         </Field>
       </div>
+
+      {/* Permalink, publish date, byline, SEO description and tags — the
+          editorial fields the Blogger import already carries. */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={copy.slugLabel} hint={copy.slugHint}>
+          <input value={slugInput} onChange={(e) => setSlugInput(e.target.value)} className={inputCls} />
+        </Field>
+        <Field label={copy.publishedAtLabel} hint={copy.publishedAtHint}>
+          <input type="datetime-local" value={publishedAtInput} onChange={(e) => setPublishedAtInput(e.target.value)} className={inputCls} />
+        </Field>
+      </div>
+      <Field label={copy.bylineLabel} hint={copy.bylineHint}>
+        <input value={byline} onChange={(e) => setByline(e.target.value)} className={inputCls} />
+      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={copy.enSeoDescription} hint={copy.seoHint}>
+          <textarea value={enSeoDescription} onChange={(e) => setEnSeoDescription(e.target.value)} rows={2} className={inputCls} />
+        </Field>
+        <Field label={copy.frSeoDescription}>
+          <textarea value={frSeoDescription} onChange={(e) => setFrSeoDescription(e.target.value)} rows={2} className={inputCls} />
+        </Field>
+      </div>
+      <Field label={copy.tagsLabel} hint={copy.tagsHint}>
+        <input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} className={inputCls} />
+      </Field>
 
       <MediaUploader
         existingPhotos={data.photos.map((p) => ({ id: p.id, url: p.url, alt: p.alt, caption: p.caption, credit: p.credit, isCover: false }))}

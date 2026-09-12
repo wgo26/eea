@@ -878,6 +878,56 @@ below.*
     per-event email notifications (only the digest exists), sentry SDK install,
     uptime monitor configuration, pg_dump→B2 + restore drill, listing edit
     bridge, image-optimization sweep.
+- 2026-09-12 — **Notification completion A–E** (`tsc` clean, eslint clean,
+  vitest green incl. new quiet-hour/window-error tests, bare-href audit zero,
+  sitemap + migration manifests clean):
+  - **A guest receipts** — `lib/notify/guest-receipts.ts` sends one direct
+    bilingual SMTP receipt per successful intake (submission guests,
+    advertise/contact/takedown/data/correction), best-effort, never failing
+    the action; explicit one-off-only anti-spam policy in
+    `docs/notifications.md` (no lists, no follow-ups).
+  - **B digest signup + fan-out** — public opt-in at `/digest`
+    (`app/[locale]/(public)/digest`, `subscribeDigest`/`unsubscribeDigest`
+    with honeypot + Turnstile + rate limit + email dedupe, dictionary copy
+    en+fr); `/api/cron/ops-digest` fans the 5 latest published stories out
+    to active `digest_subscribers` even when the ops webhook is unset.
+  - **C self-service contacts** — phone + alert language editable in
+    `ProfileEditDialog` and `/account/notifications`
+    (`saveNotificationPrefs` writes prefs + `profiles` together so the
+    worker fallback stays consistent; `getMyContact` backs the UI).
+  - **D admin hardening** — migration `20260930000000` adds
+    `quiet_start/quiet_end` (Africa/Douala, email/WhatsApp held, in-app
+    always, `deferred` worker summary); WhatsApp utility-template fallback
+    on 24h-window error 131047 (`WHATSAPP_TEMPLATE/_LANG`) + template-first
+    digest sends; per-row retry + `wa.me`/copy-text manual follow-up and
+    per-channel test summaries in `/admin/notifications`.
+  - **E ops hardening** — `WHATSAPP_TEMPLATE/_LANG` in `.env.example` +
+    README env table; `npm run notify:env`
+    (`scripts/verify-notify-env.mjs`, warn-only for missing providers);
+    production checklist (SPF/DKIM/DMARC, template approval, handset
+    steps) in `docs/notifications.md`; known-issues P1/P2 notification
+    items closed.
+- 2026-09-12 — **Notification follow-through** (`tsc` clean, eslint clean,
+  vitest green, bare-href/sitemap/migration manifests clean):
+  - **Per-locale templates** — `WHATSAPP_TEMPLATE_FR` (+`_FR_LANG`)
+    with automatic French routing in the worker fallback and the digest
+    fan-out (`whatsappTemplateFor` in `lib/notify/channels.ts`); the base
+    template stays the fallback so nothing fails when the twin is unset.
+  - **Template submission pack** — `docs/whatsapp-template.md` holds the
+    exact body-only utility bodies (`eea_alert_en`/`eea_alert_fr`, single
+    `{{1}}`, opt-out line, full URLs) plus review-proofing notes and the
+    env wiring; `.env.example`, README table and `verify-notify-env`
+    cover the `_FR` vars.
+  - **Outbox retention** — the worker prunes terminal rows older than
+    `OUTBOX_RETENTION_DAYS` (90) each run, 500 max, pending never
+    touched; count surfaces as `pruned` in the cron/admin summaries.
+  - **Dev seed** — `scripts/seed-notify.mjs` (pending staff demo row +
+    inactive sink subscriber + optional `--user` prefs incl. quiet
+    hours), removed by `teardown-demo.mjs`; local loop documented in
+    `docs/notifications.md`.
+  - **Operator docs** — `/admin/notifications` section in
+    `docs/admin-manual.md` (channels, per-row retry/wa.me/copy, test
+    summaries, digest toggles).
 
 
 

@@ -8,6 +8,7 @@ import { checkRateLimit, type RateLimitOptions } from "@/lib/security/rate-limit
 import { verifyTurnstileToken } from "@/lib/security/turnstile";
 import { honeypotTripped } from "@/lib/security/honeypot";
 import { enqueueStaffAlert, enqueueUser } from "@/lib/notify/queue";
+import { sendGuestReceipt } from "@/lib/notify/guest-receipts";
 
 /** Per-action abuse budgets (per IP, fixed window — migration 20260918000000). */
 const RATE_LIMITS = {
@@ -186,6 +187,9 @@ export async function submitStory(
         void enqueueUser("submission.confirmation", submittedBy, {
             title: storyTitle.slice(0, 140),
         }, "/account/submissions");
+        // Guest receipt: signed-in users get the in-app loop above; guests
+        // with a valid email get one direct SMTP receipt (best-effort).
+        if (!submittedBy) void sendGuestReceipt("submission", guestEmail);
         return { ok: true };
     } catch (err) {
         logger.error("submitStory", "insert exception", { error: err instanceof Error ? err.message : String(err) });
@@ -276,6 +280,7 @@ export async function submitAdvertiseInquiry(
             placement: placement || "unspecified",
             format: format || "unspecified",
         });
+        void sendGuestReceipt("advertise", email);
         return { ok: true };
     } catch (err) {
         logger.error("advertise", "insert exception", { error: err instanceof Error ? err.message : String(err) });
@@ -321,6 +326,7 @@ export async function submitContactRequest(
             return { ok: false, error: "db" };
         }
         void enqueueStaffAlert("legal.contact", { from: `${name} <${email}>`.slice(0, 120), topic });
+        void sendGuestReceipt("contact", email);
         return { ok: true };
     } catch (err) {
         logger.error("contact", "insert exception", { error: err instanceof Error ? err.message : String(err) });
@@ -377,6 +383,7 @@ export async function submitTakedownReport(
             from: `${name}${email ? ` <${email}>` : ""}`.slice(0, 120),
             url: contentUrl.slice(0, 200) || null,
         });
+        void sendGuestReceipt("takedown", email);
         return { ok: true };
     } catch (err) {
         logger.error("takedown", "insert exception", { error: err instanceof Error ? err.message : String(err) });
@@ -417,6 +424,7 @@ export async function submitDataRequest(
             return { ok: false, error: "db" };
         }
         void enqueueStaffAlert("legal.data_request", { from: email.slice(0, 120), type });
+        void sendGuestReceipt("data_request", email);
         return { ok: true };
     } catch (err) {
         logger.error("data-request", "insert exception", { error: err instanceof Error ? err.message : String(err) });
@@ -486,6 +494,7 @@ export async function submitArticleCorrection(
         }
 
         void enqueueStaffAlert("content.correction", { title: `article ${slug}`.slice(0, 140) });
+        void sendGuestReceipt("correction", reporterEmail);
         return { ok: true };
     } catch (err) {
         logger.error("submitArticleCorrection", "insert exception", { error: err instanceof Error ? err.message : String(err) });

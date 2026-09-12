@@ -29,6 +29,9 @@
  *   node scripts/import-blogger.mjs --dry-run          # parse + match only
  *   node scripts/import-blogger.mjs                    # import everything
  *   node scripts/import-blogger.mjs --limit 5          # pilot batch
+ *   node scripts/import-blogger.mjs --media-only       # backfill R2 uploads
+ *   node scripts/import-blogger.mjs --normalize-only   # restructure stored bodies
+ *   node scripts/import-blogger.mjs --tags-only        # map feed labels → tags
  */
 import { createClient } from "@supabase/supabase-js";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
@@ -71,6 +74,8 @@ const r2PublicBase = R2.publicBaseUrl.replace(/\/$/, "");
 const args = process.argv.slice(2);
 const DRY = args.includes("--dry-run");
 const MEDIA_ONLY = args.includes("--media-only");
+const NORMALIZE_ONLY = args.includes("--normalize-only");
+const TAGS_ONLY = args.includes("--tags-only");
 const limitIdx = args.indexOf("--limit");
 const LIMIT = limitIdx >= 0 ? Number(args[limitIdx + 1]) : Infinity;
 
@@ -317,7 +322,76 @@ async function uniqueSlug(base) {
     return `${base}-${Date.now()}`;
 }
 
+// Mirror of normalizeBloggerBody in lib/admin/blogger.ts — restructures
+// Blogger's div-per-line composer HTML into semantic paragraphs (text-only
+// <div> → <p>, spacer divs and block-edge <br>s dropped) so the `prose`
+// container spaces imported bodies correctly. Sanitization stays at the
+// render boundary (lib/security/html.ts). Idempotent.
+const BLOCK_TAG = /<(?:div|p|table|ul|ol|dl|blockquote|pre|figure|h[1-6]|img|iframe|video|audio|hr)\b/i;
+
+function normalizeBloggerBody(html) {
+    if (!html || !html.trim()) return html ?? "";
+    let out = html;
+    out = out.replace(/<!--[\s\S]*?-->/g, "");
+    const spacerDiv =
+        /<div(?:\s[^>]*)?>(?:\s|<br\s*\/?>|&nbsp;|<span(?:\s[^>]*)?>|<\/span>)*<\/div>/gi;
+    for (let pass = 0; pass < 20; pass++) {
+        const next = out.replace(spacerDiv, "");
+        if (next === out) break;
+        out = next;
+    }
+    for (let pass = 0; pass < 20; pass++) {
+        const next = out.replace(
+            /<div(\s[^>]*)?>((?:(?!<div\b)[\s\S])*?)<\/div>/gi,
+            (match, attrs, inner) => {
+                if (BLOCK_TAG.test(inner)) return match;
+                if (!inner.trim()) return "";
+                return `<p${attrs ?? ""}>${inner}</p>`;
+            },
+        );
+        if (next === out) break;
+        out = next;
+    }
+    const cleanups = [
+        [/<p(?:\s[^>]*)?>(?:\s|<br\s*\/?>|&nbsp;|<span(?:\s[^>]*)?>|<\/span>)*<\/p>/gi, ""],
+        [/(<(?:p|li|blockquote|h[1-6]|td|div)[^>]*>)\s*(?:<br\s*\/?>\s*)+/gi, "$1"],
+        [/(?:<br\s*\/?>\s*)+(<\/(?:p|li|blockquote|h[1-6]|td|div)\s*>)/gi, "$1"],
+        [/(&nbsp;|\s)+(<\/(?:p|li|blockquote|h[1-6]|td|div)\s*>)/gi, "$2"],
+        [/(?:<br\s*\/?>\s*)+$/i, ""],
+    ];
+    for (let pass = 0; pass < 20; pass++) {
+        let next = out;
+        for (const [pattern, replacement] of cleanups) next = next.replace(pattern, replacement);
+        if (next === out) break;
+        out = next;
+    }
+    for (let pass = 0; pass < 20; pass++) {
+        const next = out.replace(/(^|>)(\s*<br\s*\/?>\s*)+(?=<)/g, (_match, edge) => edge);
+        if (next === out) break;
+        out = next;
+    }
+    return out.trim();
+}
+
+// Mirror of lib/admin/tags.ts ensureTag — find-or-create a tag by label.
+async function ensureTagId(label) {
+    const slug = slugify(label);
+    if (!slug) return null;
+    const { data: existing } = await db.from("tags").select("id").eq("slug", slug).limit(1);
+    if (existing?.[0]) return existing[0].id;
+    const { data: created, error } = await db.from("tags").insert({ slug }).select("id").single();
+    if (error || !created) return null;
+    await db.from("tag_translations").upsert(
+        { tag_id: created.id, locale: "en", name: label.slice(0, 120) },
+        { onConflict: "tag_id,locale" },
+    );
+    return created.id;
+}
+
 async function importPost(post) {
+    // Normalize Blogger's div-per-line composer HTML into semantic paragraphs
+    // before storing (mirror of lib/admin/blogger.ts normalizeBloggerBody).
+    const bodyHtml = normalizeBloggerBody(post.bodyHtml).slice(0, 500_000);
     const slug = await uniqueSlug(slugFromPost(post));
     const isDraftPost = post.status === "DRAFT";
     const insert = {
@@ -346,19 +420,32 @@ async function importPost(post) {
                 locale: "en",
                 voice: "formal",
                 title: post.title.slice(0, 300),
-                excerpt: makeExcerpt(post.bodyHtml),
-                body: post.bodyHtml.slice(0, 500_000),
+                excerpt: makeExcerpt(bodyHtml),
+                body: bodyHtml,
                 seo_description: post.metaDescription,
+                byline: post.authorName ?? null,
             },
             { onConflict: "content_item_id,locale,voice" },
         );
         if (tErr) throw new Error(`translation: ${tErr.message}`);
 
+        // Source labels → tags (same mapping as the admin-UI import path).
+        const seenTags = new Set();
+        for (const label of post.labels ?? []) {
+            const tagId = await ensureTagId(label);
+            if (!tagId || seenTags.has(tagId)) continue;
+            seenTags.add(tagId);
+            await db.from("content_tags").upsert(
+                { content_item_id: contentId, tag_id: tagId },
+                { onConflict: "content_item_id,tag_id" },
+            );
+        }
+
         // Media: upload matched local images to R2, rewrite the HTML srcs.
         // An upload failure (e.g. a read-only R2 token) degrades that image
         // to a hotlink instead of failing the whole post — the --media-only
         // pass backfills uploads once the token is fixed.
-        let body = post.bodyHtml;
+        let body = bodyHtml;
         const urls = extractImageUrls(body);
         const mediaRows = [];
         let hotlinked = 0;
@@ -400,7 +487,7 @@ async function importPost(post) {
             const { error: mErr } = await db.from("media_assets").insert(mediaRows);
             if (mErr) throw new Error(`media_assets: ${mErr.message}`);
         }
-        if (body !== post.bodyHtml) {
+        if (body !== bodyHtml) {
             const { error: bErr } = await db
                 .from("content_translations")
                 .update({ body: body.slice(0, 500_000) })
@@ -527,6 +614,99 @@ async function runMediaPass() {
     console.log(`\nMedia pass complete: ${uploaded} uploaded, ${skipped} skipped.`);
 }
 
+// Backfill pass: normalize the stored bodies of posts already imported by a
+// previous run — older imports stored Blogger's raw div-per-line HTML, which
+// the `prose` container renders as one unspaced wall of text. Idempotent.
+//   node scripts/import-blogger.mjs --normalize-only
+async function runNormalizePass() {
+    let changed = 0, scanned = 0, page = 0;
+    const pageSize = 50;
+    for (;;) {
+        const { data: items, error } = await db
+            .from("content_items")
+            .select("id, slug")
+            .eq("import_source", "blogger")
+            .order("created_at", { ascending: true })
+            .range(page * pageSize, page * pageSize + pageSize - 1);
+        if (error) throw new Error(`content_items: ${error.message}`);
+        if (!items?.length) break;
+        page++;
+        for (const item of items) {
+            const { data: tr } = await db
+                .from("content_translations")
+                .select("body")
+                .eq("content_item_id", item.id)
+                .eq("locale", "en")
+                .eq("voice", "formal")
+                .limit(1);
+            const body = tr?.[0]?.body;
+            if (!body) continue;
+            scanned++;
+            const next = normalizeBloggerBody(body);
+            if (next === body) continue;
+            const { error: uErr } = await db
+                .from("content_translations")
+                .update({ body: next.slice(0, 500_000) })
+                .eq("content_item_id", item.id)
+                .eq("locale", "en")
+                .eq("voice", "formal");
+            if (uErr) {
+                console.error(`  ${item.slug}: ${uErr.message}`);
+                continue;
+            }
+            changed++;
+        }
+        console.log(`  … page ${page} done (${changed} rewritten so far)`);
+    }
+    console.log(`\nNormalize pass: ${scanned} bodies scanned, ${changed} rewritten.`);
+}
+
+// Backfill pass: map the source feed's labels to tags for posts imported by
+// an older CLI revision (the admin-UI import path always created tags).
+//   node scripts/import-blogger.mjs --tags-only
+async function runTagsPass() {
+    let tagged = 0, skipped = 0, page = 0;
+    const pageSize = 50;
+    for (;;) {
+        const { data: items, error } = await db
+            .from("content_items")
+            .select("id, slug, import_source_id")
+            .eq("import_source", "blogger")
+            .order("created_at", { ascending: true })
+            .range(page * pageSize, page * pageSize + pageSize - 1);
+        if (error) throw new Error(`content_items: ${error.message}`);
+        if (!items?.length) break;
+        page++;
+        for (const item of items) {
+            const post = postsByBloggerId.get(item.import_source_id);
+            if (!post || !post.labels?.length) { skipped++; continue; }
+            const seen = new Set();
+            let added = 0;
+            for (const label of post.labels) {
+                const tagId = await ensureTagId(label);
+                if (!tagId || seen.has(tagId)) continue;
+                seen.add(tagId);
+                const { error: cErr } = await db
+                    .from("content_tags")
+                    .upsert(
+                        { content_item_id: item.id, tag_id: tagId },
+                        { onConflict: "content_item_id,tag_id" },
+                    );
+                if (cErr) {
+                    console.error(`  ${item.slug}: ${cErr.message}`);
+                    continue;
+                }
+                added++;
+            }
+            if (added > 0) {
+                tagged++;
+                console.log(`  ${item.slug}: +${added} tags`);
+            }
+        }
+    }
+    console.log(`\nTags pass: ${tagged} posts tagged, ${skipped} skipped (no labels in the feed).`);
+}
+
 // __CHUNK8__
 
 // Parsed feed state (shared by the import run and the --media-only pass).
@@ -547,6 +727,18 @@ async function main() {
     if (MEDIA_ONLY) {
         if (DRY) { console.log("--media-only ignores --dry-run"); }
         await runMediaPass();
+        return;
+    }
+
+    if (NORMALIZE_ONLY) {
+        if (DRY) { console.log("--normalize-only ignores --dry-run"); }
+        await runNormalizePass();
+        return;
+    }
+
+    if (TAGS_ONLY) {
+        if (DRY) { console.log("--tags-only ignores --dry-run"); }
+        await runTagsPass();
         return;
     }
 

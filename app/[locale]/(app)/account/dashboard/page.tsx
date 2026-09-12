@@ -167,7 +167,7 @@ export default async function Page() {
         advertiserRes,
     ] = await Promise.all([
         supabase.from("user_roles").select("role").eq("user_id", user.id),
-        supabase.from("profiles").select("full_name, display_name, bio").eq("id", user.id).maybeSingle(),
+        supabase.from("profiles").select("full_name, display_name, bio, phone").eq("id", user.id).maybeSingle(),
         applySubmissionScope(
             supabase
                 .from("submissions")
@@ -203,7 +203,7 @@ export default async function Page() {
     ]);
 
     const roles = (rolesRes.data ?? []).map((row: { role?: string }) => row.role).filter(Boolean) as string[];
-    const profile = profileRes.data as { display_name?: string | null; full_name?: string | null; bio?: string | null } | null;
+    const profile = profileRes.data as { display_name?: string | null; full_name?: string | null; bio?: string | null; phone?: string | null } | null;
     const email = user.email ?? "";
     const displayName = profile?.display_name || profile?.full_name || (email ? email.split("@")[0] : t.member);
     const submissions = (submissionsRes.data ?? []) as SubmissionRow[];
@@ -232,6 +232,7 @@ export default async function Page() {
         displayName: profile?.display_name ?? "",
         fullName: profile?.full_name ?? "",
         bio: profile?.bio ?? "",
+        phone: profile?.phone ?? "",
     };
 
     const isAdmin = roles.includes("admin");

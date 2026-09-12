@@ -88,7 +88,8 @@ export async function sendEmail(to: string, subject: string, title: string, body
 }
 
 /* ------------------------------------------------------------------ */
-/* WhatsApp (Meta Cloud API — text messages, template-ready later)     */
+/* WhatsApp (Meta Cloud API — free text in-window, utility template    */
+/* for proactive out-of-window sends)                                  */
 /* ------------------------------------------------------------------ */
 
 function whatsappConfig(): { token: string; phoneNumberId: string } | null {
@@ -100,6 +101,45 @@ function whatsappConfig(): { token: string; phoneNumberId: string } | null {
 
 export function isWhatsAppConfigured(): boolean {
   return whatsappConfig() !== null;
+}
+
+type WhatsappTemplateConfig = { token: string; phoneNumberId: string; name: string; lang: string };
+
+/**
+ * Per-locale template resolution. Meta approves templates per language, so
+ * French recipients need their own approved template: WHATSAPP_TEMPLATE
+ * (+WHATSAPP_TEMPLATE_LANG, default `en`) covers the default/English path,
+ * WHATSAPP_TEMPLATE_FR (+WHATSAPP_TEMPLATE_FR_LANG, default `fr`) the
+ * French path (falls back to the base template when unset — the send still
+ * works, only the template language differs). Exact bodies to submit live
+ * in docs/whatsapp-template.md.
+ */
+export function whatsappTemplateFor(locale: string | null | undefined): { name: string; lang: string } | null {
+  const fr = /^fr/i.test(locale ?? '');
+  const baseName = (process.env.WHATSAPP_TEMPLATE ?? '').trim();
+  if (!baseName) return null;
+  if (fr) {
+    const frName = (process.env.WHATSAPP_TEMPLATE_FR ?? '').trim() || baseName;
+    const frLang = (process.env.WHATSAPP_TEMPLATE_FR_LANG ?? '').trim() || ((process.env.WHATSAPP_TEMPLATE_FR ?? '').trim() ? 'fr' : ((process.env.WHATSAPP_TEMPLATE_LANG ?? '').trim() || 'en'));
+    return { name: frName.slice(0, 512), lang: frLang.slice(0, 8) };
+  }
+  return { name: baseName.slice(0, 512), lang: ((process.env.WHATSAPP_TEMPLATE_LANG ?? '').trim() || 'en').slice(0, 8) };
+}
+
+function whatsappTemplateConfig(locale?: string | null): WhatsappTemplateConfig | null {
+  const base = whatsappConfig();
+  const t = whatsappTemplateFor(locale ?? 'en');
+  if (!base || !t) return null;
+  return { ...base, name: t.name, lang: t.lang };
+}
+
+export function isWhatsAppTemplateConfigured(): boolean {
+  return whatsappTemplateConfig() !== null;
+}
+
+/** True when a WhatsApp API failure looks like the 24h window error (needs a template). */
+export function isWindowError(detail: string): boolean {
+  return /131047|outside[^.]{0,40}window|window[^.]{0,40}24/i.test(detail);
 }
 
 /** Normalize freeform phone input to an international digit string. */
@@ -136,7 +176,10 @@ export async function sendWhatsApp(to: string, text: string): Promise<ChannelRes
     if (!res.ok) {
       const detail = (await res.text()).slice(0, 300);
       logger.error('notify-whatsapp', 'send failed', { status: res.status, detail });
-      return { delivered: false, error: `WhatsApp API ${res.status}` };
+      // Keep the Meta error body in the result (truncated) so the worker can
+      // detect the 24h-window error (code 131047) and fall back to the
+      // approved utility template. No secrets ever appear in API errors.
+      return { delivered: false, error: `WhatsApp API ${res.status}: ${detail.slice(0, 160)}` };
     }
     return { delivered: true };
   } catch (err) {
@@ -146,11 +189,70 @@ export async function sendWhatsApp(to: string, text: string): Promise<ChannelRes
   }
 }
 
+/**
+ * Proactive out-of-window send via the approved utility template
+ * (`WHATSAPP_TEMPLATE`, lang `WHATSAPP_TEMPLATE_LANG`). The template must be
+ * a body-only `utility` template with a single `{{1}}` parameter — the alert
+ * text lands there. Used as the fallback when free text is rejected with the
+ * 24h-window error, and first-choice for the 06:00 digest fan-out (digest
+ * recipients are never in-window).
+ */
+export async function sendWhatsAppTemplate(to: string, text: string, locale?: string | null): Promise<ChannelResult> {
+  const cfg = whatsappTemplateConfig(locale);
+  if (!cfg) return { delivered: false, skipped: 'WhatsApp template not configured (WHATSAPP_TEMPLATE)' };
+  const recipient = normalizePhone(to);
+  if (!recipient) return { delivered: false, skipped: 'no usable phone number' };
+  try {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${cfg.phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${cfg.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: recipient,
+        type: 'template',
+        template: {
+          name: cfg.name,
+          language: { code: cfg.lang },
+          components: [{ type: 'body', parameters: [{ type: 'text', text: text.slice(0, 1000) }] }],
+        },
+      }),
+    });
+    if (!res.ok) {
+      const detail = (await res.text()).slice(0, 300);
+      logger.error('notify-whatsapp', 'template send failed', { status: res.status, detail });
+      return { delivered: false, error: `WhatsApp template API ${res.status}` };
+    }
+    return { delivered: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error('notify-whatsapp', 'template exception', { error: message });
+    return { delivered: false, error: message };
+  }
+}
+
+/**
+ * Best-effort proactive send: template first when configured (works outside
+ * the 24h window), else free text. Returns which path delivered.
+ */
+export async function sendWhatsAppProactive(to: string, text: string, locale?: string | null): Promise<ChannelResult & { via?: 'template' | 'text' }> {
+  if (isWhatsAppTemplateConfigured()) {
+    const t = await sendWhatsAppTemplate(to, text, locale);
+    if (t.delivered) return { ...t, via: 'template' };
+    // Template misconfigured but free text might still work in-window.
+    const f = await sendWhatsApp(to, text);
+    if (f.delivered) return { ...f, via: 'text' };
+    return t.error ? t : f;
+  }
+  const f = await sendWhatsApp(to, text);
+  return f.delivered ? { ...f, via: 'text' } : f;
+}
+
 /** Admin status panel data (booleans only — never leak secrets). */
-export function channelStatus(): { email: boolean; whatsapp: boolean; webhook: boolean } {
+export function channelStatus(): { email: boolean; whatsapp: boolean; whatsappTemplate: boolean; webhook: boolean } {
   return {
     email: isEmailConfigured(),
     whatsapp: isWhatsAppConfigured(),
+    whatsappTemplate: isWhatsAppTemplateConfigured(),
     webhook: Boolean(process.env.DIGEST_WEBHOOK_URL),
   };
 }

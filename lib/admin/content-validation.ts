@@ -1,10 +1,24 @@
 export type ContentDraftInput = {
   slugBase: string
+  /** Explicit permalink (slugified server-side, collision-suffixed). Undefined = keep the stored slug. */
+  slug?: string
+  /** Publish date override (ISO). Only applied when a non-empty value is sent. */
+  publishedAt?: string | null
   verification?: 'verified' | 'community_submission' | 'official_source' | 'developing' | null
   locationId?: string | null
   categoryId?: string | null
   photographerCredit?: string | null
-  translations: { locale: 'en' | 'fr'; title: string; excerpt?: string; body?: string }[]
+  translations: {
+    locale: 'en' | 'fr'
+    title: string
+    excerpt?: string
+    body?: string
+    /** SEO/meta description — written only when provided (undefined = keep stored). */
+    seoDescription?: string | null
+    /** Human byline for when no profile author is linked (imported posts). */
+    byline?: string | null
+  }[]
+  tags?: string[]
   photos?: { url: string; alt?: string; caption?: string; credit?: string }[]
   keepPhotoIds?: string[]
   /** Supporting video/audio/document links (Phase B) — stored as media_assets with kind. */
@@ -50,6 +64,10 @@ export function validateContentDraft(input: ContentDraftInput, requireBilingual:
     if (!/^https?:\/\//i.test(att.url.trim())) return `Media links must start with http:// or https:// (${att.url}).`
   }
   if (input.verification && !VERIFICATION_VALUES.includes(input.verification)) return 'Unknown verification value.'
+  if (input.publishedAt !== undefined && input.publishedAt && Number.isNaN(Date.parse(input.publishedAt))) {
+    return 'The publish date is invalid.'
+  }
+  if (input.tags && input.tags.length > 12) return 'Use at most 12 tags.'
   if (input.event) {
     if (input.event.ticketUrl && !/^https?:\/\//i.test(input.event.ticketUrl.trim())) return 'Event ticket link must start with http:// or https://.'
     if (input.event.startsAt && Number.isNaN(Date.parse(input.event.startsAt))) return 'Event start date is invalid.'

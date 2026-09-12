@@ -128,11 +128,11 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                     </p>
                 ) : null}
                 <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 border-y py-3 text-sm text-muted-foreground">
-                    {article.authorName ? (
+                    {(article.authorName || article.byline) ? (
                         <span className="inline-flex items-center gap-1.5">
                             <User className="h-4 w-4 text-primary" aria-hidden />
                             {dict.news.byline}{" "}
-                            {article.authorId ? (
+                            {article.authorId && article.authorName ? (
                                 <Link
                                     href={localePath(locale, `/contributors/${article.authorId}`)}
                                     className="font-medium text-foreground hover:underline"
@@ -141,7 +141,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                                 </Link>
                             ) : (
                                 <strong className="text-foreground">
-                                    {article.authorName}
+                                    {article.authorName ?? article.byline}
                                 </strong>
                             )}
                         </span>
@@ -266,14 +266,14 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                         </CardHeader>
                         <CardContent>
                             <dl className="space-y-3 text-sm">
-                                {article.authorName ? (
+                                {(article.authorName || article.byline) ? (
                                     <div className="flex items-start justify-between gap-3">
                                         <dt className="inline-flex items-center gap-1.5 text-muted-foreground">
                                             <User className="h-4 w-4" aria-hidden />
                                             {dict.news.byline}
                                         </dt>
                                         <dd className="text-right font-medium text-foreground">
-                                            {article.authorName}
+                                            {article.authorName ?? article.byline}
                                         </dd>
                                     </div>
                                 ) : null}

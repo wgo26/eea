@@ -10,6 +10,14 @@
 !.yarn/releases
 !.yarn/versions
 
+docs/Blogger/
+scratch-*
+build-out*.txt
+*-out.txt
+*-push*.txt
+*.zip
+/feed.atom
+
 # testing
 /coverage
 

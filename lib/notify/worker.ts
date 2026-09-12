@@ -2,7 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/observability/logger";
-import { sendEmail, sendWhatsApp } from "./channels";
+import { isWindowError, sendEmail, sendWhatsApp, sendWhatsAppTemplate } from "./channels";
 import { SITE } from "@/lib/constants";
 
 /**
@@ -10,10 +10,18 @@ import { SITE } from "@/lib/constants";
  * at send time), delivers in-app/email/WhatsApp, then marks sent/failed with
  * capped retries. Called by `/api/cron/notify` (every 15 min) and manually
  * from the admin test panel.
+ *
+ * Quiet hours (`notification_prefs.quiet_start/quiet_end`, Africa/Douala
+ * local hours): inside the window email + WhatsApp are held and only the
+ * in-app alert delivers — nobody gets night pings. WhatsApp sends outside
+ * the Meta 24h customer-service window fall back to the approved utility
+ * template (`WHATSAPP_TEMPLATE`) when configured.
  */
 
 const BATCH = 50;
 const MAX_ATTEMPTS = 5;
+/** Terminal outbox rows older than this are pruned (bounded delete per run). */
+export const OUTBOX_RETENTION_DAYS = 90;
 
 type OutboxRow = {
   id: string;
@@ -37,7 +45,29 @@ type Recipient = {
   inapp: boolean;
   emailOpt: boolean;
   whatsappOpt: boolean;
+  quietStart: number | null;
+  quietEnd: number | null;
 };
+
+/** Africa/Douala local hour (0–23) for a given instant. Cameroon is UTC+1 with no DST. */
+export function doualaHour(at: Date = new Date()): number {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Douala', hour: 'numeric', hour12: false }).formatToParts(at);
+  const h = Number(parts.find((p) => p.type === 'hour')?.value ?? '0') % 24;
+  return h;
+}
+
+/**
+ * Pure quiet-window check over local hours. Null bounds or start === end
+ * mean "no quiet hours"; the window wraps midnight (e.g. 22 → 7).
+ */
+export function isQuietHour(hour: number, start: number | null | undefined, end: number | null | undefined): boolean {
+  if (start == null || end == null) return false;
+  if (!Number.isInteger(start) || !Number.isInteger(end)) return false;
+  if (start < 0 || start > 23 || end < 0 || end > 23) return false;
+  if (start === end) return false;
+  if (start < end) return hour >= start && hour < end;
+  return hour >= start || hour < end;
+}
 
 function pickLocale(locale: string | null | undefined): 'en' | 'fr' {
   return /^fr/i.test(locale ?? '') ? 'fr' : 'en';
@@ -56,11 +86,11 @@ async function loadRecipients(userIds: string[]): Promise<Map<string, Recipient>
   if (userIds.length === 0) return out;
   const [{ data: profiles }, { data: prefs }] = await Promise.all([
     supabase.from('profiles').select('id, email, phone, preferred_locale').in('id', userIds),
-    supabase.from('notification_prefs').select('user_id, inapp, email, whatsapp, locale').in('user_id', userIds),
+    supabase.from('notification_prefs').select('user_id, inapp, email, whatsapp, locale, quiet_start, quiet_end').in('user_id', userIds),
   ]);
   const prefById = new Map((prefs ?? []).map((p) => [p.user_id as string, p]));
   for (const p of (profiles ?? []) as { id: string; email: string | null; phone: string | null; preferred_locale: string | null }[]) {
-    const pref = prefById.get(p.id) as { inapp?: boolean; email?: boolean; whatsapp?: boolean; locale?: string } | undefined;
+    const pref = prefById.get(p.id) as { inapp?: boolean; email?: boolean; whatsapp?: boolean; locale?: string; quiet_start?: number | null; quiet_end?: number | null } | undefined;
     out.set(p.id, {
       userId: p.id,
       email: p.email,
@@ -69,6 +99,8 @@ async function loadRecipients(userIds: string[]): Promise<Map<string, Recipient>
       inapp: pref?.inapp ?? true,
       emailOpt: pref?.email ?? true,
       whatsappOpt: pref?.whatsapp ?? false,
+      quietStart: pref?.quiet_start ?? null,
+      quietEnd: pref?.quiet_end ?? null,
     });
   }
   return out;
@@ -94,11 +126,43 @@ export type WorkerSummary = {
   sent: number;
   skipped: number;
   failed: number;
+  /** Recipients whose email/WhatsApp were held for quiet hours (in-app still sent). */
+  deferred: number;
+  /** Terminal rows older than OUTBOX_RETENTION_DAYS removed this run. */
+  pruned: number;
 };
+
+/** Delete terminal outbox rows past retention (bounded; never touches pending). */
+async function pruneOutbox(): Promise<number> {
+  try {
+    const supabase = createAdminClient();
+    const cutoff = new Date(Date.now() - OUTBOX_RETENTION_DAYS * 24 * 3600_000).toISOString();
+    // Fetch-then-delete keeps the batch bounded on PostgREST (no LIMIT on delete).
+    const { data } = await supabase
+      .from('notification_outbox')
+      .select('id')
+      .in('status', ['sent', 'failed', 'skipped'])
+      .lt('created_at', cutoff)
+      .limit(500);
+    const ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
+    if (ids.length === 0) return 0;
+    const { error } = await supabase.from('notification_outbox').delete().in('id', ids);
+    if (error) {
+      logger.error('notify', 'outbox prune failed', { error: error.message });
+      return 0;
+    }
+    return ids.length;
+  } catch (err) {
+    logger.error('notify', 'outbox prune exception', { error: err instanceof Error ? err.message : String(err) });
+    return 0;
+  }
+}
 
 export async function processOutbox(limit = BATCH): Promise<WorkerSummary> {
   const supabase = createAdminClient();
-  const summary: WorkerSummary = { claimed: 0, sent: 0, skipped: 0, failed: 0 };
+  const summary: WorkerSummary = { claimed: 0, sent: 0, skipped: 0, failed: 0, deferred: 0, pruned: 0 };
+  summary.pruned = await pruneOutbox();
+  const nowHour = doualaHour();
 
   const { data: rows, error } = await supabase
     .from('notification_outbox')
@@ -147,16 +211,27 @@ export async function processOutbox(limit = BATCH): Promise<WorkerSummary> {
           if (!inErr) sentChannels.add('inapp');
           else logger.error('notify', 'inapp insert failed', { error: inErr.message, event: row.event });
         }
-        if (r.emailOpt && r.email) {
+        const quiet = isQuietHour(nowHour, r.quietStart, r.quietEnd);
+        if (quiet) summary.deferred += 1;
+        if (r.emailOpt && r.email && !quiet) {
           const res = await sendEmail(r.email, title, title, body, url);
           if (res.delivered) sentChannels.add('email');
           else if (res.error) logger.error('notify', 'email failed', { error: res.error, event: row.event });
         }
-        if (r.whatsappOpt && r.phone) {
+        if (r.whatsappOpt && r.phone && !quiet) {
           const text = `${title}\n${body}${url ? `\n${url}` : ''}`;
           const res = await sendWhatsApp(r.phone, text);
-          if (res.delivered) sentChannels.add('whatsapp');
-          else if (res.error) logger.error('notify', 'whatsapp failed', { error: res.error, event: row.event });
+          if (res.delivered) {
+            sentChannels.add('whatsapp');
+          } else if (res.error && isWindowError(res.error)) {
+            // Outside the 24h customer-service window: fall back to the
+            // approved utility template (per-recipient locale) when configured.
+            const tRes = await sendWhatsAppTemplate(r.phone, text, r.locale);
+            if (tRes.delivered) {
+              sentChannels.add('whatsapp');
+              logger.info('notify', 'whatsapp delivered via template fallback', { event: row.event });
+            } else if (tRes.error) logger.error('notify', 'whatsapp failed', { error: tRes.error, event: row.event });
+          } else if (res.error) logger.error('notify', 'whatsapp failed', { error: res.error, event: row.event });
         }
       }
 

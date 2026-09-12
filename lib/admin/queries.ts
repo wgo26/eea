@@ -415,6 +415,12 @@ export type ContentEditData = ContentRow & {
   frBody: string | null
   locationId: string | null
   categoryId: string | null
+  // Per-permalink + editorial extras (imported posts already carry them).
+  enSeoDescription: string | null
+  frSeoDescription: string | null
+  /** Byline fallback (translation row); public byline prefers profile authorName. */
+  byline: string | null
+  tags: { id: string; name: string | null }[]
   photos: { id: string; url: string; alt: string | null; caption: string | null; credit: string | null }[]
   listing: { price: number | null; currency: string | null; contactPhone: string | null; contactEmail: string | null; whatsappNumber: string | null; sellerName: string | null; listingStatus: string | null; sellerVerified: boolean } | null
   notice: { noticeType: string; organizationName: string | null; contactPhone: string | null; isOfficial: boolean; noticeDate: string | null; expiryDate: string | null } | null
@@ -426,14 +432,15 @@ export async function getContentItemEditData(contentItemId: string): Promise<Con
   const { data } = await safe(
     db()
       .from('content_items')
-      .select('id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by, location_id, category_id, translations:content_translations(locale, title, excerpt, body), location:locations(name), category:categories!category_id(category_translations(locale, name)), media:media_assets(id, public_url, caption, alt_text, photographer_credit, sort_order), author:profiles!content_items_author_id_fkey(display_name), listing:listings(price, currency, contact_phone, contact_email, whatsapp_number, seller_name, listing_status, seller_is_verified), notice:notices(notice_type, organization_name, contact_phone, is_official, notice_date, expiry_date), event:events(starts_at, ends_at, venue_name, ticket_url, organizer_name, organizer_phone, organizer_email)')
+      .select('id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by, location_id, category_id, translations:content_translations(locale, title, excerpt, body, seo_description, byline), tags:content_tags(tag:tags(id, tag_translations(locale, name))), location:locations(name), category:categories!category_id(category_translations(locale, name)), media:media_assets(id, public_url, caption, alt_text, photographer_credit, sort_order), author:profiles!content_items_author_id_fkey(display_name), listing:listings(price, currency, contact_phone, contact_email, whatsapp_number, seller_name, listing_status, seller_is_verified), notice:notices(notice_type, organization_name, contact_phone, is_official, notice_date, expiry_date), event:events(starts_at, ends_at, venue_name, ticket_url, organizer_name, organizer_phone, organizer_email)')
       .eq('id', contentItemId)
       .limit(1),
   )
   const row = ((data ?? []) as unknown as Record<string, unknown>[])[0] ?? null
   if (!row) return null
   const base = mapContentRow(row, 'en')
-  const translations = (Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []) as { locale: string; title: string | null; excerpt: string | null; body: string | null }[]
+  const translations = (Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []) as { locale: string; title: string | null; excerpt: string | null; body: string | null; seo_description: string | null; byline: string | null }[]
+  const tagRows = (Array.isArray(row.tags) ? row.tags : row.tags ? [row.tags] : []) as { tag: { id: string; tag_translations: { locale: string; name: string }[] } | { id: string; tag_translations: { locale: string; name: string }[] }[] }[]
   const en = translations.find((t) => t.locale === 'en')
   const fr = translations.find((t) => t.locale === 'fr')
   const media = (Array.isArray(row.media) ? row.media : row.media ? [row.media] : []) as { id: string; public_url: string; caption: string | null; alt_text: string | null; photographer_credit: string | null }[]
@@ -448,6 +455,15 @@ export async function getContentItemEditData(contentItemId: string): Promise<Con
     frTitle: fr?.title ?? null,
     frExcerpt: fr?.excerpt ?? null,
     frBody: fr?.body ?? null,
+    enSeoDescription: en?.seo_description ?? null,
+    frSeoDescription: fr?.seo_description ?? null,
+    byline: en?.byline ?? fr?.byline ?? null,
+    tags: tagRows
+      .flatMap((t) => (Array.isArray(t.tag) ? t.tag : [t.tag]))
+      .map((tag) => {
+        const names = (tag.tag_translations ?? []) as { locale: string; name: string }[]
+        return { id: tag.id, name: names.find((n) => n.locale === 'en')?.name ?? names[0]?.name ?? null }
+      }),
     locationId: row.location_id as string | null,
     categoryId: row.category_id as string | null,
     photos: [...media].sort((a, b) => (a as unknown as { sort_order: number }).sort_order - (b as unknown as { sort_order: number }).sort_order).map((m) => ({ id: m.id, url: m.public_url, alt: m.alt_text ?? null, caption: m.caption, credit: m.photographer_credit })),

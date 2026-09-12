@@ -37,6 +37,22 @@ was deleted — do not recreate it.)
   sends, retries, digest subscribers), `manageNotifications` capability.
   Ops-digest schedule fixed (fires `0 6 * * *`); `password_changed` template
   path fixed. See `docs/notifications.md`.
+- Notifications completion (A–E): guest one-off SMTP receipts
+  (`lib/notify/guest-receipts.ts`, explicit anti-spam policy in
+  `docs/notifications.md`); public digest signup at `/digest` + 06:00
+  subscriber fan-out in `/api/cron/ops-digest`; self-service phone +
+  alert-language in profile/prefs (worker fallback stays consistent);
+  per-recipient quiet hours (`quiet_start/quiet_end`, Africa/Douala,
+  email/WhatsApp held, in-app always); WhatsApp utility-template fallback
+  on 24h-window error 131047 (`WHATSAPP_TEMPLATE/_LANG`) + template-first
+  digest sends; admin per-row retry + `wa.me`/copy-text manual follow-up +
+  per-channel test summaries; `npm run notify:env` pre-launch checker.
+- Notifications follow-through: per-locale utility templates
+  (`WHATSAPP_TEMPLATE_FR`, French recipients auto-routed,
+  `docs/whatsapp-template.md` submission pack with exact EN+FR bodies);
+  90-day outbox retention prune inside the worker; `scripts/seed-notify.mjs`
+  dev seed (+ teardown) for the loop; operator section in
+  `docs/admin-manual.md`.
 - Taxonomy: per-translation edit, reassign, delete-or-block.
 - Site logo: upload + URL (feeds header/footer + the browser-tab icon).
 - Storage: per-asset table + verify + admin delete.
@@ -67,19 +83,16 @@ was deleted — do not recreate it.)
    the list.
 4. **No document upload path.** Schema supports `document` kind and the picker
    filters it, but no UI uploads or embeds PDFs yet (video/audio are done).
-5. **WhatsApp production hardening.** The loop sends inside the 24h
-   customer-service window; request a Meta utility template + production
-   number for proactive out-of-window alerts, and verify delivery on a real
-   handset. Until then the admin queue + `wa.me` links cover manual follow-up.
-6. **WhatsApp link-preview verification in production is unverified.**
+5. **WhatsApp link-preview verification in production is unverified.**
    Canonical/hreflang/OG tags ship per page, but nobody has checked a real
-   WhatsApp render of a story link.
+   WhatsApp render of a story link — run the handset steps in
+   `docs/notifications.md` §production checklist.
 
 ## P2 — schedule, don't panic
 
 - Monoliths: `lib/admin/actions.ts`, `lib/admin/queries.ts` (~2,000+ lines
   each) → split per-domain.
-- Tests: 79 vitest unit tests but **no RLS/integration, no component, no e2e**.
+- Tests: 97 vitest unit tests but **no RLS/integration, no component, no e2e**.
   Highest-value next: "editor cannot delete" RLS integration test + a smoke
   e2e for the submit→moderate→publish loop (which now also covers the
   notification outbox).
@@ -89,10 +102,6 @@ was deleted — do not recreate it.)
   `lib/auth/roles.ts`) bypass `logger` — migrate for consistent JSON logs.
 - Bootstrap: `unstable_cache` (documented choice) — re-audit on Next 17.
 - Dependabot/Renovate + `npm audit` step not configured.
-- Notification follow-ups: guest email receipts (guests leave an address but
-  get no confirmation mail — spam/PII call, decide explicitly); digest
-  subscriber **signup UI** (table + admin toggle exist, no public subscribe
-  form); per-staff quiet hours.
 
 ## Ops notes (pre-launch)
 
@@ -101,10 +110,14 @@ was deleted — do not recreate it.)
 - Configure production SMTP (Supabase custom SMTP **and** app `SMTP_*` — same
   host) + verify SPF/DKIM/DMARC.
 - Set `CRON_SECRET`, `SENTRY_DSN`, `DIGEST_WEBHOOK_URL`, `SMTP_*`,
-  `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` on the host; wire
+  `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE`
+  (+`_LANG`) on the host — pre-check with `npm run notify:env`; wire
   `docs/observability.md` §3 (uptime monitor against `/api/ready`).
-- Apply migrations (`supabase db push` — includes `20260928000000_ads_formats`
-  and `20260929000000_notifications`).
+- Apply migrations (`supabase db push` — includes `20260928000000_ads_formats`,
+  `20260929000000_notifications` and `20260930000000_notification_quiet_hours`).
+- Run the handset + receipt steps in `docs/notifications.md` §production
+  checklist (guest receipt in-inbox, WhatsApp test on a real handset with
+  reply-to-open-window, story-link OG card render).
 - Add a `pg_dump` → B2 job + rehearse a restore (media mirrors exist, DB backup
   does not).
 
