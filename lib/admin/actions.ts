@@ -938,15 +938,71 @@ export async function updateContentStatus(contentId: string, status: string, sch
   }
 }
 
-export async function setContentFeatured(contentId: string, isFeatured: boolean): Promise<ActionResult> {
+/**
+ * Feature (or unfeature) a content item, with an optional display window.
+ * Featuring does two things so the two previously-disconnected mechanisms
+ * stay in sync: it flips `content_items.is_featured` AND ensures an active
+ * `homepage_slots` row (slot_key `secondary`) carrying the same
+ * starts_at/ends_at window — the homepage reads slots, not the flag.
+ * Unfeaturing clears the flag and deactivates that item's slot rows so the
+ * story drops off the homepage rotation immediately.
+ */
+export async function setContentFeatured(contentId: string, isFeatured: boolean, endsAtIso?: string | null): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertStaff()
+    const nowIso = new Date().toISOString()
+    let endsAt: string | null = null
+    if (isFeatured && endsAtIso) {
+      const parsed = new Date(endsAtIso)
+      if (Number.isNaN(parsed.getTime())) return { ok: false, error: 'Invalid end date.' }
+      if (parsed.getTime() <= Date.now()) return { ok: false, error: 'The feature window must end in the future.' }
+      endsAt = parsed.toISOString()
+    }
     const { error } = await supabase.from('content_items').update({ is_featured: isFeatured }).eq('id', contentId)
     if (error) return { ok: false, error: error.message }
+    if (isFeatured) {
+      const { data: existing } = await supabase
+        .from('homepage_slots')
+        .select('id')
+        .eq('content_item_id', contentId)
+        .limit(1)
+      if (existing?.length) {
+        const { error: slotError } = await supabase
+          .from('homepage_slots')
+          .update({ starts_at: nowIso, ends_at: endsAt, is_active: true })
+          .eq('content_item_id', contentId)
+        if (slotError) return { ok: false, error: slotError.message }
+      } else {
+        const { data: last } = await supabase
+          .from('homepage_slots')
+          .select('sort_order')
+          .eq('slot_key', 'secondary')
+          .order('sort_order', { ascending: false })
+          .limit(1)
+        const rows = (last ?? []) as { sort_order: number }[]
+        const { error: slotError } = await supabase.from('homepage_slots').insert({
+          slot_key: 'secondary',
+          content_item_id: contentId,
+          sort_order: (rows[0]?.sort_order ?? -1) + 1,
+          starts_at: nowIso,
+          ends_at: endsAt,
+          is_active: true,
+          created_by: user.id,
+        })
+        if (slotError) return { ok: false, error: slotError.message }
+      }
+    } else {
+      const { error: slotError } = await supabase
+        .from('homepage_slots')
+        .update({ is_active: false })
+        .eq('content_item_id', contentId)
+      if (slotError) return { ok: false, error: slotError.message }
+    }
     await audit(supabase, user.id, {
       action: 'content:featured',
       contentItemId: contentId,
       toStatus: isFeatured ? 'featured' : 'unfeatured',
+      notes: isFeatured ? `until=${endsAt ?? 'indefinite'}` : null,
     })
     revalidatePublicContentCache()
     revalidateLocalized('/admin/content')
@@ -1080,11 +1136,22 @@ export async function queueStorageVerification(mediaId?: string): Promise<Action
     const { data, error } = await query
     if (error) return { ok: false, error: error.message }
     if (!data?.length) return { ok: false, error: 'Nothing to verify — no pending assets found.' }
-    if (data?.length) {
-      const { error: taskError } = await supabase.from('storage_tasks').insert(data.map((row) => ({ media_id: row.id, task_type: 'verify' })))
+    const ids = data.map((row) => row.id as string)
+    // Skip assets that already have an open verify task — without this every
+    // button click inserts duplicates that pile up as pending forever.
+    const { data: existing } = await supabase
+      .from('storage_tasks')
+      .select('media_id')
+      .eq('task_type', 'verify')
+      .in('status', ['pending', 'processing'])
+      .in('media_id', ids)
+    const alreadyQueued = new Set((existing ?? []).map((row) => row.media_id as string))
+    const fresh = ids.filter((id) => !alreadyQueued.has(id))
+    if (fresh.length > 0) {
+      const { error: taskError } = await supabase.from('storage_tasks').insert(fresh.map((id) => ({ media_id: id, task_type: 'verify' })))
       if (taskError) return { ok: false, error: taskError.message }
     }
-    await audit(supabase, user.id, { action: 'storage:verify:queue', notes: `count=${data?.length ?? 0}` })
+    await audit(supabase, user.id, { action: 'storage:verify:queue', notes: `count=${data?.length ?? 0} new=${fresh.length}` })
     revalidateLocalized('/admin/storage-backup')
     return { ok: true, count: data?.length ?? 0 }
   } catch (e) { return fail(e) }

@@ -120,6 +120,7 @@ export async function mirrorPendingMediaToBackup(
   let mirrored = 0
   let failed = 0
   let skipped = 0
+  const mirroredIds: string[] = []
 
   for (const row of pending as { id: string; storage_key: string | null; provider: string | null; mime_type: string | null }[]) {
     if (!row.storage_key) {
@@ -145,6 +146,7 @@ export async function mirrorPendingMediaToBackup(
         .eq('id', row.id)
       if (markError) throw markError
       mirrored++
+      mirroredIds.push(row.id)
     } catch (err) {
       logger.error('backup', 'mirror failed', {
         correlationId,
@@ -157,6 +159,11 @@ export async function mirrorPendingMediaToBackup(
   }
 
   logger.info('backup', 'mirror batch complete', { correlationId, mirrored, failed, skipped, batchSize })
+  if (mirroredIds.length > 0) {
+    // Close any queued backup tasks for rows this run actually mirrored, so
+    // a task queue UI never shows completed work as still pending.
+    await closeStorageTasks(supabase, mirroredIds, 'backup', correlationId)
+  }
   return { mirrored, failed, skipped }
 }
 
@@ -192,6 +199,8 @@ export async function verifyBackedUpMedia(
   let verified = 0
   let mismatched = 0
   let errors = 0
+  const verifiedIds: string[] = []
+  const mismatchedIds: string[] = []
 
   for (const row of rows as { id: string; storage_key: string | null; provider: string | null; mime_type: string | null; backup_sha256: string | null }[]) {
     if (!row.storage_key) continue
@@ -213,14 +222,20 @@ export async function verifyBackedUpMedia(
           backup: echoedHash.slice(0, 16),
         })
         mismatched++
+        mismatchedIds.push(row.id)
         continue
       }
+      const now = new Date().toISOString()
       const { error: markError } = await supabase
         .from('media_assets')
-        .update({ backup_verified_at: new Date().toISOString(), backup_sha256: expected })
+        // verification_status is the column the admin Storage tab counts for
+        // "pending verification" — without flipping it here the tab shows
+        // pending forever even after a successful checksum comparison.
+        .update({ backup_verified_at: now, backup_sha256: expected, verification_status: 'verified', verification_error: null })
         .eq('id', row.id)
       if (markError) throw markError
       verified++
+      verifiedIds.push(row.id)
     } catch (err) {
       logger.error('backup', 'verify failed', {
         correlationId,
@@ -233,5 +248,54 @@ export async function verifyBackedUpMedia(
   }
 
   logger.info('backup', 'verify batch complete', { correlationId, verified, mismatched, errors })
+  if (verifiedIds.length > 0) {
+    // Drain the verify queue: queueStorageVerification() inserts
+    // storage_tasks rows that nothing consumed before, so they (and the
+    // verification_status counter) stayed pending forever.
+    await closeStorageTasks(supabase, verifiedIds, 'verify', correlationId)
+  }
+  if (mismatchedIds.length > 0) {
+    await supabase
+      .from('media_assets')
+      .update({ verification_status: 'failed', verification_error: 'Backup checksum mismatch' })
+      .in('id', mismatchedIds)
+    await failStorageTasks(supabase, mismatchedIds, 'verify', 'Backup checksum mismatch', correlationId)
+  }
   return { verified, mismatched, errors }
+}
+
+/**
+ * Marks queued storage_tasks completed so the queue doesn't grow
+ * unboundedly. Failures here must never fail the backup run itself —
+ * the media_assets columns are the source of truth, tasks are bookkeeping.
+ */
+async function closeStorageTasks(
+  supabase: SupabaseClient,
+  mediaIds: string[],
+  taskType: string,
+  correlationId?: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('storage_tasks')
+    .update({ status: 'completed', completed_at: new Date().toISOString() })
+    .in('media_id', mediaIds)
+    .eq('task_type', taskType)
+    .in('status', ['pending', 'processing'])
+  if (error) logger.warn('backup', 'storage_tasks close failed', { correlationId, error: error.message, taskType })
+}
+
+async function failStorageTasks(
+  supabase: SupabaseClient,
+  mediaIds: string[],
+  taskType: string,
+  message: string,
+  correlationId?: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('storage_tasks')
+    .update({ status: 'failed', last_error: message })
+    .in('media_id', mediaIds)
+    .eq('task_type', taskType)
+    .in('status', ['pending', 'processing'])
+  if (error) logger.warn('backup', 'storage_tasks fail failed', { correlationId, error: error.message, taskType })
 }

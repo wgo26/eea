@@ -32,6 +32,11 @@ export type NewsArticle = StoryCardData & {
     byline?: string | null;
     locationSlug?: string | null;
     viewCount?: number;
+    /** Category slug (facet/hrefs), plus tags and cover caption/credit for the hero. */
+    categorySlug?: string | null;
+    tags?: { name: string; slug: string }[];
+    coverCaption?: string | null;
+    coverCredit?: string | null;
 };
 
 /** Raw row shape returned by the shared story select. */
@@ -43,8 +48,17 @@ type RawStoryRow = {
     view_count: number | null;
     location?: { name: string | null; slug: string | null } | { name: string | null; slug: string | null }[] | null;
     category?:
-        | { category_translations: { locale: string; name: string }[] }
-        | { category_translations: { locale: string; name: string }[] }[]
+        | {
+              category_translations: { locale: string; name: string }[];
+              slug: string | null;
+          }
+        | {
+              category_translations: { locale: string; name: string }[];
+              slug: string | null;
+          }[]
+        | null;
+    tags?:
+        | { tags: { slug: string | null; tag_translations: { locale: string; name: string }[] } }[]
         | null;
     translations?:
         | { locale: string; title: string | null; excerpt: string | null; body: string | null; byline: string | null }[]
@@ -57,9 +71,10 @@ type RawStoryRow = {
 
 const STORY_SELECT = `id, slug, verification, published_at, view_count,
     location:locations(name, slug),
-    category:categories(category_translations(locale, name)),
+    category:categories(category_translations(locale, name), slug),
     translations:content_translations(locale, title, excerpt, body, byline),
     media:media_assets(public_url, alt_text, caption, photographer_credit, is_cover, kind, mime_type),
+    tags:content_tags(tags(slug, tag_translations(locale, name))),
     author:profiles!content_items_author_id_fkey(id, display_name)`;
 
 /**

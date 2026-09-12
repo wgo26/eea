@@ -18,8 +18,9 @@ type HomeHeroProps = {
 };
 
 /**
- * Hero section (per hero.png): a slideshow of featured stories with overlay
- * headline + trust badge, and a rail of further stories alongside.
+ * Hero section (per hero.png): the featured stories crossfade with a minimal
+ * overlay (kicker + headline + one badge) so the photography leads, and a
+ * rail of further stories alongside.
  */
 export function HomeHero({ featured, secondary, dict, locale, submitHref, photoStoriesHref }: HomeHeroProps) {
     if (featured.length === 0) {

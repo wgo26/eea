@@ -168,7 +168,12 @@ async function must<T>(promise: PromiseLike<QueryResult<T>>): Promise<T | null> 
     return data;
 }
 
-type SlotRow = { slot_key: string; content_item_id: string | null };
+type SlotRow = {
+    slot_key: string;
+    content_item_id: string | null;
+    starts_at: string | null;
+    ends_at: string | null;
+};
 
 const emptyHomeData: HomeData = {
     hero: null,
@@ -216,7 +221,7 @@ const getCachedHomeData = unstable_cache(
         must(
             supabase
                 .from("homepage_slots")
-                .select("slot_key, content_item_id")
+                .select("slot_key, content_item_id, starts_at, ends_at")
                 .eq("is_active", true)
                 .in("slot_key", ["hero", "secondary"])
         ),
@@ -240,7 +245,15 @@ const getCachedHomeData = unstable_cache(
     // Curated hero + featured slideshow (admin curation, spec §9) with
     // automatic fallbacks: the hero slot leads, curated secondary slots follow,
     // and the latest pool pads the queue up to five rotating features.
-    const slots = (slotRows ?? []) as SlotRow[];
+    // Slots carry an optional display window (starts_at/ends_at, set from the
+    // Feature dialog) — expired or not-yet-started rows are skipped here so
+    // featuring with a duration actually ends on time without an admin visit.
+    const now = Date.now();
+    const slots = ((slotRows ?? []) as SlotRow[]).filter((s) => {
+        if (s.starts_at && Date.parse(s.starts_at) > now) return false;
+        if (s.ends_at && Date.parse(s.ends_at) <= now) return false;
+        return true;
+    });
     const heroSlot = slots.find((s) => s.slot_key === "hero");
     let hero: StoryCardData | null = null;
     if (heroSlot?.content_item_id) {

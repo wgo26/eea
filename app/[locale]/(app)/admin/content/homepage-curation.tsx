@@ -14,6 +14,7 @@ import {
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import type { Dictionary, Locale } from '@/lib/i18n'
+import { formatDate } from '@/lib/i18n'
 import type { HomepageSlot, SlotSearchResult } from '@/lib/admin/queries'
 
 type Copy = Dictionary['admin']['content']
@@ -223,6 +224,11 @@ function SlotCard({
         <div className="min-w-0">
           <div className="truncate text-sm font-medium">{slot.slotKey}</div>
           <div className="text-xs text-muted-foreground">{copy.position.replace('{n}', String(slot.sortOrder))}</div>
+          {slot.endsAt ? (
+            <div className="text-xs text-muted-foreground">
+              {copy.slotUntil.replace('{date}', formatDate(slot.endsAt, locale))}
+            </div>
+          ) : null}
         </div>
         <div className="flex items-center gap-1">
           <button
