@@ -2,7 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
-import { createContentItem, deleteContentItem } from './actions'
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
+  unstable_cache: (fn: unknown) => fn,
+}))
+
+import { createContentItem, deleteContentItem, updateHomepageSlotWindow } from './actions'
 
 vi.mock('./auth', () => ({
   assertCapability: vi.fn().mockResolvedValue({
@@ -87,6 +93,36 @@ describe('Content Lifecycle Actions', () => {
       if (!res.ok) {
         expect(res.error).toBe('Content item not found.')
       }
+    })
+  })
+
+  describe('updateHomepageSlotWindow validation (schedule bounds)', () => {
+    it('rejects an end date before the start date', async () => {
+      const res = await updateHomepageSlotWindow('slot-1', {
+        startsAt: '2026-10-01T00:00:00.000Z',
+        endsAt: '2026-09-01T00:00:00.000Z',
+      })
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error).toBe('Slot end must be after its start.')
+      }
+    })
+
+    it('rejects malformed dates', async () => {
+      const badStart = await updateHomepageSlotWindow('slot-1', { startsAt: 'not-a-date' })
+      expect(badStart.ok).toBe(false)
+      const badEnd = await updateHomepageSlotWindow('slot-1', { endsAt: 'not-a-date' })
+      expect(badEnd.ok).toBe(false)
+    })
+
+    it('accepts a valid window and a full clear', async () => {
+      const set = await updateHomepageSlotWindow('slot-1', {
+        startsAt: '2026-09-01T00:00:00.000Z',
+        endsAt: '2026-10-01T00:00:00.000Z',
+      })
+      expect(set.ok).toBe(true)
+      const cleared = await updateHomepageSlotWindow('slot-1', { startsAt: null, endsAt: null })
+      expect(cleared.ok).toBe(true)
     })
   })
 })

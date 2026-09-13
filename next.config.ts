@@ -67,6 +67,10 @@ const nextConfig: NextConfig = {
     ];
   },
   images: {
+    // AVIF-first negotiation: ~50% smaller than WebP at equal quality, with
+    // WebP as the negotiated fallback for AVIF-less clients — the WebP-only
+    // default leaves the low-bandwidth audience's biggest win on the table.
+    formats: ["image/avif", "image/webp"],
     remotePatterns: [
       {
         protocol: "https",

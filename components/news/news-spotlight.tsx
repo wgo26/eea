@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowRight, CalendarDays, Clock, Eye, MapPin, UserRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { SmartImage } from "@/components/media/smart-image";
+import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { formatDate, timeAgo, type Dictionary, type Locale } from "@/lib/i18n";
 import { verificationBadgeInfo } from "@/lib/verification";
 import { cn } from "@/lib/utils";
@@ -140,15 +140,13 @@ export function NewsSpotlight({ featured, nextUp, dict, locale }: NewsSpotlightP
                                             href={article.href}
                                             className="group flex items-start gap-3 rounded-xl p-2 transition-colors hover:bg-muted"
                                         >
-                                            <span className="relative h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-muted">
+                                            <span className="relative block h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-muted">
                                                 {article.imageUrl ? (
-                                                    <span
-                                                        className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.05]"
-                                                        style={{
-                                                            backgroundImage: `url(${article.imageUrl})`,
-                                                        }}
-                                                        role="img"
-                                                        aria-label={article.title}
+                                                    <SmartImage
+                                                        src={article.imageUrl}
+                                                        alt={article.title}
+                                                        sizes={THUMB_SIZES}
+                                                        className="object-cover transition-transform duration-300 group-hover:scale-[1.05]"
                                                     />
                                                 ) : null}
                                             </span>

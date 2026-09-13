@@ -1127,6 +1127,37 @@ export async function reorderHomepageSlot(slotId: string, direction: 'up' | 'dow
     return { ok: true }
   } catch (e) { return fail(e) }
 }
+/** Update a homepage slot's optional display window (staff). Null = no bound on that side. */
+export async function updateHomepageSlotWindow(
+  slotId: string,
+  input: { startsAt?: string | null; endsAt?: string | null },
+): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageContent')
+    if (input.startsAt && Number.isNaN(Date.parse(input.startsAt))) return { ok: false, error: 'The start date is invalid.' }
+    if (input.endsAt && Number.isNaN(Date.parse(input.endsAt))) return { ok: false, error: 'The end date is invalid.' }
+    if (input.startsAt && input.endsAt && new Date(input.endsAt) <= new Date(input.startsAt)) {
+      return { ok: false, error: 'Slot end must be after its start.' }
+    }
+    const { error } = await supabase
+      .from('homepage_slots')
+      .update({ starts_at: input.startsAt || null, ends_at: input.endsAt || null })
+      .eq('id', slotId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, {
+      action: 'slot:window',
+      entityType: 'homepage_slot',
+      notes: `slot=${slotId} starts=${input.startsAt ?? 'none'} ends=${input.endsAt ?? 'none'}`,
+    })
+    revalidatePublicContentCache()
+    revalidateLocalized('/admin/content')
+    revalidateLocalized('/')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
 
 export async function queueStorageVerification(mediaId?: string): Promise<ActionResult & { count?: number }> {
   try {

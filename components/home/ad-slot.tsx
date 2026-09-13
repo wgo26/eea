@@ -6,6 +6,7 @@ import { Clock, ExternalLink, Mic, Play } from "lucide-react";
 import type { Dictionary } from "@/lib/i18n";
 import type { AdCreative } from "@/lib/queries/ads";
 import { formatDuration } from "@/lib/media/attachments";
+import { SmartImage } from "@/components/media/smart-image";
 import { cn } from "@/lib/utils";
 
 type AdSlotProps = {
@@ -176,6 +177,9 @@ function ImageCreative({
           src={src}
           alt={ad.name}
           loading="lazy"
+          decoding="async"
+          fetchPriority="low"
+          sizes="100vw"
           className={cn(
             "w-full bg-muted object-cover",
             variant === "banner" && "h-28 md:h-36",
@@ -307,15 +311,22 @@ function TextCreative({
     >
       <div
         className={cn(
-          "w-full bg-muted bg-cover bg-center",
+          "relative w-full overflow-hidden bg-muted",
           variant === "banner" && "h-28 md:h-36",
           variant === "strip" && "h-24 md:h-28",
           variant === "rail" && "aspect-[3/4]",
           variant === "inline-bottom" && "h-24 md:h-28"
         )}
-        style={ad.imageUrl ? { backgroundImage: `url(${ad.imageUrl})` } : undefined}
       >
-        <div className="flex h-full items-center gap-3 bg-black/45 p-4 text-white">
+        {ad.imageUrl ? (
+          <SmartImage
+            src={ad.imageUrl}
+            alt={ad.name}
+            sizes="100vw"
+            className="object-cover"
+          />
+        ) : null}
+        <div className="absolute inset-0 flex h-full items-center gap-3 bg-black/45 p-4 text-white">
           <div className="min-w-0">
             <p className="truncate text-sm font-bold md:text-base">{ad.name}</p>
             {ad.copyText ? (

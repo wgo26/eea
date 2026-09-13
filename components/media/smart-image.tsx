@@ -2,11 +2,16 @@ import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
 /**
- * LCP-safe editorial image (P1-3). next/image optimizes URLs hosted on our
+ * Low-bandwidth editorial image. next/image optimizes URLs hosted on our
  * own backends (R2, Supabase, seed placeholders — see next.config.ts
- * remotePatterns); anything else (pasted external URLs, data:) falls back
- * to a plain lazy <img> so approval-time URL pasting can never 400 through
- * the optimizer. Same layout contract either way (fill or fixed size).
+ * remotePatterns) with automatic responsive srcset + AVIF/WebP negotiation;
+ * anything else (pasted external URLs, data:) falls back to a plain lazy
+ * <img> so approval-time URL pasting can never 400 through the optimizer.
+ * Same layout contract either way (fill or fixed size).
+ *
+ * Callers MUST pass a `sizes` matching the rendered slot (cards ≈ 33-50vw,
+ * thumbs ≈ fixed px) — the default 100vw is only correct for full-bleed
+ * heroes. Non-priority images are always lazy + async-decoded.
  */
 
 function optimizableHosts(): string[] {
@@ -43,14 +48,32 @@ type SmartImageProps = {
   priority?: boolean;
 };
 
+/**
+ * Card-slot sizes: use for grids (3-col desktop → 2-col tablet → 1-col mobile).
+ * Keeps next/image srcset from downloading desktop-width bytes on phones.
+ */
+export const CARD_SIZES = '(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw';
+/** Fixed-thumbnail slot (rails, next-up rows, thumbs). */
+export const THUMB_SIZES = '160px';
+
 /** Drop-in image for editorial surfaces: optimized when possible, plain otherwise. */
 export function SmartImage({ src, alt, className, fill = true, width, height, sizes, priority = false }: SmartImageProps) {
   if (!isOptimizableImage(src)) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt={alt} loading={priority ? 'eager' : 'lazy'} className={cn(fill && 'h-full w-full object-cover', className)} />;
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={alt}
+        loading={priority ? 'eager' : 'lazy'}
+        decoding="async"
+        fetchPriority={priority ? 'high' : 'low'}
+        sizes={sizes ?? (fill ? CARD_SIZES : undefined)}
+        className={cn(fill && 'h-full w-full object-cover', className)}
+      />
+    );
   }
   if (fill) {
-    return <Image src={src} alt={alt} fill sizes={sizes ?? '100vw'} priority={priority} className={className} />;
+    return <Image src={src} alt={alt} fill sizes={sizes ?? CARD_SIZES} priority={priority} className={className} />;
   }
   return (
     <Image

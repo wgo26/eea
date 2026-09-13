@@ -5,6 +5,7 @@ import { CalendarDays, Landmark, Music, Palette, Search, Video, Utensils } from 
 
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
+import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -261,11 +262,12 @@ export default async function CulturePage({
                     >
                         <div className="relative aspect-[16/7] overflow-hidden bg-muted md:aspect-[16/6]">
                             {featured.imageUrl ? (
-                                <div
-                                    className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-[1.03]"
-                                    style={{ backgroundImage: `url(${featured.imageUrl})` }}
-                                    role="img"
-                                    aria-label={featured.title}
+                                <SmartImage
+                                    src={featured.imageUrl}
+                                    alt={featured.title}
+                                    sizes="(max-width: 1024px) 100vw, 60vw"
+                                    priority
+                                    className="object-cover transition-transform duration-700 group-hover:scale-[1.03]"
                                 />
                             ) : null}
                             <span className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" aria-hidden />
@@ -325,11 +327,11 @@ export default async function CulturePage({
                                 >
                                     <div className="relative aspect-[4/3] overflow-hidden bg-muted">
                                         {article.imageUrl ? (
-                                            <div
-                                                className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.05]"
-                                                style={{ backgroundImage: `url(${article.imageUrl})` }}
-                                                role="img"
-                                                aria-label={article.title}
+                                            <SmartImage
+                                                src={article.imageUrl}
+                                                alt={article.title}
+                                                sizes={CARD_SIZES}
+                                                className="object-cover transition-transform duration-300 group-hover:scale-[1.05]"
                                             />
                                         ) : null}
                                         {article.category ? (

@@ -14,6 +14,7 @@ import {
 
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
+import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { VerificationBadge } from "@/components/verification-badge";
 import { Badge } from "@/components/ui/badge";
@@ -149,12 +150,13 @@ export default async function NoticePage({ params }: NoticePageProps) {
             </header>
 
             {notice.imageUrl ? (
-                <div className="mt-8 overflow-hidden rounded-2xl bg-muted">
-                    <span
-                        className="block h-64 w-full bg-cover bg-center md:h-96"
-                        style={{ backgroundImage: `url(${notice.imageUrl})` }}
-                        role="img"
-                        aria-label={notice.title}
+                <div className="relative mt-8 h-64 w-full overflow-hidden rounded-2xl bg-muted md:h-96">
+                    <SmartImage
+                        src={notice.imageUrl}
+                        alt={notice.title}
+                        sizes="(max-width: 1024px) 100vw, 60vw"
+                        priority
+                        className="object-cover"
                     />
                 </div>
             ) : null}
@@ -194,13 +196,11 @@ export default async function NoticePage({ params }: NoticePageProps) {
                                             <CardContent className="flex items-start gap-3 py-3">
                                                 {item.imageUrl ? (
                                                     <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
-                                                        <span
-                                                            className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.04]"
-                                                            style={{
-                                                                backgroundImage: `url(${item.imageUrl})`,
-                                                            }}
-                                                            role="img"
-                                                            aria-label={item.title}
+                                                        <SmartImage
+                                                            src={item.imageUrl}
+                                                            alt={item.title}
+                                                            sizes={THUMB_SIZES}
+                                                            className="object-cover transition-transform duration-300 group-hover:scale-[1.04]"
                                                         />
                                                     </div>
                                                 ) : null}

@@ -85,7 +85,14 @@ async function reencodeImage(buffer: Buffer, mimeType: string): Promise<Validate
   const image = sharp(buffer, { failOn: 'error' }).rotate() // rotate() auto-applies EXIF orientation, then strips EXIF on output
   const metadata = await image.metadata()
 
-  const MAX_DIMENSION = 4000
+  // Master ceiling: 2560px covers every slot at 2x DPR (largest heroes cap
+  // around 1280 CSS px); next/image serves the smaller responsive rungs from
+  // the master on request. Storing q82 WebP instead of JPEG q85 cuts the
+  // stored master — and every origin fetch of it (OG/WhatsApp previews,
+  // direct links, optimizer reads) — roughly in half: features.md
+  // §low-bandwidth tiered compression. PNG stays lossless for transparency
+  // (logos, screenshots).
+  const MAX_DIMENSION = 2560
   const resized = image.resize({
     width: MAX_DIMENSION,
     height: MAX_DIMENSION,
@@ -94,12 +101,14 @@ async function reencodeImage(buffer: Buffer, mimeType: string): Promise<Validate
   })
 
   const isPng = mimeType === 'image/png'
-  const output = isPng ? await resized.png({ compressionLevel: 9 }).toBuffer() : await resized.jpeg({ quality: 85 }).toBuffer()
+  const output = isPng
+    ? await resized.png({ compressionLevel: 9 }).toBuffer()
+    : await resized.webp({ quality: 82 }).toBuffer()
   const finalMeta = await sharp(output).metadata()
 
   return {
     buffer: output,
-    mimeType: isPng ? 'image/png' : 'image/jpeg',
+    mimeType: isPng ? 'image/png' : 'image/webp',
     kind: 'image',
     width: finalMeta.width ?? metadata.width ?? null,
     height: finalMeta.height ?? metadata.height ?? null,

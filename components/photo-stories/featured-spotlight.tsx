@@ -6,6 +6,7 @@ import { formatDate, type Dictionary, type Locale } from "@/lib/i18n";
 import { localePath } from "@/lib/i18n/urls";
 import { verificationBadgeInfo } from "@/lib/verification";
 import type { PhotoStoryData } from "@/lib/queries/photo-stories";
+import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { cn } from "@/lib/utils";
 
 type FeaturedSpotlightProps = {
@@ -26,13 +27,13 @@ function NextUpItem({ story, rank }: { story: PhotoStoryData; rank: number }) {
                 <span className="mt-0.5 text-sm font-black tabular-nums text-muted-foreground/50">
                     {rank}
                 </span>
-                <span className="relative h-14 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
+                <span className="relative block h-14 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
                     {story.imageUrl ? (
-                        <span
-                            className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.04]"
-                            style={{ backgroundImage: `url(${story.imageUrl})` }}
-                            role="img"
-                            aria-label={story.title}
+                        <SmartImage
+                            src={story.imageUrl}
+                            alt={story.title}
+                            sizes={THUMB_SIZES}
+                            className="object-cover transition-transform duration-300 group-hover:scale-[1.04]"
                         />
                     ) : null}
                 </span>
@@ -102,11 +103,12 @@ export function FeaturedSpotlight({
                 >
                     <div className="relative aspect-[4/3] overflow-hidden bg-muted md:aspect-[16/10]">
                         {featured.imageUrl ? (
-                            <div
-                                className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-[1.04]"
-                                style={{ backgroundImage: `url(${featured.imageUrl})` }}
-                                role="img"
-                                aria-label={featured.title}
+                            <SmartImage
+                                src={featured.imageUrl}
+                                alt={featured.title}
+                                priority
+                                sizes="(max-width: 1024px) 100vw, 60vw"
+                                className="object-cover transition-transform duration-700 group-hover:scale-[1.04]"
                             />
                         ) : null}
                         <span

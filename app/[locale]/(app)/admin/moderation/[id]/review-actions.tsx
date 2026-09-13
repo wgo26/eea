@@ -60,6 +60,7 @@ function prefillFromPayload(payload: Record<string, unknown> | null) {
     photos: str(p.photos),
     videos: str(p.videos),
     audios: str(p.audios),
+    documents: str(p.documents),
     organization: str(p.organization),
     noticeType: str(p.noticeType),
   }
@@ -339,6 +340,7 @@ function ApproveDrawer({
   const [photos, setPhotos] = useState(prefill.photos)
   const [videos, setVideos] = useState(prefill.videos)
   const [audios, setAudios] = useState(prefill.audios)
+  const [documents, setDocuments] = useState(prefill.documents)
   // Photo URLs from the payload prefill the uploader as editable thumbnails
   // ("url - caption" lines); adding uploads/URLs keeps the same line format.
   const [newPhotos, setNewPhotos] = useState<UploadedPhoto[]>(() =>
@@ -395,6 +397,10 @@ function ApproveDrawer({
         ...audios.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
           const [url, ...rest] = line.split(/\s+-\s+/)
           return { url, kind: 'audio' as const, caption: rest.join(' - ') || undefined }
+        }),
+        ...documents.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+          const [url, ...rest] = line.split(/\s+-\s+/)
+          return { url, kind: 'document' as const, caption: rest.join(' - ') || undefined }
         }),
       ],
     }
@@ -506,6 +512,9 @@ function ApproveDrawer({
               <textarea value={audios} onChange={(e) => setAudios(e.target.value)} rows={3} className={inputCls} placeholder="https://…" />
             </Field>
           </div>
+          <Field label={copy.documentsLabel} hint={copy.documentsHint}>
+            <textarea value={documents} onChange={(e) => setDocuments(e.target.value)} rows={2} className={inputCls} placeholder="https://…pdf" />
+          </Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label={copy.photographerCredit}>
               <input value={credit} onChange={(e) => setCredit(e.target.value)} className={inputCls} />

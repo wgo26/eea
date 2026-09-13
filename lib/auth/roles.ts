@@ -72,7 +72,18 @@ export async function getUserRoles(
     // Never silently swallow: a denied/granted read here turns every staff
     // member into a "member" (all /admin pages deny). Log so the cause is
     // visible in production logs instead of masquerading as "access denied".
-    console.error("[auth] getUserRoles failed, treating as no roles", error.message);
+    // This module is also imported client-side (auth-provider), so the
+    // server-only structured logger is unavailable — emit the same JSON
+    // record shape (lib/observability/logger.ts) inline instead.
+    console.error(
+      JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: 'error',
+        scope: 'auth',
+        message: 'getUserRoles failed, treating as no roles',
+        error: { message: error.message },
+      }),
+    );
     return [];
   }
   return (data ?? [])

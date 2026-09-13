@@ -5,6 +5,7 @@ import { AlertTriangle, MapPin, Search } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
+import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { VerificationBadge } from "@/components/verification-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -154,13 +155,12 @@ export default async function NoticesPage({
                             <div className="flex flex-col gap-0 md:flex-row">
                                 {featured.imageUrl ? (
                                     <div className="relative h-48 w-full shrink-0 overflow-hidden bg-muted md:h-auto md:w-72">
-                                        <span
-                                            className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.03]"
-                                            style={{
-                                                backgroundImage: `url(${featured.imageUrl})`,
-                                            }}
-                                            role="img"
-                                            aria-label={featured.title}
+                                        <SmartImage
+                                            src={featured.imageUrl}
+                                            alt={featured.title}
+                                            sizes="(max-width: 1024px) 100vw, 60vw"
+                                            priority
+                                            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                                         />
                                     </div>
                                 ) : null}
@@ -291,13 +291,11 @@ export default async function NoticesPage({
                                         <CardContent className="flex gap-4 py-4">
                                             {notice.imageUrl ? (
                                                 <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-lg bg-muted">
-                                                    <span
-                                                        className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.04]"
-                                                        style={{
-                                                            backgroundImage: `url(${notice.imageUrl})`,
-                                                        }}
-                                                        role="img"
-                                                        aria-label={notice.title}
+                                                    <SmartImage
+                                                        src={notice.imageUrl}
+                                                        alt={notice.title}
+                                                        sizes={THUMB_SIZES}
+                                                        className="object-cover transition-transform duration-300 group-hover:scale-[1.04]"
                                                     />
                                                 </div>
                                             ) : null}

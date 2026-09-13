@@ -46,6 +46,10 @@ export default async function Page() {
 
       <FundraiserCreateForm copy={t} common={common} />
 
+      {!canDelete ? (
+        <p className="text-xs text-muted-foreground">{common.deleteAdminOnly}</p>
+      ) : null}
+
       {fundraisers.length === 0 ? (
         <EmptyState message={t.empty} />
       ) : (

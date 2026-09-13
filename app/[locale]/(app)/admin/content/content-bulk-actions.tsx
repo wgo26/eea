@@ -323,6 +323,9 @@ export function ContentTable({
         onToggleAll={toggleAll}
         allSelected={allSelected}
       />
+      {!canDelete ? (
+        <p className="text-xs text-muted-foreground">{copy.deleteHint}</p>
+      ) : null}
     </>
   )
 }

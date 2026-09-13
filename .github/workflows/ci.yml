@@ -38,6 +38,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # P2 — dependency vulnerability scan. Advisory (continue-on-error) so a
+      # new transitive advisory doesn't block merges on its own; Dependabot
+      # opens the PRs, this step surfaces the findings in the run log.
+      - name: Dependency audit (npm audit — advisory)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
       - name: Typecheck (tsc --noEmit)
         run: npx tsc --noEmit
 
@@ -49,6 +56,11 @@ jobs:
       # a red step names its exact cause).
       - name: Bare-href audit (no locale-less internal links)
         run: node scripts/find-bare-hrefs.mjs
+
+      # Same pattern for media: editorial images must render via SmartImage,
+      # never CSS backgroundImage (raw master bytes on every device).
+      - name: Background-image audit (no CSS-background media)
+        run: node scripts/find-bg-images.mjs
 
       - name: Sitemap route verification (static paths + dynamic segments)
         run: node scripts/verify-sitemap.mjs

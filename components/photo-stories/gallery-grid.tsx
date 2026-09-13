@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Expand, Images, MousePointerClick } from "lucide-react";
 
 import { GalleryLightbox } from "@/components/photo-stories/gallery-lightbox";
+import { SmartImage } from "@/components/media/smart-image";
 import type { Dictionary } from "@/lib/i18n";
 import type { PhotoStoryPhoto } from "@/lib/queries/photo-stories";
 
@@ -52,12 +53,12 @@ export function GalleryGrid({ photos, storyTitle, dict }: GalleryGridProps) {
                     className="group relative block w-full overflow-hidden rounded-3xl bg-muted"
                 >
                     <div className="relative aspect-[4/3] w-full overflow-hidden sm:aspect-[16/9] md:aspect-[21/9]">
-                        {/* Remote storage URLs are not in next/image domains,
-                            so the gallery uses plain img elements. */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
+                        {/* SmartImage: next/image for our own storage hosts (LCP),
+                            plain lazy img for pasted external URLs. */}
+                        <SmartImage
                             src={cover.url}
                             alt={cover.alt ?? storyTitle}
+                            priority
                             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
                         />
                         <span
@@ -100,11 +101,9 @@ export function GalleryGrid({ photos, storyTitle, dict }: GalleryGridProps) {
                                 className="group relative block w-full overflow-hidden rounded-2xl bg-muted"
                                 style={masonryStyle(photo)}
                             >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
+                                <SmartImage
                                     src={photo.url}
                                     alt={photo.alt ?? storyTitle}
-                                    loading="lazy"
                                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                                 />
                                 <span

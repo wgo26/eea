@@ -4,6 +4,7 @@ import { Eye, Images, MapPin } from "lucide-react";
 import { formatDate, type Dictionary, type Locale } from "@/lib/i18n";
 import { verificationBadgeInfo } from "@/lib/verification";
 import type { PhotoStoryData } from "@/lib/queries/photo-stories";
+import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 import { cn } from "@/lib/utils";
 
 type PhotoStoryCardProps = {
@@ -37,11 +38,11 @@ export function PhotoStoryCard({
         >
             <div className="relative aspect-[4/3] overflow-hidden bg-muted">
                 {story.imageUrl ? (
-                    <div
-                        className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.03]"
-                        style={{ backgroundImage: `url(${story.imageUrl})` }}
-                        role="img"
-                        aria-label={story.title}
+                    <SmartImage
+                        src={story.imageUrl}
+                        alt={story.title}
+                        sizes={CARD_SIZES}
+                        className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                     />
                 ) : (
                     <div className="absolute inset-0 bg-muted" aria-hidden />

@@ -8,6 +8,7 @@ import { getSubmissionById, getSubmissions, getContentItemRef, getLocations, get
 import { PageHeader } from '@/components/admin/page-header'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { formatRelative } from '@/lib/admin/format'
+import { FileText } from 'lucide-react'
 import { ReviewActions } from './review-actions'
 import type { ContentType } from '@/lib/auth/roles'
 
@@ -36,21 +37,22 @@ const PHOTO_KEY_RE = /photo|image|picture|cover/i
 const AV_KEY_RE = /video|audio|media|clip|voice|sound/i
 const URL_RE = /https?:\/\/[^\s'",;\\]+/g
 
-function kindOfUrl(url: string): 'video' | 'audio' | 'image' | 'file' {
+function kindOfUrl(url: string): 'video' | 'audio' | 'image' | 'document' | 'file' {
   if (/\.(mp4|mov|webm|m4v)(\?.*)?$/i.test(url) || /youtube\.com|youtu\.be|vimeo\.com/i.test(url)) return 'video'
   if (/\.(mp3|m4a|wav|ogg|oga|opus|weba)(\?.*)?$/i.test(url) || /soundcloud\.com|spotify\.com|audiomack\.com/i.test(url)) return 'audio'
+  if (/\.(pdf)(\?.*)?$/i.test(url)) return 'document'
   if (/\.(jpe?g|png|webp|gif|avif)(\?.*)?$/i.test(url) || url.includes('/uploads') || url.includes('/media')) return 'image'
   return 'file'
 }
 
-/** Pull media URLs out of a flattened payload value (photos/videos/audios arrive newline-joined). */
+/** Pull media URLs out of a flattened payload value (photos/videos/audios/documents arrive newline-joined). */
 function extractPhotoUrls(key: string, value: string): string[] {
   if (!value.includes('http')) return []
   const urls = value.match(URL_RE) ?? []
   if (urls.length === 0) return []
-  // Video/audio keys return their URLs directly so the reviewer gets a
-  // player instead of a broken image thumbnail.
-  if (/video|audio/i.test(key)) return urls
+  // Video/audio/document keys return their URLs directly so the reviewer
+  // gets a player/link instead of a broken image thumbnail.
+  if (/video|audio|document/i.test(key)) return urls
   const imageUrls = urls.filter(
     (u) => /\.(jpe?g|png|webp|gif|avif)(\?.*)?$/i.test(u) || u.includes('/uploads') || u.includes('/media'),
   )
@@ -162,6 +164,20 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                           if (kind === 'audio') {
                             return (
                               <audio key={url} src={url} controls preload="none" className="w-56" />
+                            )
+                          }
+                          if (kind === 'document') {
+                            return (
+                              <a
+                                key={url}
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex max-w-72 items-center gap-2 rounded border border-border bg-muted/40 px-3 py-2 text-xs transition-colors hover:bg-muted/60"
+                              >
+                                <FileText className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                                <span className="truncate">{url}</span>
+                              </a>
                             )
                           }
                           return (

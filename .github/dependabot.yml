@@ -1,0 +1,18 @@
+# Dependabot (P2): weekly npm updates + monthly GitHub Actions bumps.
+# Complements the advisory `npm audit` step in ci.yml — Dependabot opens the
+# upgrade PRs, the CI step surfaces unpatched advisories in the run log.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5

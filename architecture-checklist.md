@@ -928,6 +928,48 @@ below.*
   - **Operator docs** — `/admin/notifications` section in
     `docs/admin-manual.md` (channels, per-row retry/wa.me/copy, test
     summaries, digest toggles).
+- 2026-09-13 — **Homepage scheduling + documents intake + known-issues sweep**
+  (`tsc --noEmit` clean, eslint clean, 100 vitest tests green — 3 new, bare-href
+  audit zero, sitemap + migration manifests clean): closes the P1 debt list and
+  completes the Content Homepage tab.
+  - **Homepage full management** — the curation tab now offers a slot-key
+    picker limited to the two keys the homepage actually renders (`hero` +
+    `secondary`; other keys silently never mounted, so free text is gone),
+    optional display windows (`starts_at`/`ends_at` at create or via new
+    `updateHomepageSlotWindow`, validated end > start), Live/Scheduled/
+    Expired/Always-shown state chips per slot (`suppressHydrationWarning` for
+    the clock), a "View homepage" preview link, and the create/clear/save
+    window wording in en+fr. Window edits audit + revalidate `home`/`/`.
+  - **Document (PDF) intake (P1-4)** — `MediaField` gains a `document` kind
+    (application/pdf, 10 MB cap mirroring `MAX_KIND_BYTES`); the public
+    photo-story/news/culture/notice/buy-sell forms add a `documents` field;
+    `PAYLOAD_FIELDS` + URL-list normalization extended; migration
+    `20261001000003_submission_documents.sql` re-creates
+    `enforce_submission_payload_shape()` with `documents` allowlisted (8000-char
+    cap like photos/videos/audios); moderation review prefills, edits and
+    publishes documents as `kind: 'document'` attachments (detail pages already
+    rendered the download card). Moderation previews PDF rows as a
+    FileText link instead of a broken `<img>`.
+  - **Image pipeline (P1-3)** — `gallery-grid` (cover = eager/LCP priority and
+    masonry), the site-footer logo and `MediaAttachment` image embeds now route
+    through `SmartImage` (next/image for our storage hosts, plain lazy `<img>`
+    for pasted externals); the outdated "not in remote patterns" comment is
+    deleted.
+  - **Delete-role explanation (P1-2 tail)** — Content table and Polls/
+    Fundraisers screens show a muted `deleteAdminOnly` hint for editors with
+    manage capabilities but no admin role (the profile-edit dialog and
+    `updateContributorCuration` UI were already shipped).
+  - **Structured logging (P2)** — the 4 `console.error` calls in
+    `lib/admin/queries.ts` moved to `logger.error`; `lib/auth/roles.ts`
+    (bundled client-side, so the server-only logger is unavailable) emits the
+    same JSON record shape inline.
+  - **Dependency hygiene (P2)** — `.github/dependabot.yml` (weekly npm grouped,
+    monthly actions) + advisory `npm audit --audit-level=high` step in
+    `ci.yml`.
+  - **Docs** — `docs/known-issues.md` re-verified against the code (P1-1..P1-4
+    and the two P2 items closed into the fixed list; P1-5 stays as a manual
+    ops check), `docs/admin-manual.md` refreshed for the Homepage/listings/
+    documents sections.
 
 
 

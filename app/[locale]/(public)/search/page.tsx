@@ -6,6 +6,7 @@ import { CalendarDays, MapPin, Search as SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { formatDate, getDictionary, resolveLocale, type Dictionary, type Locale } from "@/lib/i18n";
 import { getSearchResults, type SearchResultItem } from "@/lib/queries/search";
 
@@ -62,12 +63,9 @@ function ResultRow({
             <Card className="overflow-hidden transition-shadow hover:shadow-md">
                 <div className="flex items-stretch gap-3">
                     {item.imageUrl ? (
-                        <span
-                            className="h-24 w-24 shrink-0 self-stretch bg-cover bg-center sm:w-32"
-                            style={{ backgroundImage: `url(${item.imageUrl})` }}
-                            role="img"
-                            aria-label={item.title}
-                        />
+                        <span className="relative block h-24 w-24 shrink-0 self-stretch overflow-hidden bg-muted sm:w-32">
+                            <SmartImage src={item.imageUrl} alt={item.title} sizes={THUMB_SIZES} />
+                        </span>
                     ) : (
                         <span className="w-24 shrink-0 bg-muted sm:w-32" />
                     )}

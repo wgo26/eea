@@ -17,6 +17,7 @@ import {
     PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Badge } from "@/components/ui/badge";
+import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import {
     getFeaturedListing,
@@ -235,13 +236,13 @@ export default async function BuySellPage({
                             className="group mb-8 block overflow-hidden rounded-2xl border transition-colors hover:bg-muted/30"
                         >
                             <div className="grid gap-4 sm:grid-cols-[240px_1fr]">
-                                <div className="relative aspect-[4/3] overflow-hidden bg-muted sm:aspect-auto sm:h-full">
+                                <div className="relative aspect-[4/3] overflow-hidden bg-muted sm:aspect-auto sm:h-full sm:min-h-55">
                                     {featured.imageUrl ? (
-                                        <div
-                                            className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-[1.03]"
-                                            style={{ backgroundImage: `url(${featured.imageUrl})` }}
-                                            role="img"
-                                            aria-label={featured.title}
+                                        <SmartImage
+                                            src={featured.imageUrl}
+                                            alt={featured.title}
+                                            sizes="(max-width: 640px) 100vw, 240px"
+                                            className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                                         />
                                     ) : (
                                         <div className="flex h-full items-center justify-center">
@@ -313,11 +314,11 @@ export default async function BuySellPage({
                                 >
                                     <div className="relative aspect-[4/3] overflow-hidden bg-muted">
                                         {listing.imageUrl ? (
-                                            <div
-                                                className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.04]"
-                                                style={{ backgroundImage: `url(${listing.imageUrl})` }}
-                                                role="img"
-                                                aria-label={listing.title}
+                                            <SmartImage
+                                                src={listing.imageUrl}
+                                                alt={listing.title}
+                                                sizes={CARD_SIZES}
+                                                className="object-cover transition-transform duration-300 group-hover:scale-[1.04]"
                                             />
                                         ) : (
                                             <div className="flex h-full items-center justify-center">

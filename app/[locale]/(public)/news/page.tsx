@@ -14,6 +14,7 @@ import {
 
 import { AdSlot } from "@/components/home/ad-slot";
 import { StoryCard } from "@/components/home/story-card";
+import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { FundraisingSection } from "@/components/news/fundraising-section";
 import { LiveRail } from "@/components/news/live-rail";
 import { NewsSpotlight } from "@/components/news/news-spotlight";
@@ -477,15 +478,13 @@ export default async function NewsPage({
                                                 <span className="w-4 shrink-0 text-sm font-black tabular-nums text-muted-foreground/50">
                                                     {index + 1}
                                                 </span>
-                                                <span className="relative h-14 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
+                                                <span className="relative block h-14 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
                                                     {article.imageUrl ? (
-                                                        <span
-                                                            className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.04]"
-                                                            style={{
-                                                                backgroundImage: `url(${article.imageUrl})`,
-                                                            }}
-                                                            role="img"
-                                                            aria-label={article.title}
+                                                        <SmartImage
+                                                            src={article.imageUrl}
+                                                            alt={article.title}
+                                                            sizes={THUMB_SIZES}
+                                                            className="object-cover transition-transform duration-300 group-hover:scale-[1.04]"
                                                         />
                                                     ) : null}
                                                 </span>

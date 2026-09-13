@@ -1,5 +1,6 @@
 import type { MediaAttachment } from '@/lib/media/attachments';
 import { cn } from '@/lib/utils';
+import { SmartImage } from '@/components/media/smart-image';
 import { FileText, Mic, Play } from 'lucide-react';
 
 function isExternal(url: string): boolean {
@@ -52,8 +53,7 @@ function Embed({ attachment, title }: { attachment: MediaAttachment; title: stri
   if (attachment.kind === 'audio') {
     return <audio controls preload="none" src={url} className="w-full" />;
   }
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={url} alt={attachment.alt ?? title} loading="lazy" className="h-full w-full object-cover" />;
+  return <SmartImage src={url} alt={attachment.alt ?? title} fill={false} width={800} height={450} className="h-auto w-full object-cover" />;
 }
 
 /**

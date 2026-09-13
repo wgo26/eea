@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Eye, Mail } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { SmartImage } from "@/components/media/smart-image";
 import { getDictionary } from "@/lib/i18n";
 import { localeHref, useLocaleFromPath } from "@/components/site-header";
 
@@ -76,8 +77,14 @@ export function SiteFooter({ socialLinks, branding }: { socialLinks?: SocialLink
                     <div>
                         <p className="flex items-center gap-2 text-lg font-extrabold tracking-tight">
                             {logoSrc ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={logoSrc} alt={siteName} className="h-8 w-auto max-w-32 rounded object-contain" />
+                                <SmartImage
+                                    src={logoSrc}
+                                    alt={siteName}
+                                    fill={false}
+                                    width={128}
+                                    height={32}
+                                    className="h-8 w-auto max-w-32 rounded object-contain"
+                                />
                             ) : (
                                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                                     <Eye className="h-4 w-4" aria-hidden />

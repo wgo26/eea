@@ -2,6 +2,7 @@ import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { formatDate, type Dictionary, type Locale } from "@/lib/i18n";
 import type { StoryCardData } from "@/lib/queries/home";
+import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 
 function formatPrice(
   price: number | null | undefined,
@@ -38,12 +39,15 @@ export function ListingCard({
       href={listing.href}
       className="group block overflow-hidden rounded-2xl border bg-card transition-shadow hover:shadow-md"
     >
-      <div
-        className="relative aspect-[4/3] w-full bg-muted bg-cover bg-center"
-        style={listing.imageUrl ? { backgroundImage: `url(${listing.imageUrl})` } : undefined}
-        role="img"
-        aria-label={listing.title}
-      >
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
+        {listing.imageUrl ? (
+          <SmartImage
+            src={listing.imageUrl}
+            alt={listing.title}
+            sizes={CARD_SIZES}
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          />
+        ) : null}
         {price ? (
           <span className="absolute bottom-2 left-2 rounded-full bg-black/75 px-3 py-1 text-sm font-bold text-white backdrop-blur">
             {price}

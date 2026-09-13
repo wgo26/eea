@@ -5,6 +5,7 @@ import { ArrowLeft, CalendarDays, Clock, Landmark, MapPin, Tag, User } from "luc
 
 import { ShareButtons } from "@/components/share-buttons";
 import { SupportingMedia } from "@/components/media/supporting-media";
+import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 import { SITE } from "@/lib/constants";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getCultureBySlug, getCultureArticles } from "@/lib/queries/culture";
@@ -110,12 +111,15 @@ export default async function CultureDetailPage({ params }: Props) {
                 {/* Featured image */}
                 {article.imageUrl ? (
                     <div className="relative mb-8 overflow-hidden rounded-3xl bg-muted">
-                        <div
-                            className="aspect-[16/9] bg-cover bg-center"
-                            style={{ backgroundImage: `url(${article.imageUrl})` }}
-                            role="img"
-                            aria-label={article.title}
-                        />
+                        <span className="relative block aspect-[16/9] w-full overflow-hidden">
+                            <SmartImage
+                                src={article.imageUrl}
+                                alt={article.title}
+                                sizes="(max-width: 1024px) 100vw, 832px"
+                                priority
+                                className="object-cover"
+                            />
+                        </span>
                     </div>
                 ) : null}
 
@@ -254,12 +258,14 @@ export default async function CultureDetailPage({ params }: Props) {
                                 className="group overflow-hidden rounded-2xl border bg-card transition-shadow hover:shadow-md"
                             >
                                 {item.imageUrl ? (
-                                    <div
-                                        className="aspect-[4/3] bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.03]"
-                                        style={{ backgroundImage: `url(${item.imageUrl})` }}
-                                        role="img"
-                                        aria-label={item.title}
-                                    />
+                                    <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
+                                        <SmartImage
+                                            src={item.imageUrl}
+                                            alt={item.title}
+                                            sizes={CARD_SIZES}
+                                            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                                        />
+                                    </div>
                                 ) : (
                                     <div className="aspect-[4/3] bg-muted" />
                                 )}

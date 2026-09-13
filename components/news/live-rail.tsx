@@ -4,6 +4,7 @@ import { Radio } from "lucide-react";
 import { timeAgo, type Dictionary, type Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { NewsArticle } from "@/lib/queries/news";
+import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 
 type LiveRailProps = {
     stories: NewsArticle[];
@@ -53,13 +54,13 @@ export function LiveRail({ stories, dict, locale }: LiveRailProps) {
                                 href={story.href}
                                 className="group flex h-full gap-3 rounded-2xl border border-dashed p-3 transition-colors hover:border-solid hover:bg-muted/50"
                             >
-                                <span className="relative h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-muted">
+                                <span className="relative block h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-muted">
                                     {story.imageUrl ? (
-                                        <span
-                                            className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.05]"
-                                            style={{ backgroundImage: `url(${story.imageUrl})` }}
-                                            role="img"
-                                            aria-label={story.title}
+                                        <SmartImage
+                                            src={story.imageUrl}
+                                            alt={story.title}
+                                            sizes={THUMB_SIZES}
+                                            className="object-cover transition-transform duration-300 group-hover:scale-[1.05]"
                                         />
                                     ) : null}
                                 </span>

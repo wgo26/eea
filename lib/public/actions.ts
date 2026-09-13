@@ -37,6 +37,7 @@ const PAYLOAD_FIELDS = [
     "photos",
     "videos",
     "audios",
+    "documents",
     "noticeType",
     "organization",
     "expiry",
@@ -123,11 +124,11 @@ export async function submitStory(
         const value = str(formData.get(field));
         if (value) payload[field] = value;
     }
-    // photos/videos/audios come as newline-separated links → normalise to
-    // http(s)-only URL lists. Non-URL lines (and javascript:/data: schemes)
-    // are dropped at intake so they can never reach stored payloads or
+    // photos/videos/audios/documents come as newline-separated links →
+    // normalise to http(s)-only URL lists. Non-URL lines (and javascript:/data:
+    // schemes) are dropped at intake so they can never reach stored payloads or
     // rendered href/src attributes.
-    for (const key of ["photos", "videos", "audios"] as const) {
+    for (const key of ["photos", "videos", "audios", "documents"] as const) {
         if (payload[key]) {
             payload[key] = payload[key]
                 .split("\n")

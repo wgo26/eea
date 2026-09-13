@@ -12,6 +12,7 @@ import {
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
 import { StoryCard } from "@/components/home/story-card";
+import { SmartImage } from "@/components/media/smart-image";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { RevealContact } from "@/components/buy-sell/reveal-contact";
 import { Badge } from "@/components/ui/badge";
@@ -105,12 +106,13 @@ export default async function ListingPage({ params }: ListingPageProps) {
                 {/* Photo gallery */}
                 <section aria-label={dict.buySell.fieldPhotos}>
                     {cover ? (
-                        <div className="overflow-hidden rounded-3xl bg-muted">
-                            <span
-                                className="block aspect-[4/3] w-full bg-cover bg-center"
-                                style={{ backgroundImage: `url(${cover.url})` }}
-                                role="img"
-                                aria-label={listing.title}
+                        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl bg-muted">
+                            <SmartImage
+                                src={cover.url}
+                                alt={listing.title}
+                                priority
+                                sizes="(max-width: 1024px) 100vw, 50vw"
+                                className="object-cover"
                             />
                         </div>
                     ) : (
@@ -119,13 +121,13 @@ export default async function ListingPage({ params }: ListingPageProps) {
                     {rest.length > 0 ? (
                         <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-4">
                             {rest.slice(0, 4).map((photo, i) => (
-                                <span
-                                    key={i}
-                                    className="block aspect-square w-full rounded-xl bg-cover bg-center"
-                                    style={{ backgroundImage: `url(${photo.url})` }}
-                                    role="img"
-                                    aria-label={`${listing.title} ${i + 2}`}
-                                />
+                                <span key={i} className="relative block aspect-square w-full overflow-hidden rounded-xl bg-muted">
+                                    <SmartImage
+                                        src={photo.url}
+                                        alt={`${listing.title} ${i + 2}`}
+                                        sizes="(max-width: 640px) 33vw, 25vw"
+                                    />
+                                </span>
                             ))}
                         </div>
                     ) : null}

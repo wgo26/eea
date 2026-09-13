@@ -3,6 +3,7 @@ import 'server-only'
 import { unstable_cache } from 'next/cache'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { logger } from '@/lib/observability/logger'
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from '@/lib/cache/tags'
 import type { Locale } from '@/lib/i18n'
 import type { ContentType, SubmissionStatus } from '@/lib/auth/roles'
@@ -152,7 +153,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       oldestPendingAt: ((oldestRes.data ?? []) as { submitted_at: string | null }[])[0]?.submitted_at ?? null,
     }
   } catch (e) {
-    console.error('[admin] getDashboardStats failed, returning empty stats', e)
+    logger.error('admin', 'getDashboardStats failed, returning empty stats', { error: e })
     return EMPTY_DASHBOARD_STATS
   }
 }
@@ -227,7 +228,7 @@ export async function getSubmissions(options?: {
       total: count ?? 0,
     }
   } catch (e) {
-    console.error('[admin] getSubmissions failed, returning empty queue', e)
+    logger.error('admin', 'getSubmissions failed, returning empty queue', { error: e })
     return { rows: [], total: 0 }
   }
 }
@@ -262,7 +263,7 @@ export async function getSubmissionCounts(): Promise<{
       total: pending + byStatus.needs_clarification + byStatus.approved + byStatus.rejected,
     }
   } catch (e) {
-    console.error('[admin] getSubmissionCounts failed, returning empty counts', e)
+    logger.error('admin', 'getSubmissionCounts failed, returning empty counts', { error: e })
     return empty
   }
 }
@@ -1043,7 +1044,7 @@ export async function getRecentModeration(options?: {
     })
     return { rows, total: count ?? 0 }
   } catch (e) {
-    console.error('[admin] getRecentModeration failed', e)
+    logger.error('admin', 'getRecentModeration failed', { error: e })
     return { rows: [], total: 0 }
   }
 }

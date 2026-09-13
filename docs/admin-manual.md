@@ -48,14 +48,21 @@ The main editorial section.
   The first photo is the cover.
 - **Archive** is the reversible soft delete; **Delete** is permanent and
   admin-only (use sparingly).
-- **Homepage** tab manages the curated slots (assign, reorder up/down, toggle
-  visibility, delete).
+- **Homepage** tab manages the curated slots: assign content to the **hero**
+  (lead story) or the **secondary featured queue** via search, toggle
+  visibility, reorder, delete, and set an optional **display window** (show
+  from / show until) so a slot promotes a story on a schedule and expires on
+  its own. Use the **View homepage** link to check the result.
+- Supporting video/audio/**document (PDF)** links travel with a story and
+  render as click-to-play players / a download card on the public page.
 
 ## Listings `/admin/listings`
 
 Lifecycle view of buy/sell listings (from submissions or content). Expire,
-relist, mark sold. **Note:** price/photos/seller are edited in the Content
-section (the listing's content item) — a cross-link is planned.
+relist, mark sold, remove — and open the **details dialog** on any row to edit
+price, currency, seller and contacts directly. A row's listing badge in the
+Content section bridges here. Sellers manage their own listings (sold / renew
+/ remove) from **/account/listings**.
 
 ## Taxonomy `/admin/taxonomy`
 

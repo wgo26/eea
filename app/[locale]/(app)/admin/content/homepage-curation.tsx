@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   assignHomepageSlot,
@@ -9,15 +10,50 @@ import {
   createHomepageSlot,
   deleteHomepageSlot,
   reorderHomepageSlot,
+  updateHomepageSlotWindow,
   searchContentForSlot,
 } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import type { Dictionary, Locale } from '@/lib/i18n'
-import { formatDate } from '@/lib/i18n'
+import { formatDate, localePath } from '@/lib/i18n'
 import type { HomepageSlot, SlotSearchResult } from '@/lib/admin/queries'
 
 type Copy = Dictionary['admin']['content']
+
+/**
+ * The slot keys the homepage actually renders (lib/queries/home.ts queries
+ * `hero` + `secondary`): `hero` is the lead story, `secondary` rows join the
+ * featured carousel. Any other key would sit in this table but never render,
+ * so the create form offers exactly these two.
+ */
+const RENDERED_SLOT_KEYS = ['hero', 'secondary'] as const
+
+/** Visible-window state derived from the optional starts/ends bounds. */
+type WindowState = 'always' | 'scheduled' | 'live' | 'expired'
+
+function windowStateOf(slot: HomepageSlot): WindowState {
+  const now = Date.now()
+  if (slot.startsAt && Date.parse(slot.startsAt) > now) return 'scheduled'
+  if (slot.endsAt && Date.parse(slot.endsAt) <= now) return 'expired'
+  if (slot.startsAt || slot.endsAt) return 'live'
+  return 'always'
+}
+
+function toDatetimeLocal(iso: string | null): string {
+  if (!iso) return ''
+  const parsed = new Date(iso)
+  if (Number.isNaN(parsed.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`
+}
 
 export function HomepageCuration({
   slots,
@@ -58,6 +94,17 @@ export function HomepageCuration({
 
   return (
     <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">{copy.homepageHint}</p>
+        <Link
+          href={localePath(locale, '/')}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent"
+        >
+          {copy.viewHomepage}
+        </Link>
+      </div>
       <CreateSlotForm copy={copy} />
       {Object.entries(grouped).map(([prefix, groupSlots]) => (
         <div key={prefix}>
@@ -97,7 +144,9 @@ function CreateSlotForm({ copy }: { copy: Copy }) {
   const { addToast } = useToast()
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [slotKey, setSlotKey] = useState('')
+  const [slotKey, setSlotKey] = useState<(typeof RENDERED_SLOT_KEYS)[number]>('secondary')
+  const [startsAt, setStartsAt] = useState('')
+  const [endsAt, setEndsAt] = useState('')
   const [loading, setLoading] = useState(false)
 
   if (!open) {
@@ -114,12 +163,22 @@ function CreateSlotForm({ copy }: { copy: Copy }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (startsAt && endsAt && new Date(endsAt) <= new Date(startsAt)) {
+      addToast(copy.windowInvalid, 'error')
+      return
+    }
     setLoading(true)
-    const result = await createHomepageSlot({ slotKey: slotKey.trim() })
+    const result = await createHomepageSlot({
+      slotKey: slotKey.trim(),
+      startsAt: startsAt ? new Date(startsAt).toISOString() : null,
+      endsAt: endsAt ? new Date(endsAt).toISOString() : null,
+    })
     setLoading(false)
     if (result.ok) {
       addToast(copy.toastSlotCreated, 'success')
-      setSlotKey('')
+      setSlotKey('secondary')
+      setStartsAt('')
+      setEndsAt('')
       setOpen(false)
       router.refresh()
     } else {
@@ -134,15 +193,36 @@ function CreateSlotForm({ copy }: { copy: Copy }) {
     >
       <label className="flex-1 space-y-1">
         <span className="block text-xs font-medium text-muted-foreground">{copy.slotKey}</span>
-        <input
-          type="text"
+        <select
           value={slotKey}
-          onChange={(e) => setSlotKey(e.target.value)}
-          placeholder="hero_4"
-          required
+          onChange={(e) => setSlotKey(e.target.value as (typeof RENDERED_SLOT_KEYS)[number])}
           className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-        />
+        >
+          {RENDERED_SLOT_KEYS.map((key) => (
+            <option key={key} value={key}>
+              {key === 'hero' ? copy.slotKeyHero : copy.slotKeySecondary}
+            </option>
+          ))}
+        </select>
         <span className="block text-xs text-muted-foreground/80">{copy.slotKeyHint}</span>
+      </label>
+      <label className="space-y-1">
+        <span className="block text-xs font-medium text-muted-foreground">{copy.windowStarts}</span>
+        <input
+          type="datetime-local"
+          value={startsAt}
+          onChange={(e) => setStartsAt(e.target.value)}
+          className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+      </label>
+      <label className="space-y-1">
+        <span className="block text-xs font-medium text-muted-foreground">{copy.windowEnds}</span>
+        <input
+          type="datetime-local"
+          value={endsAt}
+          onChange={(e) => setEndsAt(e.target.value)}
+          className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        />
       </label>
       <div className="flex gap-2">
         <button
@@ -193,7 +273,46 @@ function SlotCard({
   const [busy, setBusy] = useState(false)
   const [noResults, setNoResults] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // Display-window editor (starts/ends bounds the slot is shown within).
+  const [windowOpen, setWindowOpen] = useState(false)
+  const [windowStarts, setWindowStarts] = useState(() => toDatetimeLocal(slot.startsAt))
+  const [windowEnds, setWindowEnds] = useState(() => toDatetimeLocal(slot.endsAt))
+  const [windowLoading, setWindowLoading] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const { addToast } = useToast()
+  const router = useRouter()
+
+  async function saveWindow(clear = false) {
+    const starts = clear ? '' : windowStarts
+    const ends = clear ? '' : windowEnds
+    if (!clear && starts && ends && new Date(ends) <= new Date(starts)) {
+      addToast(copy.windowInvalid, 'error')
+      return
+    }
+    setWindowLoading(true)
+    const result = await updateHomepageSlotWindow(slot.id, {
+      startsAt: starts ? new Date(starts).toISOString() : null,
+      endsAt: ends ? new Date(ends).toISOString() : null,
+    })
+    setWindowLoading(false)
+    if (result.ok) {
+      addToast(copy.toastWindowSaved, 'success')
+      setWindowOpen(false)
+      router.refresh()
+    } else {
+      addToast(result.error, 'error')
+    }
+  }
+
+  const state = windowStateOf(slot)
+  const windowChip =
+    state === 'always'
+      ? { label: copy.stateAlways, cls: 'border-border bg-muted text-muted-foreground' }
+      : state === 'scheduled'
+        ? { label: copy.stateScheduled, cls: 'border-sky-200 bg-sky-100 text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-200' }
+        : state === 'live'
+          ? { label: copy.stateLive, cls: 'border-emerald-200 bg-emerald-100 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200' }
+          : { label: copy.stateExpired, cls: 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200' }
 
   const runSearch = useCallback(async (value: string) => {
     setBusy(true)
@@ -224,11 +343,32 @@ function SlotCard({
         <div className="min-w-0">
           <div className="truncate text-sm font-medium">{slot.slotKey}</div>
           <div className="text-xs text-muted-foreground">{copy.position.replace('{n}', String(slot.sortOrder))}</div>
-          {slot.endsAt ? (
-            <div className="text-xs text-muted-foreground">
-              {copy.slotUntil.replace('{date}', formatDate(slot.endsAt, locale))}
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            <span
+              suppressHydrationWarning
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${windowChip.cls}`}
+            >
+              {windowChip.label}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setWindowStarts(toDatetimeLocal(slot.startsAt))
+                setWindowEnds(toDatetimeLocal(slot.endsAt))
+                setWindowOpen(true)
+              }}
+              disabled={loading}
+              title={copy.windowEdit}
+              className="text-[11px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline disabled:opacity-50"
+            >
+              {copy.windowEdit}
+            </button>
+          </div>
+          {(slot.startsAt || slot.endsAt) && (
+            <div className="mt-1 text-[11px] text-muted-foreground">
+              {slot.startsAt ? formatDate(slot.startsAt, locale) : '…'} → {slot.endsAt ? formatDate(slot.endsAt, locale) : '…'}
             </div>
-          ) : null}
+          )}
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -381,6 +521,57 @@ function SlotCard({
           ) : null}
         </div>
       )}
+
+      {/* Display-window editor: optional bounds, either side can stay open. */}
+      <Dialog open={windowOpen} onOpenChange={setWindowOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{copy.windowEdit}</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">{copy.windowHint}</p>
+          <div className="grid gap-3">
+            <label className="space-y-1">
+              <span className="block text-xs font-medium text-muted-foreground">{copy.windowStarts}</span>
+              <input
+                type="datetime-local"
+                value={windowStarts}
+                onChange={(e) => setWindowStarts(e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="block text-xs font-medium text-muted-foreground">{copy.windowEnds}</span>
+              <input
+                type="datetime-local"
+                value={windowEnds}
+                onChange={(e) => setWindowEnds(e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </label>
+          </div>
+          <DialogFooter>
+            <button type="button" onClick={() => setWindowOpen(false)} disabled={windowLoading} className="inline-flex items-center rounded-md border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent disabled:opacity-50">
+              {copy.cancel}
+            </button>
+            <button
+              type="button"
+              onClick={() => void saveWindow(true)}
+              disabled={windowLoading || (!windowStarts && !windowEnds)}
+              className="inline-flex items-center rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+            >
+              {copy.windowClear}
+            </button>
+            <button
+              type="button"
+              onClick={() => void saveWindow(false)}
+              disabled={windowLoading}
+              className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+            >
+              {windowLoading ? '…' : copy.windowSave}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={deleteOpen}

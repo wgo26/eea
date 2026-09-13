@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { ArrowLeft, CalendarDays, Clock, Landmark, MapPin, Tag, User } from "lucide-react";
 
 import { ShareButtons } from "@/components/share-buttons";
+import { SmartImage } from "@/components/media/smart-image";
 import { SITE } from "@/lib/constants";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
@@ -82,12 +83,15 @@ export default async function EventDetailPage({ params }: Props) {
                 {/* Featured image */}
                 {event.imageUrl ? (
                     <div className="relative mb-8 overflow-hidden rounded-3xl bg-muted">
-                        <div
-                            className="aspect-[16/9] bg-cover bg-center"
-                            style={{ backgroundImage: `url(${event.imageUrl})` }}
-                            role="img"
-                            aria-label={event.title}
-                        />
+                        <span className="relative block aspect-[16/9] w-full overflow-hidden">
+                            <SmartImage
+                                src={event.imageUrl}
+                                alt={event.title}
+                                sizes="(max-width: 1024px) 100vw, 832px"
+                                priority
+                                className="object-cover"
+                            />
+                        </span>
                     </div>
                 ) : null}
 

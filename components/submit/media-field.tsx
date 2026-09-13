@@ -9,16 +9,18 @@ const ACCEPTS = {
   image: 'image/jpeg,image/png,image/webp,image/gif',
   video: 'video/mp4,video/quicktime,video/webm',
   audio: 'audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/webm',
+  document: 'application/pdf',
 } as const;
 
-export type MediaFieldKind = 'image' | 'video' | 'audio';
+export type MediaFieldKind = 'image' | 'video' | 'audio' | 'document';
 
 /**
  * Public intake media field (Phase A). Generalizes the old photo-only field:
  * signed-in visitors get the drag-drop uploader filtered to the field's kind
  * (uploads go to /api/uploads with destination public_photo); guests keep
  * the plain URL textarea. Either way the submit action reads the same named
- * field as newline-separated URLs.
+ * field as newline-separated URLs. Documents = PDF only (10 MB cap mirrors
+ * MAX_KIND_BYTES.document in lib/storage/config.ts).
  */
 export function MediaField({
   name,
@@ -59,17 +61,19 @@ export function MediaField({
           destination="public_photo"
           showAltCaption={kind === 'image'}
           acceptedTypes={ACCEPTS[kind]}
-          maxSizeBytes={kind === 'video' ? 50 * 1024 * 1024 : kind === 'audio' ? 25 * 1024 * 1024 : 15 * 1024 * 1024}
+          maxSizeBytes={kind === 'video' ? 50 * 1024 * 1024 : kind === 'audio' ? 25 * 1024 * 1024 : kind === 'document' ? 10 * 1024 * 1024 : 15 * 1024 * 1024}
           copy={
             kind === 'image'
               ? undefined
               : {
-                  label: kind === 'video' ? 'Videos' : 'Audio',
+                  label: kind === 'video' ? 'Videos' : kind === 'audio' ? 'Audio' : 'Documents',
                   hint:
                     kind === 'video'
                       ? 'Upload short clips (max 50 MB) or paste YouTube/Vimeo/file links below.'
-                      : 'Upload voice notes or clips (max 25 MB) or paste audio links below.',
-                  empty: kind === 'video' ? 'No videos yet.' : 'No audio yet.',
+                      : kind === 'audio'
+                        ? 'Upload voice notes or clips (max 25 MB) or paste audio links below.'
+                        : 'Upload a PDF (max 10 MB) or paste document links below.',
+                  empty: kind === 'video' ? 'No videos yet.' : kind === 'audio' ? 'No audio yet.' : 'No documents yet.',
                 }
           }
         />

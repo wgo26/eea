@@ -5,6 +5,7 @@ import { Camera, Eye, Images, MapPin, Search } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
+import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { FeaturedSpotlight } from "@/components/photo-stories/featured-spotlight";
 import { PhotoStoryCard } from "@/components/photo-stories/photo-story-card";
 import { Button } from "@/components/ui/button";
@@ -356,13 +357,11 @@ export default async function PhotoStoriesPage({
                                                 </span>
                                                 <span className="relative h-14 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
                                                     {story.imageUrl ? (
-                                                        <span
-                                                            className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.04]"
-                                                            style={{
-                                                                backgroundImage: `url(${story.imageUrl})`,
-                                                            }}
-                                                            role="img"
-                                                            aria-label={story.title}
+                                                        <SmartImage
+                                                            src={story.imageUrl}
+                                                            alt={story.title}
+                                                            sizes={THUMB_SIZES}
+                                                            className="object-cover transition-transform duration-300 group-hover:scale-[1.04]"
                                                         />
                                                     ) : null}
                                                 </span>

@@ -10,6 +10,7 @@ import { isExpiringSoon, isExpired, noticeTypeLabel, noticeTypeMeta } from "@/li
 import { verificationBadgeInfo } from "@/lib/verification";
 import { formatDate, type Dictionary, type Locale } from "@/lib/i18n";
 import type { NoticeData } from "@/lib/queries/notices";
+import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 
 type NoticeCardProps = {
     notice: NoticeData;
@@ -172,9 +173,11 @@ export function NoticeCard({ notice, dict, locale, className }: NoticeCardProps)
                         tabIndex={-1}
                         aria-hidden
                     >
-                        <span
-                            className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.05]"
-                            style={{ backgroundImage: `url(${notice.imageUrl})` }}
+                        <SmartImage
+                            src={notice.imageUrl}
+                            alt={notice.title}
+                            sizes={THUMB_SIZES}
+                            className="object-cover transition-transform duration-300 group-hover:scale-[1.05]"
                         />
                     </Link>
                 ) : null}

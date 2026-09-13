@@ -590,6 +590,10 @@ export const fr: typeof en = {
       audiosHint:
         'Facultatif. Notes vocales ou extraits (max 25 Mo) ou liens audio, un par ligne. Une histoire peut contenir de l’audio sans vidéo.',
       audiosPlaceholder: 'https://audio.url - Légende facultative',
+      documents: 'Documents d’appui',
+      documentsHint:
+        'Facultatif. Fichiers PDF (max 10 Mo) ou liens de documents, un par ligne. Les lecteurs les ouvrent dans un nouvel onglet.',
+      documentsPlaceholder: 'https://document.url - Légende facultative',
       noticeType: 'Type d\'avis',
       noticeTypePlaceholder: 'Sélectionnez un type d\'avis',
       organization: 'Nom de l\'organisation',

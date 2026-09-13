@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 
 export type ContentCardProps = {
     href: string;
@@ -29,12 +30,14 @@ export function ContentCard({
         <Link href={href} className="group block h-full">
             <Card className="h-full overflow-hidden transition-shadow group-hover:shadow-md">
                 {imageUrl ? (
-                    <div
-                        className="aspect-video w-full bg-cover bg-center"
-                        style={{ backgroundImage: `url(${imageUrl})` }}
-                        role="img"
-                        aria-label={title}
-                    />
+                    <div className="relative aspect-video w-full overflow-hidden bg-muted">
+                        <SmartImage
+                            src={imageUrl}
+                            alt={title}
+                            sizes={CARD_SIZES}
+                            className="object-cover"
+                        />
+                    </div>
                 ) : (
                     <div className="aspect-video w-full bg-muted" />
                 )}

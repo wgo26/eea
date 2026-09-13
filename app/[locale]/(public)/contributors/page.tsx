@@ -6,6 +6,7 @@ import { Camera, MapPin, Newspaper, ShieldCheck } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SmartImage } from "@/components/media/smart-image";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getContributors } from "@/lib/queries/contributors";
 
@@ -57,12 +58,14 @@ export default async function ContributorsPage() {
                                 <CardContent className="p-5">
                                     <div className="flex items-center gap-4">
                                         {c.avatarUrl ? (
-                                            <span
-                                                className="h-14 w-14 shrink-0 rounded-full bg-cover bg-center"
-                                                style={{ backgroundImage: `url(${c.avatarUrl})` }}
-                                                role="img"
-                                                aria-label={c.displayName ?? ""}
-                                            />
+                                            <span className="relative block h-14 w-14 shrink-0 overflow-hidden rounded-full bg-muted">
+                                                <SmartImage
+                                                    src={c.avatarUrl}
+                                                    alt={c.displayName ?? ""}
+                                                    sizes="56px"
+                                                    className="object-cover"
+                                                />
+                                            </span>
                                         ) : (
                                             <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary">
                                                 {initials(c.displayName)}

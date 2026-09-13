@@ -6,6 +6,7 @@ import { countdownLabel, formatMoney, formatMoneyCompact, whatsappHref } from "@
 import { verificationBadgeInfo } from "@/lib/verification";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { FundraiserData } from "@/lib/queries/fundraisers";
+import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 
 type FundraiserCardProps = {
     campaign: FundraiserData;
@@ -42,11 +43,11 @@ export function FundraiserCard({
             <Link href={campaign.href} className="relative block">
                 <div className="relative aspect-[16/10] w-full overflow-hidden bg-muted">
                     {campaign.imageUrl ? (
-                        <span
-                            className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-[1.03]"
-                            style={{ backgroundImage: `url(${campaign.imageUrl})` }}
-                            role="img"
-                            aria-label={campaign.title}
+                        <SmartImage
+                            src={campaign.imageUrl}
+                            alt={campaign.title}
+                            sizes={CARD_SIZES}
+                            className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                         />
                     ) : null}
                     <span

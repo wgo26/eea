@@ -4,6 +4,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { CalendarDays, Clock, Landmark, MapPin } from "lucide-react";
 
+import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getUpcomingEvents } from "@/lib/queries/culture";
 
@@ -124,12 +125,14 @@ export default async function EventsPage({
                             className="group flex flex-col overflow-hidden rounded-2xl border bg-card transition-shadow hover:shadow-md"
                         >
                             {event.imageUrl ? (
-                                <div
-                                    className="aspect-[16/9] bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.03]"
-                                    style={{ backgroundImage: `url(${event.imageUrl})` }}
-                                    role="img"
-                                    aria-label={event.title}
-                                />
+                                <div className="relative aspect-[16/9] w-full overflow-hidden bg-muted">
+                                    <SmartImage
+                                        src={event.imageUrl}
+                                        alt={event.title}
+                                        sizes={CARD_SIZES}
+                                        className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                                    />
+                                </div>
                             ) : (
                                 <div className="aspect-[16/9] bg-muted flex items-center justify-center">
                                     <CalendarDays className="h-10 w-10 text-muted-foreground/30" aria-hidden />

@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
+import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getContributorById } from "@/lib/queries/contributors";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
@@ -57,12 +58,14 @@ export default async function ContributorProfilePage({ params }: Props) {
             {/* Profile header */}
             <header className="mt-4 flex flex-col gap-5 rounded-3xl border bg-card p-6 sm:flex-row sm:items-center">
                 {profile.avatarUrl ? (
-                    <span
-                        className="h-20 w-20 shrink-0 rounded-full bg-cover bg-center"
-                        style={{ backgroundImage: `url(${profile.avatarUrl})` }}
-                        role="img"
-                        aria-label={profile.displayName ?? ""}
-                    />
+                    <span className="relative block h-20 w-20 shrink-0 overflow-hidden rounded-full bg-muted">
+                        <SmartImage
+                            src={profile.avatarUrl}
+                            alt={profile.displayName ?? ""}
+                            sizes="80px"
+                            className="object-cover"
+                        />
+                    </span>
                 ) : (
                     <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-primary/10 text-2xl font-bold text-primary">
                         {initials(profile.displayName)}
@@ -131,12 +134,14 @@ export default async function ContributorProfilePage({ params }: Props) {
                             <Link key={item.id} href={item.href} className="group">
                                 <Card className="overflow-hidden transition-shadow hover:shadow-md">
                                     {item.imageUrl ? (
-                                        <span
-                                            className="block aspect-[4/3] w-full bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.03]"
-                                            style={{ backgroundImage: `url(${item.imageUrl})` }}
-                                            role="img"
-                                            aria-label={item.title}
-                                        />
+                                        <span className="relative block aspect-[4/3] w-full overflow-hidden bg-muted">
+                                            <SmartImage
+                                                src={item.imageUrl}
+                                                alt={item.title}
+                                                sizes={CARD_SIZES}
+                                                className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                                            />
+                                        </span>
                                     ) : (
                                         <span className="block aspect-[4/3] w-full bg-muted" />
                                     )}

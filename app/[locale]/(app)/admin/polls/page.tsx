@@ -42,6 +42,10 @@ export default async function Page({
 
       <PollCreateForm copy={t} locale={locale} />
 
+      {!canDelete ? (
+        <p className="text-xs text-muted-foreground">{common.deleteAdminOnly}</p>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground">{t.localeLabel}:</span>
         <FilterPills

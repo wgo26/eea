@@ -512,6 +512,10 @@ export const en = {
       audiosHint:
         'Optional. Voice notes or clips (max 25 MB upload) or audio links, one per line. A story can carry audio without video.',
       audiosPlaceholder: 'https://audio.url - Optional caption',
+      documents: 'Supporting documents',
+      documentsHint:
+        'Optional. PDF files (max 10 MB upload) or document links, one per line. Readers open them in a new tab.',
+      documentsPlaceholder: 'https://document.url - Optional caption',
       noticeType: 'Notice type',
       noticeTypePlaceholder: 'Select a notice type',
       organization: 'Organization name',
