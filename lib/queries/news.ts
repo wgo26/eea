@@ -34,9 +34,12 @@ export type NewsArticle = StoryCardData & {
     viewCount?: number;
     /** Category slug (facet/hrefs), plus tags and cover caption/credit for the hero. */
     categorySlug?: string | null;
+    categoryId?: string | null;
     tags?: { name: string; slug: string }[];
     coverCaption?: string | null;
     coverCredit?: string | null;
+    /** Estimated reading time in minutes (200 wpm, minimum 1). */
+    readingMinutes?: number;
 };
 
 /** Raw row shape returned by the shared story select. */
@@ -67,9 +70,10 @@ type RawStoryRow = {
         | { public_url: string | null; alt_text: string | null; photographer_credit: string | null; caption: string | null; is_cover: boolean | null; kind: string | null; mime_type: string | null }[]
         | null;
     author?: { id: string; display_name: string | null } | { id: string; display_name: string | null }[] | null;
+    category_id?: string | null;
 };
 
-const STORY_SELECT = `id, slug, verification, published_at, view_count,
+const STORY_SELECT = `id, slug, verification, published_at, view_count, category_id,
     location:locations(name, slug),
     category:categories(category_translations(locale, name), slug),
     translations:content_translations(locale, title, excerpt, body, byline),
@@ -208,7 +212,37 @@ function toCard(row: RawStoryRow, locale: Locale): NewsArticle | null {
         hasVideo: allMedia.some((m) => m.kind === 'video'),
         hasAudio: allMedia.some((m) => m.kind === 'audio'),
         attachments: supportingMedia(allMedia),
+        categorySlug: category?.slug ?? null,
+        categoryId: row.category_id ?? null,
+        tags: ((row.tags ?? []) as {
+            tags: { slug: string | null; tag_translations: { locale: string; name: string }[] | null } | null;
+        }[]).flatMap((entry) => {
+            const tag = entry?.tags;
+            const name = pickLocalized(tag?.tag_translations ?? null, locale)?.name ?? null;
+            if (!tag?.slug || !name) return [];
+            return [{ name, slug: tag.slug }];
+        }),
+        coverCaption: cover?.caption ?? images[0]?.caption ?? null,
+        coverCredit: cover?.photographer_credit ?? images[0]?.credit ?? null,
+        readingMinutes: estimateReadingMinutes(translation.title, translation.excerpt, translation.body),
     };
+}
+
+/**
+ * Estimated reading time at 200 words per minute (HTML stripped first),
+ * minimum 1 minute so every article shows a sensible value.
+ */
+export function estimateReadingMinutes(
+    title: string | null | undefined,
+    excerpt: string | null | undefined,
+    body: string | null | undefined,
+): number {
+    const text = [title ?? "", excerpt ?? "", (body ?? "").replace(/<[^>]*>/g, " ")]
+        .join(" ")
+        .replace(/&[a-z#0-9]+;/gi, " ")
+        .split(/\s+/)
+        .filter(Boolean);
+    return Math.max(1, Math.ceil(text.length / 200));
 }
 
 /**
@@ -381,10 +415,12 @@ const getCachedAdjacentNews = unstable_cache(
         const [nextResult, prevResult] = await Promise.all([
             publishedNews()
                 .gt("published_at", publishedAt)
+                .neq("id", currentId)
                 .order("published_at", { ascending: true })
                 .limit(1),
             publishedNews()
                 .lt("published_at", publishedAt)
+                .neq("id", currentId)
                 .order("published_at", { ascending: false })
                 .limit(1),
         ]);
@@ -727,6 +763,70 @@ export async function getOtherNews(
         return await getCachedOtherNews(excludeId, locale, limit);
     } catch (err) {
         logCacheFailure("getOtherNews", err);
+        return [];
+    }
+}
+
+/**
+ * Category-aware related stories for the article page: same category first
+ * (newest first), then newest overall to fill the limit — excluding the
+ * current article. Phase 4.1: cached (tag `news`).
+ */
+const getCachedRelatedNews = unstable_cache(
+    async (articleId: string, categoryId: string | null, locale: Locale, limit: number): Promise<NewsArticle[]> => {
+        const seen = new Set<string>([articleId]);
+        const out: NewsArticle[] = [];
+
+        if (categoryId) {
+            const { data, error } = await publishedNews()
+                .eq("category_id", categoryId)
+                .neq("id", articleId)
+                .order("published_at", { ascending: false, nullsFirst: false })
+                .limit(limit);
+            if (error) throw new Error(error.message);
+            for (const row of (data ?? []) as unknown as RawStoryRow[]) {
+                const card = toCard(row, locale);
+                if (card && !seen.has(card.id)) {
+                    seen.add(card.id);
+                    out.push(card);
+                }
+            }
+        }
+
+        if (out.length < limit) {
+            const { data, error } = await publishedNews()
+                .neq("id", articleId)
+                .order("published_at", { ascending: false, nullsFirst: false })
+                .limit(limit * 2);
+            if (error) throw new Error(error.message);
+            for (const row of (data ?? []) as unknown as RawStoryRow[]) {
+                if (out.length >= limit) break;
+                const card = toCard(row, locale);
+                if (card && !seen.has(card.id)) {
+                    seen.add(card.id);
+                    out.push(card);
+                }
+            }
+        }
+
+        return out.slice(0, limit);
+    },
+    ["news-related"],
+    { tags: [CACHE_TAGS.news], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+/** Category-aware related stories for the article page (same category first, then newest). */
+export async function getRelatedNews(
+    articleId: string,
+    categoryId: string | null,
+    locale: Locale = "en",
+    limit = 3,
+): Promise<NewsArticle[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedRelatedNews(articleId, categoryId, locale, limit);
+    } catch (err) {
+        logCacheFailure("getRelatedNews", err);
         return [];
     }
 }

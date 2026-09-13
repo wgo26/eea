@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ArrowRight, CalendarDays, Eye, MapPin, UserRound } from "lucide-react";
+import { ArrowRight, CalendarDays, Clock, Eye, MapPin, UserRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { SmartImage } from "@/components/media/smart-image";
 import { formatDate, timeAgo, type Dictionary, type Locale } from "@/lib/i18n";
 import { verificationBadgeInfo } from "@/lib/verification";
 import { cn } from "@/lib/utils";
@@ -33,11 +34,12 @@ export function NewsSpotlight({ featured, nextUp, dict, locale }: NewsSpotlightP
                 <Link href={featured.href} className="group relative block overflow-hidden rounded-3xl">
                     <div className="relative aspect-[4/3] overflow-hidden bg-muted md:aspect-[16/10]">
                         {featured.imageUrl ? (
-                            <span
-                                className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-[1.04]"
-                                style={{ backgroundImage: `url(${featured.imageUrl})` }}
-                                role="img"
-                                aria-label={featured.title}
+                            <SmartImage
+                                src={featured.imageUrl}
+                                alt={featured.title}
+                                priority
+                                sizes="(max-width: 1024px) 100vw, 60vw"
+                                className="object-cover transition-transform duration-700 group-hover:scale-[1.04]"
                             />
                         ) : null}
                         <span
@@ -107,10 +109,16 @@ export function NewsSpotlight({ featured, nextUp, dict, locale }: NewsSpotlightP
                                 {formatDate(featured.publishedAt, locale)}
                             </span>
                         ) : null}
-                        {featured.viewCount ? (
+                        {typeof featured.viewCount === "number" && featured.viewCount > 0 ? (
                             <span className="inline-flex items-center gap-1.5">
                                 <Eye className="h-4 w-4" aria-hidden />
                                 {featured.viewCount.toLocaleString(locale === "fr" ? "fr-FR" : "en-GB")}
+                            </span>
+                        ) : null}
+                        {typeof featured.readingMinutes === "number" ? (
+                            <span className="inline-flex items-center gap-1.5 tabular-nums">
+                                <Clock className="h-4 w-4" aria-hidden />
+                                {featured.readingMinutes} {dict.news.minRead}
                             </span>
                         ) : null}
                     </div>

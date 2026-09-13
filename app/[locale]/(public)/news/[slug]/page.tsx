@@ -3,32 +3,44 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
     ArrowLeft,
+    ArrowRight,
     CalendarDays,
     Camera,
+    ChevronRight,
+    Clock,
     Eye,
     MapPin,
     PencilLine,
+    Quote,
     Tag,
-    User,
+    UserRound,
 } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
 import { StoryCard } from "@/components/home/story-card";
 import { MediaBadge } from "@/components/media/media-attachment";
+import { SmartImage } from "@/components/media/smart-image";
 import { SupportingMedia } from "@/components/media/supporting-media";
+import { ArticleShare } from "@/components/news/article-share";
+import { ShareButtons } from "@/components/share-buttons";
 import { CorrectionForm } from "@/components/news/correction-form";
+import { ReadingProgress } from "@/components/news/reading-progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShareButtons } from "@/components/share-buttons";
 import { SITE } from "@/lib/constants";
-import { formatDate, getDictionary, resolveLocale } from "@/lib/i18n";
+import { formatDate, formatDateTime, getDictionary, resolveLocale } from "@/lib/i18n";
 import { verificationBadgeInfo } from "@/lib/verification";
-import { getNewsBySlug, getOtherNews } from "@/lib/queries/news";
+import {
+    getAdjacentNews,
+    getNewsBySlug,
+    getRelatedNews,
+} from "@/lib/queries/news";
 import { getAdForSlot } from "@/lib/queries/ads";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { sanitizeBodyHtml } from "@/lib/security/html";
+import { extractHeadings, extractPullQuote, hasDropCapLead, withHeadingAnchors } from "@/lib/news/article-body";
 
 type NewsPageProps = { params: Promise<{ locale: string; slug: string }> };
 
@@ -75,11 +87,15 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
     const article = await getNewsBySlug(slug, locale);
     if (!article) notFound();
 
-    const [related, railAd] = await Promise.all([
-        getOtherNews(article.id, locale, 3),
+    const [related, neighbours, railAd] = await Promise.all([
+        getRelatedNews(article.id, article.categoryId ?? null, locale, 3),
+        article.publishedAt
+            ? getAdjacentNews(article.id, article.publishedAt, locale)
+            : Promise.resolve({ prev: null, next: null }),
         getAdForSlot("news-rail"),
     ]);
     const filtered = related.filter((n) => n.id !== article.id);
+    const { prev, next } = neighbours;
 
     const badge = verificationBadgeInfo(article.verification ?? null, dict);
     const shareUrl = `${SITE.url}${localePath(locale, `/news/${article.slug}`)}`;
@@ -87,28 +103,98 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
     // text. Native drafts are plain text and keep the blank-line split.
     const rawBody = article.body ?? "";
     const isHtmlBody = /<(p|div|br|h[1-6]|img|ul|ol|li|blockquote|figure|table|a)\b/i.test(rawBody);
-    const bodyHtml = isHtmlBody ? sanitizeBodyHtml(rawBody) : null;
+    const sanitized = isHtmlBody ? sanitizeBodyHtml(rawBody) : null;
+    // Enrichment: TOC anchors + pull quote are derived from the sanitized
+    // HTML server-side — no new markup sources, only ids/classes.
+    const headings = sanitized ? extractHeadings(sanitized) : [];
+    const bodyHtml = sanitized ? withHeadingAnchors(sanitized, headings) : null;
+    const pullQuote = sanitized ? extractPullQuote(sanitized, article.excerpt) : null;
     const paragraphs = isHtmlBody
         ? []
         : rawBody
               .split(/\n\n+/)
               .map((p) => p.trim())
               .filter(Boolean);
+    const dropCap = !isHtmlBody && hasDropCapLead(paragraphs);
+    const authorInitials = (article.authorName ?? article.byline ?? "?")
+        .split(" ")
+        .map((w) => w.charAt(0))
+        .slice(0, 2)
+        .join("")
+        .toUpperCase();
+    const authorHref = article.authorId ? localePath(locale, `/contributors/${article.authorId}`) : null;
+    const jsonLd = {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "NewsArticle",
+                headline: article.title,
+                description: article.excerpt ?? undefined,
+                image: article.imageUrl ? [article.imageUrl] : undefined,
+                datePublished: article.publishedAt ?? undefined,
+                author: article.authorName
+                    ? { "@type": "Person", name: article.authorName }
+                    : undefined,
+                publisher: {
+                    "@type": "Organization",
+                    name: "Eagle Eye Africa",
+                    url: SITE.url,
+                },
+                mainEntityOfPage: shareUrl,
+            },
+            {
+                "@type": "BreadcrumbList",
+                itemListElement: [
+                    { "@type": "ListItem", position: 1, name: dict.news.title, item: `${SITE.url}${localePath(locale, "/news")}` },
+                    { "@type": "ListItem", position: 2, name: article.title, item: shareUrl },
+                ],
+            },
+        ],
+    };
 
     return (
+        <>
+        <ReadingProgress targetId="article-body" />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
         <article className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
-            <Link
-                href={localePath(locale, "/news")}
-                className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-                <ArrowLeft className="h-4 w-4" aria-hidden />
-                {dict.news.backToNews}
-            </Link>
+            {/* Breadcrumb (SEO + orientation) */}
+            <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+                <Link
+                    href={localePath(locale, "/news")}
+                    className="inline-flex items-center gap-1.5 font-medium transition-colors hover:text-foreground"
+                >
+                    <ArrowLeft className="h-4 w-4" aria-hidden />
+                    {dict.news.backToNews}
+                </Link>
+                {article.category && article.categorySlug ? (
+                    <>
+                        <ChevronRight className="h-3.5 w-3.5 opacity-50" aria-hidden />
+                        <Link
+                            href={localePath(locale, `/news?category=${article.categorySlug}`)}
+                            className="font-medium transition-colors hover:text-foreground"
+                        >
+                            {article.category}
+                        </Link>
+                    </>
+                ) : null}
+                <ChevronRight className="h-3.5 w-3.5 opacity-50" aria-hidden />
+                <span aria-current="page" className="max-w-[40ch] truncate text-foreground/80">
+                    {article.title}
+                </span>
+            </nav>
 
             {/* Editorial header */}
-            <header className="mt-4 max-w-4xl">
+            <header className="mt-6 max-w-4xl">
                 <div className="flex flex-wrap items-center gap-2">
-                    {article.category ? <Badge>{article.category}</Badge> : null}
+                    {article.category ? (
+                        article.categorySlug ? (
+                            <Link href={localePath(locale, `/news?category=${article.categorySlug}`)}>
+                                <Badge className="transition-colors hover:bg-primary/80">{article.category}</Badge>
+                            </Link>
+                        ) : (
+                            <Badge>{article.category}</Badge>
+                        )
+                    ) : null}
                     {article.hasVideo ? <MediaBadge kind="video" /> : null}
                     {article.hasAudio ? <MediaBadge kind="audio" /> : null}
                     {badge ? (
@@ -127,78 +213,191 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                         {article.excerpt}
                     </p>
                 ) : null}
-                <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 border-y py-3 text-sm text-muted-foreground">
-                    {(article.authorName || article.byline) ? (
-                        <span className="inline-flex items-center gap-1.5">
-                            <User className="h-4 w-4 text-primary" aria-hidden />
-                            {dict.news.byline}{" "}
-                            {article.authorId && article.authorName ? (
-                                <Link
-                                    href={localePath(locale, `/contributors/${article.authorId}`)}
-                                    className="font-medium text-foreground hover:underline"
+                {/* Byline row: avatar + name + meta + share */}
+                <div className="mt-6 flex flex-col gap-4 border-y py-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex items-center gap-3">
+                        {(article.authorName || article.byline) ? (
+                            <>
+                                <span
+                                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-extrabold text-primary-foreground/90 dark:text-primary"
+                                    aria-hidden
                                 >
-                                    {article.authorName}
-                                </Link>
-                            ) : (
-                                <strong className="text-foreground">
-                                    {article.authorName ?? article.byline}
-                                </strong>
-                            )}
-                        </span>
-                    ) : null}
-                    {article.location ? (
-                        article.locationSlug ? (
-                            <Link
-                                href={localePath(locale, `/locations/${article.locationSlug}`)}
-                                className="inline-flex items-center gap-1.5 hover:text-foreground"
-                            >
-                                <MapPin className="h-4 w-4" aria-hidden />
-                                {article.location}
-                            </Link>
-                        ) : (
+                                    {authorInitials}
+                                </span>
+                                <span className="min-w-0">
+                                    <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                                        {dict.news.authorBoxTitle}
+                                    </span>
+                                    {authorHref && article.authorName ? (
+                                        <Link
+                                            href={authorHref}
+                                            className="block truncate text-sm font-bold text-foreground hover:underline"
+                                        >
+                                            {article.authorName}
+                                        </Link>
+                                    ) : (
+                                        <strong className="block truncate text-sm text-foreground">
+                                            {article.authorName ?? article.byline}
+                                        </strong>
+                                    )}
+                                </span>
+                            </>
+                        ) : null}
+                        <span className="ml-1 hidden h-8 w-px bg-border sm:block" aria-hidden />
+                        <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted-foreground">
+                            {article.publishedAt ? (
+                                <span className="inline-flex items-center gap-1.5" title={formatDateTime(article.publishedAt, locale)}>
+                                    <CalendarDays className="h-4 w-4 text-primary" aria-hidden />
+                                    {formatDate(article.publishedAt, locale)}
+                                </span>
+                            ) : null}
                             <span className="inline-flex items-center gap-1.5">
-                                <MapPin className="h-4 w-4" aria-hidden />
-                                {article.location}
+                                <Clock className="h-4 w-4 text-primary" aria-hidden />
+                                {article.readingMinutes ?? 1} {dict.news.minRead}
                             </span>
-                        )
-                    ) : null}
-                    {article.publishedAt ? (
-                        <span className="inline-flex items-center gap-1.5">
-                            <CalendarDays className="h-4 w-4" aria-hidden />
-                            {dict.news.publishedOn} {formatDate(article.publishedAt, locale)}
+                            <span className="inline-flex items-center gap-1.5">
+                                <Eye className="h-4 w-4 text-primary" aria-hidden />
+                                {(article.viewCount ?? 0).toLocaleString(locale === "fr" ? "fr-FR" : "en-GB")} {dict.news.views}
+                            </span>
+                            {article.location ? (
+                                article.locationSlug ? (
+                                    <Link
+                                        href={localePath(locale, `/locations/${article.locationSlug}`)}
+                                        className="inline-flex items-center gap-1.5 font-medium hover:text-foreground hover:underline"
+                                    >
+                                        <MapPin className="h-4 w-4 text-primary" aria-hidden />
+                                        {article.location}
+                                    </Link>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <MapPin className="h-4 w-4 text-primary" aria-hidden />
+                                        {article.location}
+                                    </span>
+                                )
+                            ) : null}
                         </span>
-                    ) : null}
-                    <span className="inline-flex items-center gap-1.5">
-                        <Eye className="h-4 w-4" aria-hidden />
-                        {article.viewCount}
-                    </span>
+                    </div>
+                    <ArticleShare
+                        url={shareUrl}
+                        title={article.title}
+                        copyLabel={dict.news.shareCopy}
+                        copiedLabel={dict.news.shareCopied}
+                        shareLabel={dict.news.shareNative}
+                        whatsappLabel={dict.news.shareWhatsapp}
+                        facebookLabel={dict.news.shareFacebook}
+                        xLabel={dict.news.shareX}
+                        emailLabel={dict.news.shareEmail}
+                    />
                 </div>
             </header>
 
-            {/* Featured image */}
+            {/* Hero figure: optimized image + caption/credit */}
             {article.imageUrl ? (
-                <div className="mt-8 overflow-hidden rounded-2xl bg-muted">
-                    <span
-                        className="block h-72 w-full bg-cover bg-center md:h-96"
-                        style={{ backgroundImage: `url(${article.imageUrl})` }}
-                        role="img"
-                        aria-label={article.title}
-                    />
-                </div>
+                <figure className="mt-8 overflow-hidden rounded-3xl border bg-muted">
+                    <span className="relative block aspect-[16/9] w-full overflow-hidden md:aspect-[21/9]">
+                        <SmartImage
+                            src={article.imageUrl}
+                            alt={article.coverCaption ?? article.title}
+                            sizes="(max-width: 1280px) 100vw, 1280px"
+                            priority
+                            className="object-cover"
+                        />
+                    </span>
+                    {(article.coverCaption || article.coverCredit) ? (
+                        <figcaption className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-3 text-xs text-muted-foreground md:px-5">
+                            <span className="min-w-0 flex-1 leading-relaxed">
+                                {article.coverCaption ?? article.title}
+                            </span>
+                            {article.coverCredit ? (
+                                <span className="shrink-0 font-semibold">
+                                    {dict.news.photoCredit}: {article.coverCredit}
+                                </span>
+                            ) : null}
+                        </figcaption>
+                    ) : null}
+                </figure>
+            ) : null}
+
+            {/* Pull quote */}
+            {pullQuote ? (
+                <figure className="mt-8 max-w-4xl border-l-4 border-primary pl-5 md:pl-6">
+                    <Quote className="h-5 w-5 text-primary" aria-hidden />
+                    <blockquote className="mt-2 text-xl font-bold leading-snug tracking-tight text-balance md:text-2xl">
+                        {pullQuote}
+                    </blockquote>
+                    <figcaption className="mt-2 text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                        {dict.news.keyQuote}
+                    </figcaption>
+                </figure>
             ) : null}
 
             {/* Body */}
-            {bodyHtml ? (
-                <div
-                    className="prose prose-neutral dark:prose-invert mt-10 max-w-4xl md:prose-lg"
-                    dangerouslySetInnerHTML={{ __html: bodyHtml }}
-                />
-            ) : paragraphs.length > 0 ? (
-                <section className="mt-10 max-w-4xl space-y-5 text-base leading-relaxed md:text-lg">
-                    {paragraphs.map((p, i) => (
-                        <p key={i}>{p}</p>
+            <div id="article-body" className="scroll-mt-24">
+                {bodyHtml ? (
+                    <div
+                        className="article-body max-w-none"
+                        dangerouslySetInnerHTML={{ __html: bodyHtml }}
+                    />
+                ) : paragraphs.length > 0 ? (
+                    <section className="article-body max-w-none space-y-5">
+                        {paragraphs.map((p, i) => (
+                            <p key={i} className={i === 0 && dropCap ? "article-lead" : undefined}>{p}</p>
+                        ))}
+                    </section>
+                ) : null}
+            </div>
+
+            {/* Tags */}
+            {(article.tags ?? []).length > 0 ? (
+                <div className="mt-8 flex flex-wrap items-center gap-2">
+                    <Tag className="h-4 w-4 text-muted-foreground" aria-hidden />
+                    {article.tags!.map((tag) => (
+                        <span
+                            key={tag.slug}
+                            className="rounded-full border bg-muted/60 px-3 py-1 text-xs font-semibold text-muted-foreground"
+                        >
+                            #{tag.name}
+                        </span>
                     ))}
-                </section>
+                </div>
+            ) : null}
+
+            {/* Prev / next navigation */}
+            {(prev || next) ? (
+                <nav aria-label={dict.news.moreStories} className="mt-10 grid gap-3 sm:grid-cols-2">
+                    {prev ? (
+                        <Link
+                            href={localePath(locale, `/news/${prev.slug}`)}
+                            className="group flex items-center gap-3 rounded-2xl border bg-card p-4 transition-shadow hover:shadow-md"
+                        >
+                            <ArrowLeft className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:-translate-x-0.5" aria-hidden />
+                            <span className="min-w-0">
+                                <span className="block text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                                    {dict.news.prevArticle}
+                                </span>
+                                <span className="mt-0.5 line-clamp-2 block text-sm font-bold leading-snug group-hover:underline">
+                                    {prev.title}
+                                </span>
+                            </span>
+                        </Link>
+                    ) : <span aria-hidden className="hidden sm:block" />}
+                    {next ? (
+                        <Link
+                            href={localePath(locale, `/news/${next.slug}`)}
+                            className="group flex items-center justify-end gap-3 rounded-2xl border bg-card p-4 text-right transition-shadow hover:shadow-md"
+                        >
+                            <span className="min-w-0">
+                                <span className="block text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                                    {dict.news.nextArticle}
+                                </span>
+                                <span className="mt-0.5 line-clamp-2 block text-sm font-bold leading-snug group-hover:underline">
+                                    {next.title}
+                                </span>
+                            </span>
+                            <ArrowRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
+                        </Link>
+                    ) : null}
+                </nav>
             ) : null}
 
             {(article.attachments ?? []).length > 0 ? (
@@ -229,7 +428,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                         <section>
                             <SectionHeader
                                 title={dict.news.moreStories}
-                                hint={dict.home.sectionHintNews}
+                                hint={dict.news.relatedStoriesHint}
                             />
                             <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
                                 {filtered.map((item) => (
@@ -238,6 +437,8 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                                         story={item}
                                         dict={dict}
                                         locale={locale}
+                                        author={item.authorName ?? item.byline}
+                                        readingMinutes={item.readingMinutes}
                                     />
                                 ))}
                             </div>
@@ -269,7 +470,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                                 {(article.authorName || article.byline) ? (
                                     <div className="flex items-start justify-between gap-3">
                                         <dt className="inline-flex items-center gap-1.5 text-muted-foreground">
-                                            <User className="h-4 w-4" aria-hidden />
+                                            <UserRound className="h-4 w-4" aria-hidden />
                                             {dict.news.byline}
                                         </dt>
                                         <dd className="text-right font-medium text-foreground">
@@ -345,5 +546,6 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                 </aside>
             </div>
         </article>
+        </>
     );
 }

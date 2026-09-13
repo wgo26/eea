@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Camera, Clock, MapPin } from "lucide-react";
+import { ArrowRight, Camera, Clock, MapPin, UserRound } from "lucide-react";
 import { formatDate, timeAgo, type Dictionary, type Locale } from "@/lib/i18n";
 import { verificationBadgeInfo } from "@/lib/verification";
 import type { StoryCardData } from "@/lib/queries/home";
@@ -14,6 +14,9 @@ type StoryCardProps = {
   /** "grid" = image-top card; "row" = horizontal compact card. */
   variant?: "grid" | "row";
   className?: string;
+  /** Card extras provided by NewsArticle (author credit + reading time). */
+  author?: string | null;
+  readingMinutes?: number | null;
 };
 
 /**
@@ -26,6 +29,8 @@ export function StoryCard({
   locale,
   variant = "grid",
   className,
+  author = null,
+  readingMinutes = null,
 }: StoryCardProps) {
   const badge = verificationBadgeInfo(story.verification ?? null, dict);
 
@@ -149,6 +154,18 @@ export function StoryCard({
           <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{story.excerpt}</p>
         ) : null}
         <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-0.5 pt-3 text-xs text-muted-foreground">
+          {author ? (
+            <span className="inline-flex items-center gap-1">
+              <UserRound className="h-3 w-3" aria-hidden />
+              {author}
+            </span>
+          ) : null}
+          {readingMinutes ? (
+            <span className="inline-flex items-center gap-1 tabular-nums">
+              <Clock className="h-3 w-3" aria-hidden />
+              {readingMinutes} {dict.news.minRead}
+            </span>
+          ) : null}
           {story.location ? (
             <span className="inline-flex items-center gap-1">
               <MapPin className="h-3 w-3" aria-hidden />

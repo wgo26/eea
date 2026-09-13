@@ -273,11 +273,11 @@ export default async function NewsPage({
                 </section>
             ) : null}
 
-            {/* Category chips */}
+            {/* Category chips — sticky under the site header so the section stays navigable on long scrolls */}
             {categories.length > 0 ? (
                 <nav
                     aria-label={dict.news.categories}
-                    className="mb-8 flex flex-wrap items-center gap-1.5"
+                    className="sticky top-16 z-30 -mx-4 mb-8 flex flex-wrap items-center gap-1.5 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:top-[4.5rem] md:-mx-6 md:px-6 lg:-mx-8 lg:px-8"
                 >
                     <Link
                         href={hrefL({ search, location, sort })}
@@ -365,6 +365,8 @@ export default async function NewsPage({
                                     story={article}
                                     dict={dict}
                                     locale={locale}
+                                    author={article.authorName ?? article.byline}
+                                    readingMinutes={article.readingMinutes}
                                 />
                             ))}
                         </div>
