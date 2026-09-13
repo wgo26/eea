@@ -42,6 +42,13 @@ was deleted — do not recreate it.)
   lazy `<img>` fallback for pasted external URLs. The stale
   "not in remote patterns" comment is gone (the patterns are env-driven,
   `next.config.ts`).
+- **Low-bandwidth media pass:** every editorial image in the app now renders
+  through `SmartImage` — the last 7 CSS `backgroundImage` surfaces
+  (contributor avatars + portfolio cards, culture article/event heroes,
+  event cards) migrated with slot-matched `sizes`; AVIF-first negotiation
+  enabled (`images.formats`); upload masters re-encoded to q82 WebP capped
+  at 2560px (PNG stays lossless) instead of JPEG q85/4000px.
+  `scripts/find-bg-images.mjs` (in `npm run check` + CI) blocks regression.
 - Notifications: per-event loop is live — `notification_outbox` queue +
   `notification_prefs`, `/api/cron/notify` every 15 min, in-app inbox with
   topbar badge (`/account/notifications`), SMTP email, WhatsApp Cloud API

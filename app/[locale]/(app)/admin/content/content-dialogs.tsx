@@ -147,7 +147,10 @@ export function ContentCreateDialog({
         { locale: 'en', title: enTitle, excerpt: enExcerpt, body: enBody },
         { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody },
       ],
-      photos: newPhotos.map((p) => ({ url: p.url, alt: p.alt, caption: p.caption })),
+      // assetId/kind/mime passthrough lets syncPhotos link the already-stored
+      // upload row instead of inserting a duplicate URL-only row (null
+      // storage_key, which the DB rejects).
+      photos: newPhotos.map((p) => ({ url: p.url, alt: p.alt, caption: p.caption, credit: p.credit, assetId: p.assetId, kind: p.kind, mimeType: p.mimeType, durationSeconds: p.durationSeconds })),
     }
     if (type === 'listing') {
       draft.listing = {
@@ -581,7 +584,7 @@ function ContentEditForm({
         { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody, seoDescription: frSeoDescription, byline },
       ],
       tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
-      photos: newPhotos.map((p) => ({ url: p.url, alt: p.alt, caption: p.caption })),
+      photos: newPhotos.map((p) => ({ url: p.url, alt: p.alt, caption: p.caption, credit: p.credit, assetId: p.assetId, kind: p.kind, mimeType: p.mimeType, durationSeconds: p.durationSeconds })),
       keepPhotoIds: keepIds,
     }
     if (isListing) {

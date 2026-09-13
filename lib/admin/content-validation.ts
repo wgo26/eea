@@ -19,10 +19,10 @@ export type ContentDraftInput = {
     byline?: string | null
   }[]
   tags?: string[]
-  photos?: { url: string; alt?: string; caption?: string; credit?: string }[]
+  photos?: { url: string; alt?: string; caption?: string; credit?: string; assetId?: string; kind?: string; mimeType?: string; durationSeconds?: number | null }[]
   keepPhotoIds?: string[]
   /** Supporting video/audio/document links (Phase B) — stored as media_assets with kind. */
-  attachments?: { url: string; kind?: 'video' | 'audio' | 'document' | 'image'; caption?: string }[]
+  attachments?: { url: string; kind?: 'video' | 'audio' | 'document' | 'image'; caption?: string; assetId?: string }[]
   listing?: {
     price?: number | null
     currency?: string

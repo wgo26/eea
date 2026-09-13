@@ -130,21 +130,33 @@ async function uniqueSlug(supabase: AdminContext['supabase'], base: string): Pro
   return `${root}-${Date.now()}`
 }
 
-/** Sync media_assets rows for a content item: delete dropped ids, insert new URLs. */
+/** Sync media_assets rows for a content item: delete dropped ids, link uploaded assets, insert new URL-only rows. */
 async function syncPhotos(
   supabase: AdminContext['supabase'],
   contentItemId: string,
-  photos: { url: string; caption?: string; credit?: string }[],
+  photos: { url: string; alt?: string; caption?: string; credit?: string; assetId?: string; kind?: string; mimeType?: string; durationSeconds?: number | null }[],
   keepPhotoIds: string[],
   credit: string | null,
-  attachments: { url: string; kind?: 'video' | 'audio' | 'document' | 'image'; caption?: string }[] = [],
+  attachments: { url: string; kind?: 'video' | 'audio' | 'document' | 'image'; caption?: string; assetId?: string }[] = [],
 ): Promise<void> {
+  const keep = new Set(keepPhotoIds ?? [])
+  // Rows uploaded through /api/uploads already exist in media_assets
+  // (uploadMedia inserts them transactionally with storage_key + metadata).
+  // Their ids travel back as assetId — never delete those below, and link
+  // them to this item instead of inserting duplicate URL-only rows. The
+  // duplicates carried a null storage_key (and dropped kind/mime metadata),
+  // which is what tripped the storage_key NOT NULL constraint.
+  const linkedIds = new Set(
+    [...photos, ...attachments]
+      .map((p) => p.assetId)
+      .filter((id): id is string => !!id),
+  )
   const { data: existing } = await supabase
     .from('media_assets')
     .select('id, provider, storage_key')
     .eq('content_item_id', contentItemId)
   for (const row of existing ?? []) {
-    if (!keepPhotoIds.includes(row.id)) {
+    if (!keep.has(row.id) && !linkedIds.has(row.id)) {
       await deleteStoredMedia(supabase, row as { provider: string; storage_key: string | null })
       const { error } = await supabase.from('media_assets').delete().eq('id', row.id)
       if (error) throw new Error(`Could not remove photo metadata: ${error.message}`)
@@ -152,26 +164,55 @@ async function syncPhotos(
   }
   const newPhotos = photos.filter((p) => p.url.trim())
   const newAttachments = attachments.filter((a) => a.url.trim())
-  if (newPhotos.length === 0 && newAttachments.length === 0) return
   const { count } = await supabase
     .from('media_assets')
     .select('id', { count: 'exact', head: true })
     .eq('content_item_id', contentItemId)
-  const startIndex = count ?? 0
-  const rows = [
-    ...newPhotos.map((photo, index) => ({
+  let sortIndex = count ?? 0
+  // Link already-uploaded rows (uploaded before the content item existed, so
+  // their content_item_id is null or stale) instead of duplicating them.
+  const toLink = [...newPhotos, ...newAttachments].filter((p) => p.assetId)
+  for (const photo of toLink) {
+    const patch: Record<string, unknown> = {
       content_item_id: contentItemId,
-      kind: 'image' as const,
+      public_url: photo.url.trim(),
+      sort_order: sortIndex,
+      is_cover: sortIndex === 0,
+    }
+    if ('caption' in photo && photo.caption !== undefined) {
+      patch.caption = photo.caption?.trim() || null
+      patch.alt_text = photo.caption?.trim() || null
+    }
+    if ('credit' in photo && photo.credit !== undefined) {
+      patch.photographer_credit = photo.credit?.trim() || credit
+    }
+    if ('mimeType' in photo && photo.mimeType) patch.mime_type = photo.mimeType
+    if ('durationSeconds' in photo && typeof photo.durationSeconds === 'number') {
+      patch.duration_seconds = photo.durationSeconds
+    }
+    const { error } = await supabase.from('media_assets').update(patch).eq('id', photo.assetId!)
+    if (error) throw new Error(`Could not save photos: ${error.message}`)
+    sortIndex += 1
+  }
+  // URL-pasted / library-reused entries have no asset row yet — insert
+  // link-only rows (storage_key stays null; the new migration guarantees the
+  // column is nullable like the repo schema declares).
+  const rows = [
+    ...newPhotos.filter((p) => !p.assetId).map((photo, index) => ({
+      content_item_id: contentItemId,
+      kind: (photo.kind as 'image' | 'video' | 'audio' | 'document' | undefined) ?? 'image',
       provider: 'r2' as const,
       destination: 'public_photo' as const,
       public_url: photo.url.trim(),
+      mime_type: photo.mimeType ?? null,
+      duration_seconds: typeof photo.durationSeconds === 'number' ? photo.durationSeconds : null,
       caption: photo.caption?.trim() || null,
-      alt_text: photo.caption?.trim() || null,
+      alt_text: (photo.alt?.trim() || photo.caption?.trim()) || null,
       photographer_credit: photo.credit?.trim() || credit,
-      sort_order: startIndex + index,
-      is_cover: startIndex + index === 0,
+      sort_order: sortIndex + index,
+      is_cover: sortIndex + index === 0,
     })),
-    ...newAttachments.map((att, index) => ({
+    ...newAttachments.filter((a) => !a.assetId).map((att, index) => ({
       content_item_id: contentItemId,
       kind: (att.kind ?? 'video') as 'video' | 'audio' | 'document' | 'image',
       provider: 'r2' as const,
@@ -180,10 +221,11 @@ async function syncPhotos(
       caption: att.caption?.trim() || null,
       alt_text: att.caption?.trim() || null,
       photographer_credit: credit,
-      sort_order: startIndex + newPhotos.length + index,
+      sort_order: sortIndex + newPhotos.filter((p) => !p.assetId).length + index,
       is_cover: false,
     })),
   ]
+  if (rows.length === 0) return
   const { error } = await supabase.from('media_assets').insert(rows)
   if (error) throw new Error(`Could not save photos: ${error.message}`)
 }

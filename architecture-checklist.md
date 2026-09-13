@@ -970,6 +970,33 @@ below.*
     and the two P2 items closed into the fixed list; P1-5 stays as a manual
     ops check), `docs/admin-manual.md` refreshed for the Homepage/listings/
     documents sections.
+- 2026-09-13 — **Low-bandwidth media pass** (`tsc --noEmit` clean, eslint
+  clean, vitest green, bare-href + new background-image audits zero,
+  sitemap + migration manifests clean): every editorial image now negotiates
+  a right-sized AVIF/WebP variant, and upload masters stop being multi-MB
+  JPEGs. Completes features.md §3 "Low-data experience" tiered compression.
+  - **backgroundImage → SmartImage** — the last 7 CSS-background surfaces
+    (contributor list/detail avatars + portfolio cards, culture article
+    hero + related grid, event hero + event cards) render through
+    `SmartImage` with slot-matched `sizes` (`CARD_SIZES` for grids, 56/80px
+    avatar slots, `(max-width: 1024px) 100vw, 832px` heroes with
+    `priority`). The `<span role="img">` accessibility hacks went with
+    them — real `<img>` alt text now. Shared cards/rails/footer/logo were
+    already migrated in the P1-3 sweep.
+  - **AVIF-first optimizer** — `next.config.ts` `images.formats:
+    ['image/avif', 'image/webp']`; AVIF clients get ~50%-smaller variants of
+    already-responsive srcsets.
+  - **Smaller masters at upload** — `lib/storage/validate.ts` re-encodes
+    photos to WebP q82 capped at 2560px (was JPEG q85 / 4000px); PNG stays
+    lossless for transparency. Halves stored bytes and every direct master
+    fetch (OG/WhatsApp previews, optimizer reads). Existing assets are
+    unaffected (served optimized on demand); only new uploads change.
+  - **Regression gate** — `scripts/find-bg-images.mjs` (mirrors
+    find-bare-hrefs) fails `npm run check` + CI on any new
+    `backgroundImage`/`bg-[url()]` media in pages/components.
+  - **Tests** — `lib/storage/validate.test.ts` pins the re-encode contract
+    with real sharp buffers (WebP output + 2560 cap + no upscale + PNG
+    lossless + executable rejection).
 
 
 

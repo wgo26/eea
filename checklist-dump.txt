@@ -1,0 +1,8 @@
+﻿
+architecture-checklist.md:931:- 2026-09-13 — **Homepage scheduling + documents intake + known-issues sweep**
+
+
+
+architecture-checklist.md:972:    documents sections.
+
+

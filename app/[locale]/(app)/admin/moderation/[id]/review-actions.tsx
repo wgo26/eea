@@ -337,12 +337,11 @@ function ApproveDrawer({
   const [frExcerpt, setFrExcerpt] = useState('')
   const [enBody, setEnBody] = useState(prefill.bodyEn)
   const [frBody, setFrBody] = useState(prefill.bodyFr)
-  const [photos, setPhotos] = useState(prefill.photos)
   const [videos, setVideos] = useState(prefill.videos)
   const [audios, setAudios] = useState(prefill.audios)
   const [documents, setDocuments] = useState(prefill.documents)
-  // Photo URLs from the payload prefill the uploader as editable thumbnails
-  // ("url - caption" lines); adding uploads/URLs keeps the same line format.
+  // newPhotos is the draft's photo source of truth, prefilled from the
+  // payload's "url - caption" lines; uploads/URL adds update it directly.
   const [newPhotos, setNewPhotos] = useState<UploadedPhoto[]>(() =>
     prefill.photos
       .split('\n')
@@ -384,11 +383,9 @@ function ApproveDrawer({
         { locale: 'en', title: enTitle, excerpt: enExcerpt, body: enBody },
         { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody },
       ],
-      photos: photos
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((url) => ({ url })),
+      photos: newPhotos
+        .filter((p) => p.url.trim())
+        .map((p) => ({ url: p.url, caption: p.caption, credit: p.credit, assetId: p.assetId, kind: p.kind, mimeType: p.mimeType, durationSeconds: p.durationSeconds })),
       attachments: [
         ...videos.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
           const [url, ...rest] = line.split(/\s+-\s+/)
@@ -490,7 +487,6 @@ function ApproveDrawer({
               newPhotos={newPhotos}
               onChange={({ newPhotos: np }) => {
                 setNewPhotos(np)
-                setPhotos(np.map((p) => (p.caption ? `${p.url} - ${p.caption}` : p.url)).filter(Boolean).join('\n'))
               }}
               destination="public_photo"
               showAltCaption={false}
