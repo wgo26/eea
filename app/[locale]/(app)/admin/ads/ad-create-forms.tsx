@@ -38,7 +38,7 @@ export function AdCreateForms({
   advertisers: { id: string; companyName: string }[]
 }) {
   return (
-    <div className="grid gap-3 lg:grid-cols-3">
+    <div className="grid gap-2 lg:grid-cols-3">
       <CreateSlotCard copy={copy} />
       <CreateAdvertiserCard copy={copy} />
       <CreateCampaignCard copy={copy} slots={slots} advertisers={advertisers} />
@@ -60,7 +60,7 @@ function CreateSlotCard({ copy }: { copy: Copy }) {
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="rounded-lg border border-dashed border-border bg-muted/30 p-4 text-left text-sm font-medium transition-colors hover:bg-muted/50">
+      <button type="button" onClick={() => setOpen(true)} className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-left text-xs font-medium transition-colors hover:bg-muted/50">
         {copy.newSlot}
       </button>
     )
@@ -153,7 +153,7 @@ function CreateAdvertiserCard({ copy }: { copy: Copy }) {
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="rounded-lg border border-dashed border-border bg-muted/30 p-4 text-left text-sm font-medium transition-colors hover:bg-muted/50">
+      <button type="button" onClick={() => setOpen(true)} className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-left text-xs font-medium transition-colors hover:bg-muted/50">
         {copy.newAdvertiser}
       </button>
     )
@@ -229,7 +229,7 @@ function CreateCampaignCard({
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="rounded-lg border border-dashed border-border bg-muted/30 p-4 text-left text-sm font-medium transition-colors hover:bg-muted/50">
+      <button type="button" onClick={() => setOpen(true)} className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-left text-xs font-medium transition-colors hover:bg-muted/50">
         {copy.newCampaign}
       </button>
     )

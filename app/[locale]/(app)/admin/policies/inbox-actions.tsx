@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { resolveLegalReport, resolveDataRequest } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
+import { EmptyState } from '@/components/admin/empty-state'
 import { StatusBadge } from '@/components/admin/status-badge'
 import { localizeStatus, localizeRequestType } from '@/lib/admin/labels'
 import { formatRelative } from '@/lib/admin/format'
@@ -35,17 +36,15 @@ export function InboxLists({
   const doneRequests = requests.filter((r) => r.status !== 'open')
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       <p className="text-sm text-muted-foreground">{copy.inboxBody}</p>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">
+      <section className="space-y-2">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {copy.inboxTakedowns} · {openTakedowns.length}
         </h2>
         {takedowns.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-            {copy.emptyInbox}
-          </p>
+          <EmptyState message={copy.emptyInbox} />
         ) : (
           <>
             {openTakedowns.map((report) => (
@@ -58,14 +57,12 @@ export function InboxLists({
         )}
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">
+      <section className="space-y-2">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {copy.inboxRequests} · {openRequests.length}
         </h2>
         {requests.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-            {copy.emptyInbox}
-          </p>
+          <EmptyState message={copy.emptyInbox} />
         ) : (
           <>
             {openRequests.map((req) => (
@@ -148,7 +145,7 @@ function TakedownCard({
   done?: boolean
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="rounded-lg border border-border bg-card p-3">
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge status={report.status} label={localizeStatus(report.status, common)} />
         <span className="text-sm font-medium">{report.subject ?? copy.takedownFallback}</span>
@@ -197,7 +194,7 @@ function RequestCard({
   done?: boolean
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="rounded-lg border border-border bg-card p-3">
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge status={request.status} label={localizeStatus(request.status, common)} />
         <span className="text-sm font-medium">{localizeRequestType(request.requestType, copy.requestTypes as unknown as Record<string, string>)}</span>

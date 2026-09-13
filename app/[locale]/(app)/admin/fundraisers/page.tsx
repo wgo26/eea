@@ -5,6 +5,7 @@ import { requireCapability } from '@/lib/auth/guards'
 import { isAdminRoles } from '@/lib/auth/roles'
 import { getFundraisersAdmin } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
+import { EmptyState } from '@/components/admin/empty-state'
 import { StatusBadge } from '@/components/admin/status-badge'
 import { localizeStatus } from '@/lib/admin/labels'
 import { formatRelative, formatPrice } from '@/lib/admin/format'
@@ -40,22 +41,20 @@ export default async function Page() {
   const fundraisers = await getFundraisersAdmin(100, locale)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader title={t.title} description={t.description} />
 
       <FundraiserCreateForm copy={t} common={common} />
 
       {fundraisers.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-muted/30 p-10 text-center">
-          <p className="text-sm text-muted-foreground">{t.empty}</p>
-        </div>
+        <EmptyState message={t.empty} />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-2">
           {fundraisers.map((f) => {
             const percent = f.goalAmount > 0 ? Math.min(100, Math.round((f.raisedAmount / f.goalAmount) * 100)) : 0
             return (
-              <div key={f.contentItemId} className="rounded-lg border border-border bg-card p-4">
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div key={f.contentItemId} className="rounded-lg border border-border bg-card p-3">
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusBadge status={f.closedAt ? 'closed' : 'open'} label={localizeStatus(f.closedAt ? 'closed' : 'open', dict.admin.common)} />
@@ -66,7 +65,7 @@ export default async function Page() {
                         </span>
                       )}
                     </div>
-                    <h3 className="mt-1.5 text-sm font-medium">
+                    <h3 className="mt-1 text-sm font-medium">
                       {f.storyTitle ?? f.slug ?? f.contentItemId}
                     </h3>
                     <p className="text-xs text-muted-foreground">

@@ -23,7 +23,7 @@ export function EmptyState({
 }) {
   return (
     <div className={cn(
-      'flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-muted/20 p-10 text-center',
+      'flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/20 p-6 text-center',
       className,
     )}>
       {icon && <div className="text-muted-foreground/60">{icon}</div>}

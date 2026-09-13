@@ -6,6 +6,7 @@ import { getReports, getCorrections, getTrustSafetyCounts, getTrustSafetyFiltere
 import { requireCapability } from '@/lib/auth/guards'
 import { PageHeader } from '@/components/admin/page-header'
 import { Tabs } from '@/components/admin/tabs'
+import { FilterPills } from '@/components/admin/filter-pills'
 import { StatusBadge } from '@/components/admin/status-badge'
 import { localizeStatus, localizeReportType } from '@/lib/admin/labels'
 import { DataTable } from '@/components/admin/data-table'
@@ -73,21 +74,14 @@ export default async function Page({
         hrefFor={hrefFor}
       />
 
-      <div className="flex flex-wrap gap-2">
-        {STATUS_KEYS.map((key) => (
-          <a
-            key={key}
-            href={`${base}?tab=${tab}&status=${key}`}
-            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-              status === key
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-card border-border text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {t[STATUS_LABELS[key]]}
-          </a>
-        ))}
-      </div>
+      <FilterPills
+        pills={STATUS_KEYS.map((key) => ({
+          key,
+          label: t[STATUS_LABELS[key]],
+          href: `${base}?tab=${tab}&status=${key}`,
+        }))}
+        active={status}
+      />
 
       {tab === 'reports' ? (
         reports.length === 0 ? (
@@ -138,9 +132,7 @@ export default async function Page({
               { key: 'actions', header: '', render: (r) => <ReportActions report={r} copy={t} common={dict.admin.common} locale={locale} />, className: 'text-right' },
             ]}
           />
-          <div className="mt-4">
-            <Pager page={page} pageSize={PAGE_SIZE} total={filtered.reports} hrefFor={pageHref} copy={tc} />
-          </div>
+          <Pager page={page} pageSize={PAGE_SIZE} total={filtered.reports} hrefFor={pageHref} copy={tc} />
           </>
         )
       ) : corrections.length === 0 ? (
@@ -186,9 +178,7 @@ export default async function Page({
             { key: 'actions', header: '', render: (r) => <CorrectionActions correction={r} copy={t} />, className: 'text-right' },
           ]}
         />
-        <div className="mt-4">
-          <Pager page={page} pageSize={PAGE_SIZE} total={filtered.corrections} hrefFor={pageHref} copy={tc} />
-        </div>
+        <Pager page={page} pageSize={PAGE_SIZE} total={filtered.corrections} hrefFor={pageHref} copy={tc} />
         </>
       )}
     </div>

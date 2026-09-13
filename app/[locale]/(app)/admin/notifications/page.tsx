@@ -2,6 +2,7 @@ import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { requireCapability } from '@/lib/auth/guards'
 import { PageHeader } from '@/components/admin/page-header'
+import { StatCard, StatGrid } from '@/components/admin/stat-card'
 import { EmptyState } from '@/components/admin/empty-state'
 import { DataTable } from '@/components/admin/data-table'
 import { formatRelative } from '@/lib/admin/format'
@@ -51,27 +52,18 @@ export default async function Page() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader title={t.title} description={t.description} />
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.colStatus}: pending</p>
-          <p className="mt-1 text-2xl font-black tabular-nums">{stats.pending}</p>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">sent · 24h</p>
-          <p className="mt-1 text-2xl font-black tabular-nums">{stats.sent24h}</p>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">failed</p>
-          <p className="mt-1 text-2xl font-black tabular-nums">{stats.failed}</p>
-        </div>
-      </section>
+      <StatGrid>
+        <StatCard label={`${t.colStatus}: pending`} value={stats.pending} />
+        <StatCard label="sent · 24h" value={stats.sent24h} />
+        <StatCard label="failed" value={stats.failed} tone={stats.failed > 0 ? 'red' : 'default'} />
+      </StatGrid>
 
       <section className="rounded-lg border border-border bg-card p-4">
         <h2 className="mb-1 text-sm font-medium">{t.channelsHeading}</h2>
-        <p className="mb-3 text-xs text-muted-foreground">{t.channelHints}</p>
+        <p className="mb-2 text-xs text-muted-foreground">{t.channelHints}</p>
         <ul className="space-y-2">
           {channelRows.map((c) => (
             <li key={c.name} className="flex items-center gap-2 text-sm">
@@ -83,14 +75,14 @@ export default async function Page() {
         </ul>
         <div className="mt-4 border-t border-border pt-4">
           <h3 className="text-sm font-medium">{t.testHeading}</h3>
-          <p className="mb-3 mt-0.5 text-xs text-muted-foreground">{t.testBody}</p>
+          <p className="mb-2 mt-0.5 text-xs text-muted-foreground">{t.testBody}</p>
           <NotificationQueueActions copy={t} />
         </div>
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">{t.queueHeading}</h2>
-        <p className="mb-3 text-xs text-muted-foreground">{t.manualHint}</p>
+        <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.queueHeading}</h2>
+        <p className="mb-2 text-xs text-muted-foreground">{t.manualHint}</p>
         {queue.length === 0 ? (
           <EmptyState message={t.emptyQueue} />
         ) : (
@@ -110,7 +102,7 @@ export default async function Page() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">{t.subscribersHeading}</h2>
+        <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.subscribersHeading}</h2>
         {subscribers.length === 0 ? (
           <EmptyState message={t.emptySubscribers} />
         ) : (

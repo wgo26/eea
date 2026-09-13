@@ -10,6 +10,7 @@ import {
   getLegalInboxCounts,
 } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
+import { EmptyState } from '@/components/admin/empty-state'
 import { Tabs } from '@/components/admin/tabs'
 import { PolicyCreateForm, PolicyVersionCard } from './policy-actions'
 import { AboutSectionEditor } from './about-section-forms'
@@ -86,13 +87,13 @@ export default async function Page({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader title={t.title} description={t.description} />
 
       <Tabs tabs={tabs} active={tab} hrefFor={hrefFor} />
 
       {tab === 'pages' ? (
-        <div className="space-y-6">
+        <div className="space-y-5">
           <PolicyCreateForm copy={t} />
 
           {parityWarnings.length > 0 && (
@@ -107,12 +108,10 @@ export default async function Page({
           )}
 
           {policies.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border bg-muted/30 p-10 text-center">
-              <p className="text-sm text-muted-foreground">{t.empty}</p>
-            </div>
+            <EmptyState message={t.empty} />
           ) : (
-            <section className="space-y-3">
-              <h2 className="text-sm font-medium">{t.historyTitle}</h2>
+            <section className="space-y-2">
+              <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.historyTitle}</h2>
               {policies.map((policy) => (
                 <PolicyVersionCard
                   key={policy.id}

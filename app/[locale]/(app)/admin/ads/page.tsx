@@ -43,7 +43,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
   const tab = (await searchParams).tab === 'inquiries' ? 'inquiries' : 'operations'
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader title={t.title} description={t.description} />
 
       <Tabs
@@ -55,15 +55,17 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
         hrefFor={(key) => `${localePath(locale, '/admin/ads')}?tab=${key}`}
       />
 
-      <AdCreateForms
-        copy={t}
-        slots={slots}
-        advertisers={advertisers.map((a) => ({ id: a.id, companyName: a.companyName }))}
-      />
+      {tab !== 'inquiries' && (
+        <AdCreateForms
+          copy={t}
+          slots={slots}
+          advertisers={advertisers.map((a) => ({ id: a.id, companyName: a.companyName }))}
+        />
+      )}
 
       {tab === 'inquiries' && (
         <section>
-          <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">{t.inquiriesHeading}</h2>
+          <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.inquiriesHeading}</h2>
           {inquiries.length === 0 ? <EmptyState message={t.emptyInquiries} /> : (
             <DataTable rows={inquiries} rowKey={(r) => r.id} columns={[
               { key: 'company', header: t.colCompany, render: (r) => <div><div className="text-sm font-medium">{r.advertiserName ?? r.name}</div><div className="text-xs text-muted-foreground">{r.email} {r.phone}</div></div> },
@@ -75,7 +77,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
       )}
 
       {tab !== 'inquiries' && <><section>
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.slotsHeading}</h2>
+        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{t.slotsHeading}</h2>
         {slots.length === 0 ? (
           <EmptyState message={t.emptySlots} />
         ) : (
@@ -101,7 +103,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
       </section>
 
       <section>
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.campaignsHeading}</h2>
+        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{t.campaignsHeading}</h2>
         {campaigns.length === 0 ? (
           <EmptyState message={t.emptyCampaigns} />
         ) : (
@@ -161,7 +163,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
       </section>
 
       <section>
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.advertisersHeading}</h2>
+        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{t.advertisersHeading}</h2>
         {advertisers.length === 0 ? (
           <EmptyState message={t.emptyAdvertisers} />
         ) : (

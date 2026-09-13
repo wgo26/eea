@@ -15,7 +15,7 @@ export default async function Page() {
   const dict = getDictionary(locale)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title={dict.admin.content.importTitle}
         description={dict.admin.content.importDescription}

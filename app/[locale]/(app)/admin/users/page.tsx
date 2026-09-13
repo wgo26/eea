@@ -6,6 +6,7 @@ import { requireCapability } from '@/lib/auth/guards'
 import { getUsers } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { EmptyState } from '@/components/admin/empty-state'
+import { FilterPills, SearchBar } from '@/components/admin/filter-pills'
 import { StatusBadge } from '@/components/admin/status-badge'
 import { DataTable } from '@/components/admin/data-table'
 import { Pager } from '@/components/admin/pager'
@@ -27,6 +28,13 @@ const ROLE_FILTERS: { key: AppRole | 'all'; dictKey: 'roleAll' | 'roleAdmin' | '
   { key: 'contributor', dictKey: 'roleContributor' },
   { key: 'advertiser', dictKey: 'roleAdvertiser' },
 ]
+
+const STATUS_FILTERS = [
+  { key: 'all', dictKey: 'statusAll' },
+  { key: 'active', dictKey: 'statusActive' },
+  { key: 'suspended', dictKey: 'statusSuspended' },
+  { key: 'banned', dictKey: 'statusBanned' },
+] as const
 
 const PAGE_SIZE = 20
 
@@ -63,42 +71,32 @@ export default async function Page({
 
       <InviteForm copy={t} common={dict.admin.common} />
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <form action={localePath(locale, '/admin/users')} method="GET" className="flex-1">
-          {role !== 'all' && <input type="hidden" name="role" value={role} />}
-          {status !== 'all' && <input type="hidden" name="status" value={status} />}
-          <input
-            type="text"
-            name="q"
-            defaultValue={search}
-            placeholder={t.searchPlaceholder}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </form>
-        <div className="flex flex-wrap items-center gap-2">
-          {ROLE_FILTERS.map((f) => (
-            <a
-              key={f.key}
-              href={`${localePath(locale, '/admin/users')}?role=${f.key}${status !== 'all' ? `&status=${status}` : ''}${search ? `&q=${encodeURIComponent(search)}` : ''}`}
-              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-                role === f.key
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-card border-border text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {t[f.dictKey]}
-            </a>
-          ))}
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <FilterPills
+          pills={ROLE_FILTERS.map((f) => ({
+            key: f.key,
+            label: t[f.dictKey],
+            href: `${localePath(locale, '/admin/users')}?role=${f.key}${status !== 'all' ? `&status=${status}` : ''}${search ? `&q=${encodeURIComponent(search)}` : ''}`,
+          }))}
+          active={role}
+        />
+        <SearchBar
+          name="q"
+          defaultValue={search}
+          placeholder={t.searchPlaceholder}
+          action={`${localePath(locale, '/admin/users')}?role=${role}&status=${status}`}
+          className="w-full sm:w-64"
+        />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {(['all', 'active', 'suspended', 'banned'] as const).map((value) => (
-          <a key={value} href={`${localePath(locale, '/admin/users')}?status=${value}${params.role ? `&role=${role}` : ''}${search ? `&q=${encodeURIComponent(search)}` : ''}`} className={`rounded-full border px-3 py-1 text-xs font-medium ${status === value ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-muted-foreground'}`}>
-            {t[value === 'all' ? 'statusAll' : value === 'active' ? 'statusActive' : value === 'suspended' ? 'statusSuspended' : 'statusBanned']}
-          </a>
-        ))}
-      </div>
+      <FilterPills
+        pills={STATUS_FILTERS.map((f) => ({
+          key: f.key,
+          label: t[f.dictKey],
+          href: `${localePath(locale, '/admin/users')}?status=${f.key}${role !== 'all' ? `&role=${role}` : ''}${search ? `&q=${encodeURIComponent(search)}` : ''}`,
+        }))}
+        active={status}
+      />
 
       {users.length === 0 ? (
         <EmptyState message={t.empty} />

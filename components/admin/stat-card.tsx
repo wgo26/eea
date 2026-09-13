@@ -26,30 +26,30 @@ export function StatCard({ label, value, icon, hint, trend, href, tone = 'defaul
   const inner = (
     <div
       className={cn(
-        'rounded-lg border border-border bg-card p-4 flex flex-col gap-1 transition-colors',
+        'rounded-lg border border-border bg-card px-3 py-2.5 flex flex-col gap-0.5 transition-colors min-w-0',
         href && 'hover:bg-accent/50 cursor-pointer',
         toneClasses[tone],
         className,
       )}
     >
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
-        {icon && <span className="h-4 w-4 text-muted-foreground">{icon}</span>}
+      <div className="flex items-center justify-between gap-2 min-w-0">
+        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate">{label}</span>
+        {icon && <span className="h-4 w-4 shrink-0 text-muted-foreground">{icon}</span>}
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="text-2xl font-semibold tabular-nums text-foreground">
+        <span className="text-xl font-semibold tabular-nums text-foreground truncate">
           {typeof value === 'number' ? value.toLocaleString() : value}
         </span>
         {trend && (
           <span className={cn(
-            'text-xs font-medium',
+            'text-xs font-medium shrink-0',
             trend.positive ? 'text-emerald-600' : 'text-destructive',
           )}>
             {trend.positive ? '+' : ''}{trend.value}%
           </span>
         )}
       </div>
-      {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+      {hint && <span className="text-[11px] leading-tight text-muted-foreground truncate">{hint}</span>}
     </div>
   )
 
@@ -59,6 +59,6 @@ export function StatCard({ label, value, icon, hint, trend, href, tone = 'defaul
   return inner
 }
 
-export function StatGrid({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">{children}</div>
+export function StatGrid({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cn('grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6 gap-2', className)}>{children}</div>
 }

@@ -7,6 +7,7 @@ import { getDemoDataCounts } from '@/lib/admin/demo-data'
 import { DemoDataCard } from './demo-data-card'
 import { PageHeader } from '@/components/admin/page-header'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
+import { EmptyState } from '@/components/admin/empty-state'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { localizeStatus, localizeType } from '@/lib/admin/labels'
 import { formatBytes, formatRelative } from '@/lib/admin/format'
@@ -46,26 +47,28 @@ export default async function Page() {
     return `${localePath(locale, '/admin/content')}?${sp.toString()}`
   }
   const quickActionCls =
-    'inline-flex items-center rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors'
+    'inline-flex min-h-[32px] items-center rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium hover:bg-accent transition-colors'
+
+  const sectionHeadingCls = 'text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2'
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title={t.title}
         description={t.description}
+        actions={
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 hidden text-[11px] font-medium uppercase tracking-wide text-muted-foreground xl:inline">{t.quickActions}</span>
+            <Link href={contentHref({})} className={quickActionCls}>{t.qaCreateContent}</Link>
+            <Link href={localePath(locale, '/admin/users')} className={quickActionCls}>{t.qaInviteUser}</Link>
+            <Link href={localePath(locale, '/admin/ads')} className={quickActionCls}>{t.qaNewAd}</Link>
+          </div>
+        }
       />
-
-      {/* Quick actions */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.quickActions}</span>
-        <Link href={contentHref({})} className={quickActionCls}>{t.qaCreateContent}</Link>
-        <Link href={localePath(locale, '/admin/users')} className={quickActionCls}>{t.qaInviteUser}</Link>
-        <Link href={localePath(locale, '/admin/ads')} className={quickActionCls}>{t.qaNewAd}</Link>
-      </div>
 
       {/* SLA warning — oldest pending > 48h */}
       {slaBreached && oldestPendingHours != null && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
           <span aria-hidden>⏰</span>
           <p>{t.slaWarning.replace('{hours}', String(oldestPendingHours))}</p>
           <Link href={localePath(locale, '/admin/moderation')} className="ml-auto text-xs font-medium underline">
@@ -76,7 +79,7 @@ export default async function Page() {
 
       {/* Submissions */}
       <section>
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.submissions}</h2>
+        <h2 className={sectionHeadingCls}>{t.submissions}</h2>
         <StatGrid>
           <StatCard label={t.pending} value={stats.pendingSubmissions} hint={t.hintAwaitingReview} href={localePath(locale, '/admin/moderation')} tone={slaBreached ? 'amber' : 'default'} />
           <StatCard label={t.publishedToday} value={stats.publishedToday} href={contentHref({ status: 'published' })} />
@@ -85,9 +88,11 @@ export default async function Page() {
         </StatGrid>
       </section>
 
-      {/* Content */}
-      <section>
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.content}</h2>
+      {/* Content + operations share one row on wide screens so the
+          storage/ads actions are visible without scrolling. */}
+      <div className="grid gap-5 xl:grid-cols-5">
+      <section className="xl:col-span-3">
+        <h2 className={sectionHeadingCls}>{t.content}</h2>
         <StatGrid>
           <StatCard label={t.photoStories} value={stats.totalStories} href={contentHref({ type: 'photo_story' })} />
           <StatCard label={t.communityNews} value={stats.totalNews} href={contentHref({ type: 'news' })} />
@@ -98,25 +103,26 @@ export default async function Page() {
       </section>
 
       {/* Operations */}
-      <section>
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.operations}</h2>
+      <section className="xl:col-span-2">
+        <h2 className={sectionHeadingCls}>{t.operations}</h2>
         <StatGrid>
           <StatCard label={t.activeAds} value={stats.activeAds} href={localePath(locale, '/admin/ads')} />
           <StatCard label={t.activeListings} value={stats.activeListings} hint={t.expiringListings.replace('{count}', String(stats.expiringListings))} href={localePath(locale, '/admin/listings')} />
           <StatCard label={t.storageUsed} value={formatBytes(stats.storageUsed)} href={localePath(locale, '/admin/storage-backup')} />
         </StatGrid>
       </section>
+      </div>
 
       {/* Pending by type */}
       {stats.pendingByType.length > 0 && (
         <section>
-          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.pendingByType}</h2>
-          <div className="flex flex-wrap gap-2">
+          <h2 className={sectionHeadingCls}>{t.pendingByType}</h2>
+          <div className="flex flex-wrap gap-1.5">
             {stats.pendingByType.map((item) => (
               <Link
                 key={item.type}
                 href={`${localePath(locale, '/admin/moderation')}?status=pending&type=${item.type}`}
-                className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-accent"
+                className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1 text-xs transition-colors hover:bg-accent"
               >
                 <TypeBadge type={item.type} />
                 <span className="font-medium tabular-nums">{item.count}</span>
@@ -128,11 +134,9 @@ export default async function Page() {
 
       {/* Recent activity */}
       <section>
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.recentActivity}</h2>
+        <h2 className={sectionHeadingCls}>{t.recentActivity}</h2>
         {stats.recentActivity.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-            {t.noActivity}
-          </div>
+          <EmptyState message={t.noActivity} className="p-4" />
         ) : (
           <div className="rounded-lg border border-border overflow-hidden">
             <ul className="divide-y divide-border">
@@ -169,7 +173,7 @@ function ActivityRow({
 }) {
   const actor = entry.actorName ?? (entry.actorId ? deletedLabel : systemLabel)
   return (
-    <li className="flex items-start gap-3 px-4 py-3 bg-card">
+    <li className="flex items-start gap-3 px-3 py-2 bg-card">
       <div className="mt-0.5">
         <StatusBadge status={entry.action} label={localizeStatus(entry.action, common)} />
       </div>

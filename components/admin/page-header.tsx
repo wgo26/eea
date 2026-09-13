@@ -10,8 +10,10 @@ type PageHeaderProps = {
 }
 
 export function PageHeader({ title, description, breadcrumb, actions, className }: PageHeaderProps) {
+  // No built-in bottom margin: every admin/account page wraps content in
+  // space-y-5/6, so an extra mb-6 here double-spaced the header (~48px gap).
   return (
-    <div className={cn('flex flex-col gap-3 md:flex-row md:items-start md:justify-between mb-6', className)}>
+    <div className={cn('flex flex-col gap-3 md:flex-row md:items-start md:justify-between', className)}>
       <div className="min-w-0">
         {breadcrumb && breadcrumb.length > 0 && (
           <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1.5" aria-label="Breadcrumb">

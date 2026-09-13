@@ -49,11 +49,11 @@ export default async function Page({
   ])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader title={t.title} description={t.description} />
 
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold">{t.brandingTitle}</h2>
+      <section className="space-y-3">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.brandingTitle}</h2>
         <SiteBrandingForm
           copy={t}
           settings={{
@@ -66,8 +66,8 @@ export default async function Page({
         />
       </section>
 
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold">{t.advertiseTitle}</h2>
+      <section className="space-y-3">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.advertiseTitle}</h2>
         <AdvertiseSectionEditor
           copy={t}
           sections={advertiseDefaults(editDict)}
@@ -78,8 +78,8 @@ export default async function Page({
         />
       </section>
 
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold">{t.footerTitle}</h2>
+      <section className="space-y-3">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.footerTitle}</h2>
         <SiteLinksForm copy={t} settings={settings} />
       </section>
     </div>

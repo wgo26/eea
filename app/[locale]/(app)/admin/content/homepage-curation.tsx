@@ -57,14 +57,14 @@ export function HomepageCuration({
   }, {})
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <CreateSlotForm copy={copy} />
       {Object.entries(grouped).map(([prefix, groupSlots]) => (
         <div key={prefix}>
-          <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
             {prefix}
           </h3>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {groupSlots.map((slot, index) => (
               <SlotCard
                 key={slot.id}

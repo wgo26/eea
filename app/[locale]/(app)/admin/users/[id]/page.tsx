@@ -7,6 +7,8 @@ import { localePath } from '@/lib/i18n/urls'
 import { requireCapability } from '@/lib/auth/guards'
 import { getUserDetail } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
+import { EmptyState } from '@/components/admin/empty-state'
+import { StatCard, StatGrid } from '@/components/admin/stat-card'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { formatDateTime } from '@/lib/admin/format'
 import { UserActions } from '../user-actions'
@@ -58,7 +60,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       />
 
       {/* Profile preview */}
-      <section aria-label={t.profileHeading} className="rounded-lg border border-border bg-card p-5">
+      <section aria-label={t.profileHeading} className="rounded-lg border border-border bg-card p-4">
         <div className="flex flex-wrap items-start gap-4">
           {user.avatarUrl ? (
             <Image src={user.avatarUrl} alt="" width={64} height={64} className="h-16 w-16 rounded-full object-cover bg-muted shrink-0" />
@@ -99,16 +101,16 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Roles — add/remove with reauth for admin */}
-        <section aria-label={t.rolesHeading} className="rounded-lg border border-border bg-card p-5">
-          <h2 className="text-sm font-semibold">{t.rolesHeading}</h2>
+        <section aria-label={t.rolesHeading} className="rounded-lg border border-border bg-card p-4">
+          <h2 className="text-sm font-medium">{t.rolesHeading}</h2>
           <div className="mt-3">
             <RoleManager user={user} copy={t} common={dict.admin.common} />
           </div>
         </section>
 
         {/* Account status */}
-        <section aria-label={t.statusHeading} className="rounded-lg border border-border bg-card p-5">
-          <h2 className="text-sm font-semibold">{t.statusHeading}</h2>
+        <section aria-label={t.statusHeading} className="rounded-lg border border-border bg-card p-4">
+          <h2 className="text-sm font-medium">{t.statusHeading}</h2>
           <div className="mt-3">
             <StatusControls user={user} copy={t} common={dict.admin.common} />
           </div>
@@ -116,8 +118,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </div>
 
       {/* Contributor spotlight */}
-      <section aria-label={t.curationHeading} className="rounded-lg border border-border bg-card p-5">
-        <h2 className="text-sm font-semibold">{t.curationHeading}</h2>
+      <section aria-label={t.curationHeading} className="rounded-lg border border-border bg-card p-4">
+        <h2 className="text-sm font-medium">{t.curationHeading}</h2>
         <p className="mt-1 text-xs text-muted-foreground">{t.curationBody}</p>
         <div className="mt-3">
           <CurationControls user={user} copy={t} common={dict.admin.common} />
@@ -125,22 +127,18 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </section>
 
       {/* Activity */}
-      <section aria-label={t.activityHeading} className="rounded-lg border border-border bg-card p-5">
-        <h2 className="text-sm font-semibold">{t.activityHeading}</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-md border border-border bg-background p-3">
-            <p className="text-xs text-muted-foreground">{t.statSubmissions}</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">{submissionCount}</p>
-          </div>
-          <div className="rounded-md border border-border bg-background p-3">
-            <p className="text-xs text-muted-foreground">{t.statContent}</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">{contentCount}</p>
-          </div>
+      <section aria-label={t.activityHeading} className="rounded-lg border border-border bg-card p-4">
+        <h2 className="text-sm font-medium">{t.activityHeading}</h2>
+        <div className="mt-3">
+          <StatGrid className="sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-2">
+            <StatCard label={t.statSubmissions} value={submissionCount} />
+            <StatCard label={t.statContent} value={contentCount} />
+          </StatGrid>
         </div>
 
         <h3 className="mt-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.submissionsHeading}</h3>
         {submissions.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">{t.emptySubmissions}</p>
+          <EmptyState message={t.emptySubmissions} className="mt-2 p-4" />
         ) : (
           <ul className="mt-2 divide-y divide-border rounded-md border border-border">
             {submissions.map((s) => (
@@ -165,7 +163,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
         <h3 className="mt-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.contentHeading}</h3>
         {content.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">{t.emptyContent}</p>
+          <EmptyState message={t.emptyContent} className="mt-2 p-4" />
         ) : (
           <ul className="mt-2 divide-y divide-border rounded-md border border-border">
             {content.map((c) => (
@@ -185,8 +183,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </section>
 
       {/* Danger zone */}
-      <section aria-label={t.dangerHeading} className="rounded-lg border border-destructive/40 bg-card p-5">
-        <h2 className="text-sm font-semibold text-destructive">{t.dangerHeading}</h2>
+      <section aria-label={t.dangerHeading} className="rounded-lg border border-destructive/40 bg-card p-4">
+        <h2 className="text-sm font-medium text-destructive">{t.dangerHeading}</h2>
         <div className="mt-3">
           <DangerZone user={user} copy={t} common={dict.admin.common} />
         </div>

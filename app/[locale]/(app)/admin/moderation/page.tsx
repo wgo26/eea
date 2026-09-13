@@ -5,6 +5,7 @@ import { requireCapability } from '@/lib/auth/guards'
 import { getSubmissions, getSubmissionCounts } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { EmptyState } from '@/components/admin/empty-state'
+import { FilterPills } from '@/components/admin/filter-pills'
 import { Tabs } from '@/components/admin/tabs'
 import { Pager } from '@/components/admin/pager'
 import { ModerationBulkTable } from './moderation-bulk-actions'
@@ -101,19 +102,14 @@ export default async function Page({
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground">{t.typeLabel}</span>
-        {TYPE_FILTERS.map((f) => (
-          <a
-            key={f.key}
-            href={typeHref(f.key)}
-            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-              type === f.key
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-card border-border text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {tf[f.dictKey]}
-          </a>
-        ))}
+        <FilterPills
+          pills={TYPE_FILTERS.map((f) => ({
+            key: f.key,
+            label: tf[f.dictKey],
+            href: typeHref(f.key),
+          }))}
+          active={type}
+        />
       </div>
 
       {submissions.length === 0 ? (

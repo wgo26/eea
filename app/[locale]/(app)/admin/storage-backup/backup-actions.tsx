@@ -26,7 +26,7 @@ export function BackupActions({ copy }: { copy: Copy }) {
   const isSuccess = message != null && message.startsWith(copy.backupQueued)
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2">
       {message && (
         <span className={`text-xs ${isSuccess ? 'text-emerald-600' : 'text-destructive'}`}>
           {message}
@@ -35,7 +35,7 @@ export function BackupActions({ copy }: { copy: Copy }) {
       <button
         onClick={handleBackup}
         disabled={busy}
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+        className="inline-flex min-h-[32px] items-center gap-2 px-2.5 py-1 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
       >
         {busy ? copy.queuing : copy.triggerBackup}
       </button>

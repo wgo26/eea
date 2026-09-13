@@ -6,7 +6,7 @@ import { isAdminRoles } from '@/lib/auth/roles'
 import { getContentItems, getHomepageSlots, getCategoriesAdmin, getLocations } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { Tabs } from '@/components/admin/tabs'
-import { PaginationBar } from '@/components/admin/pagination'
+import { Pager } from '@/components/admin/pager'
 import { FilterPills, SearchBar } from '@/components/admin/filter-pills'
 import { EmptyState } from '@/components/admin/empty-state'
 import { ContentTable } from './content-bulk-actions'
@@ -80,8 +80,28 @@ export default async function Page({
   const searchAction = `${base}?tab=content&status=${status}&type=${type}`
 
   return (
-    <div className="space-y-6">
-      <PageHeader title={t.title} description={t.description} />
+    <div className="space-y-5">
+      <PageHeader
+        title={t.title}
+        description={t.description}
+        actions={
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Link
+              href={localePath(locale, '/admin/content/import')}
+              className="inline-flex min-h-[32px] items-center rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {t.importButton}
+            </Link>
+            <ContentCreateDialog
+              copy={t}
+              common={dict.admin.common}
+              typeFilters={tf}
+              locations={locationOptions}
+              categoriesByType={categoriesByType}
+            />
+          </div>
+        }
+      />
 <Tabs
         tabs={[
           { key: 'content', label: t.tabContent, count: content.total },
@@ -122,22 +142,6 @@ export default async function Page({
             active={type}
           />
 
-          <div className="flex justify-end gap-2">
-            <Link
-              href={localePath(locale, '/admin/content/import')}
-              className="inline-flex min-h-[36px] items-center rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {t.importButton}
-            </Link>
-            <ContentCreateDialog
-              copy={t}
-              common={dict.admin.common}
-              typeFilters={tf}
-              locations={locationOptions}
-              categoriesByType={categoriesByType}
-            />
-          </div>
-
           {content.total === 0 ? (
             <EmptyState
               message={search ? tc.emptyFiltered : t.empty}
@@ -156,12 +160,12 @@ export default async function Page({
               categoriesByType={categoriesByType}
               editId={params.edit}
             />
-            <PaginationBar
+            <Pager
               page={page}
               pageSize={PAGE_SIZE}
               total={content.total}
-              copy={dict.admin.common}
               hrefFor={(p) => `${base}?tab=content&status=${status}&type=${type}${search ? `&q=${encodeURIComponent(search)}` : ''}&page=${p}`}
+              copy={dict.admin.common}
             />
             </>
           )}

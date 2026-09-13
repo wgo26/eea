@@ -246,7 +246,7 @@ export function ContentImportClient({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="rounded-lg border border-border bg-card p-4">
         <label className="text-sm font-medium">{copy.importFileLabel}</label>
         <p className="mt-1 text-xs text-muted-foreground">{copy.importFileHint}</p>

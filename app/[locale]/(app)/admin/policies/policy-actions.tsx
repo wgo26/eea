@@ -170,8 +170,8 @@ export function PolicyVersionCard({
     'inline-flex shrink-0 items-center justify-center rounded-md border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50'
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {policy.isCurrent ? <StatusBadge status="active" /> : <StatusBadge status="closed" />}
@@ -182,7 +182,7 @@ export function PolicyVersionCard({
               <span className="text-xs text-muted-foreground">· {copy.current}</span>
             ) : null}
           </div>
-          <p className="mt-1.5 text-xs text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             {policy.publishedAt ? formatRelative(policy.publishedAt, locale) : null}
             {policy.excerpt ? ` · ${policy.excerpt}` : null}
           </p>

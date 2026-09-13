@@ -59,7 +59,7 @@ export function DataTable<T>({
   if (rows.length === 0) {
     if (emptyState) return <>{emptyState}</>
     return (
-      <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center">
+      <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center">
         <p className="text-sm text-muted-foreground">{emptyMessage}</p>
       </div>
     )

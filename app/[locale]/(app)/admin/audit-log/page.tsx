@@ -52,7 +52,7 @@ export default async function Page({
     return `${localePath(locale, '/admin/audit-log')}?${sp.toString()}`
   }
 
-  const selectCls = 'rounded-md border border-border bg-background px-3 py-2 text-sm'
+  const selectCls = 'rounded-md border border-border bg-background px-2.5 py-1.5 text-xs'
 
   const humanize = (v: string) => v.replace(/[:_]/g, ' ')
   const exportHref = (() => {
@@ -67,10 +67,22 @@ export default async function Page({
   const hasFilters = !!(params.action || params.entity || params.from || params.to)
 
   return (
-    <div className="space-y-6">
-      <PageHeader title={t.title} description={t.description} />
+    <div className="space-y-5">
+      <PageHeader
+        title={t.title}
+        description={t.description}
+        actions={
+          <a
+            href={exportHref}
+            className="inline-flex min-h-[32px] items-center rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            title={hasFilters ? t.exportFiltered : t.exportCsv}
+          >
+            {hasFilters ? t.exportFiltered : t.exportCsv}
+          </a>
+        }
+      />
 
-      <form method="GET" className="flex flex-wrap items-center gap-2">
+      <form method="GET" className="flex flex-wrap items-center gap-1.5">
         <select name="action" defaultValue={params.action ?? ''} aria-label={t.actionPlaceholder} className={selectCls}>
           <option value="">{t.allActions}</option>
           {filterOptions.actions.map((a) => (
@@ -85,8 +97,7 @@ export default async function Page({
         </select>
         <input type="date" name="from" defaultValue={params.from ?? ''} aria-label={t.fromLabel} className={selectCls} />
         <input type="date" name="to" defaultValue={params.to ?? ''} aria-label={t.toLabel} className={selectCls} />
-        <button type="submit" className="rounded-md border border-border px-3 py-2 text-sm">{t.filter}</button>
-        <a href={exportHref} className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground" title={hasFilters ? t.exportFiltered : t.exportCsv}>{hasFilters ? t.exportFiltered : t.exportCsv}</a>
+        <button type="submit" className="rounded-md border border-border px-2.5 py-1.5 text-xs font-medium">{t.filter}</button>
       </form>
 
       <DataTable

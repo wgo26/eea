@@ -5,6 +5,7 @@ import { localePath } from '@/lib/i18n/urls'
 import { getStorageStats, getMediaAssets } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
+import { EmptyState } from '@/components/admin/empty-state'
 import { DataTable } from '@/components/admin/data-table'
 import { Pager } from '@/components/admin/pager'
 import { formatBytes, formatPercent } from '@/lib/admin/format'
@@ -42,8 +43,17 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
   const pageHref = (p: number) => `${localePath(locale, '/admin/storage-backup')}?page=${p}`
 
   return (
-    <div className="space-y-6">
-      <PageHeader title={t.title} description={t.description} />
+    <div className="space-y-5">
+      <PageHeader
+        title={t.title}
+        description={t.description}
+        actions={
+          <div className="flex flex-wrap items-center gap-1.5">
+            <VerificationActions copy={t} />
+            <BackupActions copy={t} />
+          </div>
+        }
+      />
 
       <StatGrid>
         <StatCard label={t.totalAssets} value={stats.totalAssets} />
@@ -56,21 +66,33 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
         <StatCard label={t.pendingVerification} value={stats.pendingVerification} />
       </StatGrid>
 
+      {/* Operations sit directly under the stats so backup/verify are
+          visible without scrolling past the provider/kind breakdowns. */}
+      <div className="grid gap-2 md:grid-cols-2">
+        <section className="rounded-lg border border-border bg-card px-3 py-2.5">
+          <h3 className="text-xs font-medium">{t.manualBackup}</h3>
+          <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{t.manualBackupBody}</p>
+        </section>
+        <section className="rounded-lg border border-border bg-card px-3 py-2.5">
+          <h3 className="text-xs font-medium">{t.verification}</h3>
+          <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{t.verificationBody}</p>
+        </section>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
       <section>
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.byProvider}</h2>
+        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{t.byProvider}</h2>
         {stats.byProvider.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
-            {t.empty}
-          </div>
+          <EmptyState message={t.empty} />
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {stats.byProvider.map((p) => (
-              <div key={p.provider} className="rounded-lg border border-border bg-card p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">{providerLabels[p.provider] ?? p.provider}</span>
-                  <span className="text-xs text-muted-foreground">{t.files.replace('{count}', String(p.count))} · {formatBytes(p.bytes)}</span>
+              <div key={p.provider} className="rounded-lg border border-border bg-card px-3 py-2.5">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-medium">{providerLabels[p.provider] ?? p.provider}</span>
+                  <span className="text-[11px] text-muted-foreground">{t.files.replace('{count}', String(p.count))} · {formatBytes(p.bytes)}</span>
                 </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                   <div
                     className="h-full bg-primary rounded-full transition-all"
                     style={{ width: formatPercent(p.bytes, stats.totalBytes) }}
@@ -83,15 +105,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
       </section>
 
       <section>
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.byKind}</h2>
+        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{t.byKind}</h2>
         {stats.byKind.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
-            {t.empty}
-          </div>
+          <EmptyState message={t.empty} />
         ) : (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {stats.byKind.map((k) => (
-            <div key={k.kind} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-card text-xs">
+            <div key={k.kind} className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full border border-border bg-card text-xs">
               <span className="font-medium">{k.kind}</span>
               <span className="text-muted-foreground">{k.count}</span>
             </div>
@@ -99,13 +119,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
         </div>
         )}
       </section>
+      </div>
 
       <section>
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">{t.assetsHeading}</h2>
+        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{t.assetsHeading}</h2>
         {assets.rows.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
-            {t.empty}
-          </div>
+          <EmptyState message={t.empty} />
         ) : (
           <>
             <DataTable
@@ -155,24 +174,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
             <Pager page={page} pageSize={PAGE_SIZE} total={assets.total} hrefFor={pageHref} copy={dict.admin.common} />
           </>
         )}
-      </section>
-
-      <section className="rounded-lg border border-border bg-card p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-medium">{t.manualBackup}</h3>
-            <p className="text-xs text-muted-foreground mt-1">
-              {t.manualBackupBody}
-            </p>
-          </div>
-          <BackupActions copy={t} />
-        </div>
-      </section>
-      <section className="rounded-lg border border-border bg-card p-4">
-        <div className="flex items-center justify-between">
-          <div><h3 className="text-sm font-medium">{t.verification}</h3><p className="text-xs text-muted-foreground mt-1">{t.verificationBody}</p></div>
-          <VerificationActions copy={t} />
-        </div>
       </section>
     </div>
   )
