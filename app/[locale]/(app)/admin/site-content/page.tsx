@@ -7,7 +7,7 @@ import {
   getSiteSettingsAdmin,
 } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
-import { AdvertiseSectionEditor, SiteBrandingForm, SiteLinksForm } from './site-content-forms'
+import { AdvertiseSectionEditor, AnnouncementForm, FlagsForm, SiteBrandingForm, SiteLinksForm } from './site-content-forms'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -81,6 +81,30 @@ export default async function Page({
       <section className="space-y-3">
         <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.footerTitle}</h2>
         <SiteLinksForm copy={t} settings={settings} />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.announcementTitle}</h2>
+        <AnnouncementForm
+          copy={t}
+          settings={{
+            announcement_text_en: settings.announcement_text_en,
+            announcement_text_fr: settings.announcement_text_fr,
+            announcement_url: settings.announcement_url,
+          }}
+        />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.flagsTitle}</h2>
+        <FlagsForm
+          copy={t}
+          settings={{
+            feature_reading_mode: settings.feature_reading_mode,
+            feature_event_reminders: settings.feature_event_reminders,
+            feature_text_to_speech: settings.feature_text_to_speech,
+          }}
+        />
       </section>
     </div>
   )

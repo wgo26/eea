@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { updateContentStatus, setContentFeatured, archiveContent } from '@/lib/admin/actions'
+import { useRouter } from 'next/navigation'
+import { updateContentStatus, setContentFeatured, archiveContent, unarchiveContent } from '@/lib/admin/actions'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
+import { useToast } from '@/components/admin/toast'
 import { ActionMenu, ActionMenuTrigger } from '@/components/admin/action-menu'
 import type { ActionMenuEntry } from '@/components/admin/action-menu'
 import type { Dictionary } from '@/lib/i18n'
@@ -26,8 +28,12 @@ const DURATION_OPTIONS: DurationOption[] = [
 
 export function ContentActions({ content, copy, common }: { content: ContentRow; copy: Copy; common: CommonCopy }) {
   const { run, loading } = useAdminMutation()
+  const { addToast } = useToast()
+  const router = useRouter()
   const [confirmArchive, setConfirmArchive] = useState(false)
   const [confirmUnpublish, setConfirmUnpublish] = useState(false)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [scheduleFor, setScheduleFor] = useState('')
   const [featureOpen, setFeatureOpen] = useState(false)
   const [unfeatureOpen, setUnfeatureOpen] = useState(false)
   const [durationDays, setDurationDays] = useState<number | null>(7)
@@ -50,7 +56,19 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
   }
 
   async function handleUnpublish() {
-    const ok = await run(() => updateContentStatus(content.id, 'draft'), copy.toastUnpublished)
+    const ok = await run(() => updateContentStatus(content.id, 'draft'), copy.toastUnpublished, {
+      duration: 8000,
+      action: {
+        label: common.undo,
+        onSelect: () => {
+          void (async () => {
+            const republished = await updateContentStatus(content.id, 'published')
+            addToast(republished.ok ? copy.toastPublished : republished.error, republished.ok ? 'success' : 'error')
+            if (republished.ok) router.refresh()
+          })()
+        },
+      },
+    })
     if (ok) setConfirmUnpublish(false)
   }
 
@@ -66,8 +84,35 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
   }
 
   async function handleArchive() {
-    const ok = await run(() => archiveContent(content.id), copy.toastArchived)
-    if (ok) setConfirmArchive(false)
+    const ok = await run(() => archiveContent(content.id), copy.toastArchived, {
+      duration: 8000,
+      action: {
+        label: common.undo,
+        onSelect: () => {
+          void (async () => {
+            const restored = await unarchiveContent(content.id)
+            addToast(restored.ok ? copy.toastRestored : restored.error, restored.ok ? 'success' : 'error')
+            if (restored.ok) router.refresh()
+          })()
+        },
+      },
+    })
+    if (ok) {
+      setConfirmArchive(false)
+      router.refresh()
+    }
+  }
+
+  async function handleSchedule() {
+    if (!scheduleFor) return
+    const iso = new Date(scheduleFor).toISOString()
+    if (Number.isNaN(Date.parse(scheduleFor)) || Date.parse(scheduleFor) <= Date.now()) return
+    const ok = await run(() => updateContentStatus(content.id, 'scheduled', iso), copy.toastScheduled)
+    if (ok) {
+      setScheduleOpen(false)
+      setScheduleFor('')
+      router.refresh()
+    }
   }
 
   const menuItems: ActionMenuEntry[] = transitions.map((t) => (
@@ -77,11 +122,20 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
         onSelect: () => setConfirmUnpublish(true),
         disabled: loading,
       }
-      : {
-        label: t.label,
-        onSelect: () => handleStatusChange(t.key, t.toast),
-        disabled: loading,
-      }
+      : t.key === 'scheduled' && content.status === 'draft'
+        ? {
+          label: t.label,
+          onSelect: () => {
+            setScheduleFor('')
+            setScheduleOpen(true)
+          },
+          disabled: loading,
+        }
+        : {
+          label: t.label,
+          onSelect: () => handleStatusChange(t.key, t.toast),
+          disabled: loading,
+        }
   ))
 
   if (transitions.length > 0) {
@@ -159,6 +213,27 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
         loading={loading}
         onConfirm={handleUnfeature}
       />
+
+      <ConfirmDialog
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        title={copy.scheduleTitle}
+        description={copy.scheduleBody}
+        confirmLabel={copy.scheduleConfirm}
+        cancelLabel={common.cancel}
+        loading={loading}
+        onConfirm={handleSchedule}
+      >
+        <label className="mt-3 block space-y-1.5">
+          <span className="block text-xs font-medium text-muted-foreground">{copy.scheduledFor}</span>
+          <input
+            type="datetime-local"
+            value={scheduleFor}
+            onChange={(e) => setScheduleFor(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </label>
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={confirmUnpublish}

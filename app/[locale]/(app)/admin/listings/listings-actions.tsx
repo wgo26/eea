@@ -64,7 +64,22 @@ export function ListingActions({ listing, copy, common, locale }: { listing: Adm
     setBusy(false)
     if (result.ok) {
       setConfirmRemove(false)
-      addToast(copy.toastRemoved, 'success')
+      // Remove only soft-archives the listing — relist is the exact inverse
+      // (status back to active, is_archived cleared, republished), so offer
+      // an inline undo in the toast instead of a permanent-sounding message.
+      addToast(copy.toastRemoved, 'success', {
+        duration: 8000,
+        action: {
+          label: common.undo,
+          onSelect: () => {
+            void (async () => {
+              const relisted = await relistListing(listing.contentItemId)
+              addToast(relisted.ok ? copy.toastRelisted : relisted.error, relisted.ok ? 'success' : 'error')
+              if (relisted.ok) router.refresh()
+            })()
+          },
+        },
+      })
       router.refresh()
     } else addToast(result.error, 'error')
   }

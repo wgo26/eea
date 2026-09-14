@@ -3,6 +3,7 @@ import { MapPin } from "lucide-react";
 import { formatDate, type Dictionary, type Locale } from "@/lib/i18n";
 import type { StoryCardData } from "@/lib/queries/home";
 import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
+import { SaveButton } from "@/components/system/save-button";
 
 function formatPrice(
   price: number | null | undefined,
@@ -28,13 +29,17 @@ export function ListingCard({
   listing,
   dict,
   locale,
+  showSave = true,
 }: {
   listing: StoryCardData;
   dict: Dictionary;
   locale: Locale;
+  /** Show the favorites heart (overlay, outside the card link). */
+  showSave?: boolean;
 }) {
   const price = formatPrice(listing.price, listing.currency, locale, dict.home.free);
   return (
+    <div className="relative">
     <Link
       href={listing.href}
       className="group block overflow-hidden rounded-2xl border bg-card transition-shadow hover:shadow-md"
@@ -69,5 +74,20 @@ export function ListingCard({
         </div>
       </div>
     </Link>
+    {showSave ? (
+      <SaveButton
+        contentItemId={listing.id}
+        variant="heart"
+        labels={{
+          save: dict.common.saveForLater,
+          unsave: dict.common.removeSaved,
+          savedMessage: dict.common.savedToList,
+          removedMessage: dict.common.removedFromList,
+          signIn: dict.common.signInToSave,
+        }}
+        className="absolute right-2 top-2"
+      />
+    ) : null}
+    </div>
   );
 }

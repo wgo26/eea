@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Building2, Mail, MapPin, Phone, Share2 } from "lucide-react";
+import { Building2, MapPin, Phone, Share2 } from "lucide-react";
 
 import { PrintButton } from "@/components/notices/print-button";
 import { cn } from "@/lib/utils";

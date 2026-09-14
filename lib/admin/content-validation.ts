@@ -66,6 +66,9 @@ export function validateContentDraft(input: ContentDraftInput, requireBilingual:
     if (!/^https?:\/\//i.test(att.url.trim())) return `Media links must start with http:// or https:// (${att.url}).`
   }
   if (input.verification && !VERIFICATION_VALUES.includes(input.verification)) return 'Unknown verification value.'
+  if (input.authorId !== undefined && input.authorId !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.authorId)) {
+    return 'Unknown author — please pick an author from the search results.'
+  }
   if (input.publishedAt !== undefined && input.publishedAt && Number.isNaN(Date.parse(input.publishedAt))) {
     return 'The publish date is invalid.'
   }

@@ -3,6 +3,7 @@ import { getDictionary } from "@/lib/i18n";
 import { getRequestLocale } from "@/lib/i18n/server";
 import { localePath, safeNextPath } from "@/lib/i18n/urls";
 import { SignupForm } from "./signup-form";
+import { enabledOAuthProviders } from "@/lib/auth/actions";
 
 type Props = { searchParams: Promise<{ next?: string | string[] }> };
 
@@ -30,6 +31,7 @@ export default async function SignupPage({ searchParams }: Props) {
                 copy={dict.auth.signup}
                 nextPath={nextPath}
                 loginHref={localePath(locale, "/account/login")}
+                providers={enabledOAuthProviders()}
             />
         </div>
     );

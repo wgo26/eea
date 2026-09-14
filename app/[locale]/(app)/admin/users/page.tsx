@@ -13,6 +13,7 @@ import { Pager } from '@/components/admin/pager'
 import { formatDateTime } from '@/lib/admin/format'
 import { UserActions } from './user-actions'
 import { InviteForm } from './invite-form'
+import { BulkInviteForm } from './bulk-invite-form'
 import type { AppRole, UserRow } from '@/lib/admin/queries'
 import Image from 'next/image'
 
@@ -70,6 +71,8 @@ export default async function Page({
       <PageHeader title={t.title} description={t.description} />
 
       <InviteForm copy={t} common={dict.admin.common} />
+
+      <BulkInviteForm copy={t} common={dict.admin.common} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <FilterPills

@@ -21,7 +21,8 @@ export type NotifyEvent =
   | 'legal.contact'
   | 'legal.data_request'
   | 'content.correction'
-  | 'listing.update';
+  | 'listing.update'
+  | 'event.reminder';
 
 export type NotifyPayload = {
   event: NotifyEvent;
@@ -124,6 +125,13 @@ export function renderEvent(payload: NotifyPayload): RenderedNotify {
         titleFr: 'Nouvelles de votre annonce',
         body: `${S(d.title)}: ${S(d.status)}. Manage it from your listings page.`,
         bodyFr: `${S(d.title)} : ${S(d.status)}. Gérez-la depuis votre page d’annonces.`,
+      };
+    case 'event.reminder':
+      return {
+        title: 'Event starting soon',
+        titleFr: 'Événement imminent',
+        body: `${S(d.title)} starts ${S(d.when)}. Don't miss it!`,
+        bodyFr: `${S(d.title)} commence ${S(d.when)}. Ne le manquez pas !`,
       };
   }
 }

@@ -142,6 +142,7 @@ export function ListingsBulkTable({
           clearLabel={common.bulkClear}
           cancelLabel={common.cancel}
           confirmLabel={common.confirm}
+          undoLabel={common.undo}
           actions={[
             {
               label: common.bulkExpire,
@@ -150,6 +151,8 @@ export function ListingsBulkTable({
               tone: 'danger',
               confirmTitle: copy.bulkExpireConfirmTitle,
               confirmBody: copy.bulkExpireConfirmBody,
+              undoAction: (keys) => bulkRelistListings(keys),
+              undoToast: copy.toastRelisted,
             },
             {
               label: common.bulkRelist,

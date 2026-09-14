@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Bell, BellRing, CheckCheck, Mail, MessageCircle, Save } from 'lucide-react';
-import { markAllNotificationsRead, markNotificationRead, saveNotificationPrefs } from '@/lib/notify/actions';
+import { markAllNotificationsRead, markNotificationRead, markNotificationUnread, saveNotificationPrefs } from '@/lib/notify/actions';
 import { localePath } from '@/lib/i18n/urls';
 import type { Dictionary, Locale } from '@/lib/i18n';
 import type { NotificationPrefs, UserNotification } from '@/lib/notify/queries';
@@ -47,6 +47,16 @@ export function NotificationsClient({
     if (!n.read) {
       setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
       void markNotificationRead(n.id);
+    }
+  }
+
+  async function handleToggleUnread(n: UserNotification) {
+    if (n.read) {
+      setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: false } : x)));
+      const res = await markNotificationUnread(n.id);
+      if (!res.ok) setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+    } else {
+      handleOpen(n);
     }
   }
 
@@ -129,6 +139,15 @@ export function NotificationsClient({
                     {t.markAllRead}
                   </button>
                 )}
+                {n.read ? (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleUnread(n)}
+                    className="mt-2 block text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+                  >
+                    {t.markUnread}
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>

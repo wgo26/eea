@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarDays, Clock, Landmark, MapPin, Tag, User } from "lucide-react";
+import { CalendarDays, Clock, Landmark, MapPin, Tag, User } from "lucide-react";
 
-import { ShareButtons } from "@/components/share-buttons";
+import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
+import { ArticleActionRow } from "@/components/system/article-actions";
+import { FeedbackWidget } from "@/components/system/feedback-widget";
+import { AddToCalendar } from "@/components/events/add-to-calendar";
+import { ReminderButton } from "@/components/events/reminder-button";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 import { SITE } from "@/lib/constants";
@@ -58,14 +62,11 @@ export default async function CultureDetailPage({ params }: Props) {
 
     return (
         <div className="mx-auto w-full max-w-4xl px-4 py-8 md:px-6 lg:px-8">
-            {/* Back link */}
-            <Link
-                href={localePath(locale, "/culture")}
-                className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
-            >
-                <ArrowLeft className="h-4 w-4" aria-hidden />
-                {dict.culture.backToCulture}
-            </Link>
+            <ContentBreadcrumb
+                locale={locale}
+                homeLabel={dict.nav.home}
+                trail={[{ label: dict.nav.culture, path: "/culture" }, { label: article.title }]}
+            />
 
             {/* Article header */}
             <article>
@@ -219,6 +220,23 @@ export default async function CultureDetailPage({ params }: Props) {
                                 </div>
                             ) : null}
                         </dl>
+                        {article.eventDate ? (
+                            <div className="no-print mt-5 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+                                <AddToCalendar
+                                    title={article.title}
+                                    startsAt={article.eventDate}
+                                    endsAt={article.eventTime ?? null}
+                                    venue={article.venue ?? null}
+                                    url={shareUrl}
+                                    copy={dict.calendar}
+                                />
+                                <ReminderButton
+                                    contentItemId={article.id}
+                                    eventStartsAt={article.eventDate}
+                                    copy={dict.reminders}
+                                />
+                            </div>
+                        ) : null}
                     </section>
                 ) : null}
 
@@ -240,9 +258,19 @@ export default async function CultureDetailPage({ params }: Props) {
                 ) : null}
 
                 {/* Share */}
-                <div className="mt-8 border-t pt-6">
+                <div className="no-print mt-8 border-t pt-6">
                     <p className="mb-3 text-sm font-bold">{dict.common.share}</p>
-                    <ShareButtons url={shareUrl} title={article.title} />
+                    <ArticleActionRow
+                        contentItemId={article.id}
+                        shareUrl={shareUrl}
+                        title={article.title}
+                        locale={locale}
+                        dict={dict}
+                    />
+                </div>
+
+                <div className="no-print mt-8 border-t pt-6">
+                    <FeedbackWidget contentItemId={article.id} copy={dict.feedback} />
                 </div>
             </article>
 

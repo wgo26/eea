@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-    ArrowLeft,
     CalendarDays,
     Clock,
     MapPin,
@@ -13,6 +12,11 @@ import {
 } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
+import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
+import { SaveButton } from "@/components/system/save-button";
+import { ReportButton } from "@/components/system/report-dialog";
+import { TextSizeControl } from "@/components/system/text-size-control";
+import { FeedbackWidget } from "@/components/system/feedback-widget";
 import { SectionHeader } from "@/components/home/section-header";
 import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { SupportingMedia } from "@/components/media/supporting-media";
@@ -54,7 +58,8 @@ export async function generateMetadata({
             title: notice.title,
             description: notice.excerpt ?? undefined,
             type: "article",
-            images: notice.imageUrl ? [{ url: notice.imageUrl }] : undefined,
+            // Cover: served by ./opengraph-image.tsx (branded title card that
+            // embeds the cover) — Next injects it automatically.
         },
     };
 }
@@ -86,13 +91,11 @@ export default async function NoticePage({ params }: NoticePageProps) {
 
     return (
         <article className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
-            <Link
-                href={localePath(locale, "/notices")}
-                className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-                <ArrowLeft className="h-4 w-4" aria-hidden />
-                {dict.notices.backToNotices}
-            </Link>
+            <ContentBreadcrumb
+                locale={locale}
+                homeLabel={dict.nav.home}
+                trail={[{ label: dict.nav.notices, path: "/notices" }, { label: notice.title }]}
+            />
 
             <header className="mt-4 max-w-4xl">
                 <div className="flex flex-wrap items-center gap-2">
@@ -181,6 +184,10 @@ export default async function NoticePage({ params }: NoticePageProps) {
                 </div>
             ) : null}
 
+            <div className="no-print mt-10 border-t pt-6">
+                <FeedbackWidget contentItemId={notice.id} copy={dict.feedback} />
+            </div>
+
             <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div>
                     {related.length > 0 ? (
@@ -242,7 +249,30 @@ export default async function NoticePage({ params }: NoticePageProps) {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <ShareButtons url={shareUrl} title={notice.title} />
+                            <ShareButtons
+                                url={shareUrl}
+                                title={notice.title}
+                                labels={{
+                                    share: dict.common.share,
+                                    whatsapp: dict.common.whatsapp,
+                                    copyLink: dict.common.copyLink,
+                                    copied: dict.common.copied,
+                                }}
+                            />
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <SaveButton
+                                    contentItemId={notice.id}
+                                    labels={{
+                                        save: dict.common.saveForLater,
+                                        unsave: dict.common.removeSaved,
+                                        savedMessage: dict.common.savedToList,
+                                        removedMessage: dict.common.removedFromList,
+                                        signIn: dict.common.signInToSave,
+                                    }}
+                                />
+                                <ReportButton contentItemId={notice.id} copy={dict.report} />
+                                <TextSizeControl copy={dict.textSize} />
+                            </div>
                         </CardContent>
                     </Card>
 

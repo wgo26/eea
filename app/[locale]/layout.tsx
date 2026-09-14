@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getDictionary, isLocale, locales, resolveLocale } from "@/lib/i18n";
 import { HtmlLang } from "@/components/html-lang";
 import { CookieBanner } from "@/components/system/cookie-banner";
+import { BackToTop } from "@/components/system/back-to-top";
 
 type LocaleLayoutProps = {
     children: ReactNode;
@@ -49,6 +50,7 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
                 (checklist item 1), so coverage is unchanged while the root
                 shell stays request-API-free and ISR becomes possible. */}
             <CookieBanner locale={locale} dict={dict} />
+            <BackToTop label={dict.common.backToTop} />
         </>
     );
 }

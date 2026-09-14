@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
-import { CalendarDays, MapPin, Search as SearchIcon } from "lucide-react";
+import { CalendarDays, MapPin } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { SearchSuggest } from "@/components/search/search-suggest";
 import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { formatDate, getDictionary, resolveLocale, type Dictionary, type Locale } from "@/lib/i18n";
 import { getSearchResults, type SearchResultItem } from "@/lib/queries/search";
@@ -150,24 +149,8 @@ export default async function SearchPage({
                 </h1>
             </header>
 
-            {/* Search form */}
-            <form action={localePath(locale, "/search")} method="GET" role="search" className="space-y-3">
-                <div className="flex flex-col gap-2 sm:flex-row">
-                    <Input
-                        type="search"
-                        name="q"
-                        defaultValue={q}
-                        placeholder={dict.search.placeholder}
-                        aria-label={dict.search.title}
-                        className="flex-1"
-                    />
-                    <Button type="submit">
-                        <SearchIcon className="h-4 w-4" aria-hidden />
-                        {dict.nav.search}
-                    </Button>
-                </div>
-                {type ? <input type="hidden" name="type" value={type} /> : null}
-            </form>
+            {/* Search form with autocomplete suggestions */}
+            <SearchSuggest locale={locale} dict={dict} defaultValue={q} typeFilter={type ?? ""} />
 
             {/* Type filter chips */}
             {q ? (

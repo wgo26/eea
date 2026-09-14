@@ -19,6 +19,10 @@ type BulkAction = {
   cancelLabel?: string
   /** Optional extra confirm-dialog content (e.g. a rejection-reason textarea). */
   children?: React.ReactNode
+  /** Optional undo: re-run with the same keys when the toast's Undo button is pressed. */
+  undoAction?: (keys: string[]) => Promise<MutationResult>
+  /** Success toast copy after the undo completes (falls back to successToast). */
+  undoToast?: string
 }
 
 /**
@@ -38,6 +42,7 @@ export function BulkActionsBar({
   cancelLabel = 'Cancel',
   clearLabel = 'Clear',
   selectedLabel = 'selected',
+  undoLabel = 'Undo',
 }: {
   selectedCount: number
   actions: BulkAction[]
@@ -48,6 +53,7 @@ export function BulkActionsBar({
   cancelLabel?: string
   clearLabel?: string
   selectedLabel?: string
+  undoLabel?: string
 }) {
   const { addToast } = useToast()
   const [loading, setLoading] = useState(false)
@@ -61,7 +67,31 @@ export function BulkActionsBar({
     try {
       const result = await action.action(keys)
       if (result.ok) {
-        addToast(action.successToast.replace('{count}', String(keys.length)), 'success')
+        const undo = action.undoAction
+        addToast(
+          action.successToast.replace('{count}', String(keys.length)),
+          'success',
+          undo
+            ? {
+                duration: 8000,
+                action: {
+                  label: undoLabel,
+                  onSelect: () => {
+                    void (async () => {
+                      const undone = await undo(keys)
+                      addToast(
+                        undone.ok
+                          ? (action.undoToast ?? action.successToast).replace('{count}', String(keys.length))
+                          : undone.error,
+                        undone.ok ? 'success' : 'error',
+                      )
+                      if (undone.ok) onDone()
+                    })()
+                  },
+                },
+              }
+            : undefined,
+        )
         onDone()
       } else {
         addToast(result.error, 'error')

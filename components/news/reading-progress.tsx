@@ -37,7 +37,7 @@ export function ReadingProgress({ targetId = "article-body" }: { targetId?: stri
 
     return (
         <div
-            className="fixed inset-x-0 top-0 z-50 h-1 bg-transparent"
+            className="no-print fixed inset-x-0 top-0 z-50 h-1 bg-transparent"
             role="progressbar"
             aria-valuemin={0}
             aria-valuemax={100}

@@ -38,12 +38,12 @@ Information design
 - Content "Updated" column renders createdAt (content/page.tsx:153), not updatedAt.
 Interaction quality
 - Pagination now exists only on content (20/page). Every other list silently truncates at 100 (or 1000×5 merged) with no counts footer, no next/prev/load-more.
-- No bulk actions, no undo on destructive ops, toasts have no dismiss. data-table.tsx has no selection/checkbox API.
+- Bulk actions (content/listings/moderation), toast dismiss + toast-action buttons and undo on destructive row ops (archive, unpublish, listing remove → relist) and reversible bulk ops (unpublish/archive/expire) are now fixed. Remaining: no undo on true deletes, moderation approve/reject not undoable, bulk bar has no per-item failure detail.
 - Filter changes are full server round-trips with full-page flash; no per-table Suspense. TableSkeleton (data-table.tsx:73-89) exported, zero imports — only generic AdminPageSkeleton (admin/loading.tsx).
 - No keyboard shortcuts / command palette — no Cmd+K, no quick-jump, no recent items.
 - Only moderation has deep links (/admin/moderation/[id]); content rows can't be copied/shared via URL.
 - Stale rows after actions: many mutations router.refresh but no optimistic update; role toggle/feature/poll activate leave stale rows until manual navigation.
-- Breadcrumbs: PageHeader breadcrumb only on moderation/[id]/page.tsx:88-94, nowhere else.
+- Breadcrumbs: PageHeader breadcrumb existed only on moderation/[id]/page.tsx:88-94 — users/[id] detail now uses the same pattern; every other admin page is still bare.
 - Audit export used relative href="export" (fixed in A12), audit/auth inputs had no <label>/aria-label.
 - Guard fallbacks inconsistent: trust-safety/page.tsx:36 → /admin/dashboard vs listings/page.tsx:35 → /admin/content (now capability-gated, but targets differ).
 - Side-effect in render: runDueContentSweep() in listings/page.tsx:44 during render.

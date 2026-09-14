@@ -32,4 +32,11 @@ describe('content draft validation', () => {
       event: { startsAt: '2026-09-10T12:00:00Z', endsAt: '2026-09-10T11:00:00Z' },
     }), false)).toBe('Event end must be after start.')
   })
+
+  it('accepts a profile author id but rejects a malformed one', () => {
+    expect(validateContentDraft(draft({ authorId: '123e4567-e89b-12d3-a456-426614174000' }), false)).toBeNull()
+    expect(validateContentDraft(draft({ authorId: null }), false)).toBeNull()
+    expect(validateContentDraft(draft({ authorId: 'not-a-uuid' }), false))
+      .toBe('Unknown author — please pick an author from the search results.')
+  })
 })

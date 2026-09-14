@@ -5,6 +5,8 @@ import { headers } from "next/headers";
 import { CalendarDays, Clock, Landmark, MapPin } from "lucide-react";
 
 import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
+import { EventsCalendar } from "@/components/events/events-calendar";
+import { EventsViewToggle } from "@/components/events/events-view-toggle";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getUpcomingEvents } from "@/lib/queries/culture";
 
@@ -117,6 +119,11 @@ export default async function EventsPage({
                     </p>
                 </div>
             ) : (
+                <EventsViewToggle
+                    listLabel={dict.culture.listView}
+                    calendarLabel={dict.culture.calendarView}
+                    calendar={<EventsCalendar events={filtered} locale={locale} />}
+                >
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {filtered.map((event) => (
                         <Link
@@ -185,6 +192,7 @@ export default async function EventsPage({
                         </Link>
                     ))}
                 </div>
+                </EventsViewToggle>
             )}
         </div>
     );

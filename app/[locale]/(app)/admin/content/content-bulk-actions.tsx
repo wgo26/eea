@@ -7,7 +7,7 @@ import { DataTable } from '@/components/admin/data-table'
 import { BulkActionsBar } from '@/components/admin/bulk-actions'
 import type { Column } from '@/components/admin/data-table'
 import type { ContentRow } from '@/lib/admin/queries'
-import { updateContentStatus, archiveContent, deleteContentItem } from '@/lib/admin/actions'
+import { updateContentStatus, archiveContent, unarchiveContent, deleteContentItem } from '@/lib/admin/actions'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { localizeStatus, localizeType } from '@/lib/admin/labels'
 import { formatDate, formatRelative } from '@/lib/admin/format'
@@ -27,6 +27,7 @@ type CommonDict = {
   bulkUpdated: string
   confirm: string
   cancel: string
+  undo: string
 }
 
 type ContentCopy = {
@@ -47,6 +48,8 @@ type ContentCopy = {
   deleteConfirmTitle: string
   deleteConfirmBody: string
   toastDeleted: string
+  toastPublished: string
+  toastRestored: string
 }
 
 type Props = {
@@ -116,6 +119,14 @@ export function ContentBulkActions({ rows, canDelete, copy, common }: Props) {
       : { ok: true as const }
   }
 
+  const handleBulkUnarchive = async (keys: string[]) => {
+    const results = await Promise.all(keys.map((id) => unarchiveContent(id)))
+    const failed = results.filter((r) => !r.ok)
+    return failed.length > 0
+      ? { ok: false as const, error: `${failed.length} item(s) failed` }
+      : { ok: true as const }
+  }
+
   // Single selectable table — selection state lives here so the bulk bar and
   // the visible rows share the same keys (previously two tables were rendered
   // and the bulk selection applied to a hidden shadow table).
@@ -150,10 +161,11 @@ export function ContentBulkActions({ rows, canDelete, copy, common }: Props) {
           clearLabel={common.bulkClear}
           cancelLabel={common.cancel}
           confirmLabel={common.confirm}
+          undoLabel={common.undo}
           actions={[
             { label: common.bulkPublish, action: handleBulkPublish, successToast: common.bulkUpdated },
-            { label: common.bulkUnpublish, action: handleBulkUnpublish, successToast: copy.toastUnpublished, confirmTitle: copy.unpublishConfirmTitle, confirmBody: copy.unpublishConfirmBody, confirmLabel: copy.unpublish },
-            { label: common.bulkArchive, action: handleBulkArchive, successToast: copy.toastArchived, tone: 'danger', confirmTitle: copy.archiveConfirmTitle, confirmBody: copy.archiveConfirmBody },
+            { label: common.bulkUnpublish, action: handleBulkUnpublish, successToast: copy.toastUnpublished, confirmTitle: copy.unpublishConfirmTitle, confirmBody: copy.unpublishConfirmBody, confirmLabel: copy.unpublish, undoAction: handleBulkPublish, undoToast: copy.toastPublished },
+            { label: common.bulkArchive, action: handleBulkArchive, successToast: copy.toastArchived, tone: 'danger', confirmTitle: copy.archiveConfirmTitle, confirmBody: copy.archiveConfirmBody, undoAction: handleBulkUnarchive, undoToast: copy.toastRestored },
             ...(canDelete ? [{ label: common.bulkDelete, action: handleBulkDelete, successToast: copy.toastDeleted, tone: 'danger' as const, confirmTitle: copy.deleteConfirmTitle, confirmBody: copy.deleteConfirmBody }] : []),
           ]}
         />
@@ -256,6 +268,14 @@ export function ContentTable({
       : { ok: true as const }
   }
 
+  const handleBulkUnarchive = async (keys: string[]) => {
+    const results = await Promise.all(keys.map((id) => unarchiveContent(id)))
+    const failed = results.filter((r) => !r.ok)
+    return failed.length > 0
+      ? { ok: false as const, error: `${failed.length} item(s) failed` }
+      : { ok: true as const }
+  }
+
   const fullColumns: Column<ContentRow>[] = [
     {
       key: 'title',
@@ -329,10 +349,11 @@ export function ContentTable({
           clearLabel={common.bulkClear}
           cancelLabel={common.cancel}
           confirmLabel={common.confirm}
+          undoLabel={common.undo}
           actions={[
             { label: common.bulkPublish, action: handleBulkPublish, successToast: common.bulkUpdated },
-            { label: common.bulkUnpublish, action: handleBulkUnpublish, successToast: copy.toastUnpublished, confirmTitle: copy.unpublishConfirmTitle, confirmBody: copy.unpublishConfirmBody, confirmLabel: copy.unpublish },
-            { label: common.bulkArchive, action: handleBulkArchive, successToast: copy.toastArchived, tone: 'danger', confirmTitle: copy.archiveConfirmTitle, confirmBody: copy.archiveConfirmBody },
+            { label: common.bulkUnpublish, action: handleBulkUnpublish, successToast: copy.toastUnpublished, confirmTitle: copy.unpublishConfirmTitle, confirmBody: copy.unpublishConfirmBody, confirmLabel: copy.unpublish, undoAction: handleBulkPublish, undoToast: copy.toastPublished },
+            { label: common.bulkArchive, action: handleBulkArchive, successToast: copy.toastArchived, tone: 'danger', confirmTitle: copy.archiveConfirmTitle, confirmBody: copy.archiveConfirmBody, undoAction: handleBulkUnarchive, undoToast: copy.toastRestored },
             ...(canDelete ? [{ label: common.bulkDelete, action: handleBulkDelete, successToast: copy.toastDeleted, tone: 'danger' as const, confirmTitle: copy.deleteConfirmTitle, confirmBody: copy.deleteConfirmBody }] : []),
           ]}
         />

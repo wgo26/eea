@@ -7,6 +7,7 @@ import { signOutAction } from '@/lib/auth/actions'
 import type { AppRole } from '@/lib/auth/types'
 import { useLocaleFromPath } from '@/components/site-header'
 import { AdminMobileNav } from './admin-mobile-nav'
+import { AdminCommandPalette } from './admin-command-palette'
 import { buildAdminNavItems } from './nav-items'
 
 /**
@@ -46,6 +47,7 @@ export function AdminTopbar({
         <div className="flex-1" />
 
         <nav className="flex items-center gap-2">
+          <AdminCommandPalette items={items} />
           {pendingCount > 0 && (
             <Link
               href={localePath(locale, '/admin/moderation')}

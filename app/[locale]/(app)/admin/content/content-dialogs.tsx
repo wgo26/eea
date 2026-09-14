@@ -2,9 +2,10 @@
 /* eslint-disable react-hooks/set-state-in-effect -- edit dialog fetches on open by design */
 
 import { useEffect, useRef, useState } from 'react'
-import { createContentItem, deleteContentItem, saveContentItem, getContentItemEditData as fetchEditDataAction, searchAuthors } from '@/lib/admin/actions'
+import { createContentItem, deleteContentItem, saveContentItem, getContentItemEditData as fetchEditDataAction, getContentHistoryData, searchAuthors } from '@/lib/admin/actions'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import { useToast } from '@/components/admin/toast'
+import { formatRelative } from '@/lib/admin/format'
 import {
   Dialog,
   DialogContent,
@@ -912,7 +913,52 @@ function ContentEditForm({
           {loading ? common.working : copy.save}
         </button>
       </DialogFooter>
+      <ContentHistory contentItemId={data.id} copy={copy} />
     </form>
+  )
+}
+
+/**
+ * Per-item change history at the foot of the edit drawer: who did what and
+ * when (status transitions, edits with changed fields, feature/archive).
+ * Read-only audit — translations carry no snapshots, so there is nothing
+ * to revert to; the empty state says so by omission (historyEmpty).
+ */
+function ContentHistory({ contentItemId, copy }: { contentItemId: string; copy: Copy }) {
+  const [entries, setEntries] = useState<{ id: string; action: string; actorName: string | null; createdAt: string | null; notes: string | null }[] | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getContentHistoryData(contentItemId).then((rows) => {
+      if (!cancelled) setEntries(rows)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [contentItemId])
+
+  if (entries === null) return null
+
+  return (
+    <details className="rounded-md border border-border bg-muted/30 px-3 py-2">
+      <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
+        {copy.historyTitle}{entries.length > 0 ? ` · ${entries.length}` : ''}
+      </summary>
+      {entries.length === 0 ? (
+        <p className="mt-1.5 text-xs text-muted-foreground">{copy.historyEmpty}</p>
+      ) : (
+      <ul className="mt-2 space-y-1.5">
+        {entries.map((e) => (
+          <li key={e.id} className="text-xs text-muted-foreground">
+            <span className="font-medium text-foreground/80">{e.action.replace(/[:_]/g, ' ')}</span>
+            {e.actorName ? <span> · {e.actorName}</span> : null}
+            {e.createdAt ? <span> · {formatRelative(e.createdAt)}</span> : null}
+            {e.notes ? <span className="block truncate">{e.notes}</span> : null}
+          </li>
+        ))}
+      </ul>
+      )}
+    </details>
   )
 }
 

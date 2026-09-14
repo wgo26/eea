@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { assertStaff, assertAdmin, assertCapability, assertReauth, type AdminContext } from '@/lib/admin/auth'
 import { CACHE_TAGS } from '@/lib/cache/tags'
-import { getContentItemEditData as fetchContentEditData, queryContentForSlotAssign, searchAuthorProfiles } from '@/lib/admin/queries'
+import { getContentItemEditData as fetchContentEditData, queryContentForSlotAssign, searchAuthorProfiles, getContentHistory, getContentItems, getUsers } from '@/lib/admin/queries'
 import type { AppRole } from '@/lib/admin/queries'
 import { deleteFromR2 } from '@/lib/storage/providers/r2'
 import { storageConfig } from '@/lib/storage/config'
@@ -52,7 +52,12 @@ function revalidateAdsCache() {
     revalidateTag(CACHE_TAGS.home, 'max')
 }
 
-function fail(e: unknown): ActionResult {
+/**
+ * Always the error variant — declared narrowly (not ActionResult) so callers
+ * with richer success shapes (e.g. bulkInviteUsers' sent/skipped) still
+ * type-check; { ok: false; error } is assignable to ActionResult everywhere.
+ */
+function fail(e: unknown): { ok: false; error: string } {
   return { ok: false, error: e instanceof Error ? e.message : 'Operation failed' }
 }
 
@@ -470,7 +475,7 @@ export async function saveContentItem(contentItemId: string, draft: ContentDraft
 
     const { data: item } = await supabase
       .from('content_items')
-      .select('id, type, slug')
+      .select('id, type, slug, author_id')
       .eq('id', contentItemId)
       .single()
     if (!item) return { ok: false, error: 'Content item not found.' }
@@ -480,6 +485,13 @@ export async function saveContentItem(contentItemId: string, draft: ContentDraft
     if (draft.verification !== undefined) patch.verification = draft.verification
     if (draft.locationId !== undefined) patch.location_id = draft.locationId || null
     if (draft.categoryId !== undefined) patch.category_id = draft.categoryId || null
+    // Profile author: previously accepted by the type + sent by the edit
+    // drawer but silently never written — the toast said "Saved" while the
+    // author stayed unchanged. Undefined = keep stored; null = clear.
+    if (draft.authorId !== undefined && (draft.authorId || null) !== ((item as { author_id: string | null }).author_id ?? null)) {
+      patch.author_id = draft.authorId || null
+      changed.push('author')
+    }
     // Publish date: only applied when a non-empty value is sent — clearing it
     // on a published post would hide it from the public queries.
     if (draft.publishedAt !== undefined && draft.publishedAt) {
@@ -754,6 +766,36 @@ export async function deleteContentItem(contentItemId: string): Promise<ActionRe
 export async function getContentItemEditData(contentItemId: string) {
   await assertCapability('manageContent')
   return fetchContentEditData(contentItemId)
+}
+
+/** Client-callable per-item change history for the edit drawer (capability-gated). */
+export async function getContentHistoryData(contentItemId: string) {
+  await assertCapability('manageContent')
+  return getContentHistory(contentItemId)
+}
+
+export type AdminSearchResults = {
+  content: { id: string; title: string; type: string; status: string }[]
+  users: { id: string; name: string; email: string }[]
+}
+
+/**
+ * Admin global search (staff command palette): top content matches by
+ * title/slug plus top user matches by name/email. Staff-only; empty query
+ * returns empty groups.
+ */
+export async function adminGlobalSearch(query: string): Promise<AdminSearchResults> {
+  await assertStaff()
+  const q = query.trim().slice(0, 80)
+  if (q.length < 2) return { content: [], users: [] }
+  const [content, users] = await Promise.all([
+    getContentItems({ search: q, limit: 6, offset: 0 }),
+    getUsers({ search: q, limit: 6, page: 1 }),
+  ])
+  return {
+    content: content.rows.map((r) => ({ id: r.id, title: r.title ?? 'Untitled', type: r.type, status: r.status })),
+    users: users.rows.map((u) => ({ id: u.id, name: u.displayName ?? u.fullName ?? u.email ?? 'User', email: u.email ?? '' })),
+  }
 }
 
 /** Client-callable content search for homepage-slot assignment (capability-gated). */
@@ -1050,7 +1092,16 @@ export async function setContentFeatured(contentId: string, isFeatured: boolean,
           is_active: true,
           created_by: user.id,
         })
-        if (slotError) return { ok: false, error: slotError.message }
+        if (slotError) {
+          // Drift guard: if the database still carries a UNIQUE constraint on
+          // slot_key (migration 20261002000001 drops it), the second featured
+          // story fails here. Surface an actionable message instead of the
+          // raw Postgres error.
+          if ((slotError as { code?: string }).code === '23505') {
+            return { ok: false, error: 'Could not feature this story: the database allows only one "secondary" homepage slot. Apply the pending homepage_slots migration so multiple stories can be featured.' }
+          }
+          return { ok: false, error: slotError.message }
+        }
       }
     } else {
       const { error: slotError } = await supabase
@@ -1081,6 +1132,27 @@ export async function archiveContent(contentId: string): Promise<ActionResult> {
     await audit(supabase, user.id, { action: 'content:archive', contentItemId: contentId })
     revalidatePublicContentCache()
     revalidateLocalized('/admin/content')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/**
+ * Undo for archiveContent: restores an archived item to the drafts. Powers
+ * the Undo action on the "Content archived" toast. Status is left untouched
+ * (an archived published item returns as-is, unhidden from queries that
+ * filter is_archived).
+ */
+export async function unarchiveContent(contentId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertStaff()
+    const { error } = await supabase.from('content_items').update({ is_archived: false }).eq('id', contentId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: 'content:unarchive', contentItemId: contentId })
+    revalidatePublicContentCache()
+    revalidateLocalized('/admin/content')
+    revalidateLocalized('/admin/dashboard')
     return { ok: true }
   } catch (e) {
     return fail(e)
@@ -1127,13 +1199,13 @@ export async function toggleSlotActive(slotId: string, isActive: boolean): Promi
   }
 }
 
-export async function createHomepageSlot(input: { slotKey: string; sortOrder?: number; startsAt?: string | null; endsAt?: string | null }): Promise<ActionResult> {
+export async function createHomepageSlot(input: { slotKey: string; sortOrder?: number; startsAt?: string | null; endsAt?: string | null; contentItemId?: string | null }): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertCapability('manageContent')
     const slotKey = input.slotKey.trim()
     if (!slotKey) return { ok: false, error: 'A slot key is required.' }
     if (input.startsAt && input.endsAt && new Date(input.endsAt) <= new Date(input.startsAt)) return { ok: false, error: 'Slot end must be after its start.' }
-    const { error } = await supabase.from('homepage_slots').insert({ slot_key: slotKey, sort_order: input.sortOrder ?? 0, starts_at: input.startsAt || null, ends_at: input.endsAt || null, created_by: user.id })
+    const { error } = await supabase.from('homepage_slots').insert({ slot_key: slotKey, content_item_id: input.contentItemId ?? null, sort_order: input.sortOrder ?? 0, starts_at: input.startsAt || null, ends_at: input.endsAt || null, created_by: user.id })
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'slot:create', entityType: 'homepage_slot', notes: slotKey })
     revalidatePublicContentCache()
@@ -1434,6 +1506,59 @@ export async function inviteUser(email: string, role: AppRole = 'contributor', c
     await audit(supabase, user.id, { action: 'user:invite', entityType: 'profile', entityId: data.user.id, notes: normalized })
     revalidateLocalized('/admin/users')
     return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+const BULK_INVITE_ROLES: AppRole[] = ['admin', 'editor', 'contributor', 'advertiser']
+
+/**
+ * Bulk invite from pasted CSV lines (one `email, role` per line). A single
+ * capability check up front (step-up reauth when any line grants admin),
+ * then one Supabase invite + role upsert per valid line. Invalid lines are
+ * skipped and reported — nothing fails half-way silently.
+ */
+export async function bulkInviteUsers(
+  lines: string[],
+  confirmPassword?: string,
+): Promise<{ ok: true; sent: number; skipped: { line: string; reason: string }[] } | { ok: false; error: string }> {
+  try {
+    if (lines.length === 0) return { ok: false, error: 'Paste at least one line.' }
+    if (lines.length > 50) return { ok: false, error: 'At most 50 lines per batch.' }
+    const parsed = lines.map((raw) => {
+      const [emailRaw, roleRaw] = raw.split(',').map((s) => s.trim())
+      const email = (emailRaw ?? '').toLowerCase()
+      const role = ((roleRaw ?? 'contributor').toLowerCase()) as AppRole
+      return { line: raw.trim(), email, role }
+    })
+    const needsReauth = parsed.some((p) => p.role === 'admin')
+    const { supabase, user } = needsReauth ? await assertReauth(confirmPassword) : await assertAdmin()
+    const admin = createAdminClient()
+    let sent = 0
+    const skipped: { line: string; reason: string }[] = []
+    for (const p of parsed) {
+      if (!/^\S+@\S+\.\S+$/.test(p.email)) {
+        skipped.push({ line: p.line, reason: 'Invalid email.' })
+        continue
+      }
+      if (!BULK_INVITE_ROLES.includes(p.role)) {
+        skipped.push({ line: p.line, reason: `Unknown role "${p.role}".` })
+        continue
+      }
+      const { data, error } = await admin.auth.admin.inviteUserByEmail(p.email)
+      if (error || !data.user) {
+        skipped.push({ line: p.line, reason: error?.message ?? 'Invite failed.' })
+        continue
+      }
+      const { error: roleError } = await supabase.from('user_roles').upsert({ user_id: data.user.id, role: p.role })
+      if (roleError) {
+        skipped.push({ line: p.line, reason: roleError.message })
+        continue
+      }
+      await audit(supabase, user.id, { action: 'user:invite', entityType: 'profile', entityId: data.user.id, notes: p.email })
+      sent += 1
+    }
+    revalidateLocalized('/admin/users')
+    return { ok: true, sent, skipped }
   } catch (e) { return fail(e) }
 }
 
@@ -2786,12 +2911,35 @@ const SITE_SETTING_KEYS = [
   'site_tagline',
   'site_name_fr',
   'site_tagline_fr',
+  'announcement_text_en',
+  'announcement_text_fr',
+  'announcement_url',
+  'feature_reading_mode',
+  'feature_event_reminders',
+  'feature_text_to_speech',
 ] as const
 
 const SITE_SETTING_MAX_LENGTH = 500
 
 /** Branding text keys (site name / tagline, both locales) are plain text, not URLs. */
 const SITE_TEXT_KEYS = ['site_name', 'site_tagline', 'site_name_fr', 'site_tagline_fr'] as const
+
+/** Announcement banner texts: plain text like branding, but longer (280). */
+const ANNOUNCEMENT_TEXT_KEYS = ['announcement_text_en', 'announcement_text_fr'] as const
+
+/** Feature-flag keys: only the literals 'true'/'false' are stored. */
+const FEATURE_FLAG_KEYS = ['feature_reading_mode', 'feature_event_reminders', 'feature_text_to_speech'] as const
+
+function validateFeatureFlag(value: string): string | null {
+  return value === 'true' || value === 'false' ? value : null
+}
+
+function validateAnnouncementText(value: string): string | null {
+  if (value.length > 280) return null
+  // The banner renders this as text — reject markup outright.
+  if (/[<>]/.test(value)) return null
+  return value
+}
 
 function validateSiteText(value: string): string | null {
   if (value.length > 120) return null
@@ -2846,6 +2994,12 @@ export async function saveSiteSetting(input: {
       if ((SITE_TEXT_KEYS as readonly string[]).includes(input.key)) {
         valid = validateSiteText(value)
         if (!valid) return { ok: false, error: 'Enter plain text (max 120 characters, no markup).' }
+      } else if ((ANNOUNCEMENT_TEXT_KEYS as readonly string[]).includes(input.key)) {
+        valid = validateAnnouncementText(value)
+        if (!valid) return { ok: false, error: 'Enter plain text (max 280 characters, no markup).' }
+      } else if ((FEATURE_FLAG_KEYS as readonly string[]).includes(input.key)) {
+        valid = validateFeatureFlag(value)
+        if (!valid) return { ok: false, error: 'Invalid flag value.' }
       } else if (input.key === 'site_logo_url') {
         valid = validateImageUrl(value)
         if (!valid) return { ok: false, error: 'Enter a full https:// URL or a site path starting with /.' }

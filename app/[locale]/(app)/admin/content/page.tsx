@@ -112,7 +112,7 @@ export default async function Page({
       />
 
       {activeTab === 'homepage' ? (
-        <HomepageCuration slots={slots} copy={t} locale={locale} />
+        <HomepageCuration slots={slots} copy={t} common={dict.admin.common} locale={locale} />
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">

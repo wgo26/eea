@@ -1073,6 +1073,49 @@ export async function getRecentModeration(options?: {
   }
 }
 
+/**
+ * Per-item change history for the content edit drawer (version tracking
+ * without snapshots): every moderation_log row for the item, newest first —
+ * status transitions, edits (with the changed-fields note saveContentItem
+ * writes), feature/archive actions. Revert is intentionally out of scope:
+ * translations carry no snapshots, so history is audit, not restore.
+ */
+export async function getContentHistory(contentItemId: string): Promise<ModerationEntry[]> {
+  if (!hasDatabase()) return []
+  try {
+    const { data } = await safe(
+      db()
+        .from('moderation_log')
+        .select(`id, action, from_status, to_status, notes, created_at, submission_id, actor_id,
+          actor:profiles(display_name, full_name)`)
+        .eq('content_item_id', contentItemId)
+        .order('created_at', { ascending: false })
+        .limit(30),
+    )
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+      const actor = (Array.isArray(row.actor) ? row.actor[0] : row.actor) as
+        | { display_name: string | null; full_name: string | null }
+        | undefined
+      return {
+        id: row.id as string,
+        action: row.action as string,
+        fromStatus: (row.from_status as string | null) ?? null,
+        toStatus: (row.to_status as string | null) ?? null,
+        notes: (row.notes as string | null) ?? null,
+        createdAt: (row.created_at as string | null) ?? null,
+        actorId: (row.actor_id as string | null) ?? null,
+        actorName: actor?.display_name ?? actor?.full_name ?? null,
+        contentTitle: null,
+        contentType: null,
+        submissionId: (row.submission_id as string | null) ?? null,
+      }
+    })
+  } catch (e) {
+    logger.error('admin', 'getContentHistory failed', { error: e })
+    return []
+  }
+}
+
 /** Distinct action / entity-type values for the audit-log filter dropdowns. */
 export async function getAuditFilterOptions(): Promise<{ actions: string[]; entityTypes: string[] }> {
   if (!hasDatabase()) return { actions: [], entityTypes: [] }
@@ -2003,6 +2046,12 @@ export const SITE_SETTING_KEYS = [
   'site_tagline',
   'site_name_fr',
   'site_tagline_fr',
+  'announcement_text_en',
+  'announcement_text_fr',
+  'announcement_url',
+  'feature_reading_mode',
+  'feature_event_reminders',
+  'feature_text_to_speech',
 ] as const
 
 export type SiteSettingKey = (typeof SITE_SETTING_KEYS)[number]
@@ -2015,6 +2064,12 @@ export type SiteSettings = {
   siteTagline: string | null
   siteNameFr: string | null
   siteTaglineFr: string | null
+  announcementTextEn: string | null
+  announcementTextFr: string | null
+  announcementUrl: string | null
+  featureReadingMode: boolean
+  featureEventReminders: boolean
+  featureTextToSpeech: boolean
 }
 
 const EMPTY_SITE_SETTINGS: SiteSettings = {
@@ -2025,6 +2080,12 @@ const EMPTY_SITE_SETTINGS: SiteSettings = {
   siteTagline: null,
   siteNameFr: null,
   siteTaglineFr: null,
+  announcementTextEn: null,
+  announcementTextFr: null,
+  announcementUrl: null,
+  featureReadingMode: true,
+  featureEventReminders: true,
+  featureTextToSpeech: true,
 }
 
 function toSiteSettings(rows: { key: string; value: string | null }[]): SiteSettings {
@@ -2037,6 +2098,12 @@ function toSiteSettings(rows: { key: string; value: string | null }[]): SiteSett
     if (row.key === 'site_tagline') map.siteTagline = row.value?.trim() || null
     if (row.key === 'site_name_fr') map.siteNameFr = row.value?.trim() || null
     if (row.key === 'site_tagline_fr') map.siteTaglineFr = row.value?.trim() || null
+    if (row.key === 'announcement_text_en') map.announcementTextEn = row.value?.trim() || null
+    if (row.key === 'announcement_text_fr') map.announcementTextFr = row.value?.trim() || null
+    if (row.key === 'announcement_url') map.announcementUrl = row.value?.trim() || null
+    if (row.key === 'feature_reading_mode') map.featureReadingMode = row.value !== 'false'
+    if (row.key === 'feature_event_reminders') map.featureEventReminders = row.value !== 'false'
+    if (row.key === 'feature_text_to_speech') map.featureTextToSpeech = row.value !== 'false'
   }
   return map
 }
@@ -2057,6 +2124,12 @@ export async function getSiteSettingsAdmin(): Promise<
     site_tagline: null,
     site_name_fr: null,
     site_tagline_fr: null,
+    announcement_text_en: null,
+    announcement_text_fr: null,
+    announcement_url: null,
+    feature_reading_mode: null,
+    feature_event_reminders: null,
+    feature_text_to_speech: null,
   }
   for (const row of rows) {
     if (row.key === 'social_facebook_url') result.social_facebook_url = row.value
@@ -2066,6 +2139,12 @@ export async function getSiteSettingsAdmin(): Promise<
     if (row.key === 'site_tagline') result.site_tagline = row.value
     if (row.key === 'site_name_fr') result.site_name_fr = row.value
     if (row.key === 'site_tagline_fr') result.site_tagline_fr = row.value
+    if (row.key === 'announcement_text_en') result.announcement_text_en = row.value
+    if (row.key === 'announcement_text_fr') result.announcement_text_fr = row.value
+    if (row.key === 'announcement_url') result.announcement_url = row.value
+    if (row.key === 'feature_reading_mode') result.feature_reading_mode = row.value
+    if (row.key === 'feature_event_reminders') result.feature_event_reminders = row.value
+    if (row.key === 'feature_text_to_speech') result.feature_text_to_speech = row.value
   }
   return result
 }
@@ -2095,6 +2174,51 @@ export async function getPublicSiteSettings(): Promise<SiteSettings> {
     return await getCachedSiteSettings()
   } catch {
     return EMPTY_SITE_SETTINGS
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Digest archive (public past-issue list)                             */
+/* ------------------------------------------------------------------ */
+
+export type DigestIssue = {
+  id: string
+  sentOn: string
+  locale: string
+  subject: string
+  stories: { title: string; path: string }[]
+  emailed: number
+  whatsapped: number
+}
+
+/** Past digest issues, newest first — the /digest/archive page. */
+export async function getDigestIssues(limit = 30): Promise<DigestIssue[]> {
+  if (!hasDatabase()) return []
+  try {
+    const { data } = await safe(
+      db()
+        .from('digest_issues')
+        .select('id, sent_on, locale, subject, stories, emailed, whatsapped')
+        .order('sent_on', { ascending: false })
+        .limit(limit),
+    )
+    return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      id: row.id as string,
+      sentOn: row.sent_on as string,
+      locale: (row.locale as string) ?? 'en',
+      subject: (row.subject as string) ?? '',
+      stories: Array.isArray(row.stories)
+        ? (row.stories as { title?: string; path?: string }[]).map((s) => ({
+            title: s.title ?? 'Untitled',
+            path: s.path ?? '/',
+          }))
+        : [],
+      emailed: (row.emailed as number) ?? 0,
+      whatsapped: (row.whatsapped as number) ?? 0,
+    }))
+  } catch (e) {
+    logger.error('admin', 'getDigestIssues failed', { error: e })
+    return []
   }
 }
 

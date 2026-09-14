@@ -5,6 +5,7 @@ import { verificationBadgeInfo } from "@/lib/verification";
 import type { StoryCardData } from "@/lib/queries/home";
 import { MediaBadge } from "@/components/media/media-attachment";
 import { SmartImage } from "@/components/media/smart-image";
+import { SaveButton } from "@/components/system/save-button";
 import { cn } from "@/lib/utils";
 
 type StoryCardProps = {
@@ -17,7 +18,19 @@ type StoryCardProps = {
   /** Card extras provided by NewsArticle (author credit + reading time). */
   author?: string | null;
   readingMinutes?: number | null;
+  /** Show the save-for-later toggle (overlay, outside the card link). */
+  showSave?: boolean;
 };
+
+function saveLabels(dict: Dictionary) {
+  return {
+    save: dict.common.saveForLater,
+    unsave: dict.common.removeSaved,
+    savedMessage: dict.common.savedToList,
+    removedMessage: dict.common.removedFromList,
+    signIn: dict.common.signInToSave,
+  };
+}
 
 /**
  * Editorial story card (spec §1A): image, headline, category, date,
@@ -31,16 +44,17 @@ export function StoryCard({
   className,
   author = null,
   readingMinutes = null,
+  showSave = true,
 }: StoryCardProps) {
   const badge = verificationBadgeInfo(story.verification ?? null, dict);
 
   if (variant === "row") {
     return (
+      <div className={cn("relative", className)}>
       <Link
         href={story.href}
         className={cn(
           "group flex gap-3 rounded-2xl border bg-card p-2 transition-shadow hover:shadow-md",
-          className
         )}
       >
       <div
@@ -95,15 +109,23 @@ export function StoryCard({
           </div>
         </div>
       </Link>
+      {showSave ? (
+        <SaveButton
+          contentItemId={story.id}
+          labels={saveLabels(dict)}
+          className="absolute right-2 top-2"
+        />
+      ) : null}
+      </div>
     );
   }
 
   return (
+    <div className={cn("relative", className)}>
     <Link
       href={story.href}
       className={cn(
         "group flex flex-col overflow-hidden rounded-2xl border bg-card transition-shadow hover:shadow-md",
-        className
       )}
     >
       <div
@@ -181,6 +203,14 @@ export function StoryCard({
         </div>
       </div>
     </Link>
+    {showSave ? (
+      <SaveButton
+        contentItemId={story.id}
+        labels={saveLabels(dict)}
+        className="absolute right-2 top-2"
+      />
+    ) : null}
+    </div>
   );
 }
 

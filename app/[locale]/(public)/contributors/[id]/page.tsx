@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
 import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
+import { FollowButton } from "@/components/system/follow-button";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getContributorById } from "@/lib/queries/contributors";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
@@ -94,6 +95,9 @@ export default async function ContributorProfilePage({ params }: Props) {
                             {profile.bio}
                         </p>
                     ) : null}
+                    <div className="mt-3">
+                        <FollowButton contributorId={id} copy={dict.follow} />
+                    </div>
                 </div>
                 <div className="flex shrink-0 gap-6 border-t pt-4 text-center sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
                     <div>

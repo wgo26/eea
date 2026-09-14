@@ -103,6 +103,27 @@ export async function markNotificationRead(notificationId: string): Promise<Acti
   }
 }
 
+/**
+ * Re-flag a notification as unread for follow-up. Mirrors
+ * markNotificationRead (own-row RLS); setting read_at back to null
+ * restores the unread dot and counter.
+ */
+export async function markNotificationUnread(notificationId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await getSessionUser();
+    if (!user) return { ok: false, error: 'Not authenticated.' };
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read_at: null })
+      .eq('id', notificationId)
+      .eq('user_id', user.id);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
 export async function markAllNotificationsRead(): Promise<ActionResult> {
   try {
     const { supabase, user } = await getSessionUser();

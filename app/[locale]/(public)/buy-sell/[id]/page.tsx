@@ -2,22 +2,22 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-    ArrowLeft,
     CalendarDays,
-    Flag,
     MapPin,
     Tag,
 } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
+import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
 import { StoryCard } from "@/components/home/story-card";
 import { SmartImage } from "@/components/media/smart-image";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { RevealContact } from "@/components/buy-sell/reveal-contact";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ShareButtons } from "@/components/share-buttons";
+import { ArticleActionRow } from "@/components/system/article-actions";
+import { RatingWidget } from "@/components/system/rating-widget";
+import { MessageSellerButton } from "@/components/messages/message-seller-button";
 import { SITE } from "@/lib/constants";
 import { formatDate, formatPrice, getDictionary, resolveLocale, type Locale } from "@/lib/i18n";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
@@ -54,7 +54,8 @@ export async function generateMetadata({
             title: listing.title,
             description: listing.excerpt ?? undefined,
             type: "article",
-            images: listing.imageUrl ? [{ url: listing.imageUrl }] : undefined,
+            // Cover: served by ./opengraph-image.tsx (branded title card that
+            // embeds the cover) — Next injects it automatically.
         },
     };
 }
@@ -94,13 +95,11 @@ export default async function ListingPage({ params }: ListingPageProps) {
 
     return (
         <div className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
-            <Link
-                href={localePath(locale, "/buy-sell")}
-                className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-                <ArrowLeft className="h-4 w-4" aria-hidden />
-                {dict.buySell.backToListings}
-            </Link>
+            <ContentBreadcrumb
+                locale={locale}
+                homeLabel={dict.nav.home}
+                trail={[{ label: dict.nav.buySell, path: "/buy-sell" }, { label: listing.title }]}
+            />
 
             <div className="mt-6 grid gap-8 lg:grid-cols-2">
                 {/* Photo gallery */}
@@ -220,16 +219,28 @@ export default async function ListingPage({ params }: ListingPageProps) {
                         />
                     </div>
 
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                        <ShareButtons url={shareUrl} title={listing.title} />
-                        <Button
-                            render={<Link href={localePath(locale, "/about/contact")} />}
-                            variant="ghost"
-                            size="sm"
-                        >
-                            <Flag className="h-4 w-4" aria-hidden />
-                            {dict.buySell.reportListing}
-                        </Button>
+                    <div className="mt-4">
+                        <ArticleActionRow
+                            contentItemId={listing.id}
+                            shareUrl={shareUrl}
+                            title={listing.title}
+                            locale={locale}
+                            saveVariant="heart"
+                            showTextSize={false}
+                            dict={dict}
+                        />
+                    </div>
+                    <div className="no-print mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-4">
+                        <MessageSellerButton
+                            contentItemId={listing.id}
+                            locale={locale}
+                            copy={{
+                                startConversation: dict.account.messages.startConversation,
+                                signIn: dict.account.messages.signIn,
+                                error: dict.account.messages.error,
+                            }}
+                        />
+                        <RatingWidget contentItemId={listing.id} copy={dict.ratings} />
                     </div>
                 </section>
             </div>

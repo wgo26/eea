@@ -302,3 +302,96 @@
 .article-body :where([imageanchor="1"] img) {
   margin-inline: auto;
 }
+/* Reader text-size preference — TextSizeControl mirrors the choice onto
+   documentElement[data-article-size]; "md" is the .article-body default. */
+html[data-article-size="sm"] .article-body {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+html[data-article-size="lg"] .article-body {
+  font-size: 1.25rem;
+  line-height: 1.9;
+}
+
+/* Reading mode — hide sidebars/rails, center the article column. */
+body.reading-mode aside {
+  display: none !important;
+}
+body.reading-mode main article,
+body.reading-mode main > div > article {
+  max-width: 56rem !important;
+  margin-inline: auto;
+}
+
+/* High-contrast accessibility theme (toggles with light/dark independently):
+   near-black text, stronger borders, underlined links, visible focus. */
+html.high-contrast {
+  --foreground: oklch(0 0 0);
+  --card-foreground: oklch(0 0 0);
+  --popover-foreground: oklch(0 0 0);
+  --muted-foreground: oklch(0.25 0 0);
+  --secondary-foreground: oklch(0 0 0);
+  --accent-foreground: oklch(0 0 0);
+  --border: oklch(0.35 0 0);
+  --input: oklch(0.35 0 0);
+}
+html.high-contrast.dark {
+  --background: oklch(0 0 0);
+  --foreground: oklch(1 0 0);
+  --card: oklch(0 0 0);
+  --card-foreground: oklch(1 0 0);
+  --popover: oklch(0 0 0);
+  --popover-foreground: oklch(1 0 0);
+  --muted-foreground: oklch(0.85 0 0);
+  --secondary-foreground: oklch(1 0 0);
+  --accent-foreground: oklch(1 0 0);
+  --border: oklch(0.75 0 0);
+  --input: oklch(0.75 0 0);
+}
+html.high-contrast a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+html.high-contrast *:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Reduced motion — honor the OS setting globally: kill CSS animations and
+   transitions, drop smooth scrolling. JS-driven loops (hero carousel)
+   check matchMedia("(prefers-reduced-motion: reduce)") themselves. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Print — clean article layout: chrome (marked .no-print) drops out, prose
+   goes black-on-white at a readable measure. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .article-body {
+    color: #000;
+    font-size: 12pt;
+    line-height: 1.6;
+    max-width: 100%;
+  }
+  .article-body a {
+    color: #000;
+    text-decoration: none;
+  }
+  .article-body img {
+    break-inside: avoid;
+  }
+}

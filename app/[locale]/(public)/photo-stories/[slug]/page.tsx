@@ -14,6 +14,11 @@ import {
 
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
+import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
+import { SaveButton } from "@/components/system/save-button";
+import { ReportButton } from "@/components/system/report-dialog";
+import { TextSizeControl } from "@/components/system/text-size-control";
+import { FeedbackWidget } from "@/components/system/feedback-widget";
 import { StoryCard } from "@/components/home/story-card";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { GalleryGrid } from "@/components/photo-stories/gallery-grid";
@@ -64,7 +69,8 @@ export async function generateMetadata({
             title: story.title,
             description: story.excerpt ?? undefined,
             type: "article",
-            images: story.imageUrl ? [{ url: story.imageUrl }] : undefined,
+            // Cover: served by ./opengraph-image.tsx (branded title card that
+            // embeds the cover) — Next injects it automatically.
         },
     };
 }
@@ -87,13 +93,11 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
 
     return (
         <article className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
-            <Link
-                href={localePath(locale, "/photo-stories")}
-                className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-                <ArrowLeft className="h-4 w-4" aria-hidden />
-                {dict.photoStories.backToPhotoStories}
-            </Link>
+            <ContentBreadcrumb
+                locale={locale}
+                homeLabel={dict.nav.home}
+                trail={[{ label: dict.nav.photoStories, path: "/photo-stories" }, { label: story.title }]}
+            />
 
             {/* Editorial header */}
             <header className="mt-4 max-w-4xl">
@@ -210,6 +214,10 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
             ) : null}
 
             {/* More essays + sidebar */}
+            <div className="no-print mt-10 border-t pt-6">
+                <FeedbackWidget contentItemId={story.id} copy={dict.feedback} />
+            </div>
+
             <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div>
                     <SectionHeader
@@ -240,7 +248,30 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                             <CardTitle className="text-base">{dict.common.share}</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <ShareButtons url={shareUrl} title={story.title} />
+                            <ShareButtons
+                                url={shareUrl}
+                                title={story.title}
+                                labels={{
+                                    share: dict.common.share,
+                                    whatsapp: dict.common.whatsapp,
+                                    copyLink: dict.common.copyLink,
+                                    copied: dict.common.copied,
+                                }}
+                            />
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <SaveButton
+                                    contentItemId={story.id}
+                                    labels={{
+                                        save: dict.common.saveForLater,
+                                        unsave: dict.common.removeSaved,
+                                        savedMessage: dict.common.savedToList,
+                                        removedMessage: dict.common.removedFromList,
+                                        signIn: dict.common.signInToSave,
+                                    }}
+                                />
+                                <ReportButton contentItemId={story.id} copy={dict.report} />
+                                <TextSizeControl copy={dict.textSize} />
+                            </div>
                         </CardContent>
                     </Card>
 

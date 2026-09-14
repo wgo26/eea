@@ -329,7 +329,8 @@ non-localized (`/admin/...` always lands on the root branch).
 - [ ] Verify admin mobile: sidebar is `hidden lg:block` — confirm `AdminClientWrapper`/
       `AdminTopbar` provide a working drawer on small screens; if not, build one.
 - [ ] Localize all nav labels (`nav` dictionary section exists — use it in admin chrome too).
-- [ ] Add breadcrumbs to admin pages (`breadcrumb` component already exists).
+- [ ] Add breadcrumbs to admin pages (`breadcrumb` component already exists) — moderation
+      and users detail pages done; extend to the remaining admin pages.
 
 **Acceptance**
 Every page matches the matrix on desktop and mobile; switching locale keeps you in the same

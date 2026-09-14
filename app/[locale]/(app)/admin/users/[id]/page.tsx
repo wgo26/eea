@@ -46,16 +46,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
   return (
     <div className="space-y-5">
-      <Link
-        href={localePath(locale, '/admin/users')}
-        className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <span aria-hidden="true">←</span> {t.backToUsers}
-      </Link>
-
       <PageHeader
         title={displayName}
         description={user.email ?? undefined}
+        breadcrumb={[
+          { label: dict.admin.sidebar.users, href: localePath(locale, '/admin/users') },
+          { label: displayName },
+        ]}
         actions={<UserActions user={user} copy={t} common={dict.admin.common} />}
       />
 

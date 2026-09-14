@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { MobileNav } from "@/components/mobile-nav";
+import { CommandPaletteButton } from "@/components/system/command-palette";
+import { ContrastToggle } from "@/components/system/contrast-toggle";
 import { getDictionary, locales, type Locale } from "@/lib/i18n";
 
 /** Prefixes a canonical path with the active locale (prefix-all model). */
@@ -93,7 +95,7 @@ export function SiteHeader({ branding }: { branding?: SiteBranding }) {
         : branding?.siteTagline?.trim() || dict.header.tagline;
 
     return (
-        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <header className="no-print sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
             <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-3 px-4 md:px-6">
                 <Link
                     href={localeHref(locale, "/")}
@@ -145,7 +147,10 @@ export function SiteHeader({ branding }: { branding?: SiteBranding }) {
                 </nav>
 
                 <div className="ml-auto flex items-center gap-1.5">
+                    <CommandPaletteButton />
                     <LanguageSwitcher locale={locale} />
+                    <ThemeToggle locale={locale} />
+                    <ContrastToggle label={dict.theme.contrast} />
                     <ThemeToggle locale={locale} />
                     <Button
                         size="sm"

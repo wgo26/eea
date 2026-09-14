@@ -410,7 +410,82 @@ export function SiteBrandingForm({
         <button
           type="button"
           onClick={handleSave}
-          disabled={loading || uploading}
+          disabled={loading}
+          className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+        >
+          {loading ? copy.saving : copy.save}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const FLAG_DEFS = [
+  { key: 'feature_reading_mode', labelKey: 'flagReadingMode', bodyKey: 'flagReadingModeBody' },
+  { key: 'feature_event_reminders', labelKey: 'flagEventReminders', bodyKey: 'flagEventRemindersBody' },
+  { key: 'feature_text_to_speech', labelKey: 'flagTextToSpeech', bodyKey: 'flagTextToSpeechBody' },
+] as const
+
+/**
+ * Feature flags: kill-switches for newer surfaces. Absent rows mean ON
+ * (code defaults); saving writes explicit 'true'/'false' per flag.
+ */
+export function FlagsForm({
+  copy,
+  settings,
+}: {
+  copy: Copy
+  settings: { feature_reading_mode: string | null; feature_event_reminders: string | null; feature_text_to_speech: string | null }
+}) {
+  const { addToast } = useToast()
+  const [values, setValues] = useState<Record<string, boolean>>({
+    feature_reading_mode: settings.feature_reading_mode !== 'false',
+    feature_event_reminders: settings.feature_event_reminders !== 'false',
+    feature_text_to_speech: settings.feature_text_to_speech !== 'false',
+  })
+  const [loading, setLoading] = useState(false)
+
+  async function handleSave() {
+    setLoading(true)
+    for (const def of FLAG_DEFS) {
+      const result = await saveSiteSetting({ key: def.key, value: values[def.key] ? 'true' : 'false' })
+      if (!result.ok) {
+        setLoading(false)
+        addToast(result.error, 'error')
+        return
+      }
+    }
+    setLoading(false)
+    addToast(copy.toastFlagsSaved, 'success')
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <p className="text-sm text-muted-foreground">{copy.flagsBody}</p>
+      <div className="mt-4 space-y-2">
+        {FLAG_DEFS.map((def) => (
+          <label
+            key={def.key}
+            className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2.5"
+          >
+            <input
+              type="checkbox"
+              checked={values[def.key]}
+              onChange={(e) => setValues((v) => ({ ...v, [def.key]: e.target.checked }))}
+              className="mt-0.5 h-4 w-4 rounded border-border"
+            />
+            <span>
+              <span className="block text-sm font-medium">{copy[def.labelKey]}</span>
+              <span className="block text-xs text-muted-foreground">{copy[def.bodyKey]}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <div className="mt-4 flex justify-end">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={loading}
           className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
         >
           {loading ? copy.saving : copy.save}
@@ -499,6 +574,97 @@ export function SiteLinksForm({
           <span className="text-[11px]">{copy.urlHint}</span>
         </label>
       </div>
+
+      <div className="mt-4 flex justify-end">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={loading}
+          className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+        >
+          {loading ? copy.saving : copy.save}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Announcement banner: bilingual dismissible notice shown above the header
+ * on every public page, plus an optional link target. Clearing both texts
+ * turns the banner off (empty values delete the rows).
+ */export function AnnouncementForm({
+  copy,
+  settings,
+}: {
+  copy: Copy
+  settings: { announcement_text_en: string | null; announcement_text_fr: string | null; announcement_url: string | null }
+}) {
+  const { addToast } = useToast()
+  const [textEn, setTextEn] = useState(settings.announcement_text_en ?? '')
+  const [textFr, setTextFr] = useState(settings.announcement_text_fr ?? '')
+  const [url, setUrl] = useState(settings.announcement_url ?? '')
+  const [loading, setLoading] = useState(false)
+
+  async function handleSave() {
+    setLoading(true)
+    for (const [key, val] of [
+      ['announcement_text_en', textEn || null],
+      ['announcement_text_fr', textFr || null],
+      ['announcement_url', url || null],
+    ] as const) {
+      const result = await saveSiteSetting({ key, value: val })
+      if (!result.ok) {
+        setLoading(false)
+        addToast(result.error, 'error')
+        return
+      }
+    }
+    setLoading(false)
+    addToast(copy.toastAnnouncementSaved, 'success')
+  }
+
+  const input =
+    'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary'
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <p className="text-sm text-muted-foreground">{copy.announcementBody}</p>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+          <span>{copy.announcementEnLabel}</span>
+          <input
+            type="text"
+            value={textEn}
+            onChange={(e) => setTextEn(e.target.value)}
+            maxLength={280}
+            className={input}
+          />
+        </label>
+        <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+          <span>{copy.announcementFrLabel}</span>
+          <input
+            type="text"
+            value={textFr}
+            onChange={(e) => setTextFr(e.target.value)}
+            maxLength={280}
+            className={input}
+          />
+        </label>
+      </div>
+
+      <label className="mt-4 flex flex-col gap-1.5 text-xs text-muted-foreground">
+        <span>{copy.announcementUrlLabel}</span>
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder={copy.urlPlaceholder}
+          className={input}
+        />
+        <span className="text-[11px]">{copy.announcementHint}</span>
+      </label>
 
       <div className="mt-4 flex justify-end">
         <button

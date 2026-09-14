@@ -52,6 +52,9 @@ export const metadata: Metadata = {
         card: TWITTER_CARD,
         images: [DEFAULT_OG_IMAGE],
     },
+    alternates: {
+        types: { 'application/rss+xml': '/rss.xml' },
+    },
     // Tab icon is dynamic: /icon.svg (and /favicon.ico) are route handlers
 
     // that redirect to the uploaded site logo (see lib/site-icon.ts). This
@@ -59,6 +62,12 @@ export const metadata: Metadata = {
     // auto-discovery. Replaces the old static demo-mark app/icon.svg.
     icons: {
         icon: "/icon.svg",
+        apple: "/icons/icon-192.png",
+    },
+    appleWebApp: {
+        capable: true,
+        title: SITE.shortName,
+        statusBarStyle: "black-translucent",
     },
 };
 

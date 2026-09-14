@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { SiteHeader } from '@/components/site-header'
 import { SiteFooter } from '@/components/site-footer'
+import { AnnouncementBanner, announcementId } from '@/components/system/announcement-banner'
 import { getPublicSiteSettings } from '@/lib/admin/queries'
 import { getDictionary } from '@/lib/i18n'
 import { getRequestLocale } from '@/lib/i18n/server'
@@ -21,6 +22,12 @@ export async function PublicShell({ children }: { children: ReactNode }) {
   const settings = await getPublicSiteSettings()
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
+  // Announcement banner: locale text with fallback to the other language;
+  // empty in both languages turns the banner off.
+  const announcementText =
+    locale === 'fr'
+      ? settings.announcementTextFr?.trim() || settings.announcementTextEn?.trim() || null
+      : settings.announcementTextEn?.trim() || settings.announcementTextFr?.trim() || null
   return (
     <>
       {/* a11y: keyboard bypass past the global nav into the page content. */}
@@ -30,6 +37,14 @@ export async function PublicShell({ children }: { children: ReactNode }) {
       >
         {dict.common.skipToContent}
       </a>
+      {announcementText && (
+        <AnnouncementBanner
+          id={announcementId(announcementText, settings.announcementUrl)}
+          text={announcementText}
+          url={settings.announcementUrl}
+          dismissLabel={dict.common.dismiss}
+        />
+      )}
       <SiteHeader
         branding={{ logoUrl: settings.logoUrl, siteName: settings.siteName, siteTagline: settings.siteTagline, siteNameFr: settings.siteNameFr, siteTaglineFr: settings.siteTaglineFr }}
       />

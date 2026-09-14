@@ -81,6 +81,7 @@ async function deliverPublicDigest(correlationId: string): Promise<{ emailed: nu
       out.skipped = subs.length;
       return out;
     }
+    const perLocale: Record<string, { emailed: number; whatsapped: number }> = {};
     for (const s of subs) {
       const fr = /^fr/i.test(s.locale ?? '');
       const lines = stories.map((st) => `• ${st.title}\n  ${SITE.url}/${fr ? 'fr' : 'en'}${st.path}`).join('\n');
@@ -89,10 +90,14 @@ async function deliverPublicDigest(correlationId: string): Promise<{ emailed: nu
         ? `Voici les histoires vérifiées du jour :\n\n${lines}\n\nPour arrêter : répondez STOP ou visitez ${SITE.url}/fr/digest.`
         : `Here are today's verified stories:\n\n${lines}\n\nTo stop: reply STOP or visit ${SITE.url}/en/digest.`;
       const url = `${SITE.url}/${fr ? 'fr' : 'en'}/digest`;
+      const bucket = perLocale[fr ? 'fr' : 'en'] ?? { emailed: 0, whatsapped: 0 };
+      perLocale[fr ? 'fr' : 'en'] = bucket;
       if (s.email && /^\S+@\S+\.\S+$/.test(s.email)) {
         const res = await sendEmail(s.email, title, title, body, url);
-        if (res.delivered) out.emailed += 1;
-        else out.skipped += 1;
+        if (res.delivered) {
+          out.emailed += 1;
+          bucket.emailed += 1;
+        } else out.skipped += 1;
       }
       const phone = s.whatsapp ?? s.phone;
       if (phone) {
@@ -100,8 +105,29 @@ async function deliverPublicDigest(correlationId: string): Promise<{ emailed: nu
         // WHATSAPP_TEMPLATE is configured (per-subscriber locale), else
         // best-effort free text.
         const res = await sendWhatsAppProactive(phone, `${title}\n${body}`, s.locale);
-        if (res.delivered) out.whatsapped += 1;
+        if (res.delivered) {
+          out.whatsapped += 1;
+          bucket.whatsapped += 1;
+        }
       }
+    }
+    // Archive one issue per served locale for the public /digest/archive page.
+    const today = new Date().toISOString().slice(0, 10);
+    for (const [issueLocale, counts] of Object.entries(perLocale)) {
+      if (counts.emailed + counts.whatsapped === 0) continue;
+      const { error: archiveError } = await db.from('digest_issues').upsert(
+        {
+          sent_on: today,
+          locale: issueLocale,
+          subject:
+            issueLocale === 'fr' ? 'Eagle Eye Africa — résumé du jour' : 'Eagle Eye Africa — daily digest',
+          stories,
+          emailed: counts.emailed,
+          whatsapped: counts.whatsapped,
+        },
+        { onConflict: 'sent_on,locale' },
+      );
+      if (archiveError) logger.error('cron/ops-digest', 'archive insert failed', { error: archiveError.message, correlationId });
     }
   } catch (err) {
     logger.error('cron/ops-digest', 'public fan-out exception', {

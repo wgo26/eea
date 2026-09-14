@@ -6,7 +6,6 @@ import {
     ArrowRight,
     CalendarDays,
     Camera,
-    ChevronRight,
     Clock,
     Eye,
     MapPin,
@@ -18,12 +17,14 @@ import {
 
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
+import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
+import { ArticleActionRow } from "@/components/system/article-actions";
+import { FeedbackWidget } from "@/components/system/feedback-widget";
 import { StoryCard } from "@/components/home/story-card";
 import { MediaBadge } from "@/components/media/media-attachment";
 import { SmartImage } from "@/components/media/smart-image";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { ArticleShare } from "@/components/news/article-share";
-import { ShareButtons } from "@/components/share-buttons";
 import { CorrectionForm } from "@/components/news/correction-form";
 import { ReadingProgress } from "@/components/news/reading-progress";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,7 @@ import {
     getRelatedNews,
 } from "@/lib/queries/news";
 import { getAdForSlot } from "@/lib/queries/ads";
+import { isFeatureEnabled } from "@/lib/features";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { sanitizeBodyHtml } from "@/lib/security/html";
 import { extractHeadings, extractPullQuote, hasDropCapLead, withHeadingAnchors } from "@/lib/news/article-body";
@@ -74,7 +76,9 @@ export async function generateMetadata({
             title: article.title,
             description: article.excerpt ?? undefined,
             type: "article",
-            images: article.imageUrl ? [{ url: article.imageUrl }] : undefined,
+            // Cover: served by ./opengraph-image.tsx (branded title card that
+            // embeds the cover) — Next injects it automatically, so no
+            // explicit images here (they would duplicate the tags).
         },
     };
 }
@@ -87,12 +91,16 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
     const article = await getNewsBySlug(slug, locale);
     if (!article) notFound();
 
-    const [related, neighbours, railAd] = await Promise.all([
+    const [related, neighbours, railAd, readingModeOn, ttsOn] = await Promise.all([
         getRelatedNews(article.id, article.categoryId ?? null, locale, 3),
         article.publishedAt
             ? getAdjacentNews(article.id, article.publishedAt, locale)
             : Promise.resolve({ prev: null, next: null }),
         getAdForSlot("news-rail"),
+        // Kill-switches from /admin/site-content gate the action-row extras
+        // (settings read is unstable_cache-tagged, so ISR stays safe).
+        isFeatureEnabled("feature_reading_mode"),
+        isFeatureEnabled("feature_text_to_speech"),
     ]);
     const filtered = related.filter((n) => n.id !== article.id);
     const { prev, next } = neighbours;
@@ -157,31 +165,17 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
         <ReadingProgress targetId="article-body" />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
         <article className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
-            {/* Breadcrumb (SEO + orientation) */}
-            <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
-                <Link
-                    href={localePath(locale, "/news")}
-                    className="inline-flex items-center gap-1.5 font-medium transition-colors hover:text-foreground"
-                >
-                    <ArrowLeft className="h-4 w-4" aria-hidden />
-                    {dict.news.backToNews}
-                </Link>
-                {article.category && article.categorySlug ? (
-                    <>
-                        <ChevronRight className="h-3.5 w-3.5 opacity-50" aria-hidden />
-                        <Link
-                            href={localePath(locale, `/news?category=${article.categorySlug}`)}
-                            className="font-medium transition-colors hover:text-foreground"
-                        >
-                            {article.category}
-                        </Link>
-                    </>
-                ) : null}
-                <ChevronRight className="h-3.5 w-3.5 opacity-50" aria-hidden />
-                <span aria-current="page" className="max-w-[40ch] truncate text-foreground/80">
-                    {article.title}
-                </span>
-            </nav>
+            <ContentBreadcrumb
+                locale={locale}
+                homeLabel={dict.nav.home}
+                trail={[
+                    { label: dict.nav.news, path: "/news" },
+                    ...(article.category && article.categorySlug
+                        ? [{ label: article.category, path: `/news?category=${article.categorySlug}` }]
+                        : []),
+                    { label: article.title },
+                ]}
+            />
 
             {/* Editorial header */}
             <header className="mt-6 max-w-4xl">
@@ -411,6 +405,10 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                 </div>
             ) : null}
 
+            <div className="no-print mt-10 border-t pt-6">
+                <FeedbackWidget contentItemId={article.id} copy={dict.feedback} />
+            </div>
+
             <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div>
                     {/* Report a correction — inline form (no dead /correction route). */}
@@ -454,7 +452,16 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <ShareButtons url={shareUrl} title={article.title} />
+                            <ArticleActionRow
+                                contentItemId={article.id}
+                                shareUrl={shareUrl}
+                                title={article.title}
+                                locale={locale}
+                                listenText={`${article.excerpt ?? ""}\n\n${rawBody}`}
+                                showReadingMode={readingModeOn}
+                                showListen={ttsOn}
+                                dict={dict}
+                            />
                         </CardContent>
                     </Card>
 

@@ -58,10 +58,12 @@ function toDatetimeLocal(iso: string | null): string {
 export function HomepageCuration({
   slots,
   copy,
+  common,
   locale,
 }: {
   slots: HomepageSlot[]
   copy: Copy
+  common: { undo: string }
   locale: Locale
 }) {
   const { addToast } = useToast()
@@ -91,6 +93,38 @@ export function HomepageCuration({
     acc[prefix].push(slot)
     return acc
   }, {})
+
+  /** Delete with Undo: snapshot the row so the toast action can re-create it. */
+  async function handleDeleteSlot(slot: HomepageSlot) {
+    const snapshot = {
+      slotKey: slot.slotKey,
+      contentItemId: slot.contentItemId,
+      sortOrder: slot.sortOrder,
+      startsAt: slot.startsAt,
+      endsAt: slot.endsAt,
+    }
+    setLoading(slot.id)
+    const result = await deleteHomepageSlot(slot.id)
+    setLoading(null)
+    if (result.ok) {
+      addToast(copy.toastSlotDeleted, 'success', {
+        duration: 8000,
+        action: {
+          label: common.undo,
+          onSelect: () => {
+            void (async () => {
+              const restored = await createHomepageSlot(snapshot)
+              addToast(restored.ok ? copy.toastSlotRestored : restored.error, restored.ok ? 'success' : 'error')
+              if (restored.ok) router.refresh()
+            })()
+          },
+        },
+      })
+      router.refresh()
+    } else {
+      addToast(result.error, 'error')
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -128,9 +162,7 @@ export function HomepageCuration({
                 onMove={(direction) =>
                   run(slot.id, () => reorderHomepageSlot(slot.id, direction), copy.slotUpdated)
                 }
-                onDelete={() =>
-                  run(slot.id, () => deleteHomepageSlot(slot.id), copy.toastSlotDeleted)
-                }
+                onDelete={() => handleDeleteSlot(slot)}
               />
             ))}
           </div>

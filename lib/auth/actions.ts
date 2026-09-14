@@ -125,6 +125,15 @@ export async function signInWithPassword(
     return { ok: false, error: 'account_disabled' }
   }
 
+  // Step-up: accounts with TOTP enrolled land on the code challenge instead
+  // of straight into the app (the aal1 session can verify, nothing else).
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+    const locale = await getRequestLocale()
+    const challengeNext = safeNextPath(str(formData.get('next')) || null, locale)
+    redirect(localePath(locale, `/account/mfa-challenge${challengeNext ? `?next=${encodeURIComponent(challengeNext)}` : ''}`))
+  }
+
   redirect(await landingFor(str(formData.get('next')) || null))
 }
 
@@ -193,4 +202,45 @@ export async function signUpWithPassword(
   }
 
   redirect(await landingFor(str(formData.get('next')) || null))
+}
+
+/* ------------------------------------------------------------------ */
+/* Social login (OAuth)                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * OAuth providers offered on the login/signup forms. Providers must ALSO be
+ * enabled in the Supabase dashboard (Authentication → Providers) with this
+ * app's `/auth/callback` URL allow-listed — env-gating here only controls
+ * whether the buttons render, so an unconfigured dashboard never shows a
+ * dead button. Set NEXT_PUBLIC_OAUTH_PROVIDERS=google to enable.
+ */
+const OAUTH_PROVIDERS = ['google'] as const
+export type OAuthProvider = (typeof OAUTH_PROVIDERS)[number]
+
+export function enabledOAuthProviders(): OAuthProvider[] {
+  const raw = (process.env.NEXT_PUBLIC_OAUTH_PROVIDERS ?? '').toLowerCase()
+  return OAUTH_PROVIDERS.filter((p) => raw.split(/[,\s]+/).includes(p))
+}
+
+/**
+ * Start an OAuth flow: resolves the provider URL and redirects the browser
+ * there. The provider returns to /auth/callback, which lands in the
+ * role-aware interstitial like password logins.
+ */
+export async function signInWithOAuth(provider: OAuthProvider, next?: string): Promise<void> {
+  if (!enabledOAuthProviders().includes(provider)) {
+    throw new Error('Social login is not configured.')
+  }
+  const locale = await getRequestLocale()
+  const supabase = await createClient()
+  const callbackNext = safeNextPath(next ?? null, locale) ?? localePath(locale, '/auth/landing')
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo: `${SITE.url}/auth/callback?next=${encodeURIComponent(callbackNext)}`,
+    },
+  })
+  if (error || !data.url) throw new Error('Social login failed to start.')
+  redirect(data.url)
 }

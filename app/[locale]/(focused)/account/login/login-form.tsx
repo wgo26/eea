@@ -2,12 +2,14 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { signInWithPassword, type AuthState } from "@/lib/auth/actions";
+import { signInWithPassword, type AuthState, type OAuthProvider } from "@/lib/auth/actions";
+import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import type { Dictionary } from "@/lib/i18n";
 
 type Props = {
     copy: Dictionary["auth"]["login"];
+    providers: OAuthProvider[];
     /** Validated, locale-prefixed destination carried through the flow. */
     nextPath: string;
     resetHref: string;
@@ -33,7 +35,7 @@ function errorMessage(code: NonNullable<AuthState["error"]>, copy: Props["copy"]
     }
 }
 
-export function LoginForm({ copy, nextPath, resetHref, signupHref }: Props) {
+export function LoginForm({ copy, nextPath, resetHref, signupHref, providers }: Props) {
     const [state, formAction, pending] = useActionState<AuthState, FormData>(
         signInWithPassword,
         { ok: false },
@@ -119,6 +121,8 @@ export function LoginForm({ copy, nextPath, resetHref, signupHref }: Props) {
                     {copy.signUp}
                 </Link>
             </div>
+
+            <OAuthButtons copy={copy} nextPath={nextPath} providers={providers} />
         </div>
     );
 }

@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { signUpWithPassword, type AuthState } from "@/lib/auth/actions";
+import { signUpWithPassword, type AuthState, type OAuthProvider } from "@/lib/auth/actions";
+import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import type { Dictionary } from "@/lib/i18n";
 
@@ -10,6 +11,7 @@ type Props = {
     copy: Dictionary["auth"]["signup"];
     nextPath: string;
     loginHref: string;
+    providers: OAuthProvider[];
 };
 
 function errorMessage(code: NonNullable<AuthState["error"]>, copy: Props["copy"]): string {
@@ -27,7 +29,7 @@ function errorMessage(code: NonNullable<AuthState["error"]>, copy: Props["copy"]
     }
 }
 
-export function SignupForm({ copy, nextPath, loginHref }: Props) {
+export function SignupForm({ copy, nextPath, loginHref, providers }: Props) {
     const [state, formAction, pending] = useActionState<AuthState, FormData>(
         signUpWithPassword,
         { ok: false },
@@ -136,6 +138,8 @@ export function SignupForm({ copy, nextPath, loginHref }: Props) {
                     {copy.signIn}
                 </Link>
             </div>
+
+            <OAuthButtons copy={copy} nextPath={nextPath} providers={providers} />
         </div>
     );
 }

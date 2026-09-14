@@ -13,6 +13,11 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/components/admin/toast'
 
+type ToastActionOption = {
+  label: string
+  onSelect: () => void
+}
+
 /**
  * Shared destructive-action confirmation + mutation feedback for the admin
  * section (Phase 0 foundation). Every irreversible admin action (archive,
@@ -80,12 +85,16 @@ export function useAdminMutation() {
   const [loading, setLoading] = useState(false)
 
   const run = useCallback(
-    async (action: () => Promise<MutationResult>, successToast: string): Promise<boolean> => {
+    async (
+      action: () => Promise<MutationResult>,
+      successToast: string,
+      toastOptions?: { duration?: number; action?: ToastActionOption },
+    ): Promise<boolean> => {
       setLoading(true)
       try {
         const result = await action()
         if (result.ok) {
-          addToast(successToast, 'success')
+          addToast(successToast, 'success', toastOptions)
           return true
         }
         addToast(result.error, 'error')

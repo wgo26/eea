@@ -18,6 +18,7 @@ const RATE_LIMITS = {
     takedown: { max: 5, windowMs: 60 * 60_000 },
     dataRequest: { max: 5, windowMs: 60 * 60_000 },
     revealContact: { max: 10, windowMs: 10 * 60_000 },
+    report: { max: 10, windowMs: 60 * 60_000 },
 } satisfies Record<string, RateLimitOptions>;
 
 /**
@@ -500,6 +501,57 @@ export async function submitArticleCorrection(
     } catch (err) {
         logger.error("submitArticleCorrection", "insert exception", { error: err instanceof Error ? err.message : String(err) });
         return { ok: false, error: "db" };
+    }
+}
+
+const REPORT_TYPES = ["spam", "abuse", "misinformation", "other"] as const;
+
+/**
+ * Public content report (news / photo stories / culture / notices /
+ * listings). Anyone may file one — the `reports` table has an
+ * insert-for-all policy and the trust & safety queue is the triage UI, so
+ * no staff alert is needed. Rate-limited + Turnstile-gated like the other
+ * public intakes; signed-in reporters are linked, guests stay anonymous.
+ */
+export async function submitContentReport(input: {
+    contentItemId: string;
+    reportType: string;
+    details?: string;
+    turnstileToken?: string | null;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+    if (!REPORT_TYPES.includes(input.reportType as (typeof REPORT_TYPES)[number])) {
+        return { ok: false, error: "Unknown report reason." };
+    }
+    const limited = await checkRateLimit("public:report", RATE_LIMITS.report);
+    if (!limited.ok) return { ok: false, error: "Too many reports. Please try again later." };
+    if (!(await verifyTurnstileToken(input.turnstileToken ?? null))) {
+        return { ok: false, error: "Please complete the human-verification step." };
+    }
+    try {
+        const supabase = createAdminClient();
+        const { data: item } = await supabase
+            .from("content_items")
+            .select("id")
+            .eq("id", input.contentItemId)
+            .limit(1)
+            .maybeSingle();
+        if (!item) return { ok: false, error: "Content not found." };
+        const { user } = await getSessionUser();
+        const { error } = await supabase.from("reports").insert({
+            report_type: input.reportType,
+            content_item_id: input.contentItemId,
+            reporter_id: user?.id ?? null,
+            description: input.details?.trim().slice(0, 2000) || null,
+            status: "open",
+        });
+        if (error) {
+            logger.error("submitContentReport", "insert failed", { error: error.message });
+            return { ok: false, error: "Could not send the report." };
+        }
+        return { ok: true };
+    } catch (err) {
+        logger.error("submitContentReport", "insert exception", { error: err instanceof Error ? err.message : String(err) });
+        return { ok: false, error: "Could not send the report." };
     }
 }
 

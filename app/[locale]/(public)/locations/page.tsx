@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { LocationMap } from "@/components/locations/location-map";
 import { getLocationsWithCounts } from "@/lib/queries/locations";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -36,6 +37,15 @@ export default async function Page() {
     const totalCoverage = ranked.reduce((sum, item) => sum + (item.contentCount ?? 0), 0);
     const activePlaces = ranked.filter((item) => (item.contentCount ?? 0) > 0).length;
     const mostActive = ranked[0];
+    const mappedHubs = ranked
+        .filter((l) => l.latitude != null && l.longitude != null)
+        .map((l) => ({
+            slug: l.slug,
+            name: l.name,
+            latitude: Number(l.latitude),
+            longitude: Number(l.longitude),
+            href: localePath(locale, `/locations/${l.slug}`),
+        }));
 
     return (
         <div className="mx-auto w-full max-w-7xl space-y-8 px-4 py-8 md:px-6 lg:px-8">
@@ -109,6 +119,24 @@ export default async function Page() {
                     </div>
                 </section>
             ) : null}
+
+            <section>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                            {dict.map.hubsCount.replace("{count}", String(mappedHubs.length))}
+                        </p>
+                        <h2 className="mt-2 text-2xl font-bold tracking-tight">{dict.map.title}</h2>
+                    </div>
+                </div>
+                {mappedHubs.length > 0 ? (
+                    <LocationMap hubs={mappedHubs} copy={dict.map} />
+                ) : (
+                    <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
+                        {dict.map.noMapped}
+                    </p>
+                )}
+            </section>
 
             <section>
                 <div className="mb-4 flex items-center justify-between gap-3">

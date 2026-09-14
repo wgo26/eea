@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth/guards";
 import { localizeStatus, localizeType } from "@/lib/admin/labels";
 import { EmptyState } from "@/components/admin/empty-state";
 import { ProfileEditDialog } from "@/components/account/profile-edit-dialog";
+import { OnboardingCard } from "@/components/account/onboarding-card";
 
 export async function generateMetadata(): Promise<{ title: string }> {
     const locale = await getRequestLocale();
@@ -60,12 +61,24 @@ function RoleBadge({ role, copy }: { role: string; copy: Copy }) {
     );
 }
 
-function DashboardCard({ label, value, hint }: { label: string; value: string; hint: string }) {
-    return (
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+function DashboardCard({ label, value, hint, href }: { label: string; value: string; hint: string; href?: string }) {
+    const body = (
+        <>
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
             <p className="mt-3 text-3xl font-semibold tracking-tight">{value}</p>
             <p className="mt-2 text-xs text-muted-foreground">{hint}</p>
+        </>
+    );
+    if (href) {
+        return (
+            <Link href={href} className="rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+                {body}
+            </Link>
+        );
+    }
+    return (
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            {body}
         </div>
     );
 }
@@ -253,6 +266,7 @@ export default async function Page() {
 
         return (
             <div className="mx-auto max-w-6xl space-y-8 px-4 py-8 md:px-6 lg:py-12">
+                <OnboardingCard locale={locale} dict={dict} />
                 <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div>
@@ -305,6 +319,7 @@ export default async function Page() {
     if (isAdvertiser) {
         return (
             <div className="mx-auto max-w-6xl space-y-8 px-4 py-8 md:px-6 lg:py-12">
+                <OnboardingCard locale={locale} dict={dict} />
                 <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div>
@@ -374,6 +389,7 @@ export default async function Page() {
     if (isContributor) {
         return (
             <div className="mx-auto max-w-6xl space-y-8 px-4 py-8 md:px-6 lg:py-12">
+                <OnboardingCard locale={locale} dict={dict} />
                 <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div>
@@ -474,7 +490,7 @@ export default async function Page() {
 
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <DashboardCard label={t.statSubmissions} value={String(submissionsTotal)} hint={t.hintRecent} />
-                <DashboardCard label={t.statSaved} value={String(savedTotal)} hint={t.hintBookmarks} />
+                <DashboardCard label={t.statSaved} value={String(savedTotal)} hint={t.hintBookmarks} href={p("/account/saved")} />
                 <DashboardCard label={t.statFollowed} value={String(followedTotal)} hint={t.hintFollows} />
                 <DashboardCard label={t.statAccess} value={t.member} hint={t.hintStandard} />
             </section>
