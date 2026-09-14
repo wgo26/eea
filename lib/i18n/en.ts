@@ -77,6 +77,7 @@ export const en = {
     exploreTitle: 'Explore Eagle Eye Africa',
     trending: 'Trending now',
     trendingHint: 'Latest across the community.',
+    heroRailEmpty: 'More stories on the way — publish at least 6 photo, news or culture stories to fill this rail.',
   },
   photoStories: {
     title: 'Photo Stories',

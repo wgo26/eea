@@ -1,22 +1,18 @@
--- ============================================================================
 -- Migration: 20261004000000_community_tables.sql
 -- Description: Community tables — digest archive, conversations, follows,
 --              listing ratings.
 --
---   * digest_issues: one row per sent daily digest (date, locale, story
---     snapshot, delivered counts), written by the ops-digest cron. Powers
---     the public /digest/archive page. No RLS reads needed beyond public
---     select (digests are public content).
---   * conversations + conversation_messages: lean buyer↔seller messaging
---     about a listing. Participants only (buyer_id / seller_id), no
---     realtime — the inbox refreshes on navigation.
---   * contributor_follows: one row per (follower, contributor) pair for
---     "follow favorite contributors".
---   * listing_ratings: one 1–5 star row per (user, listing content item).
+-- NOTE 2026-09-14: the conversations section is SUPERSEDED on hosted DBs by
+-- 20261005000000_listing_conversations_rename.sql. The hosted DB already owns
+-- a legacy public.conversations table (no buyer_id/seller_id), so the
+-- original CREATE TABLE IF NOT EXISTS was a silent no-op there and the policy
+-- failed with 'column buyer_id does not exist', aborting the push.
+-- This file was edited BEFORE it was ever recorded in
+-- supabase_migrations.schema_migrations (the push failed mid-file), so the
+-- edit ships inside the same version rather than a repair migration.
+-- The app reads listing_conversations (lib/messages).
 --
 -- Idempotent (IF NOT EXISTS / DROP POLICY IF EXISTS); safe to re-run.
--- Rules: applied migrations are immutable — repairs always append new files.
--- ============================================================================
 
 -- ---------------------------------------------------------------------------
 -- Digest archive
@@ -41,55 +37,11 @@ create policy "Digest issues are public"
 
 -- ---------------------------------------------------------------------------
 -- Conversations + messages (listing-scoped buyer↔seller DMs)
+-- Removed 2026-09-14 (same version, never applied — see header): use
+-- listing_conversations / listing_conversation_messages from
+-- 20261005000000_listing_conversations_rename.sql instead. The app
+-- (lib/messages/actions.ts) reads only the renamed tables.
 -- ---------------------------------------------------------------------------
-create table if not exists public.conversations (
-    id              uuid primary key default gen_random_uuid(),
-    content_item_id uuid not null references public.content_items (id) on delete cascade,
-    buyer_id        uuid not null references public.profiles (id) on delete cascade,
-    seller_id       uuid not null references public.profiles (id) on delete cascade,
-    created_at      timestamptz not null default now(),
-    updated_at      timestamptz not null default now(),
-    unique (content_item_id, buyer_id, seller_id)
-);
-
-create table if not exists public.conversation_messages (
-    id              uuid primary key default gen_random_uuid(),
-    conversation_id uuid not null references public.conversations (id) on delete cascade,
-    sender_id       uuid not null references public.profiles (id) on delete cascade,
-    body            text not null,
-    created_at      timestamptz not null default now()
-);
-
-create index if not exists conversation_messages_thread_idx
-    on public.conversation_messages (conversation_id, created_at);
-
-alter table public.conversations enable row level security;
-alter table public.conversation_messages enable row level security;
-
-drop policy if exists "Conversation participants only" on public.conversations;
-create policy "Conversation participants only"
-    on public.conversations for all
-    using (buyer_id = auth.uid() or seller_id = auth.uid())
-    with check (buyer_id = auth.uid() or seller_id = auth.uid());
-
-drop policy if exists "Message participants only" on public.conversation_messages;
-create policy "Message participants only"
-    on public.conversation_messages for all
-    using (
-        exists (
-            select 1 from public.conversations c
-            where c.id = conversation_messages.conversation_id
-            and (c.buyer_id = auth.uid() or c.seller_id = auth.uid())
-        )
-    )
-    with check (
-        sender_id = auth.uid()
-        and exists (
-            select 1 from public.conversations c
-            where c.id = conversation_messages.conversation_id
-            and (c.buyer_id = auth.uid() or c.seller_id = auth.uid())
-        )
-    );
 
 -- ---------------------------------------------------------------------------
 -- Contributor follows

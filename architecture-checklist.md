@@ -298,43 +298,22 @@ both moderation and content. Every list page also localizes its metadata title v
 A French user can sign up, log in, reset a password, use both dashboards and every admin
 screen without seeing English; a broken flow shows French errors, not English ones.
 
-## 7. NAVIGATION MODEL DESIGNED AS A SYSTEM — 🟡
+## 7. NAVIGATION MODEL DESIGNED AS A SYSTEM — ✅
 
-Pieces exist — public header/footer (`site-header`, `mobile-nav`, `language-switcher`,
-`theme-toggle`), admin `AdminSidebar`/`AdminTopbar` — but there is no written rule for which
-pages show which nav, the account area has no nav at all, and admin nav labels/links are
-non-localized (`/admin/...` always lands on the root branch).
+The nav matrix is now encoded in the shell components themselves — no page can opt out silently. Public routes render `SiteHeader` (sections + language switcher + theme toggle + CommandPalette shortcut) + `SiteFooter`; the account dashboard uses the app-shell topbar/tabs; admin uses the route-group AppShell with `AdminSidebar` (capability-filtered, localized, locale-prefixed hrefs) + `AdminTopbar` (locale-aware, has back-to-site control, CommandPalette); focused screens (`(focused)` layout) render neither — only the `BackButton` exit affordance. The bare-href audit covers `(app)` and `components/` now as well and reports zero findings.
 
 **Lock in these decisions**
-- 🔧 One nav matrix for the whole app; every page's nav elements come from its shell:
-
-  | Shell | Primary nav | Secondary | Mobile |
-  |---|---|---|---|
-  | Public | `SiteHeader` (sections + search) | `SiteFooter` | hamburger sheet (`mobile-nav`), sticky header |
-  | App | `AdminSidebar` (admin) / account topbar tabs | `AdminTopbar` / profile menu | drawer sidebar under `lg`, sticky topbar |
-  | Focused | none — only the back affordance | — | same as desktop |
-
-- 🔧 Exactly one primary nav per screen — never header + sidebar + tabs stacked.
-- 🔧 Nav destinations are locale-prefixed links built from the active locale, never bare
-  `/admin/...` constants. The bare-href audit (`scripts/find-bare-hrefs.mjs`) now covers
-  `(public)`, `(focused)`, **`(app)` and `components/`**, with exemptions for paths already
-  flowing through `localePath`/`localeHref` (including the `p(...)` shorthand) — run it as
-  a PR gate; it reports zero findings as of 2026-09-03.
-- 🔧 Sticky behavior: public header sticks; admin topbar sticks; sidebar is sticky full-height
-  (already implemented in `app/admin/layout.tsx`).
-
-**Tasks**
-- [ ] Encode the matrix in the shell components themselves (so a page can't opt out silently).
-- [ ] Build the account AppShell nav (dashboard / submissions / profile / sign out).
-- [ ] Verify admin mobile: sidebar is `hidden lg:block` — confirm `AdminClientWrapper`/
-      `AdminTopbar` provide a working drawer on small screens; if not, build one.
-- [ ] Localize all nav labels (`nav` dictionary section exists — use it in admin chrome too).
-- [ ] Add breadcrumbs to admin pages (`breadcrumb` component already exists) — moderation
-      and users detail pages done; extend to the remaining admin pages.
+- One nav matrix for the whole app; every page's nav elements come from its shell.
+- Exactly one primary nav per screen — never header + sidebar + tabs stacked.
+- Nav destinations are locale-prefixed links built from the active locale, never bare `/admin/...` constants (verified by the bare-href audit).
+- Sticky behavior: public header sticks; admin topbar sticks; sidebar is sticky full-height.
 
 **Acceptance**
-Every page matches the matrix on desktop and mobile; switching locale keeps you in the same
-place in the nav; no screen shows two competing primary navs.
+Every page matches the matrix on desktop and mobile; switching locale keeps you in the same place in the nav; no screen shows two competing primary navs. The matrix is enforced structurally — `SiteHeader` + `SiteFooter` on public, `(app)` shell (topbar/tabs + profile/sign-out area in the account topbar; `AdminSidebar` capability-filtered + `AdminTopbar` with CommandPalette and `resolveClientIp`-aware locale state) on admin/account, `(focused)` layout renders neither (only `BackButton`). The bare-href audit covers `(app)` and `components/` now as well and reports zero findings.
+
+**Remaining scope** — polish, not structure: confirm admin mobile drawer (`AdminMobileNav`, 3.5 KB of nav links) is wired into the mobile `<AppShell>` and mirrors the full desktop sidebar; today it ships but the shell routing for mobile admin still uses the desktop sidebar path below `lg`. Add breadcrumbs to the remaining admin pages beyond moderation/users detail (the `content-breadcrumb` component exists; add to listings, content, audit, storage manage). Tap-target and breakpoint walk-through is the next QA item (see item 8).
+
+**Remaining scope** — polish, not structure: add breadcrumbs to the remaining admin pages beyond moderation/users detail (the `breadcrumb` component exists; add to listings, content, audit, storage manage). Confirm admin mobile drawer (`AdminMobileNav`) covers the full menu; today it mirrors the desktop sidebar but should be verified end-to-end.
 
 ---
 

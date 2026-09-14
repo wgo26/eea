@@ -1057,6 +1057,16 @@ export async function updateContentStatus(contentId: string, status: string, sch
 export async function setContentFeatured(contentId: string, isFeatured: boolean, endsAtIso?: string | null): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertStaff()
+
+    const { data: item, error: itemError } = await supabase
+      .from('content_items')
+      .select('id, status')
+      .eq('id', contentId)
+      .single()
+    if (itemError || !item) return { ok: false, error: 'Content item not found.' }
+    if (isFeatured && item.status !== 'published') {
+      return { ok: false, error: 'Publish this item first — drafts and scheduled items never appear on the homepage.' }
+    }
     const nowIso = new Date().toISOString()
     let endsAt: string | null = null
     if (isFeatured && endsAtIso) {

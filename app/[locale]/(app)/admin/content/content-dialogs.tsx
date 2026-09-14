@@ -71,6 +71,22 @@ export function ContentCreateDialog({
   const [locationId, setLocationId] = useState('')
   const [categoryId, setCategoryId] = useState('')
 
+  // Advanced / parity fields (same model as the edit drawer)
+  const [slugInput, setSlugInput] = useState('')
+  const [tagsInput, setTagsInput] = useState('')
+  const [byline, setByline] = useState('')
+  const [enSeoDescription, setEnSeoDescription] = useState('')
+  const [frSeoDescription, setFrSeoDescription] = useState('')
+  const [videosInput, setVideosInput] = useState('')
+  const [audiosInput, setAudiosInput] = useState('')
+  const [documentsInput, setDocumentsInput] = useState('')
+  const [authorId, setAuthorId] = useState<string | null>(null)
+  const [authorName, setAuthorName] = useState('')
+  const [authorQuery, setAuthorQuery] = useState('')
+  const [authorResults, setAuthorResults] = useState<{ id: string; name: string }[]>([])
+  const [authorSearching, setAuthorSearching] = useState(false)
+  const authorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // Type-specific
   const [price, setPrice] = useState('')
   const [currency, setCurrency] = useState('XAF')
@@ -126,6 +142,61 @@ export function ContentCreateDialog({
     setOrganizerName('')
     setOrganizerPhone('')
     setOrganizerEmail('')
+    setSlugInput('')
+    setTagsInput('')
+    setByline('')
+    setEnSeoDescription('')
+    setFrSeoDescription('')
+    setVideosInput('')
+    setAudiosInput('')
+    setDocumentsInput('')
+    setAuthorId(null)
+    setAuthorName('')
+    setAuthorQuery('')
+    setAuthorResults([])
+  }
+
+  // Author search (profile author picker — same model as the edit drawer).
+  useEffect(() => {
+    if (!open) return
+    if (!authorQuery.trim()) {
+      setAuthorResults([])
+      setAuthorSearching(false)
+      return
+    }
+    setAuthorSearching(true)
+    if (authorTimer.current) clearTimeout(authorTimer.current)
+    authorTimer.current = setTimeout(async () => {
+      const res = await searchAuthors(authorQuery.trim())
+      setAuthorResults(res)
+      setAuthorSearching(false)
+    }, 250)
+    return () => {
+      if (authorTimer.current) clearTimeout(authorTimer.current)
+    }
+  }, [authorQuery, open])
+
+  function pickAuthor(a: { id: string; name: string } | null) {
+    if (a) {
+      setAuthorId(a.id)
+      setAuthorName(a.name)
+    } else {
+      setAuthorId(null)
+      setAuthorName('')
+    }
+    setAuthorQuery('')
+    setAuthorResults([])
+  }
+
+  function attachmentList(raw: string, kind: 'video' | 'audio' | 'document') {
+    return raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [url, ...rest] = line.split(/\s+-\s+/)
+        return { url, kind, caption: rest.join(' - ') || undefined }
+      })
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -140,18 +211,26 @@ export function ContentCreateDialog({
     }
     const draft: Parameters<typeof createContentItem>[0]['draft'] = {
       slugBase: enTitle.trim() || type,
+      slug: slugInput.trim() || undefined,
       verification: (verification || null) as never,
       locationId: locationId || null,
       categoryId: categoryId || null,
+      authorId: authorId || null,
       photographerCredit: credit.trim() || null,
       translations: [
-        { locale: 'en', title: enTitle, excerpt: enExcerpt, body: enBody },
-        { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody },
+        { locale: 'en', title: enTitle, excerpt: enExcerpt, body: enBody, seoDescription: enSeoDescription.trim() || null, byline: byline.trim() || null },
+        { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody, seoDescription: frSeoDescription.trim() || null, byline: byline.trim() || null },
       ],
+      tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
       // assetId/kind/mime passthrough lets syncPhotos link the already-stored
       // upload row instead of inserting a duplicate URL-only row (null
       // storage_key, which the DB rejects).
       photos: newPhotos.map((p) => ({ url: p.url, alt: p.alt, caption: p.caption, credit: p.credit, assetId: p.assetId, kind: p.kind, mimeType: p.mimeType, durationSeconds: p.durationSeconds })),
+      attachments: [
+        ...attachmentList(videosInput, 'video'),
+        ...attachmentList(audiosInput, 'audio'),
+        ...attachmentList(documentsInput, 'document'),
+      ],
     }
     if (type === 'listing') {
       draft.listing = {
@@ -321,6 +400,71 @@ export function ContentCreateDialog({
                 </select>
               </Field>
             </div>
+
+            <details className="rounded-md border border-border bg-muted/20">
+              <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground">
+                {copy.advancedSection}
+              </summary>
+              <div className="grid gap-3 p-3 pt-0">
+                <Field label={copy.slugLabel} hint={copy.slugHint}>
+                  <input value={slugInput} onChange={(e) => setSlugInput(e.target.value)} className={inputCls} placeholder="my-story-slug" />
+                </Field>
+                <Field label={copy.bylineLabel} hint={copy.bylineHint}>
+                  <input value={byline} onChange={(e) => setByline(e.target.value)} className={inputCls} />
+                </Field>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label={copy.enSeoDescription} hint={copy.seoHint}>
+                    <textarea value={enSeoDescription} onChange={(e) => setEnSeoDescription(e.target.value)} rows={2} className={inputCls} />
+                  </Field>
+                  <Field label={copy.frSeoDescription} hint={copy.seoHint}>
+                    <textarea value={frSeoDescription} onChange={(e) => setFrSeoDescription(e.target.value)} rows={2} className={inputCls} />
+                  </Field>
+                </div>
+                <Field label={copy.tagsLabel} hint={copy.tagsHint}>
+                  <input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} className={inputCls} />
+                </Field>
+                <Field label={copy.authorLabel} hint={copy.authorHint}>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 py-2">
+                      <span className="text-sm">{authorName || copy.authorNone}</span>
+                      {authorId && (
+                        <button type="button" onClick={() => pickAuthor(null)} className="text-xs text-muted-foreground hover:text-foreground" title={copy.authorClear}>
+                          {copy.authorClear}
+                        </button>
+                      )}
+                    </div>
+                    <input value={authorQuery} onChange={(e) => setAuthorQuery(e.target.value)} placeholder={copy.authorSearchHint} className={inputCls} />
+                    {authorSearching && <p className="text-xs text-muted-foreground">{common.working}</p>}
+                    {authorResults.length > 0 && (
+                      <div className="max-h-28 space-y-0.5 overflow-y-auto rounded-md border border-border bg-background p-1">
+                        {authorResults.map((a) => (
+                          <button
+                            key={a.id}
+                            type="button"
+                            onClick={() => pickAuthor(a)}
+                            className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs hover:bg-muted"
+                          >
+                            <span>{a.name}</span>
+                            {a.id === authorId && <span className="text-xs text-primary">✓</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </Field>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Field label={copy.videoUrls} hint={copy.videoUrlsHint}>
+                    <textarea value={videosInput} onChange={(e) => setVideosInput(e.target.value)} rows={2} className={inputCls} placeholder="https://…" />
+                  </Field>
+                  <Field label={copy.audioUrls} hint={copy.audioUrlsHint}>
+                    <textarea value={audiosInput} onChange={(e) => setAudiosInput(e.target.value)} rows={2} className={inputCls} placeholder="https://…" />
+                  </Field>
+                  <Field label={copy.documentUrls} hint={copy.documentUrlsHint}>
+                    <textarea value={documentsInput} onChange={(e) => setDocumentsInput(e.target.value)} rows={2} className={inputCls} placeholder="https://…" />
+                  </Field>
+                </div>
+              </div>
+            </details>
 
             {type === 'listing' && (
               <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">

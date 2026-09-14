@@ -79,6 +79,7 @@ export const fr: typeof en = {
     exploreTitle: 'Explorer Eagle Eye Africa',
     trending: 'Tendances du moment',
     trendingHint: 'Le plus récent dans toute la communauté.',
+    heroRailEmpty: 'D’autres histoires arrivent — publiez au moins 6 reportages photo, actualités ou cultures pour remplir cette colonne.',
   },
   photoStories: {
     title: 'Reportages photo',

@@ -73,14 +73,24 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
   }
 
   async function handleFeature() {
+    if (content.status !== 'published') {
+      addToast(copy.featureNeedsPublished, 'error')
+      return
+    }
     const endsAt = durationDays == null ? null : new Date(Date.now() + durationDays * DAY_MS).toISOString()
     const ok = await run(() => setContentFeatured(content.id, true, endsAt), copy.toastFeaturedOn)
-    if (ok) setFeatureOpen(false)
+    if (ok) {
+      setFeatureOpen(false)
+      router.refresh()
+    }
   }
 
   async function handleUnfeature() {
     const ok = await run(() => setContentFeatured(content.id, false), copy.toastFeaturedOff)
-    if (ok) setUnfeatureOpen(false)
+    if (ok) {
+      setUnfeatureOpen(false)
+      router.refresh()
+    }
   }
 
   async function handleArchive() {
@@ -150,6 +160,14 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
 
   return (
     <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
+      {content.status !== 'published' && !content.isFeatured ? (
+        <span
+          className="inline-flex shrink-0 items-center rounded-md border border-dashed border-border px-2.5 py-1 text-xs font-medium text-muted-foreground"
+          title={copy.featureNeedsPublished}
+        >
+          {copy.feature}
+        </span>
+      ) : (
       <button
         type="button"
         onClick={() => (content.isFeatured ? setUnfeatureOpen(true) : setFeatureOpen(true))}
@@ -163,6 +181,7 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
       >
         {content.isFeatured ? copy.featured : copy.feature}
       </button>
+      )}
 
       {menuItems.length > 0 && (
         <ActionMenu

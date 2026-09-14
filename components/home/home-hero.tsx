@@ -76,7 +76,7 @@ export function HomeHero({ featured, secondary, dict, locale, submitHref, photoS
                         ))
                     ) : (
                         <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
-                            {dict.common.comingSoon}
+                            {dict.home.heroRailEmpty}
                         </p>
                     )}
                 </aside>

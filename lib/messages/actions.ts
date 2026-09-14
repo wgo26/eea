@@ -4,6 +4,12 @@ import { revalidatePath } from 'next/cache'
 import { getSessionUser } from '@/lib/auth/guards'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// Buyer↔seller messaging tables. Renamed to listing_conversations (see
+// 20261005000000_listing_conversations_rename.sql) because hosted DBs already
+// own a legacy public.conversations table with an incompatible shape.
+const CONVERSATIONS_TABLE = 'listing_conversations'
+const MESSAGES_TABLE = 'listing_conversation_messages'
+
 export type ConversationSummary = {
   id: string
   contentItemId: string
@@ -66,7 +72,7 @@ export async function startConversation(
   if (!sellerId) return { ok: false, error: 'Seller not found.' }
   if (sellerId === user.id) return { ok: false, error: 'This is your own listing.' }
   const { data: existing } = await supabase
-    .from('conversations')
+    .from(CONVERSATIONS_TABLE)
     .select('id')
     .eq('content_item_id', contentItemId)
     .eq('buyer_id', user.id)
@@ -75,7 +81,7 @@ export async function startConversation(
   const found = ((existing ?? []) as { id: string }[])[0]
   if (found) return { ok: true, conversationId: found.id }
   const { data: created, error } = await supabase
-    .from('conversations')
+    .from(CONVERSATIONS_TABLE)
     .insert({ content_item_id: contentItemId, buyer_id: user.id, seller_id: sellerId })
     .select('id')
     .single()
@@ -87,11 +93,11 @@ export async function getInbox(): Promise<ConversationSummary[]> {
   const { supabase, user } = await getSessionUser()
   if (!user) return []
   const { data } = await supabase
-    .from('conversations')
+    .from(CONVERSATIONS_TABLE)
     .select(
       `id, content_item_id, updated_at,
        content:content_items(translations:content_translations(title)),
-       messages:conversation_messages(body, created_at)`,
+       messages:listing_conversation_messages(body, created_at)`,
     )
     .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
     .order('updated_at', { ascending: false })
@@ -120,7 +126,7 @@ export async function getThread(conversationId: string): Promise<ThreadDetail | 
   const { supabase, user } = await getSessionUser()
   if (!user) return null
   const { data: conv } = await supabase
-    .from('conversations')
+    .from(CONVERSATIONS_TABLE)
     .select(
       `id, content_item_id, buyer_id, seller_id,
        content:content_items(translations:content_translations(title))`,
@@ -143,7 +149,7 @@ export async function getThread(conversationId: string): Promise<ThreadDetail | 
   const tr = content?.translations
   const list = Array.isArray(tr) ? tr : tr ? [tr] : []
   const { data: msgs } = await supabase
-    .from('conversation_messages')
+    .from(MESSAGES_TABLE)
     .select('id, sender_id, body, created_at')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true })
@@ -169,7 +175,7 @@ export async function sendMessage(conversationId: string, body: string): Promise
   const { supabase, user } = await getSessionUser()
   if (!user) return { ok: false, error: 'Not authenticated.' }
   const { data: conv } = await supabase
-    .from('conversations')
+    .from(CONVERSATIONS_TABLE)
     .select('id, buyer_id, seller_id')
     .eq('id', conversationId)
     .limit(1)
@@ -177,13 +183,13 @@ export async function sendMessage(conversationId: string, body: string): Promise
   if (!row || (row.buyer_id !== user.id && row.seller_id !== user.id)) {
     return { ok: false, error: 'Conversation not found.' }
   }
-  const { error } = await supabase.from('conversation_messages').insert({
+  const { error } = await supabase.from(MESSAGES_TABLE).insert({
     conversation_id: conversationId,
     sender_id: user.id,
     body: text,
   })
   if (error) return { ok: false, error: error.message }
-  await supabase.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', conversationId)
+  await supabase.from(CONVERSATIONS_TABLE).update({ updated_at: new Date().toISOString() }).eq('id', conversationId)
   revalidatePath('/account/messages', 'page')
   return { ok: true }
 }
