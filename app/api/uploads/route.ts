@@ -105,7 +105,7 @@ export async function POST(request: Request) {
   // fails fast without a DB round-trip; this one holds across instances.
   const perIp = await checkRateLimitForKey(
     buildRateLimitKey('upload:ip', ip.slice(0, 64)),
-    { max: 40, windowMs: 60_000 },
+    { max: 40, windowMs: 60_000, policy: 'fail-closed' },
   )
   if (!perIp.ok) {
     return NextResponse.json(
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
   // distinct IPs still hits this.
   const perUser = await checkRateLimitForKey(
     buildRateLimitKey('upload:user', user.id),
-    { max: 40, windowMs: 3_600_000 },
+    { max: 40, windowMs: 3_600_000, policy: 'fail-closed' },
   )
   if (!perUser.ok) {
     return NextResponse.json(

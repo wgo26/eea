@@ -11,6 +11,7 @@ import {
   type BloggerPost,
 } from '@/lib/admin/blogger'
 import { syncContentTags } from '@/lib/admin/tags'
+import { sanitizeBodyHtml } from '@/lib/security/html'
 
 const LOCALES = ['en', 'fr'] as const
 
@@ -80,12 +81,19 @@ export async function importPosts(
       continue
     }
     // Normalize Blogger's div-per-line composer HTML into semantic paragraphs
-    // before storing (mirrors the CLI import; see lib/admin/blogger.ts).
-    const bodyHtml = normalizeBloggerBody(item.bodyHtml?.slice(0, 500_000) ?? '')
-    if (!bodyHtml.trim()) {
+    // before storing (mirrors the CLI import; see lib/admin/blogger.ts), then
+    // sanitize at ingestion: imported Blogger HTML is third-party content, so
+    // the parser-based allowlist strips active content BEFORE the body is
+    // stored (excerpt + image extraction below read the sanitized string).
+    // The public render boundaries re-sanitize — defense in depth.
+    const sanitizedBody = sanitizeBodyHtml(
+      normalizeBloggerBody(item.bodyHtml?.slice(0, 500_000) ?? ''),
+    )
+    if (!sanitizedBody?.trim()) {
       result.failed.push({ title, error: 'Empty post body.' })
       continue
     }
+    const bodyHtml = sanitizedBody
 
     try {
       // Preserve the source URL slug when the export provides it

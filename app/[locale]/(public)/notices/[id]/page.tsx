@@ -30,6 +30,7 @@ import { formatDate, getDictionary, resolveLocale } from "@/lib/i18n";
 import { verificationBadgeInfo } from "@/lib/verification";
 import { getNoticeById, getNotices, NOTICE_TYPE_LABELS } from "@/lib/queries/notices";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
+import { sanitizeBodyHtml } from "@/lib/security/html";
 
 type NoticePageProps = { params: Promise<{ locale: string; id: string }> };
 
@@ -71,6 +72,10 @@ export default async function NoticePage({ params }: NoticePageProps) {
 
     const notice = await getNoticeById(id, locale);
     if (!notice) notFound();
+
+    // Render-boundary sanitization — defense in depth over the ingestion-side
+    // sanitizer. Untrusted DB HTML must never reach dangerouslySetInnerHTML.
+    const bodyHtml = sanitizeBodyHtml(notice.body);
 
     const related = notice.noticeType
         ? (
@@ -164,11 +169,11 @@ export default async function NoticePage({ params }: NoticePageProps) {
                 </div>
             ) : null}
 
-            {notice.body ? (
+            {bodyHtml ? (
                 <section className="mt-10 max-w-4xl">
                     <div
                         className="prose prose-neutral dark:prose-invert max-w-none text-base leading-relaxed"
-                        dangerouslySetInnerHTML={{ __html: notice.body }}
+                        dangerouslySetInnerHTML={{ __html: bodyHtml }}
                     />
                 </section>
             ) : null}
@@ -371,7 +376,6 @@ export default async function NoticePage({ params }: NoticePageProps) {
                     <AdSlot
                         ad={null}
                         dict={dict}
-                        advertiseHref={localePath(locale, "/advertise")}
                         variant="rail"
                         className="lg:sticky lg:top-24"
                     />

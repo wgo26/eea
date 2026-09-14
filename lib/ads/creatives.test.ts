@@ -16,8 +16,9 @@ describe('ad creatives', () => {
 
   it('strips active content from HTML creatives', () => {
     expect(sanitizeCreativeHtml('<script>alert(1)</script><p>Hi</p>')).toBe('<p>Hi</p>');
-    expect(sanitizeCreativeHtml('<a href="javascript:alert(1)">x</a>')).toBe('<a href="#">x</a>');
-    expect(sanitizeCreativeHtml('<img src="x" onerror="alert(1)">')).toBe('<img src="x">');
+    // Unsafe schemes drop the attribute entirely (parser allowlist).
+    expect(sanitizeCreativeHtml('<a href="javascript:alert(1)">x</a>')).toBe('<a>x</a>');
+    expect(sanitizeCreativeHtml('<img src="x" onerror="alert(1)">')).toBe('<img src="x" />');
     expect(sanitizeCreativeHtml('just text')).toBeNull();
     expect(sanitizeCreativeHtml('')).toBeNull();
   });

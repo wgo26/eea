@@ -3,7 +3,7 @@ import { getDictionary } from "@/lib/i18n";
 import { getRequestLocale } from "@/lib/i18n/server";
 import { localePath, safeNextPath } from "@/lib/i18n/urls";
 import { SignupForm } from "./signup-form";
-import { enabledOAuthProviders } from "@/lib/auth/actions";
+import { enabledOAuthProviders } from "@/lib/auth/oauth";
 
 type Props = { searchParams: Promise<{ next?: string | string[] }> };
 

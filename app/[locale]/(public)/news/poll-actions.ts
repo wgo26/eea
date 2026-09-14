@@ -14,6 +14,10 @@ import { checkRateLimit } from "@/lib/security/rate-limit";
  * Per-IP fixed-window rate limiting (durable, migration 20260918000000) keeps
  * ballot-stuffing scripts from cycling tokens at wire speed. A limited request
  * surfaces as the generic "error" reason in the poll card UI.
+ *
+ * fail-closed: a vote is a write, so a limiter outage must not become an
+ * unlimited ballot-stuffing window. This matches `lib/security/rate-limit.ts`
+ * (policy: "fail-closed" on credential, write and spend surfaces).
  */
 export async function submitPollVote(
     pollId: string,
@@ -26,6 +30,7 @@ export async function submitPollVote(
     const limited = await checkRateLimit("public:poll-vote", {
         max: 8,
         windowMs: 10 * 60_000,
+        policy: "fail-closed",
     });
     if (!limited.ok) {
         return { ok: false as const, reason: "error" as const };

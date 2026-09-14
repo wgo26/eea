@@ -133,34 +133,59 @@ repository alone:
 
 ## Scheduled jobs (cron)
 
-`vercel.json` declares two nightly jobs, but Vercel crons only fire on Vercel —
-**not** on Hostinger Business Node.js hosting. Schedule both endpoints
+`vercel.json` declares **five** jobs, but Vercel crons only fire on Vercel —
+**not** on Hostinger Business Node.js hosting. All five must be scheduled
 externally:
 
 | Endpoint | Schedule (UTC) | Purpose |
 |---|---|---|
 | `POST/GET https://eagleeyeafrica.org/api/cron/storage-backup?batch=100` | 02:00 daily | R2 + Supabase Storage → Backblaze B2 delta backup |
 | `POST/GET https://eagleeyeafrica.org/api/cron/db-maintenance` | 02:30 daily | Rate-limit purge, DB telemetry, schema integrity verification (500 = alert) |
+| `POST/GET https://eagleeyeafrica.org/api/cron/ops-digest` | 06:00 daily | Post a queue summary (moderation/legal-inbox/ads/storage) to `DIGEST_WEBHOOK_URL`; 200 `{skipped:true}` when unset |
+| `POST/GET https://eagleeyeafrica.org/api/cron/notify` | `*/15 * * * *` | Drain the notification outbox → in-app / email / WhatsApp |
+| `POST/GET https://eagleeyeafrica.org/api/cron/reminders` | `0 * * * *` hourly | Deliver due event "remind me" rows via the outbox |
 
 Authentication: send `Authorization: Bearer <CRON_SECRET>` (the value from
 hPanel's env vars). Missing/wrong secret → 401; the endpoints fail closed in
-production.
+production (500 when `CRON_SECRET` is unset in production).
 
 Options, in order of preference:
 
 1. **GitHub Actions scheduled workflow — already in this repo:**
-   `.github/workflows/scheduled-jobs.yml` fires both endpoints nightly
-   (02:00 / 02:30 UTC) once the `CRON_SECRET` repo secret is set, and supports
-   manual runs from the Actions tab. Zero extra infrastructure, auditable
-   runs, and it works even when no one is pushing.
-2. **External cron service** (e.g. cron-job.org) hitting both URLs with the
+   `.github/workflows/scheduled-jobs.yml` fires **all five** endpoints on the
+   schedules above once the `CRON_SECRET` repo secret is set, and supports
+   manual runs from the Actions tab (`workflow_dispatch`). Zero extra
+   infrastructure, auditable runs, and it works even when no one is pushing.
+   It also runs an hourly **watchdog** (10 min past the hour) that fails the
+   run — raising a GitHub failure email — when no *scheduled* run of the
+   workflow has succeeded in the last 3 hours. Because `notify` runs every 15
+   minutes, that 3-hour gap means the outbox has stalled.
+2. **External cron service** (e.g. cron-job.org) hitting all five URLs with the
    bearer header. Simple, but the secret lives with a third party.
 3. **Upgrade to a VPS** — real crontab/systemd timers, plus full control of
    the runtime. Choose this if the Business plan pre-flight below fails.
 
+### Ownership and known scheduler limits
+
+- **Owner:** the release engineer on call owns the schedule. A failed run in
+  the Actions tab is a production incident for `notify` and `reminders`
+  (users stop receiving mail/WhatsApp) and a data-safety incident for
+  `storage-backup`.
+- GitHub Actions schedules can be delayed ~15–30+ minutes under load, and
+  **GitHub auto-disables scheduled workflows after 60 days without repository
+  activity** — which also silences the watchdog. To close that hole, pair the
+  watchdog with an external uptime monitor pointed at `/api/ready` (see
+  `docs/observability.md`) and keep at least one commit per quarter.
+- `ops-digest` is the moderation-loop watchdog: if it stops, unmoderated queue
+  depth grows unnoticed. Keep `DIGEST_WEBHOOK_URL` set in production so the
+  digest is never a silent no-op.
+
 ## Supabase migrations
 
-Apply all 23 migrations from `supabase/migrations/` in filename order:
+Apply all 43 migrations from `supabase/migrations/` in filename order
+(`scripts/verify-migrations.mjs`, wired into `npm run check`, gates the build on
+filename format, duplicate timestamps, and empty files — it reports the count
+but does not enforce a specific number):
 
 - Preferred: Supabase CLI — `supabase link --project-ref <ref>`, then
   `supabase db push` (records applied versions in `supabase_migrations`).

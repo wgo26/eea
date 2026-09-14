@@ -262,7 +262,9 @@ function cleanLocale(v: unknown): 'en' | 'fr' {
 export async function subscribeDigest(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   try {
     if (honeypotTripped(formData)) return { ok: true };
-    const limited = await checkRateLimit('public:digest', { max: 5, windowMs: 10 * 60_000 });
+    // fail-closed: subscribe sends mail to an arbitrary address (email-bombing
+    // surface) and writes a subscriber row.
+    const limited = await checkRateLimit('public:digest', { max: 5, windowMs: 10 * 60_000, policy: 'fail-closed' });
     if (!limited.ok) return { ok: false, error: 'rate_limited' };
     const token = formData.get('cf-turnstile-response');
     if (!(await verifyTurnstileToken(typeof token === 'string' ? token : null))) {
@@ -307,7 +309,9 @@ export async function subscribeDigest(_prev: ActionResult, formData: FormData): 
 export async function unsubscribeDigest(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   try {
     if (honeypotTripped(formData)) return { ok: true };
-    const limited = await checkRateLimit('public:digest-unsub', { max: 5, windowMs: 10 * 60_000 });
+    // fail-closed: mutates a subscriber row; an outage must not allow an
+    // unthrottled enumeration of subscriber addresses.
+    const limited = await checkRateLimit('public:digest-unsub', { max: 5, windowMs: 10 * 60_000, policy: 'fail-closed' });
     if (!limited.ok) return { ok: false, error: 'rate_limited' };
     const email = cleanEmail(formData.get('email'));
     if (!email) return { ok: false, error: 'invalid' };

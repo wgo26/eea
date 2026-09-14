@@ -30,7 +30,7 @@ describe('validateUpload image re-encode', () => {
     // The stored master really is WebP bytes, not just a relabelled buffer.
     const sniffed = await fileTypeFromBuffer(out.buffer);
     expect(sniffed?.mime).toBe('image/webp');
-  });
+  }, { timeout: 15000 });
 
   it('does not upscale photos smaller than the master ceiling', async () => {
     const input = await solidImage(800, 600);

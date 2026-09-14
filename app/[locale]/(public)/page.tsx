@@ -98,7 +98,7 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
                 photoStoriesHref={p("/photo-stories")}
             />
 
-            <AdSlot ad={data.ads.banner} dict={dict} advertiseHref={p("/advertise")} variant="banner" />
+            <AdSlot ad={data.ads.banner} dict={dict} variant="banner" />
 
             {/* Quick navigation into every vertical (spec §1A — hub, not destination) */}
             <ExploreTiles
@@ -135,7 +135,6 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
                     <AdSlot
                         ad={data.ads.rail}
                         dict={dict}
-                        advertiseHref={p("/advertise")}
                         variant="rail"
                         className="lg:sticky lg:top-24"
                     />
@@ -168,7 +167,7 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
             </section>
 
             {/* Inline ad — mid page (spec §11) */}
-            {data.ads.inlineMid ? <AdSlot ad={data.ads.inlineMid} dict={dict} advertiseHref={p("/advertise")} variant="strip" /> : null}
+            {data.ads.inlineMid ? <AdSlot ad={data.ads.inlineMid} dict={dict} variant="strip" /> : null}
 
             {/* Notices + Buy & Sell previews (One Community Board, Diff. #4) */}
             {data.notices.length > 0 || data.listings.length > 0 ? (
@@ -214,7 +213,7 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
             </section> : null}
 
             {/* Inline ad — before the participation loop CTA (spec §11) */}
-            {data.ads.inlineBottom ? <AdSlot ad={data.ads.inlineBottom} dict={dict} advertiseHref={p("/advertise")} variant="strip" /> : null}
+            {data.ads.inlineBottom ? <AdSlot ad={data.ads.inlineBottom} dict={dict} variant="strip" /> : null}
 
             <SubmitCta dict={dict} submitHref={p("/submit")} />
         </div>

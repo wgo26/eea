@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 type AdSlotProps = {
   ad: AdCreative | null;
   dict: Dictionary;
-  advertiseHref: string;
   /** "banner" = main leaderboard; "strip" = slim inline band; "rail" = tall sidebar; "inline-bottom" = bottom-of-section placement. */
   variant: "banner" | "rail" | "strip" | "inline-bottom";
   className?: string;
@@ -96,8 +95,11 @@ function DestinationLink({
   );
 }
 
-/** Ad placement (spec §11). Falls back to an "advertise with us" placeholder. */
-export function AdSlot({ ad, dict, advertiseHref, variant, className }: AdSlotProps) {
+/**
+ * Ad placement (spec §11). Renders nothing while inventory is empty — a
+ * repeated "your ad here" placeholder makes the site read as unfinished.
+ */
+export function AdSlot({ ad, dict, variant, className }: AdSlotProps) {
   // Empty inventory is intentionally invisible. A repeated "your ad here"
   // placeholder makes the reader experience feel unfinished and competes with
   // editorial content before there is a real campaign to show.

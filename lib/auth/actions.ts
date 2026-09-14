@@ -7,6 +7,7 @@ import { localePath, safeNextPath } from '@/lib/i18n/urls'
 import { checkRateLimit } from '@/lib/security/rate-limit'
 import { verifyTurnstileToken } from '@/lib/security/turnstile'
 import { SITE } from '@/lib/constants'
+import { enabledOAuthProviders, type OAuthProvider } from '@/lib/auth/oauth'
 
 /**
  * Signs the user out and lands them on the localized homepage.
@@ -108,7 +109,9 @@ export async function signInWithPassword(
 
   // Abuse gate (durable per-IP limiter + Turnstile when configured) — brute
   // force is also throttled by Supabase's own auth rate limits.
-  const limited = await checkRateLimit('auth:login', { max: 10, windowMs: 10 * 60_000 })
+  // fail-closed: credential surface — an outage must not become an unlimited
+  // password-guessing window.
+  const limited = await checkRateLimit('auth:login', { max: 10, windowMs: 10 * 60_000, policy: 'fail-closed' })
   if (!limited.ok) return { ok: false, error: 'rate_limited' }
   const turnstileToken = formData.get('cf-turnstile-response')
   if (!(await verifyTurnstileToken(typeof turnstileToken === 'string' ? turnstileToken : null))) {
@@ -165,7 +168,8 @@ export async function signUpWithPassword(
 
   // Abuse gate: durable per-IP limiter + Turnstile when configured. Signup
   // floods also burn Supabase SMTP quota, so this gate runs before signUp().
-  const limited = await checkRateLimit('auth:signup', { max: 5, windowMs: 60 * 60_000 })
+  // fail-closed: signup writes an account and sends confirmation mail.
+  const limited = await checkRateLimit('auth:signup', { max: 5, windowMs: 60 * 60_000, policy: 'fail-closed' })
   if (!limited.ok) return { ok: false, error: 'rate_limited' }
   const turnstileToken = formData.get('cf-turnstile-response')
   if (!(await verifyTurnstileToken(typeof turnstileToken === 'string' ? turnstileToken : null))) {
@@ -209,24 +213,13 @@ export async function signUpWithPassword(
 /* ------------------------------------------------------------------ */
 
 /**
- * OAuth providers offered on the login/signup forms. Providers must ALSO be
- * enabled in the Supabase dashboard (Authentication → Providers) with this
- * app's `/auth/callback` URL allow-listed — env-gating here only controls
- * whether the buttons render, so an unconfigured dashboard never shows a
- * dead button. Set NEXT_PUBLIC_OAUTH_PROVIDERS=google to enable.
- */
-const OAUTH_PROVIDERS = ['google'] as const
-export type OAuthProvider = (typeof OAUTH_PROVIDERS)[number]
-
-export function enabledOAuthProviders(): OAuthProvider[] {
-  const raw = (process.env.NEXT_PUBLIC_OAUTH_PROVIDERS ?? '').toLowerCase()
-  return OAUTH_PROVIDERS.filter((p) => raw.split(/[,\s]+/).includes(p))
-}
-
-/**
  * Start an OAuth flow: resolves the provider URL and redirects the browser
  * there. The provider returns to /auth/callback, which lands in the
  * role-aware interstitial like password logins.
+ *
+ * Provider config lives in `lib/auth/oauth.ts` (a plain module) because this
+ * file's module-level `'use server'` directive requires every export here to
+ * be an async action.
  */
 export async function signInWithOAuth(provider: OAuthProvider, next?: string): Promise<void> {
   if (!enabledOAuthProviders().includes(provider)) {

@@ -5,8 +5,18 @@
 # secrets: CRON_SECRET (Bearer token). Optional repo variable: PRODUCTION_URL
 # (defaults to the production domain below).
 #
-# GitHub emails the repo's watch settings recipients when a run fails — treat
-# a failed run as an ops outage, not noise.
+# All FIVE cron endpoints are covered here (the vercel.json entries never fire
+# off Vercel):
+#   storage-backup 02:00 · db-maintenance 02:30 · ops-digest 06:00
+#   notify */15 · reminders hourly
+# plus an hourly WATCHDOG that fails (→ GitHub failure email) when no run of
+# this workflow has succeeded in the last 3 hours — that is the missed-run
+# alert for the */15 notify worker.
+#
+# Known limits (document in the ops runbook): GitHub Actions schedules can be
+# delayed ~15–30+ min under load, and GitHub auto-disables scheduled workflows
+# after 60 days without repo activity — which also silences this watchdog.
+# Pair with an external uptime monitor on /api/ready (docs/observability.md).
 
 name: Scheduled jobs
 
@@ -16,6 +26,8 @@ on:
     - cron: "30 2 * * *"  # 02:30 UTC — db maintenance
     - cron: "0 6 * * *"   # 06:00 UTC — ops digest
     - cron: "*/15 * * * *"  # every 15 min — notification outbox worker
+    - cron: "0 * * * *"   # hourly — event reminders
+    - cron: "10 * * * *"  # hourly (offset) — scheduler watchdog
   workflow_dispatch:
     inputs:
       job:
@@ -28,6 +40,8 @@ on:
           - db-maintenance
           - ops-digest
           - notify
+          - reminders
+          - watchdog
           - both
 
 permissions: {}
@@ -110,3 +124,58 @@ jobs:
           echo "HTTP $code from $url"
           cat /tmp/out.txt
           test "$code" = "200"
+
+  reminders:
+    name: Event reminders (hourly due-reminder worker)
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '0 * * * *')
+      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'reminders' || inputs.job == 'both'))
+    steps:
+      - name: Call reminders endpoint
+        run: |
+          set -euo pipefail
+          url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/reminders"
+          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "$url")
+          echo "HTTP $code from $url"
+          cat /tmp/out.txt
+          # 500 when CRON_SECRET is unset in production; 401 on a bad token.
+          test "$code" = "200"
+
+  # Missed-run alert. Every 15 minutes the notify worker should succeed, so a
+  # 3-hour gap in *successful scheduled* runs of this workflow means the notify
+  # outbox is stalling (or GitHub silently disabled the schedule). This job
+  # fails to raise the GitHub failure email; pair it with the external uptime
+  # monitor on /api/ready for the case where Actions itself stops running.
+  watchdog:
+    name: Scheduler watchdog (missed-run alert)
+    runs-on: ubuntu-latest
+    # Top-level `permissions: {}` denies everything, so this job opts back into
+    # the one scope it needs to read its own workflow runs.
+    permissions:
+      actions: read
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '10 * * * *')
+      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'watchdog' || inputs.job == 'both'))
+    steps:
+      - name: Fail when no scheduled run has succeeded in 3 hours
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          max_age=$((3 * 3600))
+          api="repos/${{ github.repository }}/actions/workflows/scheduled-jobs.yml/runs"
+          last=$(gh api "$api?status=success&event=schedule&per_page=1" \
+            --jq '.workflow_runs[0].updated_at // ""')
+          if [ -z "$last" ]; then
+            echo "::error::No successful scheduled run of this workflow on record — scheduler never ran or secret/vars are misconfigured."
+            exit 1
+          fi
+          age=$(( $(date -u +%s) - $(date -u -d "$last" +%s) ))
+          echo "last successful scheduled run: $last (${age}s ago, limit ${max_age}s)"
+          if [ "$age" -gt "$max_age" ]; then
+            echo "::error::Scheduled jobs have not succeeded in $((age / 3600))h — check GitHub Actions schedule state (auto-disabled after 60 days of repo inactivity?) and /api/ready."
+            exit 1
+          fi

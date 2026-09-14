@@ -3,28 +3,64 @@ import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { storageConfig } from '@/lib/storage/config'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
+import { bearerMatches } from '@/lib/security/secrets'
 
 export const dynamic = 'force-dynamic'
+// lib/security/secrets.ts uses node:crypto and @aws-sdk needs Node APIs.
+export const runtime = 'nodejs'
 
 /**
- * Phase 3.3 — Readiness probe (audit §5.2).
- * Verifies database + object-storage connectivity before production traffic
- * is routed. Returns 200 `ready` only when every check passes, else 503
- * `degraded` with per-check detail so monitors can alert on the cause.
+ * Phase 3.3 — Readiness probe (audit §5.2), hardened per audit P1.
+ *
+ * Verifies database + object-storage connectivity before production traffic is
+ * routed. Returns 200 `ready` only when every check passes, else 503 `degraded`.
  *
  * Checks:
- *   - environment: required env vars present (Supabase, R2, B2).
+ *   - environment: required env vars present (Supabase, R2).
  *   - database: SELECT 1 against content_items via service role.
  *   - storage/supabase: list 1 object in the admin-asset bucket.
  *   - storage/r2: ListObjectsV2 MaxKeys=1 (no body download).
  * B2 is intentionally excluded: it is a cold mirror, not a serving path —
  * its health is covered by the backup verify job, not traffic routing.
+ *
+ * ## Disclosure model
+ * This route is reachable by anyone. Public callers receive ONLY the status
+ * code, a timestamp and a correlation ID — never the check names, the missing
+ * environment-variable names, or raw driver error strings, which previously
+ * told an anonymous prober exactly which secrets were unset. Callers presenting
+ * the probe secret (`READY_PROBE_SECRET`, falling back to `CRON_SECRET`) get
+ * full per-check detail so an alert can name the failing dependency.
+ *
+ * ## Cost control
+ * Each probe makes four live dependency round-trips, so an anonymous caller
+ * could otherwise force unbounded DB/storage load by looping this endpoint.
+ * Results are reused for PROBE_TTL_MS and concurrent callers share one
+ * in-flight probe. The cache is per server instance (module scope), which
+ * bounds the drain rate to one probe per instance per TTL without shared state.
  */
 
 interface CheckOutcome {
   ok: boolean
   latencyMs: number
   detail?: string
+}
+
+interface ProbeResult {
+  isReady: boolean
+  checks: Record<string, CheckOutcome>
+  durationMs: number
+  timestamp: string
+}
+
+/** How long a completed probe is reused before re-checking dependencies. */
+const PROBE_TTL_MS = 15_000
+
+let cachedProbe: { completedAt: number; result: ProbeResult } | null = null
+let probeInFlight: Promise<ProbeResult> | null = null
+
+/** Secret that unlocks per-check detail. Never read by the public path. */
+function probeSecret(): string | undefined {
+  return process.env.READY_PROBE_SECRET ?? process.env.CRON_SECRET
 }
 
 async function timed<T>(fn: () => Promise<T>): Promise<{ result: T | null; latencyMs: number; error: string | null }> {
@@ -37,9 +73,8 @@ async function timed<T>(fn: () => Promise<T>): Promise<{ result: T | null; laten
   }
 }
 
-export async function GET() {
+async function runProbe(): Promise<ProbeResult> {
   const startedAt = Date.now()
-  const correlationId = generateCorrelationId()
   const timestamp = new Date().toISOString()
 
   const envMissing: string[] = []
@@ -103,14 +138,86 @@ export async function GET() {
 
   const checks = { environment, database, supabaseStorage, r2Storage }
   const isReady = Object.values(checks).every((c) => c.ok)
-  const durationMs = Date.now() - startedAt
 
-  if (!isReady) {
-    logger.warn('ready', 'readiness degraded', { correlationId, durationMs, checks })
+  return { isReady, checks, durationMs: Date.now() - startedAt, timestamp }
+}
+
+/**
+ * Returns a probe result, reusing a recent one unless `forceFresh` is set.
+ *
+ * Single-flight: concurrent callers await the same in-flight probe instead of
+ * each starting one, so a burst of anonymous requests (or a retrying monitor)
+ * costs exactly one set of dependency round-trips.
+ */
+async function getProbeResult(forceFresh: boolean): Promise<ProbeResult> {
+  if (!forceFresh && cachedProbe && Date.now() - cachedProbe.completedAt < PROBE_TTL_MS) {
+    return cachedProbe.result
+  }
+  if (probeInFlight) return probeInFlight
+
+  const pending = runProbe()
+    .then((result) => {
+      cachedProbe = { completedAt: Date.now(), result }
+      return result
+    })
+    .finally(() => {
+      // Cleared in `finally` so a throwing probe cannot wedge the cache forever.
+      probeInFlight = null
+    })
+
+  probeInFlight = pending
+  return pending
+}
+
+export async function GET(request: Request): Promise<NextResponse> {
+  const correlationId = generateCorrelationId()
+  const authorized = bearerMatches(request.headers.get('authorization'), probeSecret())
+  // `?fresh=1` is an authenticated-only escape hatch: letting anonymous callers
+  // bypass PROBE_TTL_MS would hand back the unbounded-probe drain this cache
+  // exists to prevent.
+  const forceFresh =
+    authorized && new URL(request.url).searchParams.get('fresh') === '1'
+
+  const noStore = { 'Cache-Control': 'no-store' } as const
+
+  let result: ProbeResult
+  try {
+    result = await getProbeResult(forceFresh)
+  } catch (error) {
+    logger.error('ready', 'readiness probe threw', { correlationId, error })
+    return NextResponse.json(
+      { status: 'degraded', timestamp: new Date().toISOString(), correlationId },
+      { status: 503, headers: noStore },
+    )
   }
 
-  return NextResponse.json(
-    { status: isReady ? 'ready' : 'degraded', checks, durationMs, timestamp, correlationId },
-    { status: isReady ? 200 : 503 },
-  )
+  const status = result.isReady ? 200 : 503
+
+  if (!result.isReady) {
+    // Logged per degradation, not per request, but correlated to the caller so
+    // an alert can be matched to the response the monitor saw.
+    logger.warn('ready', 'readiness degraded', {
+      correlationId,
+      durationMs: result.durationMs,
+      checks: result.checks,
+    })
+  }
+
+  // Public callers get the verdict and a correlation ID only. Check names,
+  // missing env-var names and driver errors are behind the probe secret.
+  const body = authorized
+    ? {
+        status: result.isReady ? 'ready' : 'degraded',
+        checks: result.checks,
+        durationMs: result.durationMs,
+        timestamp: result.timestamp,
+        correlationId,
+      }
+    : {
+        status: result.isReady ? 'ready' : 'degraded',
+        timestamp: result.timestamp,
+        correlationId,
+      }
+
+  return NextResponse.json(body, { status, headers: noStore })
 }

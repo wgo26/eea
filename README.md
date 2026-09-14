@@ -124,20 +124,23 @@ Copy `.env.example` → `.env.local` and fill in the values. Never commit real s
 
 ## Scheduled jobs
 
-Three `CRON_SECRET`-guarded endpoints are declared in `vercel.json` (the third
-is also triggered from GitHub Actions on Hostinger — see §Hosting note):
+**Five** `CRON_SECRET`-guarded endpoints are declared in `vercel.json`:
 
 | Endpoint | Schedule (UTC) | Purpose |
 |---|---|---|
 | `/api/cron/storage-backup?batch=100` | 02:00 daily | Delta-sync R2 + Supabase Storage → Backblaze B2, checksum-verified |
 | `/api/cron/db-maintenance` | 02:30 daily | Purge stale rate-limit buckets, report DB telemetry, verify schema integrity (500 = alert) |
 | `/api/cron/ops-digest` | 06:00 daily | Post a queue summary (moderation/legal-inbox/ads/storage) to the configured webhook — the moderation-loop watchdog |
+| `/api/cron/notify` | every 15 min | Drain the notification outbox → in-app / email / WhatsApp |
+| `/api/cron/reminders` | hourly | Deliver due event "remind me" rows through the outbox |
 
 **Hosting note:** `vercel.json` crons only fire on Vercel. On the Hostinger/VPS
-deployment, schedule the endpoints with a systemd timer or crontab, and the
-storage-backup + db-maintenance endpoints are also invoked nightly by
+deployment, **all five** endpoints are invoked by
 [`.github/workflows/scheduled-jobs.yml`](.github/workflows/scheduled-jobs.yml)
-(needs the `CRON_SECRET` repo secret). See `deploy/hostinger-business.md`.
+(needs the `CRON_SECRET` repo secret), which also runs an hourly watchdog that
+fails when no scheduled run has succeeded in 3 hours — a stalled `notify`
+outbox raises a GitHub failure email. Alternatively use a systemd timer or
+crontab. See `deploy/hostinger-business.md`.
 
 ## Deployment
 

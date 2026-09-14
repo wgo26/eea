@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { cspFromEnv } from "./lib/security/csp";
 
 type RemoteImagePattern = { protocol: "http" | "https"; hostname: string };
 
@@ -34,18 +35,8 @@ const storagePatterns: RemoteImagePattern[] = [
 
 const nextConfig: NextConfig = {
   async headers() {
-    const cspDirectives = [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "img-src 'self' data: blob: https:",
-      "font-src 'self' https://fonts.gstatic.com data:",
-      "connect-src 'self' https://*.supabase.co https://challenges.cloudflare.com https:",
-      "frame-src 'self' https://challenges.cloudflare.com",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-    ].join("; ");
+    // CSP is built by lib/security/csp.ts (pure + unit-tested). Audit P0-3.
+    const cspDirectives = cspFromEnv();
 
     return [
       {

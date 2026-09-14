@@ -1,6 +1,7 @@
 "use client";
 
-import { signInWithOAuth, type OAuthProvider } from "@/lib/auth/actions";
+import { signInWithOAuth } from "@/lib/auth/actions";
+import type { OAuthProvider } from "@/lib/auth/oauth";
 
 type OAuthCopy = {
     orContinueWith: string;

@@ -11,6 +11,7 @@ import { validateContentDraft, type ContentDraftInput } from './content-validati
 import { syncContentTags } from '@/lib/admin/tags'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isAdFormat, sanitizeCreativeHtml, validateCreative, type AdFormat } from '@/lib/ads/creatives'
+import { sanitizeBodyHtml } from '@/lib/security/html'
 import { enqueueUser, listingNotifyTarget, submissionNotifyTarget } from '@/lib/notify/queue'
 
 export type { ContentDraftInput } from './content-validation'
@@ -275,7 +276,10 @@ async function upsertTranslations(
       voice: 'formal',
       title: t.title?.trim() || null,
       excerpt: t.excerpt?.trim() || null,
-      body: t.body?.trim() || null,
+      // Ingestion-side sanitization (parser-based allowlist — defense in
+      // depth; every public render boundary re-sanitizes): bodies may carry
+      // editorial HTML (Blogger imports, rich pastes).
+      body: (t.body?.trim() ? sanitizeBodyHtml(t.body.trim()) : null) ?? null,
     }
     if (t.seoDescription !== undefined) payload.seo_description = t.seoDescription?.trim() || null
     if (t.byline !== undefined) payload.byline = t.byline?.trim() || null

@@ -14,6 +14,7 @@ import { SITE } from "@/lib/constants";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getCultureBySlug, getCultureArticles } from "@/lib/queries/culture";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
+import { sanitizeBodyHtml } from "@/lib/security/html";
 
 type Props = {
     params: Promise<{ locale: string; slug: string }>;
@@ -47,6 +48,11 @@ export default async function CultureDetailPage({ params }: Props) {
 
     const article = await getCultureBySlug(slug, locale);
     if (!article) notFound();
+
+    // Render-boundary sanitization — defense in depth over the ingestion-side
+    // sanitizer (Blogger import + admin save). Untrusted DB HTML must never
+    // reach dangerouslySetInnerHTML un-parsed.
+    const bodyHtml = sanitizeBodyHtml(article.body);
 
     const shareUrl = `${SITE.url}${localePath(locale, `/culture/${article.slug}`)}`;
 
@@ -241,10 +247,10 @@ export default async function CultureDetailPage({ params }: Props) {
                 ) : null}
 
                 {/* Article body */}
-                {article.body ? (
+                {bodyHtml ? (
                     <div
                         className="prose prose-neutral dark:prose-invert max-w-none"
-                        dangerouslySetInnerHTML={{ __html: article.body }}
+                        dangerouslySetInnerHTML={{ __html: bodyHtml }}
                     />
                 ) : null}
 

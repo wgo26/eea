@@ -80,7 +80,9 @@ async function guardPublicSubmission(
     formData: FormData,
 ): Promise<SubmitState | null> {
     if (honeypotTripped(formData)) return { ok: true };
-    const limited = await checkRateLimit(scope, limits);
+    // fail-closed: these paths write rows and send mail on behalf of a guest, so
+    // a limiter outage must block rather than allow unlimited submissions.
+    const limited = await checkRateLimit(scope, { ...limits, policy: "fail-closed" });
     if (!limited.ok) return { ok: false, error: "rate_limited" };
     const tokenValue = formData.get("cf-turnstile-response");
     if (!(await verifyTurnstileToken(typeof tokenValue === "string" ? tokenValue : null))) {
@@ -522,7 +524,10 @@ export async function submitContentReport(input: {
     if (!REPORT_TYPES.includes(input.reportType as (typeof REPORT_TYPES)[number])) {
         return { ok: false, error: "Unknown report reason." };
     }
-    const limited = await checkRateLimit("public:report", RATE_LIMITS.report);
+    const limited = await checkRateLimit("public:report", {
+        ...RATE_LIMITS.report,
+        policy: "fail-closed",
+    });
     if (!limited.ok) return { ok: false, error: "Too many reports. Please try again later." };
     if (!(await verifyTurnstileToken(input.turnstileToken ?? null))) {
         return { ok: false, error: "Please complete the human-verification step." };
@@ -619,7 +624,10 @@ export async function revealSellerContact(listingId: string): Promise<RevealCont
         return { ok: false, error: "not_found" };
     }
 
-    const limited = await checkRateLimit("public:reveal_contact", RATE_LIMITS.revealContact);
+    const limited = await checkRateLimit("public:reveal_contact", {
+        ...RATE_LIMITS.revealContact,
+        policy: "fail-closed",
+    });
     if (!limited.ok) {
         return { ok: false, error: "rate_limited" };
     }

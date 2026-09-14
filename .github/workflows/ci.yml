@@ -69,6 +69,20 @@ jobs:
       - name: Migration manifest verification
         run: node scripts/verify-migrations.mjs
 
+      # Audit §1.2 — the Hostinger target cannot fire vercel.json crons, so
+      # .github/workflows/scheduled-jobs.yml is the real scheduler. Guards the
+      # class of bug where an endpoint is deployed but never scheduled (how
+      # /api/cron/reminders silently stopped firing) and duplicate job gates.
+      - name: Cron manifest verification (vercel.json ⇄ scheduled-jobs.yml)
+        run: node scripts/verify-crons.mjs
+
+      # Audit — a module-level `'use server'` file may only export async
+      # functions. A sync export breaks `next build` ("Server Actions must be
+      # async functions") and is invisible to tsc/eslint/vitest, so it needs a
+      # dedicated gate instead of waiting for the build to fail.
+      - name: Server Action export verification
+        run: node scripts/verify-server-actions.mjs
+
       # Phase 5.1 — audit §6.1's `supabase db lint`. Needs a live database, so
       # it runs only when the SUPABASE_DB_URL secret is configured; otherwise
       # the run skips with a notice instead of failing.

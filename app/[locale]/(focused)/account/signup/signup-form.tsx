@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { signUpWithPassword, type AuthState, type OAuthProvider } from "@/lib/auth/actions";
+import { signUpWithPassword, type AuthState } from "@/lib/auth/actions";
+import type { OAuthProvider } from "@/lib/auth/oauth";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import type { Dictionary } from "@/lib/i18n";

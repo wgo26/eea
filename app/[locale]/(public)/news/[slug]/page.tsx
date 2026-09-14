@@ -41,7 +41,7 @@ import {
 import { getAdForSlot } from "@/lib/queries/ads";
 import { isFeatureEnabled } from "@/lib/features";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
-import { sanitizeBodyHtml } from "@/lib/security/html";
+import { sanitizeBodyHtml, escapeJsonForLd } from "@/lib/security/html";
 import { extractHeadings, extractPullQuote, hasDropCapLead, withHeadingAnchors } from "@/lib/news/article-body";
 
 type NewsPageProps = { params: Promise<{ locale: string; slug: string }> };
@@ -163,7 +163,10 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
     return (
         <>
         <ReadingProgress targetId="article-body" />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+        <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: escapeJsonForLd(jsonLd) }}
+      />
         <article className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
             <ContentBreadcrumb
                 locale={locale}
@@ -534,7 +537,6 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                     <AdSlot
                         ad={railAd}
                         dict={dict}
-                        advertiseHref={localePath(locale, "/advertise")}
                         variant="rail"
                         className="lg:sticky lg:top-24"
                     />

@@ -65,6 +65,58 @@ storage-bucket policies, automated backups, and secret rotation. If a secret
 may have leaked, rotate it immediately and record the rotation in the deploy
 checklist.
 
+## Secret rotation runbook
+
+`deploy/hostinger-business.md` records that the **service-role key leaked at some
+point during setup**. Rotation cannot be verified from source — it is a dashboard
+action — so treat this runbook as the completing step and record the date here
+when it is done. If you cannot prove a rotation happened, the secret is assumed
+compromised and must be rotated.
+
+Rotate every credential below, then redeploy. Anything that only lives in a
+dashboard (auth policies, bucket rules) must be re-checked against these new
+values at the same time.
+
+| Secret (env var) | Where it is issued | Where it is consumed | Rotation blast radius |
+|---|---|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API | server-only admin client (`lib/supabase/admin.ts`), backup/maintenance crons, readiness probe | Full DB bypass of RLS. Highest priority. |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | Cloudflare dashboard → R2 → API tokens | upload pipeline, media proxy, storage backup | Object read/write on the public media bucket. |
+| `B2_KEY_ID` / `B2_APPLICATION_KEY` | Backblaze B2 → Application Keys | `storage-backup` cron (off-site copies) | Read/write on the backup bucket. |
+| `SMTP_USER` / `SMTP_PASS` | Mail provider (same host as Supabase custom SMTP) | notification emails (`lib/notify/`) | Send-as-the-domain abuse, deliverability damage. |
+| `DIGEST_WEBHOOK_URL` | Discord/Slack incoming webhook | `ops-digest` cron | Anyone with the URL can post into the ops channel. |
+| `CRON_SECRET` | Self-generated (`openssl rand -hex 32`) | all five `/api/cron/*` handlers + GitHub Actions secret | Unauthenticated cron triggers (backups, maintenance, mail blasts). |
+| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile | signup/login/submission challenge verification | Captcha bypass on the abuse-sensitive forms. |
+
+**Procedure**
+
+1. Issue the new credential in the provider dashboard (do not revoke yet).
+2. Update the value in the Hostinger environment for the app **and** in GitHub
+   Actions repository secrets (`Settings → Secrets and variables → Actions`) for
+   anything the scheduled workflows use — currently `CRON_SECRET`,
+   `SUPABASE_SERVICE_ROLE_KEY`, and the storage/backup keys.
+3. Redeploy, then confirm health: `GET /api/ready` (authenticated/detailed view)
+   and a manual `workflow_dispatch` run of each job in
+   `.github/workflows/scheduled-jobs.yml`.
+4. Revoke the old credential in the provider dashboard. Revocation is the step
+   that actually closes the exposure — updating without revoking leaves the leak
+   live.
+5. Record the rotation (secret, date, operator) in the table below.
+6. If a secret was ever committed to git, rotate it **even after** removing the
+   file: history retains it. Check with
+   `git log --all --full-history -- <path>` before assuming it is gone.
+
+**Rotation log** — fill in as rotations complete.
+
+| Secret | Rotated on | Rotated by | Notes |
+|---|---|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | | | Referenced as exposed in `deploy/hostinger-business.md` — must be completed. |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | | | |
+| `B2_KEY_ID` / `B2_APPLICATION_KEY` | | | |
+| `SMTP_USER` / `SMTP_PASS` | | | |
+| `DIGEST_WEBHOOK_URL` | | | |
+| `CRON_SECRET` | | | |
+| `TURNSTILE_SECRET_KEY` | | | |
+
 ## Supported versions
 
 Only the latest revision on `main` is supported. Deployments should track

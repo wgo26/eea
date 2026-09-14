@@ -10,6 +10,7 @@ import { SITE } from "@/lib/constants";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { getEventById } from "@/lib/queries/culture";
+import { sanitizeBodyHtml } from "@/lib/security/html";
 
 type Props = {
     params: Promise<{ id: string }>;
@@ -34,6 +35,10 @@ export default async function EventDetailPage({ params }: Props) {
 
     const event = await getEventById(id, locale);
     if (!event) notFound();
+
+    // Render-boundary sanitization — defense in depth over the ingestion-side
+    // sanitizer. Untrusted DB HTML must never reach dangerouslySetInnerHTML.
+    const bodyHtml = sanitizeBodyHtml(event.body);
 
     const shareUrl = `${SITE.url}${localePath(locale, `/culture/events/${event.slug}`)}`;
 
@@ -193,10 +198,10 @@ export default async function EventDetailPage({ params }: Props) {
                 </section>
 
                 {/* Event description / body */}
-                {event.body ? (
+                {bodyHtml ? (
                     <div
                         className="prose prose-neutral dark:prose-invert max-w-none"
-                        dangerouslySetInnerHTML={{ __html: event.body }}
+                        dangerouslySetInnerHTML={{ __html: bodyHtml }}
                     />
                 ) : null}
 

@@ -524,6 +524,95 @@ below.*
 
 ## Changelog
 
+- 2026-09-14 — **Security posture lockdown (P0-3/P0-4/P0-5).** Closed the three remaining
+  P0 security items from the audit, each verified against a **live production server**
+  (`next start` + a real HTTP smoke check), not just unit tests.
+  - **P0-3 — CSP hardened** (`lib/security/csp.ts`, new; built by `next.config.ts`).
+    Dropped `'unsafe-eval'` in production; added `script-src-attr 'none'` (refuses inline
+    event-handler attributes, so a stored payload that slips past the sanitizer cannot fire
+    from an attribute — the containment layer that matters most given the sanitizer work
+    above), plus `object-src 'none'` / `frame-ancestors 'none'` / `form-action 'self'` /
+    `base-uri 'self'`. Blanket `img-src https:` and `connect-src … https:` are replaced by a
+    **named-host allowlist** derived from env (Supabase origin + `wss`, R2, Cloudinary,
+    OSM tiles, Blogger images, Turnstile, YouTube/Vimeo frames) and extensible via
+    `CSP_EXTRA_IMAGE_HOSTS`/`CSP_EXTRA_CONNECT_HOSTS`. `CSP_ALLOW_ANY_IMAGE_HOST=1` is a
+    documented escape hatch. **Nonces deliberately not used:** the Next.js CSP guide
+    ("you must use dynamic rendering to add nonces") means a nonce would opt every public
+    page out of static generation/ISR — trading the whole caching layer for one directive.
+    The trade-off is recorded in the module doc comment with a revisit condition.
+  - **P0-4 — rate limiting fails closed where it matters** (`lib/security/rate-limit.ts`).
+    New per-call `policy: "fail-open" | "fail-closed"`. Credential, write and spend surfaces
+    (login, signup, submissions, votes, uploads, contact reveal) now **block** when the
+    limiter's RPC errors; cheap non-mutating reads keep failing open so a limiter blip cannot
+    take the site down. Also replaced the blind `x-forwarded-for` read with a real
+    **trusted-proxy contract** (`resolveClientIpFromHeaders`, `TRUSTED_PROXY_COUNT`, default
+    1, capped at 8): the client address is taken relative to the proxy depth, so a
+    client-prepended forged hop is ignored. The resolution logic is kept free of
+    `next/headers` specifically so forged chains are unit-testable (25 tests).
+  - **P0-5 — `/api/ready` no longer discloses internals** (`app/api/ready/route.ts`).
+    Public anonymous callers now receive only `200/503` + a correlation ID; the detailed
+    report (missing env-var **names**, raw driver/storage errors) requires a timing-safe
+    bearer (`READY_PROBE_SECRET`, new `lib/security/secrets.ts`). Probe results are
+    single-flight cached so anonymous callers cannot force unbounded live DB/storage calls,
+    and the response is `no-store`.
+  - **Verified live** (production server, not mocks): CSP delivered with no `unsafe-eval`,
+    no blanket `https:` token in `img-src`/`connect-src`, populated 9-host image allowlist;
+    `/api/ready` body exactly `{status, timestamp, correlationId}` with zero env-name/driver
+    leaks and `no-store`; a **wrong bearer does not unlock** the detailed report; unprefixed
+    `/news` still 307s to `/en/news` (CSP did not break the locale proxy).
+  - **Tests:** `lib/security/csp.test.ts` (25) + `lib/security/rate-limit.test.ts` (25) added.
+    Writing the CSP tests caught a **real bug**: `originOf` dropped non-default ports, so an
+    operator-supplied host with a port (`https://api.example.com:8443`, or self-hosted
+    Supabase) would have been silently broken — a CSP host-source without a port matches only
+    the scheme's default port. Fixed and covered by regression tests.
+  **Verified:** `npm run check` green (9 gates incl. the two new ones) · `npx vitest run`
+  19 files / **170 tests** passing · `npm run build` exit 0 · live smoke check all-pass.
+- 2026-09-14 — **Security audit remediation (P0 batch) + production build unblocked.** The
+  production build had **never been verified** (`npm run build` was previously masked by an
+  active build holding `.next/lock`); running it exposed a hard **build blocker**:
+  `lib/auth/actions.ts` carries a module-level `'use server'` directive, so *every* export is a
+  Server Action and must be async — but it also exported `enabledOAuthProviders()`, a
+  synchronous env read used during render. Next.js fails with **"Server Actions must be async
+  functions"**, making the app undeployable. That failure is invisible to `tsc`, `eslint` and
+  `vitest` (all three passed), so it can only be caught by `next build`, one error at a time.
+  **Fixes shipped:**
+  - **P0-9 — stored XSS at three render boundaries.** Culture, event and notice detail pages
+    injected `article.body` / `event.body` / `notice.body` straight into
+    `dangerouslySetInnerHTML`; only news sanitized. Bodies are now sanitized at **every** render
+    boundary *and* at ingestion (Blogger import, admin content save, ad creatives).
+  - **P0-10 — regex sanitizer replaced by a parser-based allowlist.** `lib/security/html.ts` is
+    now `sanitize-html` with an explicit tag/attribute/CSS-property allowlist; active and
+    foreign-content elements (script, iframe, form, svg, math, noscript, template, …) are
+    **discarded with their content** so mXSS carriers cannot smuggle payload text back in.
+    Truncation can no longer emit a half-written tag. Regression suite is 21 tests in
+    `lib/security/html.test.ts` (entities, protocol-relative URLs, `data:` URIs, uppercase
+    attributes, `url()` in CSS, forms/iframes, truncation).
+  - **P0-11 — `/api/cron/reminders` was deployed but never scheduled.** `vercel.json` schedules
+    five crons, but the Hostinger target cannot run Vercel crons, so
+    `.github/workflows/scheduled-jobs.yml` is the real scheduler — and it covered only four
+    jobs. Event reminders silently never fired. All five are now scheduled, plus an hourly
+    **watchdog** that fails (→ GitHub failure email) when no run of the workflow has succeeded
+    in 3 hours, which is the missed-run alert for the `*/15` notify worker.
+  - **OAuth config extracted** to `lib/auth/oauth.ts` (a plain, non-`'use server'` module).
+  - **Two new gates wired into `npm run check`:** `scripts/verify-crons.mjs` (proves
+    `vercel.json` and the workflow agree, every job gate maps to a declared cron, and no two
+    jobs share a gate — it caught a real indentation bug that silently dropped a job) and
+    `scripts/verify-server-actions.mjs` (proves every export in a `'use server'` module is an
+    async function or a type, catching the whole build-blocker class before `next build`).
+  - **Dead `advertiseHref` prop removed** from `AdSlot` (and its 14 call sites across 11 pages):
+    it became unreachable once empty ad inventory was made invisible, leaving a lint warning and
+    a stale "advertise with us placeholder" comment behind.
+  - Docs: `deploy/hostinger-business.md` and `README.md` corrected from "two nightly jobs" /
+    "23 migrations" to the real **five crons** / **43 migrations**; `SECURITY.md` gained a
+    **secret rotation runbook** with a rotation log (P0-12 — the service-role key referenced as
+    exposed in the deploy notes must be rotated and recorded; this cannot be verified from
+    source).
+  **Verified:** `tsc --noEmit` clean · `npm run check` green (7 gates) · `npx vitest run`
+  17 files / **120 tests** passing · **`npm run build` exit 0** (first verified production
+  build) · `npm audit --omit=dev --audit-level=high` → 0 vulnerabilities.
+  (Superseded by the next entry: rate-limit fail-closed policy, CSP hardening and
+  `/api/ready` disclosure were closed in the batch below. Remaining: ad-beacon dedup,
+  RLS integration tests, E2E/accessibility coverage.)
 - 2026-09-02 — Created from the "missing architecture and product steps" review; audited
   against the codebase; P0-1…P0-8 recorded.
 - 2026-09-02 — **Structural overhaul shipped** (`npm run build` green, `tsc --noEmit`

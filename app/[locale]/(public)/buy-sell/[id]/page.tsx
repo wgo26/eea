@@ -277,7 +277,6 @@ export default async function ListingPage({ params }: ListingPageProps) {
             <AdSlot
                 ad={inlineAd}
                 dict={dict}
-                advertiseHref={localePath(locale, "/advertise")}
                 variant="inline-bottom"
                 className="mt-12"
             />
