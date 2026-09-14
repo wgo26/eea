@@ -71,6 +71,21 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
     const dict = getDictionary(locale);
     const data = await getHomeData(locale);
     const p = (path: string) => `/${locale}${path}`;
+    const availableSections: readonly (
+        | "photoStories"
+        | "news"
+        | "notices"
+        | "buySell"
+        | "culture"
+        | "locations"
+    )[] = [
+        "locations",
+        ...(data.photoStories.length > 0 ? ["photoStories" as const] : []),
+        ...(data.news.length > 0 ? ["news" as const] : []),
+        ...(data.notices.length > 0 ? ["notices" as const] : []),
+        ...(data.listings.length > 0 ? ["buySell" as const] : []),
+        ...(data.culture.length > 0 ? ["culture" as const] : []),
+    ];
 
     return (
         <div className="mx-auto w-full max-w-7xl space-y-12 px-4 py-6 md:px-6 md:py-10">
@@ -88,6 +103,7 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
             {/* Quick navigation into every vertical (spec §1A — hub, not destination) */}
             <ExploreTiles
                 dict={dict}
+                available={availableSections}
                 hrefs={{
                     photoStories: p("/photo-stories"),
                     news: p("/news"),
@@ -98,7 +114,9 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
                 }}
             />
 
-            {/* Latest Photo Stories + ad rail */}
+            {/* Only surface live editorial sections. Empty cards and ad
+                placeholders make the homepage look unfinished. */}
+            {data.photoStories.length > 0 ? (
             <section className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
                 <div className="min-w-0">
                     <SectionHeader
@@ -107,15 +125,11 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
                         viewAllHref={p("/photo-stories")}
                         viewAllLabel={dict.home.viewAll}
                     />
-                    {data.photoStories.length > 0 ? (
-                        <div className="grid gap-5 sm:grid-cols-2">
-                            {data.photoStories.map((s) => (
-                                <StoryCard key={s.id} story={s} dict={dict} locale={locale} />
-                            ))}
-                        </div>
-                    ) : (
-                        <EmptySection dict={dict} href={p("/photo-stories")} label={dict.home.viewAll} />
-                    )}
+                    <div className="grid gap-5 sm:grid-cols-2">
+                        {data.photoStories.map((s) => (
+                            <StoryCard key={s.id} story={s} dict={dict} locale={locale} />
+                        ))}
+                    </div>
                 </div>
                 <aside>
                     <AdSlot
@@ -127,6 +141,7 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
                     />
                 </aside>
             </section>
+            ) : null}
 
             {/* Latest Community News + Trending rail */}
             <section className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
@@ -153,11 +168,12 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
             </section>
 
             {/* Inline ad — mid page (spec §11) */}
-            <AdSlot ad={data.ads.inlineMid} dict={dict} advertiseHref={p("/advertise")} variant="strip" />
+            {data.ads.inlineMid ? <AdSlot ad={data.ads.inlineMid} dict={dict} advertiseHref={p("/advertise")} variant="strip" /> : null}
 
             {/* Notices + Buy & Sell previews (One Community Board, Diff. #4) */}
+            {data.notices.length > 0 || data.listings.length > 0 ? (
             <section className="grid gap-10 lg:grid-cols-2">
-                <div className="min-w-0">
+                {data.notices.length > 0 ? <div className="min-w-0">
                     <SectionHeader
                         title={dict.home.latestNotices}
                         hint={dict.home.sectionHintNotices}
@@ -165,47 +181,40 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
                         viewAllLabel={dict.home.viewAll}
                     />
                     <NoticesList notices={data.notices} dict={dict} locale={locale} />
-                </div>
-                <div className="min-w-0">
+                </div> : null}
+                {data.listings.length > 0 ? <div className="min-w-0">
                     <SectionHeader
                         title={dict.home.buySell}
                         hint={dict.home.sectionHintBuySell}
                         viewAllHref={p("/buy-sell")}
                         viewAllLabel={dict.home.viewAll}
                     />
-                    {data.listings.length > 0 ? (
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            {data.listings.map((l) => (
-                                <ListingCard key={l.id} listing={l} dict={dict} locale={locale} />
-                            ))}
-                        </div>
-                    ) : (
-                        <EmptySection dict={dict} href={p("/buy-sell")} label={dict.home.viewAll} />
-                    )}
-                </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        {data.listings.map((l) => (
+                            <ListingCard key={l.id} listing={l} dict={dict} locale={locale} />
+                        ))}
+                    </div>
+                </div> : null}
             </section>
+            ) : null}
 
             {/* Culture & Entertainment preview */}
-            <section>
+            {data.culture.length > 0 ? <section>
                 <SectionHeader
                     title={dict.home.culture}
                     hint={dict.home.sectionHintCulture}
                     viewAllHref={p("/culture")}
                     viewAllLabel={dict.home.viewAll}
                 />
-                {data.culture.length > 0 ? (
-                    <div className="grid gap-5 sm:grid-cols-3">
-                        {data.culture.map((s) => (
-                            <StoryCard key={s.id} story={s} dict={dict} locale={locale} />
-                        ))}
-                    </div>
-                ) : (
-                    <EmptySection dict={dict} href={p("/culture")} label={dict.home.viewAll} />
-                )}
-            </section>
+                <div className="grid gap-5 sm:grid-cols-3">
+                    {data.culture.map((s) => (
+                        <StoryCard key={s.id} story={s} dict={dict} locale={locale} />
+                    ))}
+                </div>
+            </section> : null}
 
             {/* Inline ad — before the participation loop CTA (spec §11) */}
-            <AdSlot ad={data.ads.inlineBottom} dict={dict} advertiseHref={p("/advertise")} variant="strip" />
+            {data.ads.inlineBottom ? <AdSlot ad={data.ads.inlineBottom} dict={dict} advertiseHref={p("/advertise")} variant="strip" /> : null}
 
             <SubmitCta dict={dict} submitHref={p("/submit")} />
         </div>

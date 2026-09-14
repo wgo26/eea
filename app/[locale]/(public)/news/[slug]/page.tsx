@@ -249,10 +249,12 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                                 <Clock className="h-4 w-4 text-primary" aria-hidden />
                                 {article.readingMinutes ?? 1} {dict.news.minRead}
                             </span>
-                            <span className="inline-flex items-center gap-1.5">
-                                <Eye className="h-4 w-4 text-primary" aria-hidden />
-                                {(article.viewCount ?? 0).toLocaleString(locale === "fr" ? "fr-FR" : "en-GB")} {dict.news.views}
-                            </span>
+                            {(article.viewCount ?? 0) > 0 ? (
+                                <span className="inline-flex items-center gap-1.5">
+                                    <Eye className="h-4 w-4 text-primary" aria-hidden />
+                                    {article.viewCount!.toLocaleString(locale === "fr" ? "fr-FR" : "en-GB")} {dict.news.views}
+                                </span>
+                            ) : null}
                             {article.location ? (
                                 article.locationSlug ? (
                                     <Link

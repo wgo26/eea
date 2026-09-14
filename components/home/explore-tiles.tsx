@@ -13,6 +13,8 @@ import { SectionHeader } from "@/components/home/section-header";
 
 type ExploreTilesProps = {
   dict: Dictionary;
+  /** Only surface sections that currently have something useful to browse. */
+  available?: readonly (keyof ExploreTilesProps["hrefs"])[];
   hrefs: {
     photoStories: string;
     news: string;
@@ -27,21 +29,27 @@ type ExploreTilesProps = {
  * Quick-navigation tiles (spec §1A — the homepage is a hub, not a
  * destination): one tap into every content vertical and the location index.
  */
-export function ExploreTiles({ dict, hrefs }: ExploreTilesProps) {
+export function ExploreTiles({ dict, hrefs, available }: ExploreTilesProps) {
   const tiles = [
-    { href: hrefs.photoStories, label: dict.nav.photoStories, Icon: Camera },
-    { href: hrefs.news, label: dict.nav.news, Icon: Newspaper },
-    { href: hrefs.notices, label: dict.nav.notices, Icon: Megaphone },
-    { href: hrefs.buySell, label: dict.nav.buySell, Icon: Tag },
-    { href: hrefs.culture, label: dict.nav.culture, Icon: Palette },
-    { href: hrefs.locations, label: dict.nav.locations, Icon: MapPin },
+    { key: "photoStories" as const, href: hrefs.photoStories, label: dict.nav.photoStories, Icon: Camera },
+    { key: "news" as const, href: hrefs.news, label: dict.nav.news, Icon: Newspaper },
+    { key: "notices" as const, href: hrefs.notices, label: dict.nav.notices, Icon: Megaphone },
+    { key: "buySell" as const, href: hrefs.buySell, label: dict.nav.buySell, Icon: Tag },
+    { key: "culture" as const, href: hrefs.culture, label: dict.nav.culture, Icon: Palette },
+    { key: "locations" as const, href: hrefs.locations, label: dict.nav.locations, Icon: MapPin },
   ];
+
+  const visibleTiles = available
+    ? tiles.filter((tile) => available.includes(tile.key))
+    : tiles;
+
+  if (visibleTiles.length < 2) return null;
 
   return (
     <section>
       <SectionHeader title={dict.home.exploreTitle} />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {tiles.map(({ href, label, Icon }) => (
+        {visibleTiles.map(({ href, label, Icon }) => (
           <Link
             key={href}
             href={href}

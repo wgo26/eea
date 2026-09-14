@@ -151,7 +151,6 @@ export function SiteHeader({ branding }: { branding?: SiteBranding }) {
                     <LanguageSwitcher locale={locale} />
                     <ThemeToggle locale={locale} />
                     <ContrastToggle label={dict.theme.contrast} />
-                    <ThemeToggle locale={locale} />
                     <Button
                         size="sm"
                         className="hidden md:inline-flex"

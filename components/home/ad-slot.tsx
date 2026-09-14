@@ -98,34 +98,19 @@ function DestinationLink({
 
 /** Ad placement (spec §11). Falls back to an "advertise with us" placeholder. */
 export function AdSlot({ ad, dict, advertiseHref, variant, className }: AdSlotProps) {
+  // Empty inventory is intentionally invisible. A repeated "your ad here"
+  // placeholder makes the reader experience feel unfinished and competes with
+  // editorial content before there is a real campaign to show.
+  if (!ad) return null;
+
   return (
     <div className={cn("w-full", className)}>
       <p className="mb-1 text-right text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">
         {dict.home.advertisement}
       </p>
-      {ad ? (
-        <AdTracker ad={ad}>
-          {(trackClick) => <CreativeBody ad={ad} dict={dict} variant={variant} onNavigate={trackClick} />}
-        </AdTracker>
-      ) : (
-        <Link
-          href={advertiseHref}
-          className={cn(
-            "flex flex-col items-center justify-center rounded-2xl border border-dashed text-center transition-colors hover:bg-muted/40",
-            variant === "banner" && "h-28 gap-1 md:h-36",
-            variant === "strip" && "h-24 gap-1 md:h-28",
-            variant === "rail" && "aspect-[3/4] gap-2 p-4",
-            variant === "inline-bottom" && "h-24 gap-1 md:h-28"
-          )}
-        >
-          <span className="text-sm font-semibold text-muted-foreground">
-            {dict.home.yourAdHere}
-          </span>
-          <span className="text-xs text-link underline-offset-2 hover:underline">
-            {dict.home.advertiseWithUs}
-          </span>
-        </Link>
-      )}
+      <AdTracker ad={ad}>
+        {(trackClick) => <CreativeBody ad={ad} dict={dict} variant={variant} onNavigate={trackClick} />}
+      </AdTracker>
     </div>
   );
 }

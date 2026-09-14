@@ -19,6 +19,7 @@ export function SectionHeader({ title, hint, viewAllHref, viewAllLabel }: Sectio
       {viewAllHref ? (
         <Link
           href={viewAllHref}
+          aria-label={`${viewAllLabel}: ${title}`}
           className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-link hover:underline"
         >
           {viewAllLabel}

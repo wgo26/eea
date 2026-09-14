@@ -23,6 +23,8 @@ const STATIC_PATHS = [
     "/submit",
     "/locations",
     "/contributors",
+    "/digest",
+    "/digest/archive",
     "/advertise",
     "/about",
     "/about/terms",

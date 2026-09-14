@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import Link from "next/link";
 
 import { getDictionary, resolveLocale } from "@/lib/i18n";
-import { buildAlternates } from "@/lib/i18n/urls";
+import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { DigestForm } from "@/components/digest/digest-form";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -25,6 +26,14 @@ export default async function DigestPage() {
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground md:text-base">{dict.digest.intro}</p>
       </header>
       <DigestForm dict={dict} locale={locale} />
+      <p className="mt-6 text-center">
+        <Link
+          href={localePath(locale, "/digest/archive")}
+          className="text-sm font-medium text-link hover:underline"
+        >
+          {dict.digest.viewArchive}
+        </Link>
+      </p>
     </div>
   );
 }
