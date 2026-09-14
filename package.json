@@ -55,18 +55,18 @@
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.20",
     "@types/leaflet": "^1.9.22",
-    "@types/node": "^20",
+    "@types/node": "^26",
     "@types/nodemailer": "^8.0.1",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/sanitize-html": "^2.16.1",
-    "eslint": "^9",
-    "eslint-config-next": "16.3.4",
+    "eslint": "^10",
+    "eslint-config-next": "16.3.5",
     "js-yaml": "^5.4.2",
     "shadcn": "^4.19.1",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "vitest": "^3.2.7"
+    "typescript": "^7",
+    "vitest": "^5.0.0"
   }
 }
