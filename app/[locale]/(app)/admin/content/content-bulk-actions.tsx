@@ -21,6 +21,7 @@ type CommonDict = {
   bulkSelected: string
   bulkClear: string
   bulkPublish: string
+  bulkUnpublish: string
   bulkArchive: string
   bulkDelete: string
   bulkUpdated: string
@@ -36,6 +37,10 @@ type ContentCopy = {
   colAuthor: string
   colUpdated: string
   untitled: string
+  unpublish: string
+  unpublishConfirmTitle: string
+  unpublishConfirmBody: string
+  toastUnpublished: string
   archiveConfirmTitle: string
   archiveConfirmBody: string
   toastArchived: string
@@ -103,6 +108,14 @@ export function ContentBulkActions({ rows, canDelete, copy, common }: Props) {
       : { ok: true as const }
   }
 
+  const handleBulkUnpublish = async (keys: string[]) => {
+    const results = await Promise.all(keys.map((id) => updateContentStatus(id, 'draft')))
+    const failed = results.filter((r) => !r.ok)
+    return failed.length > 0
+      ? { ok: false as const, error: `${failed.length} item(s) failed` }
+      : { ok: true as const }
+  }
+
   // Single selectable table — selection state lives here so the bulk bar and
   // the visible rows share the same keys (previously two tables were rendered
   // and the bulk selection applied to a hidden shadow table).
@@ -139,6 +152,7 @@ export function ContentBulkActions({ rows, canDelete, copy, common }: Props) {
           confirmLabel={common.confirm}
           actions={[
             { label: common.bulkPublish, action: handleBulkPublish, successToast: common.bulkUpdated },
+            { label: common.bulkUnpublish, action: handleBulkUnpublish, successToast: copy.toastUnpublished, confirmTitle: copy.unpublishConfirmTitle, confirmBody: copy.unpublishConfirmBody, confirmLabel: copy.unpublish },
             { label: common.bulkArchive, action: handleBulkArchive, successToast: copy.toastArchived, tone: 'danger', confirmTitle: copy.archiveConfirmTitle, confirmBody: copy.archiveConfirmBody },
             ...(canDelete ? [{ label: common.bulkDelete, action: handleBulkDelete, successToast: copy.toastDeleted, tone: 'danger' as const, confirmTitle: copy.deleteConfirmTitle, confirmBody: copy.deleteConfirmBody }] : []),
           ]}
@@ -234,6 +248,14 @@ export function ContentTable({
       : { ok: true as const }
   }
 
+  const handleBulkUnpublish = async (keys: string[]) => {
+    const results = await Promise.all(keys.map((id) => updateContentStatus(id, 'draft')))
+    const failed = results.filter((r) => !r.ok)
+    return failed.length > 0
+      ? { ok: false as const, error: `${failed.length} item(s) failed` }
+      : { ok: true as const }
+  }
+
   const fullColumns: Column<ContentRow>[] = [
     {
       key: 'title',
@@ -308,6 +330,7 @@ export function ContentTable({
           confirmLabel={common.confirm}
           actions={[
             { label: common.bulkPublish, action: handleBulkPublish, successToast: common.bulkUpdated },
+            { label: common.bulkUnpublish, action: handleBulkUnpublish, successToast: copy.toastUnpublished, confirmTitle: copy.unpublishConfirmTitle, confirmBody: copy.unpublishConfirmBody, confirmLabel: copy.unpublish },
             { label: common.bulkArchive, action: handleBulkArchive, successToast: copy.toastArchived, tone: 'danger', confirmTitle: copy.archiveConfirmTitle, confirmBody: copy.archiveConfirmBody },
             ...(canDelete ? [{ label: common.bulkDelete, action: handleBulkDelete, successToast: copy.toastDeleted, tone: 'danger' as const, confirmTitle: copy.deleteConfirmTitle, confirmBody: copy.deleteConfirmBody }] : []),
           ]}

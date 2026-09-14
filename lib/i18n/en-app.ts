@@ -268,6 +268,7 @@ export const appStringsEn = {
       bulkSelected: 'selected',
       bulkClear: 'Clear',
       bulkPublish: 'Publish selected',
+      bulkUnpublish: 'Unpublish selected',
       bulkArchive: 'Archive selected',
       bulkDelete: 'Delete selected',
       bulkApprove: 'Approve selected',
@@ -615,6 +616,9 @@ export const appStringsEn = {
       optional: 'optional',
       unschedule: 'Unschedule',
       unpublish: 'Unpublish',
+      unpublishConfirmTitle: 'Unpublish this item?',
+      unpublishConfirmBody:
+        'It will be hidden from the public site and moved back to drafts. You can republish it later.',
       archive: 'Archive',
       archiveConfirmTitle: 'Archive this item?',
       archiveConfirmBody:

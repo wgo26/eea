@@ -2,6 +2,13 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Tailwind v4 scans every text file under the project root for class-like
+   tokens — including scripts/, docs, and .mjs audit helpers. Never write a
+   literal arbitrary-value background-URL example anywhere in repo text: the
+   scanner emits a broken background-image rule that breaks `next build`
+   with "Module not found: Can't resolve ''". (This bit us via a comment in
+   scripts/find-bg-images.mjs; the token there is now split across strings.) */
+
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));

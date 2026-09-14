@@ -993,7 +993,10 @@ below.*
     unaffected (served optimized on demand); only new uploads change.
   - **Regression gate** — `scripts/find-bg-images.mjs` (mirrors
     find-bare-hrefs) fails `npm run check` + CI on any new
-    `backgroundImage`/`bg-[url()]` media in pages/components.
+    `backgroundImage`/arbitrary-value background-URL classes in
+    pages/components. (The token is deliberately never written literally in
+    repo text — Tailwind v4's scanner picks it up from any file and emits a
+    broken `background-image:url()` rule.)
   - **Tests** — `lib/storage/validate.test.ts` pins the re-encode contract
     with real sharp buffers (WebP output + 2560 cap + no upscale + PNG
     lossless + executable rejection).

@@ -27,6 +27,7 @@ const DURATION_OPTIONS: DurationOption[] = [
 export function ContentActions({ content, copy, common }: { content: ContentRow; copy: Copy; common: CommonCopy }) {
   const { run, loading } = useAdminMutation()
   const [confirmArchive, setConfirmArchive] = useState(false)
+  const [confirmUnpublish, setConfirmUnpublish] = useState(false)
   const [featureOpen, setFeatureOpen] = useState(false)
   const [unfeatureOpen, setUnfeatureOpen] = useState(false)
   const [durationDays, setDurationDays] = useState<number | null>(7)
@@ -48,6 +49,11 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
     await run(() => updateContentStatus(content.id, status), toast)
   }
 
+  async function handleUnpublish() {
+    const ok = await run(() => updateContentStatus(content.id, 'draft'), copy.toastUnpublished)
+    if (ok) setConfirmUnpublish(false)
+  }
+
   async function handleFeature() {
     const endsAt = durationDays == null ? null : new Date(Date.now() + durationDays * DAY_MS).toISOString()
     const ok = await run(() => setContentFeatured(content.id, true, endsAt), copy.toastFeaturedOn)
@@ -64,11 +70,19 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
     if (ok) setConfirmArchive(false)
   }
 
-  const menuItems: ActionMenuEntry[] = transitions.map((t) => ({
-    label: t.label,
-    onSelect: () => handleStatusChange(t.key, t.toast),
-    disabled: loading,
-  }))
+  const menuItems: ActionMenuEntry[] = transitions.map((t) => (
+    t.key === 'draft' && content.status === 'published'
+      ? {
+        label: t.label,
+        onSelect: () => setConfirmUnpublish(true),
+        disabled: loading,
+      }
+      : {
+        label: t.label,
+        onSelect: () => handleStatusChange(t.key, t.toast),
+        disabled: loading,
+      }
+  ))
 
   if (transitions.length > 0) {
     menuItems.push({ separator: true })
@@ -144,6 +158,17 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
         cancelLabel={common.cancel}
         loading={loading}
         onConfirm={handleUnfeature}
+      />
+
+      <ConfirmDialog
+        open={confirmUnpublish}
+        onOpenChange={setConfirmUnpublish}
+        title={copy.unpublishConfirmTitle}
+        description={copy.unpublishConfirmBody}
+        confirmLabel={copy.unpublish}
+        cancelLabel={common.cancel}
+        loading={loading}
+        onConfirm={handleUnpublish}
       />
 
       <ConfirmDialog

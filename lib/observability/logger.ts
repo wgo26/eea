@@ -65,10 +65,14 @@ async function reportToTracker(level: LogLevel, scope: string, message: string, 
   if (!process.env.SENTRY_DSN && !process.env.NEXT_PUBLIC_SENTRY_DSN) return;
   try {
     // Optional peer: only forwards when @sentry/nextjs is installed.
-    // The non-literal specifier keeps TypeScript from requiring the package
-    // at build time (import of a string-typed specifier resolves to `any`).
-    const specifier: string = "@sentry/nextjs";
-    const sentry = (await import(specifier).catch(() => null)) as {
+    // Loaded via a Function-constructed import so Turbopack's static analysis
+    // never sees a specifier it tries to resolve at build time (a dynamic
+    // import of even a string-typed variable is still traced and warns/errors
+    // with "Module not found: Can't resolve '@sentry/nextjs'").
+    const lazyImport = new Function("s", "return import(s)") as (
+      s: string,
+    ) => Promise<unknown>;
+    const sentry = (await lazyImport("@sen" + "try/nextjs").catch(() => null)) as {
       captureMessage?: (msg: string, opts?: unknown) => void;
       captureException?: (err: unknown) => void;
     } | null;

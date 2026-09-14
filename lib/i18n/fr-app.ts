@@ -267,6 +267,7 @@ export const appStringsFr = {
       bulkSelected: 'sélectionnés',
       bulkClear: 'Effacer',
       bulkPublish: 'Publier la sélection',
+      bulkUnpublish: 'Dépublier la sélection',
       bulkArchive: 'Archiver la sélection',
       bulkDelete: 'Supprimer la sélection',
       bulkApprove: 'Approuver la sélection',
@@ -615,6 +616,9 @@ export const appStringsFr = {
       optional: 'optionnel',
       unschedule: 'Déprogrammer',
       unpublish: 'Dépublier',
+      unpublishConfirmTitle: 'Dépublier cet élément ?',
+      unpublishConfirmBody:
+        'Il sera masqué du site public et renvoyé en brouillon. Vous pourrez le republier plus tard.',
       archive: 'Archiver',
       archiveConfirmTitle: 'Archiver cet élément ?',
       archiveConfirmBody:

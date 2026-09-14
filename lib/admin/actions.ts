@@ -947,6 +947,8 @@ export async function deleteSubmission(submissionId: string): Promise<ActionResu
 /* ------------------------------------------------------------------ */
 
 export async function updateContentStatus(contentId: string, status: string, scheduledFor?: string): Promise<ActionResult> {
+  const allowed = new Set(['draft', 'published', 'scheduled'])
+  if (!allowed.has(status)) return { ok: false, error: 'Invalid status.' }
   try {
     const { supabase, user } = await assertStaff()
     const patch: Record<string, unknown> = { status }
@@ -963,9 +965,20 @@ export async function updateContentStatus(contentId: string, status: string, sch
       patch.published_at = existing?.published_at ?? new Date().toISOString()
     }
     if (status === 'scheduled' && scheduledFor) patch.scheduled_for = scheduledFor
+    // Unpublish (published/scheduled → draft): fully hide from the public
+    // site — clear any pending schedule, drop the featured flag, and
+    // deactivate homepage slots pointing at this item.
+    if (status === 'draft') {
+      patch.scheduled_for = null
+      patch.is_featured = false
+    }
 
     const { error } = await supabase.from('content_items').update(patch).eq('id', contentId)
     if (error) return { ok: false, error: error.message }
+
+    if (status === 'draft') {
+      await supabase.from('homepage_slots').update({ is_active: false }).eq('content_item_id', contentId)
+    }
 
     await supabase.from('moderation_log').insert({
       action: `status:${status}`, to_status: status, content_item_id: contentId, actor_id: user.id,
