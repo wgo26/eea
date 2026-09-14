@@ -65,7 +65,7 @@ export default async function Page({
           {polls.map((poll) => (
             <div key={poll.id} className="rounded-lg border border-border bg-card p-3">
               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={poll.isActive ? 'active' : 'closed'} label={localizeStatus(poll.isActive ? 'active' : 'closed', common)} />
                     <span

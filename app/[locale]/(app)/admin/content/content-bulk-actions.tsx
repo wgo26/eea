@@ -261,7 +261,7 @@ export function ContentTable({
       key: 'title',
       header: copy.colTitle,
       render: (r) => (
-        <div className="min-w-0 flex items-center gap-3">
+        <div className="min-w-[180px] max-w-[300px] flex items-center gap-3">
           {r.coverUrl ? (
             <Image src={r.coverUrl} alt="" width={40} height={40} className="h-10 w-10 rounded object-cover bg-muted shrink-0" />
           ) : (
@@ -282,20 +282,21 @@ export function ContentTable({
         </div>
       ),
     },
-    { key: 'type', header: copy.colType, render: (r) => <TypeBadge type={r.type} label={localizeType(r.type, typeLabels)} /> },
-    { key: 'status', header: copy.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, typeLabels)} /> },
-    { key: 'published', header: copy.colPublished, render: (r) => <span className="text-xs text-muted-foreground">{formatDate(r.publishedAt, locale)}</span> },
-    { key: 'author', header: copy.colAuthor, render: (r) => <span className="text-xs text-muted-foreground">{r.authorName ?? '—'}</span> },
-    { key: 'updated', header: copy.colUpdated, render: (r) => <time className="text-xs text-muted-foreground">{formatRelative(r.updatedAt ?? r.createdAt)}</time> },
+    { key: 'type', header: copy.colType, render: (r) => <TypeBadge type={r.type} label={localizeType(r.type, typeLabels)} />, className: 'whitespace-nowrap' },
+    { key: 'status', header: copy.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, typeLabels)} />, className: 'whitespace-nowrap' },
+    { key: 'published', header: copy.colPublished, render: (r) => <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(r.publishedAt, locale)}</span>, headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell whitespace-nowrap' },
+    { key: 'author', header: copy.colAuthor, render: (r) => <span className="text-xs text-muted-foreground truncate block max-w-[140px]">{r.authorName ?? '—'}</span>, headerClassName: 'hidden xl:table-cell', className: 'hidden xl:table-cell' },
+    { key: 'updated', header: copy.colUpdated, render: (r) => <time className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(r.updatedAt ?? r.createdAt)}</time>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
     {
       key: 'actions',
       header: '',
+      stickyRight: true,
       render: (r) => (
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
           {r.type === 'listing' ? (
             <Link
               href={localePath(locale, '/admin/listings')}
-              className="text-xs text-primary hover:underline"
+              className="text-xs text-primary hover:underline shrink-0"
             >
               {copy.openInListings}
             </Link>

@@ -347,7 +347,7 @@ export function FundraiserCard({ row, copy, common, canDelete }: { row: Editable
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2 shrink-0">
       <button
         type="button"
         onClick={() => setEditing(true)}

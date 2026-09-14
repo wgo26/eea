@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { assertStaff, assertAdmin, assertCapability, assertReauth, type AdminContext } from '@/lib/admin/auth'
 import { CACHE_TAGS } from '@/lib/cache/tags'
-import { getContentItemEditData as fetchContentEditData, queryContentForSlotAssign } from '@/lib/admin/queries'
+import { getContentItemEditData as fetchContentEditData, queryContentForSlotAssign, searchAuthorProfiles } from '@/lib/admin/queries'
 import type { AppRole } from '@/lib/admin/queries'
 import { deleteFromR2 } from '@/lib/storage/providers/r2'
 import { storageConfig } from '@/lib/storage/config'
@@ -760,6 +760,12 @@ export async function getContentItemEditData(contentItemId: string) {
 export async function searchContentForSlot(query: string, limit = 10) {
   await assertCapability('manageContent')
   return queryContentForSlotAssign(query, limit)
+}
+
+/** Client-callable profile search for the author picker (capability-gated). */
+export async function searchAuthors(term: string) {
+  await assertCapability('manageContent')
+  return searchAuthorProfiles(term)
 }
 
 export async function rejectSubmission(submissionId: string, reason: string): Promise<ActionResult> {

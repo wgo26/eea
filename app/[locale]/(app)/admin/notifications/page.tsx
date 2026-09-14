@@ -90,12 +90,12 @@ export default async function Page() {
             rows={queue}
             rowKey={(r) => r.id}
             columns={[
-              { key: 'event', header: t.colEvent, render: (r) => <div><div className="font-mono text-xs">{r.event}</div><div className="max-w-64 truncate text-xs text-muted-foreground">{r.title}</div>{r.error ? <div className="max-w-64 truncate text-[11px] text-destructive">{r.error}</div> : null}</div> },
-              { key: 'audience', header: t.colAudience, render: (r) => <span className="text-xs">{r.audience === 'staff' ? t.staff : t.user}{r.recipientEmail ? <span className="block max-w-40 truncate text-[11px] text-muted-foreground">{r.recipientEmail}</span> : null}</span> },
-              { key: 'status', header: t.colStatus, render: (r) => <StatusPill status={r.status} /> },
-              { key: 'channels', header: t.colChannels, render: (r) => <span className="text-xs text-muted-foreground">{r.channels.length > 0 ? r.channels.join(' · ') : '—'}</span> },
-              { key: 'when', header: t.colWhen, render: (r) => <span className="text-xs text-muted-foreground">{r.createdAt ? formatRelative(r.createdAt, locale) : '—'}</span> },
-              { key: 'actions', header: t.colActions, render: (r) => <OutboxRowActions row={r} copy={t} />, className: 'text-right' },
+              { key: 'event', header: t.colEvent, render: (r) => <div className="min-w-[140px] max-w-[240px]"><div className="font-mono text-xs truncate">{r.event}</div><div className="max-w-64 truncate text-xs text-muted-foreground">{r.title}</div>{r.error ? <div className="max-w-64 truncate text-[11px] text-destructive">{r.error}</div> : null}</div> },
+              { key: 'audience', header: t.colAudience, render: (r) => <span className="text-xs whitespace-nowrap">{r.audience === 'staff' ? t.staff : t.user}{r.recipientEmail ? <span className="block max-w-40 truncate text-[11px] text-muted-foreground">{r.recipientEmail}</span> : null}</span>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell' },
+              { key: 'status', header: t.colStatus, render: (r) => <StatusPill status={r.status} />, className: 'whitespace-nowrap' },
+              { key: 'channels', header: t.colChannels, render: (r) => <span className="text-xs text-muted-foreground whitespace-nowrap">{r.channels.length > 0 ? r.channels.join(' · ') : '—'}</span>, headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell whitespace-nowrap' },
+              { key: 'when', header: t.colWhen, render: (r) => <span className="text-xs text-muted-foreground whitespace-nowrap">{r.createdAt ? formatRelative(r.createdAt, locale) : '—'}</span>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
+              { key: 'actions', header: t.colActions, stickyRight: true, render: (r) => <OutboxRowActions row={r} copy={t} />, className: 'text-right', headerClassName: 'whitespace-nowrap' },
             ]}
           />
         )}

@@ -1,8 +1,8 @@
 'use client'
 /* eslint-disable react-hooks/set-state-in-effect -- edit dialog fetches on open by design */
 
-import { useEffect, useState } from 'react'
-import { createContentItem, deleteContentItem, saveContentItem, getContentItemEditData as fetchEditDataAction } from '@/lib/admin/actions'
+import { useEffect, useRef, useState } from 'react'
+import { createContentItem, deleteContentItem, saveContentItem, getContentItemEditData as fetchEditDataAction, searchAuthors } from '@/lib/admin/actions'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import { useToast } from '@/components/admin/toast'
 import {
@@ -542,6 +542,46 @@ function ContentEditForm({
   const [frSeoDescription, setFrSeoDescription] = useState(data.frSeoDescription ?? '')
   const [tagsInput, setTagsInput] = useState(data.tags.map((t) => t.name).filter(Boolean).join(', '))
 
+  // Author picker: profile author (uuid) + search-as-you-type results.
+  const [authorId, setAuthorId] = useState<string | null>(data.authorId ?? null)
+  const [authorName, setAuthorName] = useState<string>(data.authorName ?? '')
+  const [authorQuery, setAuthorQuery] = useState('')
+  const [authorResults, setAuthorResults] = useState<{ id: string; name: string }[]>([])
+  const [authorSearching, setAuthorSearching] = useState(false)
+  const [authorOpen, setAuthorOpen] = useState(false)
+  const authorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (authorTimer.current) clearTimeout(authorTimer.current)
+    if (!authorQuery.trim()) {
+      setAuthorResults([])
+      setAuthorSearching(false)
+      return
+    }
+    setAuthorSearching(true)
+    authorTimer.current = setTimeout(async () => {
+      const res = await searchAuthors(authorQuery.trim())
+      setAuthorResults(res)
+      setAuthorSearching(false)
+    }, 250)
+    return () => {
+      if (authorTimer.current) clearTimeout(authorTimer.current)
+    }
+  }, [authorQuery])
+
+  function pickAuthor(a: { id: string; name: string } | null) {
+    if (a) {
+      setAuthorId(a.id)
+      setAuthorName(a.name)
+    } else {
+      setAuthorId(null)
+      setAuthorName('')
+    }
+    setAuthorQuery('')
+    setAuthorResults([])
+    setAuthorOpen(false)
+  }
+
   const isListing = data.type === 'listing'
   const isNotice = data.type === 'notice'
   const isCulture = data.type === 'culture'
@@ -577,6 +617,7 @@ function ContentEditForm({
       verification: (verification || null) as never,
       locationId: locationId || null,
       categoryId: categoryId || null,
+      authorId: authorId || null,
       photographerCredit: credit.trim() || null,
       // Byline is a single editorial field shared by both locale rows.
       translations: [
@@ -660,6 +701,46 @@ function ContentEditForm({
       </div>
       <Field label={copy.bylineLabel} hint={copy.bylineHint}>
         <input value={byline} onChange={(e) => setByline(e.target.value)} className={inputCls} />
+      </Field>
+      <Field label={copy.authorLabel} hint={copy.authorHint}>
+        <div className="relative">
+          <div className={inputCls + " flex items-center justify-between gap-2"}>
+            <span className={authorName ? "text-foreground" : "text-muted-foreground"}>
+              {authorName || copy.authorNone}
+            </span>
+            {authorId && (
+              <button type="button" onClick={() => pickAuthor(null)} className="text-xs text-muted-foreground hover:text-foreground" title={copy.authorClear}>
+                {copy.authorClear}
+              </button>
+            )}
+          </div>
+          <input
+            value={authorQuery}
+            onChange={(e) => { setAuthorQuery(e.target.value); setAuthorOpen(true) }}
+            onFocus={() => setAuthorOpen(true)}
+            placeholder={copy.authorSearchHint}
+            className={inputCls + " mt-2"}
+          />
+          {authorOpen && (authorQuery.trim() || authorResults.length > 0 || authorSearching) && (
+            <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-auto rounded-md border border-border bg-background shadow-lg">
+              {authorSearching && <div className="px-3 py-2 text-xs text-muted-foreground">{common.working}</div>}
+              {!authorSearching && authorResults.length === 0 && authorQuery.trim() && (
+                <div className="px-3 py-2 text-xs text-muted-foreground">{common.noResults}</div>
+              )}
+              {authorResults.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => pickAuthor(a)}
+                  className="flex w-full items-center justify-between px-3 py-2 text-sm hover:bg-muted"
+                >
+                  <span>{a.name}</span>
+                  {a.id === authorId && <span className="text-xs text-primary">✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </Field>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={copy.enSeoDescription} hint={copy.seoHint}>

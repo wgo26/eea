@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { expireListing, relistListing, moderateListing, updateListing } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
+import { ActionMenu, ActionMenuTrigger } from '@/components/admin/action-menu'
+import type { ActionMenuEntry } from '@/components/admin/action-menu'
 import {
   Dialog,
   DialogContent,
@@ -106,57 +107,52 @@ export function ListingActions({ listing, copy, common, locale }: { listing: Adm
 
   const isActive = listing.listingStatus === 'active'
 
+  // Lifecycle actions live in a compact dropdown so the row fits on screen —
+  // previously five wrapping buttons pushed the actions column off viewport.
+  const menuItems: ActionMenuEntry[] = [
+    {
+      label: copy.editContent,
+      onSelect: () => router.push(`${localePath(locale, '/admin/content')}?edit=${listing.contentItemId}`),
+      disabled: busy,
+    },
+    { separator: true },
+  ]
+  if (isActive) {
+    menuItems.push({
+      label: copy.expire,
+      onSelect: () => run(() => expireListing(listing.contentItemId), copy.toastExpired),
+      disabled: busy,
+    })
+  }
+  if (!isActive && listing.listingStatus !== 'removed') {
+    menuItems.push({
+      label: copy.relist,
+      onSelect: () => run(() => relistListing(listing.contentItemId), copy.toastRelisted),
+      disabled: busy,
+    })
+  }
+  if (isActive) {
+    menuItems.push({
+      label: copy.markSold,
+      onSelect: () => run(() => moderateListing(listing.contentItemId, 'sold'), copy.toastSold),
+      disabled: busy,
+    })
+  }
+  if (listing.listingStatus !== 'removed') {
+    menuItems.push({
+      label: copy.remove,
+      onSelect: () => setConfirmRemove(true),
+      disabled: busy,
+      tone: 'danger',
+    })
+  }
+
   return (
-    <div className="flex flex-wrap items-center justify-end gap-1.5">
-      <Link
-        href={`${localePath(locale, '/admin/content')}?edit=${listing.contentItemId}`}
-        className="text-xs text-primary hover:underline"
-      >
-        {copy.editContent}
-      </Link>
-      <button type="button" onClick={openDetailsEdit} disabled={busy} className={ghostBtn}>
+    <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
+      <button type="button" onClick={openDetailsEdit} disabled={busy} className={`${ghostBtn} shrink-0`}>
         {copy.editDetails}
       </button>
-      {isActive && (
-        <button
-          type="button"
-          onClick={() => run(() => expireListing(listing.contentItemId), copy.toastExpired)}
-          disabled={busy}
-          className={ghostBtn + ' hover:text-amber-700 hover:border-amber-400'}
-        >
-          {copy.expire}
-        </button>
-      )}
-      {!isActive && listing.listingStatus !== 'removed' && (
-        <button
-          type="button"
-          onClick={() => run(() => relistListing(listing.contentItemId), copy.toastRelisted)}
-          disabled={busy}
-          className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
-        >
-          {copy.relist}
-        </button>
-      )}
-      {isActive && (
-        <button
-          type="button"
-          onClick={() => run(() => moderateListing(listing.contentItemId, 'sold'), copy.toastSold)}
-          disabled={busy}
-          className={ghostBtn}
-        >
-          {copy.markSold}
-        </button>
-      )}
-      {listing.listingStatus !== 'removed' && (
-        <button
-          type="button"
-          onClick={() => setConfirmRemove(true)}
-          disabled={busy}
-          className={ghostBtn + ' hover:text-destructive hover:border-destructive/50'}
-        >
-          {copy.remove}
-        </button>
-      )}
+      <ActionMenu trigger={<ActionMenuTrigger label={copy.editDetails} />} items={menuItems} />
       <ConfirmDialog
         open={confirmRemove}
         onOpenChange={setConfirmRemove}

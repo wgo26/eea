@@ -68,9 +68,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
           <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.inquiriesHeading}</h2>
           {inquiries.length === 0 ? <EmptyState message={t.emptyInquiries} /> : (
             <DataTable rows={inquiries} rowKey={(r) => r.id} columns={[
-              { key: 'company', header: t.colCompany, render: (r) => <div><div className="text-sm font-medium">{r.advertiserName ?? r.name}</div><div className="text-xs text-muted-foreground">{r.email} {r.phone}</div></div> },
-              { key: 'message', header: t.inquiryMessage, render: (r) => <span className="whitespace-pre-wrap text-xs text-muted-foreground">{r.copyText ?? '—'}</span> },
-              { key: 'actions', header: '', render: (r) => <InquiryActions inquiry={r} slots={slots} copy={t} />, className: 'text-right' },
+              { key: 'company', header: t.colCompany, render: (r) => <div className="min-w-[160px] max-w-[240px]"><div className="text-sm font-medium truncate">{r.advertiserName ?? r.name}</div><div className="text-xs text-muted-foreground truncate">{r.email} {r.phone}</div></div> },
+              { key: 'message', header: t.inquiryMessage, render: (r) => <span className="block min-w-[200px] max-w-[320px] whitespace-pre-wrap break-words text-xs text-muted-foreground line-clamp-3">{r.copyText ?? '—'}</span> },
+              { key: 'actions', header: '', stickyRight: true, render: (r) => <InquiryActions inquiry={r} slots={slots} copy={t} />, className: 'text-right' },
             ]} />
           )}
         </section>
@@ -85,18 +85,18 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
             rows={slots}
             rowKey={(r) => r.id}
             columns={[
-              { key: 'name', header: t.colSlot, render: (r) => <div className="text-sm font-medium">{r.name}</div> },
-              { key: 'placement', header: t.colPlacement, render: (r) => <span className="text-xs text-muted-foreground">{r.placement}</span> },
-              { key: 'dimensions', header: t.colSize, render: (r) => <span className="text-xs font-mono">{r.mobileDimensions ? `${r.dimensions} / ${r.mobileDimensions}` : r.dimensions}</span> },
-              { key: 'formats', header: t.colFormat, render: (r) => <span className="text-xs text-muted-foreground">{r.allowedFormats.join(' · ')}{r.maxDurationSeconds ? ` · ≤${r.maxDurationSeconds}s` : ''}</span> },
-              { key: 'pricing', header: t.colBasePrice, render: (r) => <span className="text-xs">{formatPrice(r.basePrice, r.currency)}</span> },
+              { key: 'name', header: t.colSlot, render: (r) => <div className="text-sm font-medium whitespace-nowrap">{r.name}</div>, className: 'whitespace-nowrap' },
+              { key: 'placement', header: t.colPlacement, render: (r) => <span className="text-xs text-muted-foreground whitespace-nowrap">{r.placement}</span>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
+              { key: 'dimensions', header: t.colSize, render: (r) => <span className="text-xs font-mono whitespace-nowrap">{r.mobileDimensions ? `${r.dimensions} / ${r.mobileDimensions}` : r.dimensions}</span>, className: 'whitespace-nowrap' },
+              { key: 'formats', header: t.colFormat, render: (r) => <span className="text-xs text-muted-foreground">{r.allowedFormats.join(' · ')}{r.maxDurationSeconds ? ` · ≤${r.maxDurationSeconds}s` : ''}</span>, headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell' },
+              { key: 'pricing', header: t.colBasePrice, render: (r) => <span className="text-xs whitespace-nowrap">{formatPrice(r.basePrice, r.currency)}</span>, className: 'whitespace-nowrap' },
               { key: 'status', header: t.colStatus, render: (r) => (
-                <span className={`inline-flex items-center gap-1 text-xs font-medium ${r.isActive ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                <span className={`inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium ${r.isActive ? 'text-emerald-600' : 'text-muted-foreground'}`}>
                   <span className={`h-1.5 w-1.5 rounded-full ${r.isActive ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`} />
                   {r.isActive ? t.active : t.inactive}
                 </span>
-              ) },
-              { key: 'actions', header: '', render: (r) => <AdSlotActions slot={r} copy={t} />, className: 'text-right' },
+              ), className: 'whitespace-nowrap' },
+              { key: 'actions', header: '', stickyRight: true, render: (r) => <AdSlotActions slot={r} copy={t} />, className: 'text-right' },
             ]}
           />
         )}
@@ -112,14 +112,14 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
             rowKey={(r) => r.id}
             columns={[
               { key: 'campaign', header: t.colCampaign, render: (r) => (
-                <div className="min-w-0">
+                <div className="min-w-[160px] max-w-[220px]">
                   <div className="text-sm font-medium truncate">{r.name}</div>
                   <div className="text-xs text-muted-foreground truncate">{r.advertiserName}</div>
                 </div>
               ) },
-              { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} label={campaignStatusLabels[r.status] ?? r.status} /> },
+              { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} label={campaignStatusLabels[r.status] ?? r.status} />, className: 'whitespace-nowrap' },
               { key: 'format', header: t.colFormat, render: (r) => (
-                <div className="text-xs">
+                <div className="text-xs whitespace-nowrap">
                   <span className="font-medium">{r.creativeType}</span>
                   {r.creativeType !== 'sponsored' ? (
                     <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
@@ -129,7 +129,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
                     </span>
                   ) : null}
                 </div>
-              ) },
+              ), headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell whitespace-nowrap' },
               { key: 'creative', header: t.colCreative, render: (r) => (
                 r.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -139,24 +139,24 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
                 ) : (
                   <span className="text-xs text-muted-foreground">—</span>
                 )
-              ) },
-              { key: 'slot', header: t.colSlot, render: (r) => <span className="text-xs">{r.slotName ?? '—'}</span> },
+              ), headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell' },
+              { key: 'slot', header: t.colSlot, render: (r) => <span className="text-xs whitespace-nowrap">{r.slotName ?? '—'}</span>, headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell whitespace-nowrap' },
               { key: 'dates', header: t.colDates, render: (r) => (
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs text-muted-foreground whitespace-nowrap">
                   <div>{formatDate(r.startsAt)} → {formatDate(r.endsAt)}</div>
                 </div>
-              ) },
-              { key: 'pricing', header: t.colPrice, render: (r) => <span className="text-xs">{formatPrice(r.agreedPrice, r.currency)}</span> },
+              ), headerClassName: 'hidden xl:table-cell', className: 'hidden xl:table-cell whitespace-nowrap' },
+              { key: 'pricing', header: t.colPrice, render: (r) => <span className="text-xs whitespace-nowrap">{formatPrice(r.agreedPrice, r.currency)}</span>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
               { key: 'performance', header: t.colPerformance, render: (r) => (
-                <div className="text-xs">
+                <div className="text-xs whitespace-nowrap">
                   <span>{r.impressions.toLocaleString()} {t.impressions}</span>
                   <span className="text-muted-foreground"> · </span>
                   <span>{r.clicks.toLocaleString()} {t.clicks}</span>
                   <span className="text-muted-foreground"> · </span>
                   <span>{formatPercent(r.clicks, r.impressions)} CTR</span>
                 </div>
-              ) },
-              { key: 'actions', header: '', render: (r) => <CampaignActions campaign={r} copy={t} />, className: 'text-right' },
+              ), headerClassName: 'hidden xl:table-cell', className: 'hidden xl:table-cell whitespace-nowrap' },
+              { key: 'actions', header: '', stickyRight: true, render: (r) => <CampaignActions campaign={r} copy={t} />, className: 'text-right' },
             ]}
           />
         )}
@@ -172,21 +172,21 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
             rowKey={(r) => r.id}
             columns={[
               { key: 'company', header: t.colCompany, render: (r) => (
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">{r.companyName}</div>
-                  <div className="text-xs text-muted-foreground">{r.contactName}</div>
+                <div className="min-w-[160px] max-w-[220px]">
+                  <div className="text-sm font-medium truncate">{r.companyName}</div>
+                  <div className="text-xs text-muted-foreground truncate">{r.contactName}</div>
                 </div>
               ) },
               { key: 'contact', header: t.colContact, render: (r) => (
-                <div className="text-xs text-muted-foreground">
-                  {r.email && <div>{r.email}</div>}
-                  {r.phone && <div>{r.phone}</div>}
+                <div className="text-xs text-muted-foreground max-w-[200px]">
+                  {r.email && <div className="truncate">{r.email}</div>}
+                  {r.phone && <div className="truncate">{r.phone}</div>}
                 </div>
-              ) },
+              ), headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell' },
               { key: 'campaigns', header: t.colCampaigns, render: (r) => (
-                <span className="text-xs">{t.campaignsCount.replace('{active}', String(r.activeCampaigns)).replace('{total}', String(r.totalCampaigns))}</span>
-              ) },
-              { key: 'actions', header: '', render: (r) => <AdvertiserActions advertiser={r} copy={t} />, className: 'text-right' },
+                <span className="text-xs whitespace-nowrap">{t.campaignsCount.replace('{active}', String(r.activeCampaigns)).replace('{total}', String(r.totalCampaigns))}</span>
+              ), className: 'whitespace-nowrap' },
+              { key: 'actions', header: '', stickyRight: true, render: (r) => <AdvertiserActions advertiser={r} copy={t} />, className: 'text-right' },
             ]}
           />
         )}

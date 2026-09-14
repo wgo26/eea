@@ -63,7 +63,7 @@ export function ListingsBulkTable({
       key: 'title',
       header: copy.colTitle,
       render: (r) => (
-        <div className="min-w-0">
+        <div className="min-w-[180px] max-w-[280px]">
           <div className="text-sm font-medium truncate">{r.title ?? copy.untitled}</div>
           {r.sellerName && <div className="text-xs text-muted-foreground truncate">{r.sellerName}</div>}
           {r.missingLocale && (
@@ -79,12 +79,13 @@ export function ListingsBulkTable({
       header: copy.colPrice,
       render: (r) =>
         r.price != null ? (
-          <span className="text-sm">
+          <span className="text-sm whitespace-nowrap">
             {r.price.toLocaleString()} {r.currency ?? 'XAF'}
           </span>
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
         ),
+      className: 'whitespace-nowrap',
     },
     {
       key: 'status',
@@ -92,32 +93,38 @@ export function ListingsBulkTable({
       render: (r) => (
         <div className="space-y-1">
           <StatusBadge status={r.listingStatus} label={localizeStatus(r.listingStatus, commonLabels)} />
-          <div className="text-[10px] text-muted-foreground">{localizeStatus(r.contentStatus, commonLabels)}</div>
+          <div className="text-[10px] text-muted-foreground whitespace-nowrap">{localizeStatus(r.contentStatus, commonLabels)}</div>
         </div>
       ),
+      className: 'whitespace-nowrap',
     },
     {
       key: 'expires',
       header: copy.colExpires,
       render: (r) =>
         r.expiresAt ? (
-          <time className="text-xs text-muted-foreground">{formatRelative(r.expiresAt, locale)}</time>
+          <time className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(r.expiresAt, locale)}</time>
         ) : (
-          <span className="text-xs text-muted-foreground">{copy.noExpiry}</span>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">{copy.noExpiry}</span>
         ),
+      headerClassName: 'hidden md:table-cell',
+      className: 'hidden md:table-cell whitespace-nowrap',
     },
     {
       key: 'view',
       header: '',
       render: (r) => (
-        <Link href={localePath(locale, `/buy-sell/${r.contentItemId}`)} className="text-xs text-primary hover:underline">
+        <Link href={localePath(locale, `/buy-sell/${r.contentItemId}`)} className="text-xs text-primary hover:underline whitespace-nowrap">
           {copy.viewContent}
         </Link>
       ),
+      headerClassName: 'hidden xl:table-cell',
+      className: 'hidden xl:table-cell whitespace-nowrap',
     },
     {
       key: 'actions',
       header: '',
+      stickyRight: true,
       render: (r) => <ListingActions listing={r} copy={copy} common={common} locale={locale} />,
       className: 'text-right',
     },

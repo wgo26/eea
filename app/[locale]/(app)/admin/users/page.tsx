@@ -105,11 +105,11 @@ export default async function Page({
           rows={users}
           rowKey={(r) => r.id}
           columns={[
-            { key: 'user', header: t.colUser, render: (r) => <UserCell row={r} copy={t} href={localePath(locale, `/admin/users/${r.id}`)} /> },
-            { key: 'location', header: t.colLocation, render: (r) => <span className="text-xs text-muted-foreground">{r.locationName ?? '—'}</span> },
-            { key: 'roles', header: t.colRoles, render: (r) => <RolesCell roles={r.roles} copy={t} /> },
-            { key: 'joined', header: t.colJoined, render: (r) => <time className="text-xs text-muted-foreground">{formatDateTime(r.createdAt)}</time> },
-            { key: 'actions', header: '', render: (r) => <UserActions user={r} copy={t} common={dict.admin.common} />, className: 'text-right' },
+            { key: 'user', header: t.colUser, render: (r) => <UserCell row={r} copy={t} href={localePath(locale, `/admin/users/${r.id}`)} />, className: 'min-w-[180px] max-w-[260px]' },
+            { key: 'location', header: t.colLocation, render: (r) => <span className="text-xs text-muted-foreground whitespace-nowrap">{r.locationName ?? '—'}</span>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
+            { key: 'roles', header: t.colRoles, render: (r) => <RolesCell roles={r.roles} copy={t} />, className: 'max-w-[160px]' },
+            { key: 'joined', header: t.colJoined, render: (r) => <time className="text-xs text-muted-foreground whitespace-nowrap">{formatDateTime(r.createdAt)}</time>, headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell whitespace-nowrap' },
+            { key: 'actions', header: '', stickyRight: true, render: (r) => <UserActions user={r} copy={t} common={dict.admin.common} />, className: 'text-right' },
           ]}
         />
       )}

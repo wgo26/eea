@@ -96,11 +96,11 @@ export default async function Page({
                 key: 'type',
                 header: t.colType,
                 render: (r) => (
-                  <div className="space-y-1">
+                  <div className="space-y-1 min-w-[120px] max-w-[220px]">
                     <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       {localizeReportType(r.reportType, dict.admin.common)}
                     </span>
-                    <div className="text-sm">{r.subject ?? t.noContent}</div>
+                    <div className="text-sm truncate">{r.subject ?? t.noContent}</div>
                   </div>
                 ),
               },
@@ -108,11 +108,11 @@ export default async function Page({
                 key: 'content',
                 header: t.colContent,
                 render: (r) => (
-                  <div className="min-w-0">
+                  <div className="min-w-[140px] max-w-[240px]">
                     {r.contentItemId ? (
                       <Link
                         href={contentHref(locale, r.contentType, r.contentItemId, r.contentSlug)}
-                        className="text-sm text-primary hover:underline"
+                        className="block truncate text-sm text-primary hover:underline"
                       >
                         {r.contentTitle ?? r.contentItemId}
                       </Link>
@@ -127,9 +127,9 @@ export default async function Page({
                   </div>
                 ),
               },
-              { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, dict.admin.common)} /> },
-              { key: 'received', header: t.colReceived, render: (r) => <time className="text-xs text-muted-foreground">{formatRelative(r.createdAt, locale)}</time> },
-              { key: 'actions', header: '', render: (r) => <ReportActions report={r} copy={t} common={dict.admin.common} locale={locale} />, className: 'text-right' },
+              { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, dict.admin.common)} />, className: 'whitespace-nowrap' },
+              { key: 'received', header: t.colReceived, render: (r) => <time className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(r.createdAt, locale)}</time>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
+              { key: 'actions', header: '', stickyRight: true, render: (r) => <ReportActions report={r} copy={t} common={dict.admin.common} locale={locale} />, className: 'text-right' },
             ]}
           />
           <Pager page={page} pageSize={PAGE_SIZE} total={filtered.reports} hrefFor={pageHref} copy={tc} />
@@ -147,14 +147,14 @@ export default async function Page({
                 key: 'content',
                 header: t.colContent,
                 render: (r) => (
-                  <div className="min-w-0">
+                  <div className="min-w-[160px] max-w-[280px]">
                     <Link
                       href={contentHref(locale, r.contentType, r.contentItemId, r.contentSlug)}
-                      className="text-sm text-primary hover:underline"
+                      className="block truncate text-sm text-primary hover:underline"
                     >
                       {r.contentTitle ?? r.contentItemId}
                     </Link>
-                    <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted-foreground">{r.correctionText}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2 break-words">{r.correctionText}</p>
                     {r.missingLocale && (
                       <div className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
                         {t.missingTranslation}
@@ -167,15 +167,17 @@ export default async function Page({
                 key: 'reporter',
                 header: t.reporterLabel,
                 render: (r) => (
-                  <div className="text-xs text-muted-foreground">
-                    {r.reporterName ?? t.anonymous}
-                    {r.reporterEmail && <div>{r.reporterEmail}</div>}
+                  <div className="text-xs text-muted-foreground max-w-[160px]">
+                    <div className="truncate">{r.reporterName ?? t.anonymous}</div>
+                    {r.reporterEmail && <div className="truncate">{r.reporterEmail}</div>}
                   </div>
                 ),
+                headerClassName: 'hidden md:table-cell',
+                className: 'hidden md:table-cell',
               },
-              { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, dict.admin.common)} /> },
-              { key: 'received', header: t.colReceived, render: (r) => <time className="text-xs text-muted-foreground">{formatRelative(r.createdAt, locale)}</time> },
-            { key: 'actions', header: '', render: (r) => <CorrectionActions correction={r} copy={t} />, className: 'text-right' },
+              { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, dict.admin.common)} />, className: 'whitespace-nowrap' },
+              { key: 'received', header: t.colReceived, render: (r) => <time className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(r.createdAt, locale)}</time>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
+            { key: 'actions', header: '', stickyRight: true, render: (r) => <CorrectionActions correction={r} copy={t} />, className: 'text-right' },
           ]}
         />
         <Pager page={page} pageSize={PAGE_SIZE} total={filtered.corrections} hrefFor={pageHref} copy={tc} />

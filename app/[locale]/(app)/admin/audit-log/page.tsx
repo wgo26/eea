@@ -106,40 +106,40 @@ export default async function Page({
         emptyMessage={t.empty}
         columns={[
           { key: 'time', header: t.colWhen, render: (r) => (
-            <div className="text-xs">
+            <div className="text-xs whitespace-nowrap">
               <div className="font-medium">{formatDateTime(r.createdAt)}</div>
               <div className="text-muted-foreground">{formatRelative(r.createdAt)}</div>
             </div>
-          ) },
+          ), className: 'whitespace-nowrap' },
           { key: 'action', header: t.colAction, render: (r) => (
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground" title={r.action}>
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground whitespace-nowrap" title={r.action}>
               {r.action.replace(/[:_]/g, ' ')}
             </span>
-          ) },
+          ), className: 'whitespace-nowrap' },
           { key: 'content', header: t.colContent, render: (r) => (
-            <div className="min-w-0">
+            <div className="min-w-[140px] max-w-[240px]">
               {r.contentTitle ? (
                 <div className="text-sm font-medium truncate">{r.contentTitle}</div>
               ) : (
                 <span className="text-xs text-muted-foreground">—</span>
               )}
-              {r.contentType && <div className="text-xs text-muted-foreground">{localizeType(r.contentType, dict.admin.common)}</div>}
+              {r.contentType && <div className="text-xs text-muted-foreground truncate">{localizeType(r.contentType, dict.admin.common)}</div>}
             </div>
           ) },
           { key: 'transition', header: t.colTransition, render: (r) => (
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xs text-muted-foreground whitespace-nowrap">
               {r.fromStatus && <span>{localizeStatus(r.fromStatus, dict.admin.common)}</span>}
               {r.fromStatus && r.toStatus && <span> → </span>}
               {r.toStatus && <span className="font-medium text-foreground">{localizeStatus(r.toStatus, dict.admin.common)}</span>}
               {!r.fromStatus && !r.toStatus && <span>—</span>}
             </div>
-          ) },
+          ), headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell whitespace-nowrap' },
           { key: 'actor', header: t.colActor, render: (r) => (
-            <span className="text-xs">{r.actorName ?? (r.actorId ? t.deletedUser : t.system)}</span>
-          ) },
+            <span className="text-xs truncate block max-w-[140px]">{r.actorName ?? (r.actorId ? t.deletedUser : t.system)}</span>
+          ), headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell' },
           { key: 'notes', header: t.colNotes, render: (r) => (
             <span className="text-xs text-muted-foreground truncate max-w-[200px] block">{r.notes ?? '—'}</span>
-          ) },
+          ), headerClassName: 'hidden xl:table-cell', className: 'hidden xl:table-cell' },
         ]}
       />
 

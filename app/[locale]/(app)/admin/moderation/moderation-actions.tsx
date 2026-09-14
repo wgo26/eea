@@ -76,7 +76,7 @@ export function ModerationActions({ submission, copy }: { submission: Submission
 
   if (!actionable) {
     return (
-      <div className="flex items-center justify-end gap-1.5">
+      <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
         <span className="text-xs text-muted-foreground">{copy.reviewed}</span>
         <button type="button" onClick={() => setDeleteOpen(true)} disabled={loading} className={btnDanger}>
           {copy.delete}
@@ -96,7 +96,7 @@ export function ModerationActions({ submission, copy }: { submission: Submission
   }
 
   return (
-    <div className="flex items-center justify-end gap-1.5">
+    <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
       <button type="button" onClick={handleApprove} disabled={loading} className={btnPrimary}>
         {copy.approve}
       </button>

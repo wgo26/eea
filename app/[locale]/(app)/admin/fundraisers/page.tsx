@@ -59,7 +59,7 @@ export default async function Page() {
             return (
               <div key={f.contentItemId} className="rounded-lg border border-border bg-card p-3">
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusBadge status={f.closedAt ? 'closed' : 'open'} label={localizeStatus(f.closedAt ? 'closed' : 'open', dict.admin.common)} />
                       {f.storyStatus && <StatusBadge status={f.storyStatus} label={localizeStatus(f.storyStatus, dict.admin.common)} />}

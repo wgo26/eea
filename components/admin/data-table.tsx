@@ -14,6 +14,13 @@ export type Column<T> = {
   sortHref?: (key: string, dir: 'asc' | 'desc') => string
   /** Current sort state for this column */
   sortDir?: SortDirection
+  /**
+   * Pin this column to the right edge of the scroll container so row actions
+   * stay visible without horizontal scrolling (e.g. the `actions` column).
+   * The cell gets a solid background + edge shadow so scrolled content
+   * slides underneath it instead of showing through.
+   */
+  stickyRight?: boolean
 }
 
 type DataTableProps<T> = {
@@ -80,16 +87,18 @@ export function DataTable<T>({
     : columns
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+    <div className="rounded-lg border border-border overflow-hidden max-w-full bg-card">
+      <div className="overflow-x-auto max-w-full">
+        <table className="w-full min-w-0 text-sm border-collapse">
           <thead>
             <tr className="bg-muted/50 border-b border-border">
               {effectiveColumns.map((col) => (
                 <th
                   key={col.key}
                   className={cn(
-                    'px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide',
+                    'px-3 py-2.5 md:px-4 md:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap align-middle',
+                    col.key === '__select' && 'sticky left-0 z-10 bg-muted shadow-[1px_0_0_0_var(--border)]',
+                    col.stickyRight && 'sticky right-0 z-10 bg-muted shadow-[-1px_0_0_0_var(--border)]',
                     col.headerClassName,
                   )}
                 >
@@ -137,7 +146,18 @@ export function DataTable<T>({
                   )}
                 >
                   {effectiveColumns.map((col) => (
-                    <td key={col.key} className={cn('px-4 py-3', col.className)}>
+                    <td
+                      key={col.key}
+                      className={cn(
+                        'px-3 py-2.5 md:px-4 md:py-3 align-middle',
+                        col.key === '__select' && 'sticky left-0 z-10 shadow-[1px_0_0_0_var(--border)]',
+                        col.stickyRight && 'sticky right-0 z-10 shadow-[-1px_0_0_0_var(--border)]',
+                        // Sticky cells need an opaque background so columns
+                        // scrolling underneath don't show through.
+                        (col.key === '__select' || col.stickyRight) && 'bg-card',
+                        col.className,
+                      )}
+                    >
                       {col.key === '__select' && selectable ? (
                         <input
                           type="checkbox"

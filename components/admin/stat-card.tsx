@@ -54,11 +54,11 @@ export function StatCard({ label, value, icon, hint, trend, href, tone = 'defaul
   )
 
   if (href) {
-    return <Link href={href} className="block">{inner}</Link>
+    return <Link href={href} className="block min-w-0">{inner}</Link>
   }
   return inner
 }
 
 export function StatGrid({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn('grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6 gap-2', className)}>{children}</div>
+  return <div className={cn('grid grid-cols-1 min-[480px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6 gap-2', className)}>{children}</div>
 }

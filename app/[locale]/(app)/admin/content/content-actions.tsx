@@ -95,12 +95,12 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
   }
 
   return (
-    <div className="flex items-center justify-end gap-2">
+    <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
       <button
         type="button"
         onClick={() => (content.isFeatured ? setUnfeatureOpen(true) : setFeatureOpen(true))}
         disabled={loading}
-        className={`inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+        className={`inline-flex shrink-0 items-center rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
           content.isFeatured
             ? 'bg-amber-100 border-amber-200 text-amber-800'
             : 'border-border text-muted-foreground hover:text-foreground'

@@ -132,7 +132,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
               rowKey={(r) => r.id}
               columns={[
                 { key: 'file', header: t.colFile, render: (r) => (
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center gap-2 min-w-[180px] max-w-[280px]">
                     {r.kind === 'image' && r.publicUrl ? (
                       /* eslint-disable-next-line @next/next/no-img-element -- arbitrary upload hosts */
                       <img src={r.publicUrl} alt="" className="h-8 w-8 rounded object-cover bg-muted shrink-0" />
@@ -149,22 +149,22 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
                     </div>
                   </div>
                 ) },
-                { key: 'provider', header: t.colProvider, render: (r) => <span className="text-xs">{providerLabels[r.provider] ?? r.provider}</span> },
-                { key: 'kind', header: t.colKind, render: (r) => <span className="text-xs text-muted-foreground">{r.kind}</span> },
-                { key: 'size', header: t.colSize, render: (r) => <span className="text-xs">{r.sizeBytes != null ? formatBytes(r.sizeBytes) : '—'}</span> },
+                { key: 'provider', header: t.colProvider, render: (r) => <span className="text-xs whitespace-nowrap">{providerLabels[r.provider] ?? r.provider}</span>, headerClassName: 'hidden sm:table-cell', className: 'hidden sm:table-cell whitespace-nowrap' },
+                { key: 'kind', header: t.colKind, render: (r) => <span className="text-xs text-muted-foreground whitespace-nowrap">{r.kind}</span>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
+                { key: 'size', header: t.colSize, render: (r) => <span className="text-xs whitespace-nowrap">{r.sizeBytes != null ? formatBytes(r.sizeBytes) : '—'}</span>, className: 'whitespace-nowrap' },
                 { key: 'backup', header: t.colBackup, render: (r) => (
-                  <span className={`inline-flex items-center gap-1 text-xs font-medium ${r.backedUpAt ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  <span className={`inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium ${r.backedUpAt ? 'text-emerald-600' : 'text-amber-600'}`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${r.backedUpAt ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                     {r.backedUpAt ? t.backedUp : t.notBackedUp}
                   </span>
-                ) },
+                ), className: 'whitespace-nowrap' },
                 { key: 'verification', header: t.colVerification, render: (r) => (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
                     {r.backupVerifiedAt ? t.verified : (r.verificationStatus ?? t.unverified)}
                   </span>
-                ) },
-                { key: 'actions', header: '', render: (r) => (
-                  <div className="flex items-center justify-end gap-1">
+                ), headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell whitespace-nowrap' },
+                { key: 'actions', header: '', stickyRight: true, render: (r) => (
+                  <div className="flex items-center justify-end gap-1 flex-nowrap whitespace-nowrap">
                     <AssetVerifyButton mediaId={r.id} copy={t} />
                     <AssetDeleteButton mediaId={r.id} inUse={r.contentItemId != null} copy={t} />
                   </div>

@@ -325,6 +325,30 @@ export type ContentRow = {
   submittedBy: string | null
 }
 
+/** Search public contributor profiles by display name for the author picker. */
+export async function searchAuthorProfiles(term: string, limit = 12): Promise<{ id: string; name: string }[]> {
+  const q = term.trim()
+  if (!q) return []
+  if (!hasDatabase()) return []
+  try {
+    const { data } = await safe(
+      db()
+        .from('profiles')
+        .select('id, display_name, full_name')
+        .ilike('display_name', `%${q}%`)
+        .order('display_name', { ascending: true, nullsFirst: true })
+        .limit(limit),
+    )
+    return (data ?? []).map((r) => ({
+      id: r.id,
+      name: (r.display_name || r.full_name || '—').trim(),
+    }))
+  } catch (e) {
+    logger.error('admin', 'searchAuthorProfiles failed', { error: e instanceof Error ? e.message : String(e) })
+    return []
+  }
+}
+
 const CONTENT_SELECT = `id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, updated_at, author_id, submitted_by,
   translations:content_translations(locale, title, excerpt),
   location:locations(name),

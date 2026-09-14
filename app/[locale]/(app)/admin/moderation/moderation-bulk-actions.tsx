@@ -68,21 +68,21 @@ export function ModerationBulkTable({
         <TypeBadge type={r.submissionType} label={localizeType(r.submissionType, commonLabels)} />
         <Link
           href={localePath(locale, `/admin/moderation/${r.id}`)}
-          className="block text-xs text-primary hover:underline"
+          className="block text-xs text-primary hover:underline whitespace-nowrap"
         >
           {copy.review}
         </Link>
       </div>
-    ) },
+    ), className: 'whitespace-nowrap' },
     { key: 'submitter', header: copy.colSubmitter, render: (r) => (
-      <div className="min-w-0">
+      <div className="min-w-[140px] max-w-[220px]">
         <div className="text-sm font-medium truncate">{r.guestName ?? copy.anonymous}</div>
         {r.guestEmail && <div className="text-xs text-muted-foreground truncate">{r.guestEmail}</div>}
       </div>
     ) },
-    { key: 'status', header: copy.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, commonLabels)} /> },
-    { key: 'submitted', header: copy.colSubmitted, render: (r) => <time className="text-xs text-muted-foreground">{formatRelative(r.submittedAt)}</time> },
-    { key: 'actions', header: '', render: (r) => <ModerationActions submission={r} copy={copy} />, className: 'text-right' },
+    { key: 'status', header: copy.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, commonLabels)} />, className: 'whitespace-nowrap' },
+    { key: 'submitted', header: copy.colSubmitted, render: (r) => <time className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(r.submittedAt)}</time>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
+    { key: 'actions', header: '', stickyRight: true, render: (r) => <ModerationActions submission={r} copy={copy} />, className: 'text-right' },
   ]
 
   return (

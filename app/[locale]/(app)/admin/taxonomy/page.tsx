@@ -72,7 +72,7 @@ export default async function Page({
                   const primary = locale === 'fr' ? (r.nameFr ?? r.nameEn ?? r.slug) : (r.nameEn ?? r.slug)
                   const secondary = locale === 'fr' ? (r.nameFr ? r.nameEn : null) : r.nameFr
                   return (
-                    <div className="min-w-0">
+                    <div className="min-w-[140px] max-w-[240px]">
                       <div className="text-sm font-medium truncate">{primary}</div>
                       {secondary && <div className="text-xs text-muted-foreground truncate">{secondary}</div>}
                       {!r.nameFr && (
@@ -84,30 +84,34 @@ export default async function Page({
                   )
                 },
               },
-              { key: 'slug', header: t.colSlug, render: (r) => <span className="text-xs font-mono">{r.slug}</span> },
+              { key: 'slug', header: t.colSlug, render: (r) => <span className="text-xs font-mono whitespace-nowrap">{r.slug}</span>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
               {
                 key: 'type',
                 header: t.colType,
                 render: (r) => (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
                     {tf[TYPE_LABEL_KEY[r.contentType]] ?? r.contentType}
                   </span>
                 ),
+                headerClassName: 'hidden sm:table-cell',
+                className: 'hidden sm:table-cell whitespace-nowrap',
               },
-              { key: 'usage', header: t.colUsage, render: (r) => <span className="text-xs tabular-nums">{r.itemCount}</span> },
+              { key: 'usage', header: t.colUsage, render: (r) => <span className="text-xs tabular-nums whitespace-nowrap">{r.itemCount}</span>, className: 'whitespace-nowrap' },
               {
                 key: 'status',
                 header: t.colStatus,
                 render: (r) => (
-                  <span className={`inline-flex items-center gap-1 text-xs font-medium ${r.isActive ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                  <span className={`inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium ${r.isActive ? 'text-emerald-600' : 'text-muted-foreground'}`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${r.isActive ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`} />
                     {r.isActive ? t.active : t.inactive}
                   </span>
                 ),
+                className: 'whitespace-nowrap',
               },
               {
                 key: 'actions',
                 header: '',
+                stickyRight: true,
                 render: (r) => (
                   <CategoryRowActions
                     category={r}
@@ -136,7 +140,7 @@ export default async function Page({
                 key: 'name',
                 header: t.colName,
                 render: (r) => (
-                  <div className="min-w-0">
+                  <div className="min-w-[140px] max-w-[240px]">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-sm font-medium truncate">{r.name}</span>
                       <span
@@ -150,35 +154,41 @@ export default async function Page({
                   </div>
                 ),
               },
-              { key: 'slug', header: t.colSlug, render: (r) => <span className="text-xs font-mono">{r.slug}</span> },
+              { key: 'slug', header: t.colSlug, render: (r) => <span className="text-xs font-mono whitespace-nowrap">{r.slug}</span>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
               {
                 key: 'parent',
                 header: t.colParent,
-                render: (r) => <span className="text-xs text-muted-foreground">{r.parentName ?? '—'}</span>,
+                render: (r) => <span className="text-xs text-muted-foreground truncate block max-w-[140px]">{r.parentName ?? '—'}</span>,
+                headerClassName: 'hidden lg:table-cell',
+                className: 'hidden lg:table-cell',
               },
               {
                 key: 'usage',
                 header: t.colUsage,
                 render: (r) => (
-                  <div className="text-xs tabular-nums text-muted-foreground">
+                  <div className="text-xs tabular-nums text-muted-foreground whitespace-nowrap">
                     <div>{r.contentCount} {t.usageContent}</div>
                     <div>{r.profileCount} {t.usageProfiles}</div>
                   </div>
                 ),
+                headerClassName: 'hidden sm:table-cell',
+                className: 'hidden sm:table-cell whitespace-nowrap',
               },
               {
                 key: 'status',
                 header: t.colStatus,
                 render: (r) => (
-                  <span className={`inline-flex items-center gap-1 text-xs font-medium ${r.isActive ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                  <span className={`inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium ${r.isActive ? 'text-emerald-600' : 'text-muted-foreground'}`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${r.isActive ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`} />
                     {r.isActive ? t.active : t.inactive}
                   </span>
                 ),
+                className: 'whitespace-nowrap',
               },
               {
                 key: 'actions',
                 header: '',
+                stickyRight: true,
                 render: (r) => (
                   <LocationRowActions
                     location={r}

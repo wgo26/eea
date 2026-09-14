@@ -7,6 +7,8 @@ export type ContentDraftInput = {
   verification?: 'verified' | 'community_submission' | 'official_source' | 'developing' | null
   locationId?: string | null
   categoryId?: string | null
+  /** Profile author (uuid). Undefined = keep stored; null = clear the profile author (falls back to byline). */
+  authorId?: string | null
   photographerCredit?: string | null
   translations: {
     locale: 'en' | 'fr'
