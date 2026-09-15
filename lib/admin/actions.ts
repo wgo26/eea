@@ -505,6 +505,20 @@ export async function saveContentItem(contentItemId: string, draft: ContentDraft
         changed.push('publishedAt')
       }
     }
+    // Expiry date: null/empty clears a previously set expiry, a valid date
+    // sets it. Undefined leaves the stored value untouched.
+    if (draft.expiresAt !== undefined) {
+      if (draft.expiresAt) {
+        const ts = new Date(draft.expiresAt)
+        if (!Number.isNaN(ts.getTime())) {
+          patch.expires_at = ts.toISOString()
+          changed.push('expiresAt')
+        }
+      } else {
+        patch.expires_at = null
+        changed.push('expiresAt')
+      }
+    }
     // Permalink: slugified + collision-suffixed only when the editor changed it.
     if (draft.slug !== undefined && draft.slug.trim() && draft.slug.trim() !== item.slug) {
       patch.slug = await uniqueSlug(supabase, draft.slug)

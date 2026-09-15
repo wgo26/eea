@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { MediaUploader } from '@/components/admin/media-uploader'
+import { MediaUploader, CONTENT_MEDIA_ACCEPTS } from '@/components/admin/media-uploader'
 import type { UploadedPhoto } from '@/components/admin/media-uploader'
 import { ui, Field } from '@/lib/admin/ui-constants'
 import type { Dictionary } from '@/lib/i18n'
@@ -331,7 +331,9 @@ export function ContentCreateDialog({
               newPhotos={newPhotos}
               keepIds={[]}
               onChange={({ newPhotos: np }) => setNewPhotos(np)}
-              destination="admin_asset"
+              destination="public_photo"
+              acceptedTypes={CONTENT_MEDIA_ACCEPTS}
+              maxSizeBytes={50 * 1024 * 1024}
               pickerCopy={{
                 title: common.mediaLibrary,
                 search: common.mediaLibrary,
@@ -664,6 +666,7 @@ function ContentEditForm({
   onDone: () => void
 }) {
   const { run, loading } = useAdminMutation()
+  const { addToast } = useToast()
 
   const [enTitle, setEnTitle] = useState(data.enTitle ?? '')
   const [frTitle, setFrTitle] = useState(data.frTitle ?? '')
@@ -682,10 +685,18 @@ function ContentEditForm({
   // date, byline, per-post SEO description, tags).
   const [slugInput, setSlugInput] = useState(data.slug ?? '')
   const [publishedAtInput, setPublishedAtInput] = useState(data.publishedAt ? data.publishedAt.slice(0, 16) : '')
+  const [expiresAtInput, setExpiresAtInput] = useState(data.expiresAt ? data.expiresAt.slice(0, 10) : '')
   const [byline, setByline] = useState(data.byline ?? '')
   const [enSeoDescription, setEnSeoDescription] = useState(data.enSeoDescription ?? '')
   const [frSeoDescription, setFrSeoDescription] = useState(data.frSeoDescription ?? '')
   const [tagsInput, setTagsInput] = useState(data.tags.map((t) => t.name).filter(Boolean).join(', '))
+
+  // Supporting media links (same model as the create dialog: one URL per
+  // line, optional " - caption" suffix). Existing media stays managed via
+  // the uploader grid above (keepIds); these fields only add new links.
+  const [videosInput, setVideosInput] = useState('')
+  const [audiosInput, setAudiosInput] = useState('')
+  const [documentsInput, setDocumentsInput] = useState('')
 
   // Author picker: profile author (uuid) + search-as-you-type results.
   const [authorId, setAuthorId] = useState<string | null>(data.authorId ?? null)
@@ -751,14 +762,31 @@ function ContentEditForm({
   const [organizerPhone, setOrganizerPhone] = useState(data.event?.organizerPhone ?? '')
   const [organizerEmail, setOrganizerEmail] = useState(data.event?.organizerEmail ?? '')
 
+  function attachmentList(raw: string, kind: 'video' | 'audio' | 'document') {
+    return raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [url, ...rest] = line.split(/\s+-\s+/)
+        return { url, kind, caption: rest.join(' - ') || undefined }
+      })
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
+    if (isListing && price.trim() !== '' && Number.isNaN(Number(price))) {
+      addToast(copy.priceLabel ?? 'Enter a valid price.', 'error')
+      return
+    }
     const draft: Parameters<typeof saveContentItem>[1] = {
       slugBase: enTitle.trim() || data.slug || data.type,
       // Permalink: empty input falls back to the stored slug (never cleared).
       slug: slugInput.trim() || data.slug || undefined,
       // Publish date: empty input leaves the stored value untouched.
       publishedAt: publishedAtInput ? new Date(publishedAtInput).toISOString() : undefined,
+      // Expiry: empty input clears a previously set expiry.
+      expiresAt: expiresAtInput ? new Date(expiresAtInput).toISOString() : null,
       verification: (verification || null) as never,
       locationId: locationId || null,
       categoryId: categoryId || null,
@@ -772,6 +800,11 @@ function ContentEditForm({
       tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
       photos: newPhotos.map((p) => ({ url: p.url, alt: p.alt, caption: p.caption, credit: p.credit, assetId: p.assetId, kind: p.kind, mimeType: p.mimeType, durationSeconds: p.durationSeconds })),
       keepPhotoIds: keepIds,
+      attachments: [
+        ...attachmentList(videosInput, 'video'),
+        ...attachmentList(audiosInput, 'audio'),
+        ...attachmentList(documentsInput, 'document'),
+      ],
     }
     if (isListing) {
       draft.listing = {
@@ -834,14 +867,17 @@ function ContentEditForm({
         </Field>
       </div>
 
-      {/* Permalink, publish date, byline, SEO description and tags — the
+      {/* Permalink, publish date, expiry, byline, SEO description and tags — the
           editorial fields the Blogger import already carries. */}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <Field label={copy.slugLabel} hint={copy.slugHint}>
           <input value={slugInput} onChange={(e) => setSlugInput(e.target.value)} className={inputCls} />
         </Field>
         <Field label={copy.publishedAtLabel} hint={copy.publishedAtHint}>
           <input type="datetime-local" value={publishedAtInput} onChange={(e) => setPublishedAtInput(e.target.value)} className={inputCls} />
+        </Field>
+        <Field label={`${copy.expiresAt} (${copy.optional})`}>
+          <input type="date" value={expiresAtInput} onChange={(e) => setExpiresAtInput(e.target.value)} className={inputCls} />
         </Field>
       </div>
       <Field label={copy.bylineLabel} hint={copy.bylineHint}>
@@ -905,7 +941,9 @@ function ContentEditForm({
         newPhotos={newPhotos}
         onChange={({ keepIds: ki, newPhotos: np }) => { setKeepIds(ki); setNewPhotos(np) }}
         contentItemId={data.id}
-        destination="admin_asset"
+        destination="public_photo"
+        acceptedTypes={CONTENT_MEDIA_ACCEPTS}
+        maxSizeBytes={50 * 1024 * 1024}
         pickerCopy={{
           title: common.mediaLibrary,
           search: common.mediaLibrary,
@@ -950,6 +988,19 @@ function ContentEditForm({
             <option value="official_source">{copy.verificationOfficial}</option>
             <option value="developing">{copy.verificationDeveloping}</option>
           </select>
+        </Field>
+      </div>
+      {/* Supporting media links — same fields as the create dialog. Existing
+          media stays managed in the uploader grid above; these only add links. */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label={copy.videoUrls} hint={copy.videoUrlsHint}>
+          <textarea value={videosInput} onChange={(e) => setVideosInput(e.target.value)} rows={2} className={inputCls} placeholder="https://…" />
+        </Field>
+        <Field label={copy.audioUrls} hint={copy.audioUrlsHint}>
+          <textarea value={audiosInput} onChange={(e) => setAudiosInput(e.target.value)} rows={2} className={inputCls} placeholder="https://…" />
+        </Field>
+        <Field label={copy.documentUrls} hint={copy.documentUrlsHint}>
+          <textarea value={documentsInput} onChange={(e) => setDocumentsInput(e.target.value)} rows={2} className={inputCls} placeholder="https://…" />
         </Field>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">

@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { MediaUploader, type UploadedPhoto } from '@/components/admin/media-uploader'
+import { MediaUploader, CONTENT_MEDIA_ACCEPTS, type UploadedPhoto } from '@/components/admin/media-uploader'
 import type { Dictionary } from '@/lib/i18n'
 import type { SubmissionRow } from '@/lib/admin/queries'
 
@@ -489,6 +489,8 @@ function ApproveDrawer({
                 setNewPhotos(np)
               }}
               destination="public_photo"
+              acceptedTypes={CONTENT_MEDIA_ACCEPTS}
+              maxSizeBytes={50 * 1024 * 1024}
               showAltCaption={false}
               copy={{
                 label: copy.photosLabel,

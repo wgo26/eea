@@ -4,6 +4,8 @@ export type ContentDraftInput = {
   slug?: string
   /** Publish date override (ISO). Only applied when a non-empty value is sent. */
   publishedAt?: string | null
+  /** Expiry date override (ISO). Undefined = keep stored; null/empty = clear. */
+  expiresAt?: string | null
   verification?: 'verified' | 'community_submission' | 'official_source' | 'developing' | null
   locationId?: string | null
   categoryId?: string | null
@@ -71,6 +73,9 @@ export function validateContentDraft(input: ContentDraftInput, requireBilingual:
   }
   if (input.publishedAt !== undefined && input.publishedAt && Number.isNaN(Date.parse(input.publishedAt))) {
     return 'The publish date is invalid.'
+  }
+  if (input.expiresAt !== undefined && input.expiresAt && Number.isNaN(Date.parse(input.expiresAt))) {
+    return 'The expiry date is invalid.'
   }
   if (input.tags && input.tags.length > 12) return 'Use at most 12 tags.'
   if (input.event) {

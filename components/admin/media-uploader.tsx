@@ -49,6 +49,19 @@ export type ExistingPhoto = {
   isCover?: boolean
 }
 
+/**
+ * Shared accept list for post/content media: images + video + audio.
+ * Mirrors ALLOWED_MIME_TYPES in lib/storage/config.ts (gif is intentionally
+ * excluded — the server allowlist rejects it, so offering it in the picker
+ * would only produce a confusing 422 after upload).
+ */
+export const CONTENT_MEDIA_ACCEPTS =
+  'image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm,audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/webm'
+
+/** Image + video only (no audio) — for surfaces where audio makes no sense. */
+export const IMAGE_VIDEO_ACCEPTS =
+  'image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm'
+
 type MediaUploaderProps = {
   /** Existing photos to show (edit mode) */
   existingPhotos?: ExistingPhoto[]
@@ -61,7 +74,7 @@ type MediaUploaderProps = {
   contentItemId?: string
   /** Destination bucket: 'public_photo' for citizen content, 'admin_asset' for staff */
   destination?: 'public_photo' | 'admin_asset'
-  /** Max file size in bytes (default 12MB) */
+  /** Max file size in bytes (default 50MB; server enforces per-kind budgets) */
   maxSizeBytes?: number
   /** Accepted MIME types for the file picker */
   acceptedTypes?: string
@@ -135,17 +148,17 @@ function probeDuration(file: File): Promise<number | null> {
   })
 }
 
-const DEFAULT_COPY: Required<NonNullable<MediaUploaderProps['copy']>> = {  label: 'Photos',
-  hint: 'Upload images or paste image URLs. The first photo is the cover.',
-  drop: 'Drop images here',
+const DEFAULT_COPY: Required<NonNullable<MediaUploaderProps['copy']>> = {  label: 'Media',
+  hint: 'Upload images or videos (audio also supported) or paste URLs. The first item is the cover.',
+  drop: 'Drop files here',
   browse: 'Browse files',
   browseFiles: 'Browse files',
-  dropHere: 'Drop images here',
+  dropHere: 'Drop images or videos here',
   or: 'or',
   pasteUrl: 'Paste URL',
   urlPlaceholder: 'https://…',
   addUrl: 'Add',
-  existing: 'Existing photos',
+  existing: 'Existing media',
   altLabel: 'Alt text',
   captionLabel: 'Caption',
   creditLabel: 'Credit',
@@ -155,9 +168,9 @@ const DEFAULT_COPY: Required<NonNullable<MediaUploaderProps['copy']>> = {  label
   dragReorder: 'Drag to reorder',
   uploading: 'Uploading…',
   uploadError: 'Upload failed',
-  tooLarge: 'File too large (max 12 MB)',
-  wrongType: 'Unsupported file type',
-  empty: 'No photos yet. Upload or paste URLs above.',
+  tooLarge: 'File too large (max 50 MB video, 25 MB audio, 15 MB images)',
+  wrongType: 'Unsupported file type (images, video MP4/MOV/WebM, audio MP3/M4A/WAV/OGG)',
+  empty: 'No media yet. Upload or paste URLs above.',
 }
 
 export function MediaUploader({
@@ -167,8 +180,8 @@ export function MediaUploader({
   onChange,
   contentItemId,
   destination = 'admin_asset',
-  maxSizeBytes = 12 * 1024 * 1024,
-  acceptedTypes = 'image/jpeg,image/png,image/webp,image/gif',
+  maxSizeBytes = 50 * 1024 * 1024,
+  acceptedTypes = CONTENT_MEDIA_ACCEPTS,
   allowUrlPaste = true,
   showAltCaption = true,
   pickerCopy,
@@ -259,7 +272,7 @@ export function MediaUploader({
 
     if (uploaded.length > 0) {
       updateNewPhotos([...newPhotos, ...uploaded])
-      addToast(`${uploaded.length} photo${uploaded.length > 1 ? 's' : ''} uploaded.`, 'success')
+      addToast(`${uploaded.length} file${uploaded.length > 1 ? 's' : ''} uploaded.`, 'success')
     }
     setUploading(false)
   }, [addToast, c, maxSizeBytes, destination, contentItemId, newPhotos, updateNewPhotos, acceptedTypes])
@@ -497,8 +510,14 @@ export function MediaUploader({
               <div className="mt-2 space-y-3">
                 {newPhotos.map((photo, idx) => (
                   <div key={`meta-${idx}`} className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photo.url} alt="" className="h-12 w-12 rounded object-cover" />
+                    {photo.kind === 'video' || /\.mp4|\.mov|\.webm|\.m4v(\?|#|$)/i.test(photo.url) ? (
+                      <video src={photo.url} preload="metadata" muted playsInline className="h-12 w-12 rounded object-cover" />
+                    ) : photo.kind === 'audio' || /\.(mp3|m4a|wav|ogg|oga|opus|weba)(\?|#|$)/i.test(photo.url) ? (
+                      <span className="flex h-12 w-12 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground">Audio</span>
+                    ) : (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={photo.url} alt="" className="h-12 w-12 rounded object-cover" />
+                    )}
                     <input
                       type="text"
                       value={photo.alt ?? ''}
