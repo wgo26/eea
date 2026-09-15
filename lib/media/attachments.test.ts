@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDuration, inferKindFromUrl, mapAttachments, parseMediaList, supportingMedia } from './attachments';
+import { formatDuration, inferKindFromUrl, mapAttachments, parseMediaList, previewImageUrl, supportingMedia, videoThumbnailUrl, youtubeIdFromUrl } from './attachments';
 
 describe('media attachments', () => {
   it('infers video/audio from extensions', () => {
@@ -40,5 +40,29 @@ describe('media attachments', () => {
     expect(formatDuration(0)).toBeNull();
     expect(formatDuration(65)).toBe('1:05');
     expect(formatDuration(3661)).toBe('1:01:01');
+  });
+
+  it('extracts YouTube IDs from watch/share/embed/shorts URLs', () => {
+    expect(youtubeIdFromUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(youtubeIdFromUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s')).toBe('dQw4w9WgXcQ');
+    expect(youtubeIdFromUrl('https://youtu.be/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(youtubeIdFromUrl('https://www.youtube.com/embed/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(youtubeIdFromUrl('https://www.youtube.com/shorts/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(youtubeIdFromUrl('https://vimeo.com/123456')).toBeNull();
+    expect(youtubeIdFromUrl('https://example.com/video.mp4')).toBeNull();
+  });
+
+  it('builds YouTube thumbnails and previews cover-first', () => {
+    expect(videoThumbnailUrl('https://youtu.be/dQw4w9WgXcQ')).toBe('https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
+    expect(videoThumbnailUrl('https://vimeo.com/123456')).toBeNull();
+    const video = { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', kind: 'video' as const };
+    // Cover wins when present.
+    expect(previewImageUrl('https://x/cover.jpg', [video])).toBe('https://x/cover.jpg');
+    // Video thumbnail fills in for cover-less posts.
+    expect(previewImageUrl(null, [video])).toBe('https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
+    expect(previewImageUrl('  ', [video])).toBe('https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
+    // Audio/docs never become the preview image.
+    expect(previewImageUrl(null, [{ url: 'https://x/a.mp3', kind: 'audio' as const }])).toBeNull();
+    expect(previewImageUrl(null, null)).toBeNull();
   });
 });

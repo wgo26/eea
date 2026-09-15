@@ -1,5 +1,6 @@
 import { getDictionary, resolveLocale } from '@/lib/i18n'
 import { getPhotoStoryBySlug } from '@/lib/queries/photo-stories'
+import { previewImageUrl } from '@/lib/media/attachments'
 import { articleOgImage, OG_WIDTH, OG_HEIGHT } from '@/lib/seo/og-image'
 
 export const alt = 'Photo story'
@@ -19,6 +20,6 @@ export default async function Image({ params }: { params: Promise<{ locale: stri
     sectionLabel: dict.nav.photoStories,
     title: story?.title ?? dict.nav.photoStories,
     category: story?.category ?? null,
-    imageUrl: story?.imageUrl ?? null,
+    imageUrl: previewImageUrl(story?.imageUrl, story?.attachments),
   })
 }

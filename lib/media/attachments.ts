@@ -136,3 +136,42 @@ export function formatDuration(seconds: number | null | undefined): string | nul
   if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
   return `${m}:${String(rest).padStart(2, '0')}`;
 }
+
+/**
+ * Extract the 11-char YouTube video ID from watch / share / embed URLs.
+ * Returns null for non-YouTube URLs or unparseable IDs.
+ */
+export function youtubeIdFromUrl(url: string): string | null {
+  const m = url.match(/(?:youtube\.com\/(?:watch\?[^#]*v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/i);
+  return m?.[1] ?? null;
+}
+
+/**
+ * Best-effort thumbnail for a video attachment with no uploaded cover:
+ * YouTube serves a static thumbnail per video ID (hqdefault always exists;
+ * maxres is not guaranteed). Returns null for non-YouTube URLs — callers
+ * fall back to the generic share card.
+ */
+export function videoThumbnailUrl(url: string): string | null {
+  const id = youtubeIdFromUrl(url);
+  return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : null;
+}
+
+/**
+ * First usable share-preview image for a post: the cover when present,
+ * otherwise the first video attachment's thumbnail (e.g. YouTube). Used by
+ * the opengraph-image routes so video-only posts still get a picture preview
+ * on WhatsApp / X / Facebook instead of a text-only card.
+ */
+export function previewImageUrl(
+  coverUrl: string | null | undefined,
+  attachments: MediaAttachment[] | null | undefined,
+): string | null {
+  if (coverUrl?.trim()) return coverUrl.trim();
+  for (const a of attachments ?? []) {
+    if (a.kind !== 'video') continue;
+    const thumb = videoThumbnailUrl(a.url);
+    if (thumb) return thumb;
+  }
+  return null;
+}

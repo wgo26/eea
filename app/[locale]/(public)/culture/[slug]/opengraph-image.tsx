@@ -1,5 +1,6 @@
 import { getDictionary, resolveLocale } from '@/lib/i18n'
 import { getCultureBySlug } from '@/lib/queries/culture'
+import { previewImageUrl } from '@/lib/media/attachments'
 import { articleOgImage, OG_WIDTH, OG_HEIGHT } from '@/lib/seo/og-image'
 
 export const alt = 'Culture story'
@@ -19,6 +20,6 @@ export default async function Image({ params }: { params: Promise<{ locale: stri
     sectionLabel: dict.nav.culture,
     title: article?.title ?? dict.nav.culture,
     category: article?.category ?? null,
-    imageUrl: article?.imageUrl ?? null,
+    imageUrl: previewImageUrl(article?.imageUrl, article?.attachments),
   })
 }

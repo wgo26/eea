@@ -1,4 +1,5 @@
 import type { MediaAttachment } from '@/lib/media/attachments';
+import { youtubeIdFromUrl } from '@/lib/media/attachments';
 import { cn } from '@/lib/utils';
 import { SmartImage } from '@/components/media/smart-image';
 import { FileText, Mic, Play } from 'lucide-react';
@@ -11,7 +12,7 @@ function Embed({ attachment, title }: { attachment: MediaAttachment; title: stri
   const url = attachment.url;
   // Known hosted players get an iframe embed; direct files get native players.
   if (/youtube\.com|youtu\.be/i.test(url)) {
-    const id = url.match(/(?:v=|youtu\.be\/|embed\/)([\w-]{6,})/)?.[1];
+    const id = youtubeIdFromUrl(url);
     const src = id ? `https://www.youtube.com/embed/${id}` : url;
     return (
       <iframe

@@ -1,5 +1,6 @@
 import { getDictionary, resolveLocale } from '@/lib/i18n'
 import { getListingDetail } from '@/lib/queries/buy-sell'
+import { previewImageUrl } from '@/lib/media/attachments'
 import { articleOgImage, OG_WIDTH, OG_HEIGHT } from '@/lib/seo/og-image'
 
 export const alt = 'Buy & sell listing'
@@ -19,6 +20,6 @@ export default async function Image({ params }: { params: Promise<{ locale: stri
     sectionLabel: dict.nav.buySell,
     title: listing?.title ?? dict.nav.buySell,
     category: listing?.category ?? null,
-    imageUrl: listing?.imageUrl ?? null,
+    imageUrl: previewImageUrl(listing?.imageUrl, listing?.attachments),
   })
 }

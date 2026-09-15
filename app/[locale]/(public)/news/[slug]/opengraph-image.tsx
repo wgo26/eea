@@ -1,5 +1,6 @@
 import { getDictionary, resolveLocale } from '@/lib/i18n'
 import { getNewsBySlug } from '@/lib/queries/news'
+import { previewImageUrl } from '@/lib/media/attachments'
 import { articleOgImage, OG_WIDTH, OG_HEIGHT } from '@/lib/seo/og-image'
 
 export const alt = 'Community news story'
@@ -21,6 +22,6 @@ export default async function Image({ params }: { params: Promise<{ locale: stri
     sectionLabel: dict.nav.news,
     title: article?.title ?? dict.nav.news,
     category: article?.category ?? null,
-    imageUrl: article?.imageUrl ?? null,
+    imageUrl: previewImageUrl(article?.imageUrl, article?.attachments),
   })
 }
