@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/observability/logger";
+import { mapAttachments, previewImageUrl } from "@/lib/media/attachments";
 import type { Locale } from "@/lib/i18n";
 
 export type ContributorProfile = {
@@ -126,7 +127,7 @@ type RawContentRow = {
         | { category_translations: { locale: string; name: string }[] }[]
         | null;
     translations?: { locale: string; title: string }[] | null;
-    media?: { public_url: string | null }[] | null;
+    media?: { public_url: string | null; is_cover: boolean | null; kind: string | null; mime_type: string | null }[] | null;
 };
 
 const CONTRIBUTOR_SELECT = `id, display_name, full_name, bio, avatar_url, is_verified,
@@ -157,14 +158,17 @@ function mapContent(row: RawContentRow, locale: Locale): ContributorContent | nu
     if (!translation?.title) return null;
     const category = asOne(row.category);
     const media = row.media ?? [];
-    const cover = media[0] ?? null;
+    // Cover stays image-first; fall back to a video thumbnail (e.g. YouTube)
+    // so video-only posts still get a picture preview on contributor cards.
+    const images = media.filter((m) => (m.kind ?? "image") === "image");
+    const rawCover = (media.find((m) => m.is_cover) ?? null)?.public_url ?? images[0]?.public_url ?? null;
 
     return {
         id: row.id,
         type: row.type,
         title: translation.title,
         href: detailHref(locale, row.type, row.slug, row.id),
-        imageUrl: cover?.public_url ?? null,
+        imageUrl: previewImageUrl(rawCover, mapAttachments(media)),
         publishedAt: row.published_at,
         category: category
             ? (pickLocalized(category.category_translations, locale)?.name ?? null)
@@ -279,7 +283,7 @@ export async function getContributorById(
                     `id, type, slug, published_at,
                      category:categories(category_translations(locale, name)),
                      translations:content_translations(locale, title),
-                     media:media_assets(public_url)`,
+                     media:media_assets(public_url, is_cover, kind, mime_type)`,
                 )
                 .eq("author_id", id)
                 .eq("status", "published")
@@ -333,7 +337,7 @@ export async function getContributorContent(
                 `id, type, slug, published_at,
                  category:categories(category_translations(locale, name)),
                  translations:content_translations(locale, title),
-                 media:media_assets(public_url)`,
+                 media:media_assets(public_url, is_cover, kind, mime_type)`,
             )
             .eq("author_id", contributorId)
             .eq("status", "published")

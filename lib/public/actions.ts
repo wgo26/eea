@@ -34,6 +34,10 @@ const PAYLOAD_FIELDS = [
     "description",
     "what",
     "location",
+    "location_id",
+    "location_text",
+    "latitude",
+    "longitude",
     "date",
     "photos",
     "videos",
@@ -108,9 +112,44 @@ export async function submitStory(
         return { ok: false, error: "invalid_type" };
     }
 
-    const guestName = str(formData.get("contributorName"));
-    const guestEmail = str(formData.get("email"));
-    const guestPhone = str(formData.get("phone"));
+    // Resolve the caller's profile first: signed-in contributors submit
+    // under their account and inherit missing identity fields from it, so
+    // the form can collapse name/email/phone for them.
+    let submittedBy: string | null = null;
+    let profileName = "";
+    let profileEmail = "";
+    let profilePhone = "";
+    try {
+        const session = await getSessionUser();
+        submittedBy = session.user?.id ?? null;
+        if (submittedBy) {
+            try {
+                const supabaseProfile = createAdminClient();
+                const { data: profile } = await supabaseProfile
+                    .from("profiles")
+                    .select("display_name, full_name, email, phone")
+                    .eq("id", submittedBy)
+                    .maybeSingle();
+                const p = (profile ?? {}) as {
+                    display_name?: string | null;
+                    full_name?: string | null;
+                    email?: string | null;
+                    phone?: string | null;
+                };
+                profileName = (p.display_name || p.full_name || "").trim();
+                profileEmail = (p.email || session.user?.email || "").trim();
+                profilePhone = (p.phone || "").trim();
+            } catch {
+                profileEmail = (session.user?.email || "").trim();
+            }
+        }
+    } catch {
+        submittedBy = null;
+    }
+
+    const guestName = str(formData.get("contributorName")) || profileName;
+    const guestEmail = str(formData.get("email")) || profileEmail;
+    const guestPhone = str(formData.get("phone")) || profilePhone;
     const consentConfirmed = formData.get("consent") === "on";
     const rightsConfirmed = formData.get("rights") === "on";
 
@@ -147,6 +186,24 @@ export async function submitStory(
     if (payload.doc && !/^https?:\/\/\S+$/i.test(payload.doc.trim())) {
         delete payload.doc;
     }
+    // Validate the canonical location pick: it must reference an active
+    // location, otherwise drop it and keep the free-text suggestion for
+    // editors. Coordinates are kept only when they parse as numbers.
+    if (payload.location_id) {
+        if (!/^[0-9a-f-]{8,36}$/i.test(payload.location_id)) {
+            delete payload.location_id;
+        }
+    }
+    for (const key of ["latitude", "longitude"] as const) {
+        if (payload[key] && !/^-?\d{1,3}(\.\d{1,6})?$/.test(payload[key])) {
+            delete payload[key];
+        }
+    }
+    // Back-compat: the legacy `location` key mirrors the raw text so older
+    // readers/admin views keep working.
+    if (!payload.location && payload.location_text) {
+        payload.location = payload.location_text;
+    }
 
     if (Object.keys(payload).length === 0) {
         return { ok: false, error: "missing_content" };
@@ -154,15 +211,23 @@ export async function submitStory(
 
     try {
         const supabase = createAdminClient();
-        // Link authenticated submits to the account so /account/dashboard can
-        // show history via RLS (submitted_by = auth.uid()). Guests stay null
-        // and fall back to the guest_email policy.
-        let submittedBy: string | null = null;
-        try {
-            const session = await getSessionUser();
-            submittedBy = session.user?.id ?? null;
-        } catch {
-            submittedBy = null;
+        // submittedBy was resolved above (profile fallback) so
+        // /account/dashboard history keeps working via RLS
+        // (submitted_by = auth.uid()); guests stay null and fall back to
+        // the guest_email policy.
+        if (payload.location_id) {
+            try {
+                const { data: loc } = await supabase
+                    .from("locations")
+                    .select("id")
+                    .eq("id", payload.location_id)
+                    .eq("is_active", true)
+                    .limit(1)
+                    .maybeSingle();
+                if (!loc) delete payload.location_id;
+            } catch {
+                delete payload.location_id;
+            }
         }
         const { error } = await supabase.from("submissions").insert({
             submission_type: submissionType,

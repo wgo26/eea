@@ -6,7 +6,7 @@ import { logger } from "@/lib/observability/logger";
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 import type { StoryCardData } from "@/lib/queries/home";
-import { mapAttachments, supportingMedia } from "@/lib/media/attachments";
+import { mapAttachments, previewImageUrl, supportingMedia } from "@/lib/media/attachments";
 
 /**
  * Data access for the Culture vertical (spec §3.3).
@@ -182,7 +182,8 @@ function toCard(row: RawCultureRow, locale: Locale): CultureArticle | null {
     const allMedia = mapAttachments(row.media ?? []);
     const images = allMedia.filter((m) => m.kind === 'image');
     const cover = (row.media ?? []).find((m) => m.is_cover) ?? null;
-    const coverUrl = cover?.public_url ?? images[0]?.url ?? allMedia[0]?.url ?? null;
+    const rawCoverUrl = cover?.public_url ?? images[0]?.url ?? null;
+    const coverUrl = previewImageUrl(rawCoverUrl, allMedia);
     const author = asOne(row.author);
     const event = asOne(row.events);
     const isEvent = Boolean(event?.starts_at);

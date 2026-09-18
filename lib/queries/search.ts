@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/observability/logger";
+import { mapAttachments, previewImageUrl } from "@/lib/media/attachments";
 import type { Locale } from "@/lib/i18n";
 
 export type SearchResultItem = {
@@ -191,14 +192,15 @@ export async function getSearchResults(options: {
         const location = asOne(row.location);
         const media = row.media ?? [];
         const images = media.filter((m) => (m.kind ?? 'image') === 'image');
-        const cover = media.find((m) => m.is_cover) ?? images[0] ?? media[0] ?? null;
+        const rawCover = (media.find((m) => m.is_cover) ?? null)?.public_url ?? images[0]?.public_url ?? null;
+        const imageUrl = previewImageUrl(rawCover, mapAttachments(media));
         return [
             {
                 id: row.id,
                 type: row.type,
                 title: translation.title,
                 excerpt: translation.excerpt ?? null,
-                imageUrl: cover?.public_url ?? null,
+                imageUrl,
                 location: location?.name ?? null,
                 publishedAt: row.published_at,
                 href: detailHref(row.type, row.slug, row.id),

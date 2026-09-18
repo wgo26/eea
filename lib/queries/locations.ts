@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/observability/logger";
+import { mapAttachments, previewImageUrl } from "@/lib/media/attachments";
 import type { Locale } from "@/lib/i18n";
 
 export type LocationData = {
@@ -119,7 +120,7 @@ type RawContentRow = {
         | { category_translations: { locale: string; name: string }[] }[]
         | null;
     translations?: { locale: string; title: string }[] | null;
-    media?: { public_url: string | null }[] | null;
+    media?: { public_url: string | null; is_cover: boolean | null; kind: string | null; mime_type: string | null }[] | null;
 };
 
 /** Maps a raw location row to the public shape. */
@@ -144,14 +145,15 @@ function mapContent(row: RawContentRow, locale: Locale): LocationContent | null 
     const location = asOne(row.location);
     const category = asOne(row.category);
     const media = row.media ?? [];
-    const cover = media[0] ?? null;
+    const images = media.filter((m) => (m.kind ?? 'image') === 'image');
+    const rawCover = (media.find((m) => m.is_cover) ?? null)?.public_url ?? images[0]?.public_url ?? null;
 
     return {
         id: row.id,
         type: row.type,
         title: translation.title,
         href: detailHref(locale, row.type, row.slug ?? row.id),
-        imageUrl: cover?.public_url ?? null,
+        imageUrl: previewImageUrl(rawCover, mapAttachments(media)),
         publishedAt: row.published_at,
         location: location?.name ?? null,
         category: category
@@ -167,7 +169,7 @@ const CONTENT_SELECT = `id, type, slug, published_at,
     location:locations(name),
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title),
-    media:media_assets(public_url)`;
+    media:media_assets(public_url, is_cover, kind, mime_type)`;
 
 /** Fetches all active locations, ordered by name. */
 export async function getAllLocations(): Promise<LocationData[]> {

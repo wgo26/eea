@@ -65,6 +65,14 @@ const SEED_PLACEHOLDERS = "https://picsum.photos";
 const BLOGGER_IMAGES = "https://blogger.googleusercontent.com";
 /** Video embeds rendered by components/media/media-attachment.tsx. */
 const MEDIA_FRAMES = ["https://www.youtube.com", "https://player.vimeo.com"];
+/**
+ * Video thumbnail host: YouTube post previews (cards, heroes, OG images) use
+ * `https://i.ytimg.com/vi/<id>/hqdefault.jpg` when a post has a YouTube URL
+ * but no uploaded cover (`previewImageUrl` in lib/media/attachments.ts), so
+ * the host must be an allowed image source or every video-only preview is
+ * CSP-blocked in production.
+ */
+const VIDEO_THUMBNAILS = "https://i.ytimg.com";
 
 /**
  * Scheme + host of a URL, or null when unset/invalid.
@@ -140,6 +148,7 @@ export function buildCsp(options: CspOptions): string {
     SEED_PLACEHOLDERS,
     BLOGGER_IMAGES,
     MAP_TILES,
+    VIDEO_THUMBNAILS,
     ...parseHostList(extraImageHosts),
   ]);
 

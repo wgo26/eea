@@ -142,6 +142,13 @@ describe("buildCsp — host allowlisting", () => {
     expect(frame).toContain("https://player.vimeo.com");
   });
 
+  it("allowlists YouTube thumbnails so video-only posts render a picture preview", () => {
+    const img = directive(buildCsp(prod), "img-src")!;
+    expect(img).toContain("https://i.ytimg.com");
+    const media = directive(buildCsp(prod), "media-src")!;
+    expect(media).toContain("https://i.ytimg.com");
+  });
+
   it("honours the extra-host escape hatches", () => {
     const csp = buildCsp({
       ...prod,

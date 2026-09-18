@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/observability/logger";
+import { mapAttachments, previewImageUrl } from "@/lib/media/attachments";
 import type { Locale } from "@/lib/i18n";
 
 /**
@@ -60,6 +61,8 @@ type RawFundraiserRow = {
               alt_text: string | null;
               photographer_credit: string | null;
               is_cover: boolean | null;
+              kind: string | null;
+              mime_type: string | null;
           }[]
         | null;
     fundraisers?:
@@ -79,7 +82,7 @@ type RawFundraiserRow = {
 const FUNDRAISER_SELECT = `id, slug, verification, published_at, expires_at,
     location:locations(name, slug),
     translations:content_translations(locale, title, excerpt, body),
-    media:media_assets(public_url, alt_text, photographer_credit, is_cover),
+    media:media_assets(public_url, alt_text, photographer_credit, is_cover, kind, mime_type),
     fundraisers!inner(goal_amount, currency, raised_amount, organizer_name, organizer_phone, donation_url, verification_notes, closed_at)`;
 
 function hasDatabase(): boolean {
@@ -124,7 +127,11 @@ function toFundraiser(row: RawFundraiserRow, locale: Locale): FundraiserData | n
     if (!fundraiser) return null;
 
     const location = asOne(row.location);
-    const cover = (row.media ?? []).find((m) => m.is_cover) ?? row.media?.[0] ?? null;
+    // Cover stays image-first; fall back to a video thumbnail (e.g. YouTube)
+    // so video-only campaigns still get a picture preview.
+    const media = row.media ?? [];
+    const images = media.filter((m) => (m.kind ?? "image") === "image");
+    const rawCover = (media.find((m) => m.is_cover) ?? null)?.public_url ?? images[0]?.public_url ?? null;
     const raised = toNumber(fundraiser.raised_amount);
     const goal = toNumber(fundraiser.goal_amount);
     const closedAt = fundraiser.closed_at ?? null;
@@ -134,7 +141,7 @@ function toFundraiser(row: RawFundraiserRow, locale: Locale): FundraiserData | n
         href: `/news/${row.slug ?? row.id}`,
         title: translation.title,
         excerpt: translation.excerpt ?? null,
-        imageUrl: cover?.public_url ?? null,
+        imageUrl: previewImageUrl(rawCover, mapAttachments(media)),
         location: location?.name ?? null,
         locationSlug: location?.slug ?? null,
         goalAmount: goal,

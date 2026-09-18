@@ -6,7 +6,7 @@ import { logger } from "@/lib/observability/logger";
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 import type { MediaAttachment } from "@/lib/media/attachments";
-import { mapAttachments, supportingMedia } from "@/lib/media/attachments";
+import { mapAttachments, previewImageUrl, supportingMedia } from "@/lib/media/attachments";
 
 /**
  * Data access for the Buy & Sell vertical.
@@ -218,13 +218,14 @@ function toListing(row: RawListingRow, locale: Locale): ListingData | null {
     const photos = mapPhotos(row);
     const allMedia = mapAttachments(row.media ?? []);
     const cover = photos[0] ?? null;
+    const coverUrl = previewImageUrl(cover?.url ?? null, allMedia);
     return {
         id: row.id,
         type: "listing",
         href: `/buy-sell/${row.slug ?? row.id}`,
         title: translation.title,
         excerpt: translation.excerpt ?? null,
-        imageUrl: cover?.url ?? null,
+        imageUrl: coverUrl,
         location: location?.name ?? null,
         locationSlug: location?.slug ?? null,
         category: category

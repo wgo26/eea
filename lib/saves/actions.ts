@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getSessionUser } from '@/lib/auth/guards'
+import { mapAttachments, previewImageUrl } from '@/lib/media/attachments'
 import type { Locale } from '@/lib/i18n'
 
 export type SaveToggleResult = { ok: true; saved: boolean } | { ok: false; error: string }
@@ -85,7 +86,7 @@ export async function getSavedItems(locale: Locale = 'en'): Promise<SavedItem[]>
       `content_item_id, created_at,
        content:content_items(id, type, slug,
          translations:content_translations(locale, title),
-         cover:media_assets(public_url))`,
+         cover:media_assets(public_url, is_cover, kind, mime_type))`,
     )
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
@@ -96,7 +97,7 @@ export async function getSavedItems(locale: Locale = 'en'): Promise<SavedItem[]>
       type: string
       slug: string | null
       translations: { locale: string; title: string | null }[] | { locale: string; title: string | null } | null
-      cover: { public_url: string }[] | { public_url: string } | null
+      cover: { public_url: string | null; is_cover: boolean | null; kind: string | null; mime_type: string | null }[] | { public_url: string | null; is_cover: boolean | null; kind: string | null; mime_type: string | null } | null
     } | null
     const translations = Array.isArray(content?.translations)
       ? content.translations
@@ -108,13 +109,20 @@ export async function getSavedItems(locale: Locale = 'en'): Promise<SavedItem[]>
       translations[0]?.title ??
       content?.slug ??
       'Untitled'
-    const cover = Array.isArray(content?.cover) ? content.cover[0] : content?.cover
+    const media = (Array.isArray(content?.cover) ? content.cover : content?.cover ? [content.cover] : []) as {
+      public_url: string | null
+      is_cover: boolean | null
+      kind: string | null
+      mime_type: string | null
+    }[]
+    const images = media.filter((m) => (m.kind ?? 'image') === 'image')
+    const rawCover = (media.find((m) => m.is_cover) ?? null)?.public_url ?? images[0]?.public_url ?? null
     return {
       contentItemId: row.content_item_id as string,
       type: (content?.type ?? 'news') as string,
       slug: content?.slug ?? null,
       title,
-      imageUrl: cover?.public_url ?? null,
+      imageUrl: previewImageUrl(rawCover, mapAttachments(media)),
       savedAt: row.created_at as string,
     }
   })

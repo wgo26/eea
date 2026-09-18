@@ -6,7 +6,7 @@ import { logger } from "@/lib/observability/logger";
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 import type { StoryCardData } from "@/lib/queries/home";
-import { mapAttachments, supportingMedia } from "@/lib/media/attachments";
+import { mapAttachments, previewImageUrl, supportingMedia } from "@/lib/media/attachments";
 
 /**
  * Data access for the Photo Stories vertical (spec §3.2).
@@ -210,6 +210,7 @@ function toCard(row: RawStoryRow, locale: Locale): PhotoStoryData | null {
     const category = asOne(row.category);
     const photos = mapPhotos(row);
     const allMedia = mapAttachments(row.media ?? []);
+    const rawCoverUrl = photos[0]?.url ?? null;
     const cover = photos[0] ?? null;
     return {
         id: row.id,
@@ -218,7 +219,7 @@ function toCard(row: RawStoryRow, locale: Locale): PhotoStoryData | null {
         href: `/photo-stories/${row.slug ?? row.id}`,
         title: translation.title,
         excerpt: translation.excerpt ?? null,
-        imageUrl: cover?.url ?? null,
+        imageUrl: previewImageUrl(rawCoverUrl, allMedia),
         location: location?.name ?? null,
         category: category
             ? (pickLocalized(category.category_translations, locale)?.name ?? null)

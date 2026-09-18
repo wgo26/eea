@@ -17,6 +17,8 @@ const eslintConfig = defineConfig([
     "scratch-*",
     "scratch/**",
     "db.js",
+    // eea-read-build.cjs: scratch build-log reader (require + reads %TEMP%/b.txt).
+    "eea-read-build.cjs",
   ]),
 ]);
 
