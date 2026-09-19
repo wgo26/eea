@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
@@ -5,7 +6,7 @@ import { requireCapability } from '@/lib/auth/guards'
 import { getSubmissions, getSubmissionCounts } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { EmptyState } from '@/components/admin/empty-state'
-import { FilterPills } from '@/components/admin/filter-pills'
+import { FilterPills, SearchBar } from '@/components/admin/filter-pills'
 import { Tabs } from '@/components/admin/tabs'
 import { Pager } from '@/components/admin/pager'
 import { ModerationBulkTable } from './moderation-bulk-actions'
@@ -43,18 +44,20 @@ const ALL_STATUSES: SubmissionStatus[] = ['pending', 'in_review', 'needs_clarifi
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; type?: string; page?: string }>
+  searchParams: Promise<{ status?: string; type?: string; page?: string; q?: string }>
 }) {
   const locale = await getRequestLocale()
   await requireCapability('moderate', '/admin/moderation')
   const dict = getDictionary(locale)
   const t = dict.admin.moderation
   const tf = dict.admin.typeFilters
+  const tc = dict.admin.common
 
   const params = await searchParams
   const status = (params.status as SubmissionStatus | 'all') || 'pending'
   const type = (params.type as 'all' | 'photo_story' | 'news' | 'listing' | 'notice' | 'culture') || 'all'
   const page = Math.max(1, Number.parseInt(params.page ?? '1', 10) || 1)
+  const search = params.q?.trim() || undefined
 
   // The pending queue also covers reopened rows (in_review) — fold both in.
   const statusFilter: SubmissionStatus[] | 'all' =
@@ -67,7 +70,7 @@ export default async function Page({
   // One paginated server query for the visible page + cheap index-only head
   // counts for the tab badges (replaces the 5×1000-row fetch + client merge).
   const [{ rows: submissions, total }, counts] = await Promise.all([
-    getSubmissions({ status: statusFilter, type, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
+    getSubmissions({ status: statusFilter, type, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, search }),
     getSubmissionCounts(),
   ])
 
@@ -77,15 +80,19 @@ export default async function Page({
     count: (counts as Record<string, number>)[key === 'all' ? 'total' : key] ?? 0,
   }))
 
+  const qs = search ? `&q=${encodeURIComponent(search)}` : ''
   /** Locale-prefixed tab hrefs (checklist: never a bare /admin constant). */
   const hrefFor = (key: string) =>
-    `${localePath(locale, '/admin/moderation')}?status=${key}&type=${type}`
+    `${localePath(locale, '/admin/moderation')}?status=${key}&type=${type}${qs}`
 
   const typeHref = (key: string) =>
-    `${localePath(locale, '/admin/moderation')}?status=${status}&type=${key}`
+    `${localePath(locale, '/admin/moderation')}?status=${status}&type=${key}${qs}`
 
   const pageHref = (p: number) =>
-    `${localePath(locale, '/admin/moderation')}?status=${status}&type=${type}&page=${p}`
+    `${localePath(locale, '/admin/moderation')}?status=${status}&type=${type}&page=${p}${qs}`
+
+  const searchAction = `${localePath(locale, '/admin/moderation')}?status=${status}&type=${type}`
+  const isFiltered = type !== 'all' || !!search
 
   const statusWord =
     status === 'pending' ? t.tabPending
@@ -96,30 +103,57 @@ export default async function Page({
 
   return (
     <div className="space-y-5">
-      <PageHeader title={t.title} description={t.description} />
+      <PageHeader
+        title={t.title}
+        description={t.description}
+        breadcrumb={[
+          { label: dict.admin.sidebar.dashboard, href: localePath(locale, '/admin/dashboard') },
+          { label: t.title },
+        ]}
+      />
 
       <Tabs tabs={tabs} active={status} hrefFor={hrefFor} />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground">{t.typeLabel}</span>
-        <FilterPills
-          pills={TYPE_FILTERS.map((f) => ({
-            key: f.key,
-            label: tf[f.dictKey],
-            href: typeHref(f.key),
-          }))}
-          active={type}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">{t.typeLabel}</span>
+          <FilterPills
+            pills={TYPE_FILTERS.map((f) => ({
+              key: f.key,
+              label: tf[f.dictKey],
+              href: typeHref(f.key),
+            }))}
+            active={type}
+          />
+        </div>
+        <SearchBar
+          name="q"
+          defaultValue={search}
+          placeholder={tc.searchPlaceholder}
+          action={searchAction}
+          className="w-full sm:w-64"
         />
       </div>
 
       {submissions.length === 0 ? (
-        <EmptyState message={t.empty.replace('{status}', statusWord.toLowerCase())} />
+        <EmptyState
+          message={isFiltered ? tc.emptyFiltered : t.empty.replace('{status}', statusWord.toLowerCase())}
+          secondaryAction={
+            isFiltered ? (
+              <Link
+                href={localePath(locale, '/admin/moderation')}
+                className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+              >
+                {tc.clearFilters}
+              </Link>
+            ) : undefined
+          }
+        />
       ) : (
         <ModerationBulkTable
           rows={submissions}
-          copy={t}
-          common={dict.admin.common}
-          commonLabels={dict.admin.common}
+          copy={t as any}
+          common={tc as any}
           locale={locale}
         />
       )}
@@ -128,4 +162,3 @@ export default async function Page({
     </div>
   )
 }
-

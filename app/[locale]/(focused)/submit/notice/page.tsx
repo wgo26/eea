@@ -1,20 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { ArrowLeft } from "lucide-react";
 
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { SubmitFormGated } from "@/components/submit/submit-form-gated";
 import { localePath } from "@/lib/i18n/urls";
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     return { title: dict.submit.types.notice.title };
 }
 
-export default async function Page() {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export default async function Page({ params }: { params: Promise<{ locale: string }> }) {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     const meta = dict.submit.types.notice;
     return (

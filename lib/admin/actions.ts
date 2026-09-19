@@ -10,6 +10,7 @@ import { storageConfig } from '@/lib/storage/config'
 import { validateContentDraft, type ContentDraftInput } from './content-validation'
 import { syncContentTags } from '@/lib/admin/tags'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { InsertOf, UpdateOf } from '@/lib/supabase/admin'
 import { isAdFormat, sanitizeCreativeHtml, validateCreative, type AdFormat } from '@/lib/ads/creatives'
 import { sanitizeBodyHtml } from '@/lib/security/html'
 import { enqueueUser, listingNotifyTarget, submissionNotifyTarget } from '@/lib/notify/queue'
@@ -45,6 +46,8 @@ function revalidateLocalized(path: string) {
 function revalidatePublicContentCache() {
     revalidateTag(CACHE_TAGS.news, 'max')
     revalidateTag(CACHE_TAGS.home, 'max')
+    // Publishing changes location content lists + counts.
+    revalidateTag(CACHE_TAGS.locations, 'max')
 }
 
 /** On-demand invalidation for the ad-serving cache (lib/queries/ads.ts). */
@@ -196,7 +199,7 @@ async function syncPhotos(
     if ('durationSeconds' in photo && typeof photo.durationSeconds === 'number') {
       patch.duration_seconds = photo.durationSeconds
     }
-    const { error } = await supabase.from('media_assets').update(patch).eq('id', photo.assetId!)
+    const { error } = await supabase.from('media_assets').update(patch as UpdateOf<'media_assets'>).eq('id', photo.assetId!)
     if (error) throw new Error(`Could not save photos: ${error.message}`)
     sortIndex += 1
   }
@@ -284,7 +287,7 @@ async function upsertTranslations(
     if (t.seoDescription !== undefined) payload.seo_description = t.seoDescription?.trim() || null
     if (t.byline !== undefined) payload.byline = t.byline?.trim() || null
     const { error } = await supabase.from('content_translations').upsert(
-      payload,
+      payload as InsertOf<'content_translations'>,
       { onConflict: 'content_item_id,locale,voice' },
     )
     if (error) throw new Error(`Could not save the ${t.locale} translation: ${error.message}`)
@@ -316,7 +319,7 @@ export async function approveSubmission(submissionId: string, notes?: string): P
 
     const patch: Record<string, unknown> = { status: 'approved', reviewed_at: now, reviewed_by: user.id }
     if (notes !== undefined) patch.internal_notes = notes
-    const { error } = await supabase.from('submissions').update(patch).eq('id', submissionId)
+    const { error } = await supabase.from('submissions').update(patch as UpdateOf<'submissions'>).eq('id', submissionId)
     if (error) return { ok: false, error: error.message }
 
     await supabase.from('moderation_log').insert({
@@ -441,7 +444,7 @@ export async function approveSubmissionWithContent(input: {
       status: 'approved', reviewed_at: now, reviewed_by: user.id, content_item_id: created.id,
     }
     if (input.notes !== undefined) approvePatch.internal_notes = input.notes
-    await supabase.from('submissions').update(approvePatch).eq('id', input.submissionId)
+    await supabase.from('submissions').update(approvePatch as UpdateOf<'submissions'>).eq('id', input.submissionId)
 
     await supabase.from('moderation_log').insert({
       action: input.publish === 'now' ? 'approve_publish' : input.publish === 'schedule' ? 'approve_schedule' : 'approve_draft',
@@ -525,9 +528,10 @@ export async function saveContentItem(contentItemId: string, draft: ContentDraft
       changed.push('slug')
     }
     if (Object.keys(patch).length > 0) {
-      const { error } = await supabase.from('content_items').update(patch).eq('id', contentItemId)
+      const { error } = await supabase.from('content_items').update(patch as UpdateOf<'content_items'>).eq('id', contentItemId)
       if (error) return { ok: false, error: error.message }
     }
+    // Translation rows unchanged if none of the patch keys hit them.
 
     await upsertTranslations(supabase, contentItemId, draft.translations)
     if (draft.tags !== undefined) {
@@ -547,7 +551,7 @@ export async function saveContentItem(contentItemId: string, draft: ContentDraft
       if (draft.listing.whatsappNumber !== undefined) lPatch.whatsapp_number = draft.listing.whatsappNumber || null
       if (draft.listing.sellerName !== undefined) lPatch.seller_name = draft.listing.sellerName || null
       if (Object.keys(lPatch).length > 0) {
-        const { error } = await supabase.from('listings').update(lPatch).eq('content_item_id', contentItemId)
+        const { error } = await supabase.from('listings').update(lPatch as UpdateOf<'listings'>).eq('content_item_id', contentItemId)
         if (error) return { ok: false, error: error.message }
       }
     }
@@ -1039,7 +1043,7 @@ export async function updateContentStatus(contentId: string, status: string, sch
       patch.is_featured = false
     }
 
-    const { error } = await supabase.from('content_items').update(patch).eq('id', contentId)
+    const { error } = await supabase.from('content_items').update(patch as UpdateOf<'content_items'>).eq('id', contentId)
     if (error) return { ok: false, error: error.message }
 
     if (status === 'draft') {
@@ -1510,7 +1514,7 @@ export async function updateUserProfile(
       patch.phone = phone
     }
     if (Object.keys(patch).length === 0) return { ok: false, error: 'Nothing to update.' }
-    const { error } = await supabase.from('profiles').update(patch).eq('id', userId)
+    const { error } = await supabase.from('profiles').update(patch as UpdateOf<'profiles'>).eq('id', userId)
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'user:profile:update', entityType: 'profile', entityId: userId })
     revalidateLocalized('/admin/users')
@@ -1888,7 +1892,7 @@ export async function updateAdSlot(slotId: string, input: { name?: string; place
     if (input.maxDurationSeconds != null && (!Number.isInteger(input.maxDurationSeconds) || input.maxDurationSeconds < 1)) return { ok: false, error: 'Max duration must be a positive whole number of seconds.' }
     const patch = { name: input.name?.trim(), placement: input.placement?.trim() || null, dimensions: input.dimensions?.trim() || null, mobile_dimensions: input.mobileDimensions?.trim() || null, allowed_formats: input.allowedFormats, max_duration_seconds: input.maxDurationSeconds ?? null, capacity: input.capacity, base_price: input.basePrice ?? null, currency: input.currency?.toUpperCase() || null, is_active: input.isActive }
     if (patch.name === '') return { ok: false, error: 'Slot name is required.' }
-    const { error } = await supabase.from('ad_slots').update(patch).eq('id', slotId)
+    const { error } = await supabase.from('ad_slots').update(patch as UpdateOf<'ad_slots'>).eq('id', slotId)
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'ad:slot:update', notes: `slot=${slotId}` })
     revalidateLocalized('/admin/ads')
@@ -1987,7 +1991,7 @@ export async function updateAdCampaign(campaignId: string, input: { name?: strin
       // only after approval (sponsored text stays live throughout).
       if (creativeType !== 'sponsored') patch.creative_status = 'pending'
     }
-    const { error } = await supabase.from('ad_campaigns').update(patch).eq('id', campaignId)
+    const { error } = await supabase.from('ad_campaigns').update(patch as UpdateOf<'ad_campaigns'>).eq('id', campaignId)
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'ad:campaign:update', entityType: 'ad_campaign', entityId: campaignId })
     revalidateLocalized('/admin/ads')
@@ -2123,7 +2127,7 @@ export async function updatePoll(
     }
 
     if (Object.keys(patch).length > 0) {
-      const { error } = await supabase.from('polls').update(patch).eq('id', pollId)
+      const { error } = await supabase.from('polls').update(patch as UpdateOf<'polls'>).eq('id', pollId)
       if (error) return { ok: false, error: error.message }
     }
 
@@ -2342,7 +2346,9 @@ export async function createFundraiser(input: {
       payout_method: input.payoutMethod ?? null,
       payout_account: input.payoutAccount?.trim() || null,
       payout_account_name: input.payoutAccountName?.trim() || null,
-      current_amount: 0,
+      // raised_amount is the running total (see init schema); current_amount
+      // was never a column — caught by the generated database types (A6).
+      raised_amount: 0,
     })
     if (fErr) {
       await supabase.from('content_items').delete().eq('id', created.id)
@@ -2411,7 +2417,7 @@ export async function updateFundraiser(
     if (input.payoutAccountName !== undefined) patch.payout_account_name = input.payoutAccountName?.trim() || null
     if (input.verificationNotes !== undefined) patch.verification_notes = input.verificationNotes || null
     if (Object.keys(patch).length > 0) {
-      const { error } = await supabase.from('fundraisers').update(patch).eq('content_item_id', contentItemId)
+      const { error } = await supabase.from('fundraisers').update(patch as UpdateOf<'fundraisers'>).eq('content_item_id', contentItemId)
       if (error) return { ok: false, error: error.message }
     }
 
@@ -3137,7 +3143,7 @@ export async function updateListing(
     if (input.contactEmail !== undefined) patch.contact_email = input.contactEmail?.trim() || null
     if (input.whatsappNumber !== undefined) patch.whatsapp_number = input.whatsappNumber?.trim() || null
     if (Object.keys(patch).length === 0) return { ok: false, error: 'Nothing to update.' }
-    const { error } = await supabase.from('listings').update(patch).eq('content_item_id', contentItemId)
+    const { error } = await supabase.from('listings').update(patch as UpdateOf<'listings'>).eq('content_item_id', contentItemId)
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'listing:update', entityType: 'listing', entityId: contentItemId })
     revalidatePublicContentCache()
@@ -3234,7 +3240,7 @@ export async function relistListing(contentItemId: string, days = 30): Promise<A
       patch.status = 'published'
       patch.published_at = item.published_at ?? now
     }
-    await supabase.from('content_items').update(patch).eq('id', contentItemId)
+    await supabase.from('content_items').update(patch as UpdateOf<'content_items'>).eq('id', contentItemId)
 
     await supabase.from('moderation_log').insert({
       action: 'listing:relisted',
@@ -3319,6 +3325,7 @@ function revalidateTaxonomy() {
   revalidateLocalized('/admin/moderation/[id]')
   // Category/location renames surface on cached public news cards and facets.
   revalidatePublicContentCache()
+  revalidateTag(CACHE_TAGS.locations, 'max')
 }
 
 /** Create a category with its English (+ optional French) name. */
@@ -3432,7 +3439,7 @@ export async function updateCategory(
     }
 
     if (Object.keys(patch).length > 0) {
-      const { error } = await supabase.from('categories').update(patch).eq('id', categoryId)
+      const { error } = await supabase.from('categories').update(patch as UpdateOf<'categories'>).eq('id', categoryId)
       if (error) return { ok: false, error: error.message }
     }
 
@@ -3518,7 +3525,9 @@ export async function deleteCategory(categoryId: string, reassignToId?: string):
 
     const { error } = await supabase.rpc('admin_delete_category', {
       p_category_id: categoryId,
-      p_reassign_to: reassignToId ?? null,
+      // The RPC treats a null uuid as "no reassignment"; pg_proc cannot
+      // express that nullability, so the generated Args type is non-null.
+      p_reassign_to: (reassignToId ?? null) as unknown as string,
       p_actor_id: user.id,
     })
     if (error) return { ok: false, error: error.message }
@@ -3660,7 +3669,7 @@ export async function updateLocation(
     }
 
     if (Object.keys(patch).length === 0) return { ok: true }
-    const { error } = await supabase.from('locations').update(patch).eq('id', locationId)
+    const { error } = await supabase.from('locations').update(patch as UpdateOf<'locations'>).eq('id', locationId)
     if (error) return { ok: false, error: error.message }
 
     const newSlug = (patch.slug as string | undefined) ?? row.slug
@@ -3719,7 +3728,8 @@ export async function deleteLocation(locationId: string, reassignToId?: string):
 
     const { error } = await supabase.rpc('admin_delete_location', {
       p_location_id: locationId,
-      p_reassign_to: reassignToId ?? null,
+      // See admin_delete_category: null uuid means "reassign nothing".
+      p_reassign_to: (reassignToId ?? null) as unknown as string,
       p_actor_id: user.id,
     })
     if (error) return { ok: false, error: error.message }

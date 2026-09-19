@@ -1026,11 +1026,15 @@ export async function getRecentModeration(options?: {
   from?: string
   to?: string
   locale?: Locale
+  search?: string
+  order?: 'newest' | 'oldest'
 }): Promise<{ rows: ModerationEntry[]; total: number }> {
   const limit = options?.limit ?? 20
   const page = options?.page ?? 1
   const offset = (page - 1) * limit
   const locale = options?.locale ?? 'en'
+  const search = options?.search?.trim() ?? ''
+  const ascending = options?.order === 'oldest'
   if (!hasDatabase()) return { rows: [], total: 0 }
   try {
     let query = db()
@@ -1038,13 +1042,14 @@ export async function getRecentModeration(options?: {
         .select(`id, action, from_status, to_status, notes, created_at, submission_id, entity_type, actor_id,
           actor:profiles(display_name, full_name),
           content:content_items(type, translations:content_translations(locale, title))`, { count: 'exact' })
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending })
         .range(offset, offset + limit - 1)
     if (options?.action) query = query.eq('action', options.action)
     if (options?.entityType) query = query.eq('entity_type', options.entityType)
     if (options?.actor) query = query.eq('actor_id', options.actor)
     if (options?.from) query = query.gte('created_at', options.from)
     if (options?.to) query = query.lte('created_at', `${options.to}T23:59:59.999Z`)
+    if (search) query = query.or(`action.ilike.%${search}%,notes.ilike.%${search}%`)
     const { data, count } = await safe(query)
     const rows = (data ?? []).map((row) => {
       const actor = Array.isArray(row.actor) ? row.actor[0] : row.actor
@@ -1268,11 +1273,12 @@ export type ReportRow = {
   missingLocale: boolean
 }
 
-export async function getReports(options?: { status?: string; limit?: number; offset?: number; reportType?: string; locale?: Locale }): Promise<ReportRow[]> {
+export async function getReports(options?: { status?: string; limit?: number; offset?: number; reportType?: string; locale?: Locale; search?: string }): Promise<ReportRow[]> {
   const status = options?.status ?? 'all'
   const limit = options?.limit ?? 100
   const offset = options?.offset ?? 0
   const locale = options?.locale ?? 'en'
+  const search = options?.search?.trim() ?? ''
   let query = db()
     .from('reports')
     .select(`id, report_type, reporter_id, content_item_id, media_id, subject, description, evidence_url,
@@ -1282,6 +1288,7 @@ export async function getReports(options?: { status?: string; limit?: number; of
     .range(offset, offset + limit - 1)
   if (status !== 'all') query = query.eq('status', status)
   if (options?.reportType) query = query.eq('report_type', options.reportType)
+  if (search) query = query.or(`subject.ilike.%${search}%,description.ilike.%${search}%`)
 
   const { data } = await safe(query)
   return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
@@ -1337,11 +1344,12 @@ export type CorrectionRow = {
   missingLocale: boolean
 }
 
-export async function getCorrections(options?: { status?: string; limit?: number; offset?: number; locale?: Locale }): Promise<CorrectionRow[]> {
+export async function getCorrections(options?: { status?: string; limit?: number; offset?: number; locale?: Locale; search?: string }): Promise<CorrectionRow[]> {
   const status = options?.status ?? 'all'
   const limit = options?.limit ?? 100
   const offset = options?.offset ?? 0
   const locale = options?.locale ?? 'en'
+  const search = options?.search?.trim() ?? ''
   let query = db()
     .from('corrections')
     .select(`id, content_item_id, reporter_id, reporter_name, reporter_email, correction_text,
@@ -1350,6 +1358,7 @@ export async function getCorrections(options?: { status?: string; limit?: number
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
   if (status !== 'all') query = query.eq('status', status)
+  if (search) query = query.or(`correction_text.ilike.%${search}%,reporter_name.ilike.%${search}%,reporter_email.ilike.%${search}%`)
 
   const { data } = await safe(query)
   return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
@@ -1476,12 +1485,13 @@ export type AdminListingRow = {
  * listings extension row. When a listing status filter is applied the embed
  * becomes an inner join so the filter runs in SQL, not after the limit.
  */
-export async function getListingsAdmin(options?: { status?: string; limit?: number; offset?: number; locale?: Locale; search?: string }): Promise<{ rows: AdminListingRow[]; total: number }> {
+export async function getListingsAdmin(options?: { status?: string; limit?: number; offset?: number; locale?: Locale; search?: string; order?: 'newest' | 'expires' }): Promise<{ rows: AdminListingRow[]; total: number }> {
   const status = options?.status ?? 'all'
   const limit = options?.limit ?? 100
   const offset = options?.offset ?? 0
   const locale = options?.locale ?? 'en'
   const search = options?.search?.trim() ?? ''
+  const order = options?.order ?? 'newest'
 
   const select = `id, slug, status, is_featured, expires_at, published_at,
     translations:content_translations(locale, title),
@@ -1491,7 +1501,7 @@ export async function getListingsAdmin(options?: { status?: string; limit?: numb
     .from('content_items')
     .select(select, { count: 'exact' })
     .eq('type', 'listing')
-    .order('published_at', { ascending: false, nullsFirst: false })
+    .order(order === 'expires' ? 'expires_at' : 'published_at', { ascending: order === 'expires', nullsFirst: false })
     .range(offset, offset + limit - 1)
   if (status !== 'all') query = query.eq('listing.listing_status', status)
   if (search) query = query.or(`slug.ilike.%${search}%,translations.title.ilike.%${search}%`)

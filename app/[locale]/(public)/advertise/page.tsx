@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { buildAlternates } from "@/lib/i18n/urls";
-import { headers } from "next/headers";
 import { Megaphone, Users, BadgeDollarSign, LayoutPanelTop } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,8 +7,9 @@ import { AdvertiseForm } from "@/components/advertise/advertise-form";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getAdvertiseOverrides } from "@/lib/admin/queries";
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     return {
         title: dict.advertise.title,
@@ -18,8 +18,9 @@ export async function generateMetadata(): Promise<Metadata> {
     };
 }
 
-export default async function AdvertisePage() {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export default async function AdvertisePage({ params }: { params: Promise<{ locale: string }> }) {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     // Admin overrides (managed at /admin/site-content) win over the
     // dictionary; empty table = built-in copy renders, never a blank.

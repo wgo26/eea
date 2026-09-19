@@ -1,17 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
-import { getDictionary } from "@/lib/i18n";
-import { getRequestLocale } from "@/lib/i18n/server";
+import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { localePath } from "@/lib/i18n/urls";
 
 /**
  * "Authenticated but not authorized" screen (checklist items 4 + 5).
  * Every requireRole/requireStaff/requireAdmin failure lands here — in the
  * user's language, with a way out — instead of a silent bounce to `/`.
+ *
+ * A3: locale comes from params (static-compatible), not getRequestLocale().
  */
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = await getRequestLocale();
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
     return {
         title: dict.system.notAuthorized.title,
@@ -19,8 +25,13 @@ export async function generateMetadata(): Promise<Metadata> {
     };
 }
 
-export default async function NotAuthorizedPage() {
-    const locale = await getRequestLocale();
+export default async function NotAuthorizedPage({
+    params,
+}: {
+    params: Promise<{ locale: string }>;
+}) {
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
 
     return (

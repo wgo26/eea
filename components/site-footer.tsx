@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Eye, Mail } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { SmartImage } from "@/components/media/smart-image";
-import { getDictionary } from "@/lib/i18n";
+import type { ChromeStrings } from "@/lib/i18n/chrome";
 import { localeHref, useLocaleFromPath } from "@/components/site-header";
 
 type SocialLinks = { facebook: string | null; youtube: string | null };
@@ -37,9 +37,14 @@ function safeLogoSrc(value: string | null): string | null {
     }
 }
 
-export function SiteFooter({ socialLinks, branding }: { socialLinks?: SocialLinks; branding?: Branding }) {
+/**
+ * A2: strings arrive via the `chrome` prop from the server shell — this
+ * component must not import getDictionary (see
+ * scripts/verify-client-dictionary.mjs).
+ */
+export function SiteFooter({ socialLinks, branding, chrome }: { socialLinks?: SocialLinks; branding?: Branding; chrome: ChromeStrings }) {
     const locale = useLocaleFromPath();
-    const dict = getDictionary(locale);
+    const dict = chrome;
     const facebookHref = safeSocialHref(socialLinks?.facebook ?? null);
     const youtubeHref = safeSocialHref(socialLinks?.youtube ?? null);
     const logoSrc = safeLogoSrc(branding?.logoUrl ?? null);

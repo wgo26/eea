@@ -12,6 +12,7 @@
 
 docs/Blogger/
 scratch-*
+scratch/**
 build-out*.txt
 *-out.txt
 *-push*.txt
@@ -44,6 +45,13 @@ yarn-error.log*
 
 # scratch artifacts
 /_spec.json
+.build-baseline.log
+build*.txt
+repair.txt
+migrations-apply.txt
+checklist-dump.txt
+tsc-out.txt
+eea-read-build.cjs
 
 # vercel
 .vercel

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import Link from "next/link";
 import { ArrowLeft, Mail } from "lucide-react";
 
@@ -7,8 +6,16 @@ import { formatDate, getDictionary, resolveLocale } from "@/lib/i18n";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { getDigestArchive } from "@/lib/queries/digest";
 
-export async function generateMetadata(): Promise<Metadata> {
-  const locale = resolveLocale((await headers()).get("x-locale"));
+/**
+ * A3 — ISR: editorial content, revalidated every 5 minutes (or on demand).
+ * The literal is required: segment config must be statically analyzable.
+ */
+export const revalidate = 300;
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+
+  const locale = resolveLocale(rawLocale);
   const dict = getDictionary(locale);
   return {
     title: dict.digest.archiveTitle,
@@ -18,8 +25,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /** Public digest archive (features.md §newsletter): past issues of the daily digest. */
-export default async function DigestArchivePage() {
-  const locale = resolveLocale((await headers()).get("x-locale"));
+export default async function DigestArchivePage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale: rawLocale } = await params;
+
+  const locale = resolveLocale(rawLocale);
   const dict = getDictionary(locale);
   const issues = await getDigestArchive(locale);
 

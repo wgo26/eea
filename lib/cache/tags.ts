@@ -11,6 +11,9 @@
  *   - `notices` — every cached notice query (board, detail, facets, stats)
  *   - `stories` — every cached photo-story query (grids, detail, facets, stats)
  *   - `culture` — every cached culture/event query (articles, events, facets)
+ *   - `locations` — every cached location query (index, detail, content
+ *     lists); invalidated by taxonomy mutations (revalidateTaxonomy) and by
+ *     content publishes (revalidatePublicContentCache, which change counts).
  *   - `site`  — public site config (footer social links) read by the shell on
  *     every public page; invalidated by the site-settings admin mutation.
  *   - `ads`   — active ad creatives per slot (`lib/queries/ads.ts`); invalidated
@@ -33,6 +36,7 @@ export const CACHE_TAGS = {
     notices: "notices",
     stories: "stories",
     culture: "culture",
+    locations: "locations",
     site: "site",
     ads: "ads",
 } as const;

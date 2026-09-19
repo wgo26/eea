@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { resolveLocale, getDictionary } from "@/lib/i18n";
-import { headers } from "next/headers";
 import type { Metadata } from "next";
 import {
     ArrowRight,
@@ -15,8 +14,15 @@ import { Badge } from "@/components/ui/badge";
 import { LocationMap } from "@/components/locations/location-map";
 import { getLocationsWithCounts } from "@/lib/queries/locations";
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+/**
+ * A3 — ISR: editorial content, revalidated every 5 minutes (or on demand).
+ * The literal is required: segment config must be statically analyzable.
+ */
+export const revalidate = 300;
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     return {
         title: dict.locations.title,
@@ -25,8 +31,9 @@ export async function generateMetadata(): Promise<Metadata> {
     };
 }
 
-export default async function Page() {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export default async function Page({ params }: { params: Promise<{ locale: string }> }) {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     const locations = await getLocationsWithCounts();
     const ranked = [...locations].sort(

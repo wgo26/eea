@@ -1,17 +1,23 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { buildAlternates } from "@/lib/i18n/urls";
 import { getHomeData } from "@/lib/queries/home";
 import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
-import { HomeHero } from "@/components/home/home-hero";
-import { EmptySection, StoryCard } from "@/components/home/story-card";
-import { SectionHeader } from "@/components/home/section-header";
-import { AdSlot } from "@/components/home/ad-slot";
-import { ListingCard } from "@/components/home/listing-card";
-import { NoticesList } from "@/components/home/notices-list";
 import { SubmitCta } from "@/components/home/submit-cta";
-import { ExploreTiles } from "@/components/home/explore-tiles";
-import { TrendingList } from "@/components/home/trending-list";
+import {
+    AdSkeleton,
+    GridSkeleton,
+    HeroSkeleton,
+    HomeBannerAd,
+    HomeBoard,
+    HomeCulture,
+    HomeHeroSection,
+    HomeInlineBottomAd,
+    HomeInlineMidAd,
+    HomeNewsTrending,
+    HomePhotoStories,
+} from "@/components/home/home-sections";
 
 type LocaleHomePageProps = { params: Promise<{ locale: string }> };
 
@@ -64,158 +70,59 @@ export async function generateMetadata({
 /**
  * Homepage (spec §1A + sitemap §2) — a hub, not a destination: every module
  * routes into one of the content verticals or into /submit.
+ *
+ * A3 — streaming: the page itself awaits nothing but the locale, so the
+ * shell streams instantly; the hero resolves first and each rail streams in
+ * behind a shell-matched skeleton instead of the whole page waiting for the
+ * slowest query. Sections share one cached getHomeData() read.
  */
 export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
     const { locale: raw } = await params;
     const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
-    const data = await getHomeData(locale);
-    const p = (path: string) => `/${locale}${path}`;
-    const availableSections: readonly (
-        | "photoStories"
-        | "news"
-        | "notices"
-        | "buySell"
-        | "culture"
-        | "locations"
-    )[] = [
-        "locations",
-        ...(data.photoStories.length > 0 ? ["photoStories" as const] : []),
-        ...(data.news.length > 0 ? ["news" as const] : []),
-        ...(data.notices.length > 0 ? ["notices" as const] : []),
-        ...(data.listings.length > 0 ? ["buySell" as const] : []),
-        ...(data.culture.length > 0 ? ["culture" as const] : []),
-    ];
 
     return (
         <div className="mx-auto w-full max-w-7xl space-y-12 px-4 py-6 md:px-6 md:py-10">
-            <HomeHero
-                featured={data.featured}
-                secondary={data.secondary}
-                dict={dict}
-                locale={locale}
-                submitHref={p("/submit")}
-                photoStoriesHref={p("/photo-stories")}
-            />
+            <Suspense fallback={<HeroSkeleton />}>
+                <HomeHeroSection locale={locale} dict={dict} />
+            </Suspense>
 
-            <AdSlot ad={data.ads.banner} dict={dict} variant="banner" />
-
-            {/* Quick navigation into every vertical (spec §1A — hub, not destination) */}
-            <ExploreTiles
-                dict={dict}
-                available={availableSections}
-                hrefs={{
-                    photoStories: p("/photo-stories"),
-                    news: p("/news"),
-                    notices: p("/notices"),
-                    buySell: p("/buy-sell"),
-                    culture: p("/culture"),
-                    locations: p("/locations"),
-                }}
-            />
+            <Suspense fallback={<AdSkeleton />}>
+                <HomeBannerAd locale={locale} dict={dict} />
+            </Suspense>
 
             {/* Only surface live editorial sections. Empty cards and ad
                 placeholders make the homepage look unfinished. */}
-            {data.photoStories.length > 0 ? (
-            <section className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
-                <div className="min-w-0">
-                    <SectionHeader
-                        title={dict.home.latestPhotoStories}
-                        hint={dict.home.sectionHintPhoto}
-                        viewAllHref={p("/photo-stories")}
-                        viewAllLabel={dict.home.viewAll}
-                    />
-                    <div className="grid gap-5 sm:grid-cols-2">
-                        {data.photoStories.map((s) => (
-                            <StoryCard key={s.id} story={s} dict={dict} locale={locale} />
-                        ))}
-                    </div>
-                </div>
-                <aside>
-                    <AdSlot
-                        ad={data.ads.rail}
-                        dict={dict}
-                        variant="rail"
-                        className="lg:sticky lg:top-24"
-                    />
-                </aside>
-            </section>
-            ) : null}
+            <Suspense fallback={<GridSkeleton />}>
+                <HomePhotoStories locale={locale} dict={dict} />
+            </Suspense>
 
             {/* Latest Community News + Trending rail */}
-            <section className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
-                <div className="min-w-0">
-                    <SectionHeader
-                        title={dict.home.latestNews}
-                        hint={dict.home.sectionHintNews}
-                        viewAllHref={p("/news")}
-                        viewAllLabel={dict.home.viewAll}
-                    />
-                    {data.news.length > 0 ? (
-                        <div className="grid gap-5 sm:grid-cols-2">
-                            {data.news.map((s) => (
-                                <StoryCard key={s.id} story={s} dict={dict} locale={locale} />
-                            ))}
-                        </div>
-                    ) : (
-                        <EmptySection dict={dict} href={p("/news")} label={dict.home.viewAll} />
-                    )}
-                </div>
-                <aside>
-                    <TrendingList stories={data.trending} dict={dict} locale={locale} />
-                </aside>
-            </section>
+            <Suspense fallback={<GridSkeleton />}>
+                <HomeNewsTrending locale={locale} dict={dict} />
+            </Suspense>
 
             {/* Inline ad — mid page (spec §11) */}
-            {data.ads.inlineMid ? <AdSlot ad={data.ads.inlineMid} dict={dict} variant="strip" /> : null}
+            <Suspense fallback={<AdSkeleton />}>
+                <HomeInlineMidAd locale={locale} dict={dict} />
+            </Suspense>
 
             {/* Notices + Buy & Sell previews (One Community Board, Diff. #4) */}
-            {data.notices.length > 0 || data.listings.length > 0 ? (
-            <section className="grid gap-10 lg:grid-cols-2">
-                {data.notices.length > 0 ? <div className="min-w-0">
-                    <SectionHeader
-                        title={dict.home.latestNotices}
-                        hint={dict.home.sectionHintNotices}
-                        viewAllHref={p("/notices")}
-                        viewAllLabel={dict.home.viewAll}
-                    />
-                    <NoticesList notices={data.notices} dict={dict} locale={locale} />
-                </div> : null}
-                {data.listings.length > 0 ? <div className="min-w-0">
-                    <SectionHeader
-                        title={dict.home.buySell}
-                        hint={dict.home.sectionHintBuySell}
-                        viewAllHref={p("/buy-sell")}
-                        viewAllLabel={dict.home.viewAll}
-                    />
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        {data.listings.map((l) => (
-                            <ListingCard key={l.id} listing={l} dict={dict} locale={locale} />
-                        ))}
-                    </div>
-                </div> : null}
-            </section>
-            ) : null}
+            <Suspense fallback={<GridSkeleton cards={2} />}>
+                <HomeBoard locale={locale} dict={dict} />
+            </Suspense>
 
             {/* Culture & Entertainment preview */}
-            {data.culture.length > 0 ? <section>
-                <SectionHeader
-                    title={dict.home.culture}
-                    hint={dict.home.sectionHintCulture}
-                    viewAllHref={p("/culture")}
-                    viewAllLabel={dict.home.viewAll}
-                />
-                <div className="grid gap-5 sm:grid-cols-3">
-                    {data.culture.map((s) => (
-                        <StoryCard key={s.id} story={s} dict={dict} locale={locale} />
-                    ))}
-                </div>
-            </section> : null}
+            <Suspense fallback={<GridSkeleton cards={3} />}>
+                <HomeCulture locale={locale} dict={dict} />
+            </Suspense>
 
             {/* Inline ad — before the participation loop CTA (spec §11) */}
-            {data.ads.inlineBottom ? <AdSlot ad={data.ads.inlineBottom} dict={dict} variant="strip" /> : null}
+            <Suspense fallback={<AdSkeleton />}>
+                <HomeInlineBottomAd locale={locale} dict={dict} />
+            </Suspense>
 
-            <SubmitCta dict={dict} submitHref={p("/submit")} />
+            <SubmitCta dict={dict} submitHref={`/${locale}/submit`} />
         </div>
     );
 }

@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
 import { buildAlternates } from "@/lib/i18n/urls";
-import { headers } from "next/headers";
 
 import { PolicyPage } from "@/components/about/policy-page";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+/**
+ * A3 — ISR: editorial content, revalidated every 5 minutes (or on demand).
+ * The literal is required: segment config must be statically analyzable.
+ */
+export const revalidate = 300;
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     return {
         title: dict.footer.terms,
@@ -15,7 +21,8 @@ export async function generateMetadata(): Promise<Metadata> {
     };
 }
 
-export default async function Page() {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export default async function Page({ params }: { params: Promise<{ locale: string }> }) {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     return <PolicyPage policyType="terms" locale={locale} />;
 }

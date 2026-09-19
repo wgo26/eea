@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
-import { headers } from "next/headers";
 import {
     ArrowRight,
     BadgeCheck,
@@ -22,8 +21,15 @@ import { getAboutOverrides } from "@/lib/admin/queries";
 import { formatMoneyCompact } from "@/lib/format";
 import { ApertureMark } from "@/components/system/page-skeletons";
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+/**
+ * A3 — ISR: editorial content, revalidated every 5 minutes (or on demand).
+ * The literal is required: segment config must be statically analyzable.
+ */
+export const revalidate = 300;
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     return {
         title: dict.about.title,
@@ -65,8 +71,9 @@ const VALUES = [
     { titleKey: "vOpenTitle", bodyKey: "vOpenBody", icon: BookOpen },
 ] as const;
 
-export default async function AboutPage() {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export default async function AboutPage({ params }: { params: Promise<{ locale: string }> }) {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     const a = dict.about;
     const [stats, overrides] = await Promise.all([getCommunityStats(), getAboutOverrides(locale)]);

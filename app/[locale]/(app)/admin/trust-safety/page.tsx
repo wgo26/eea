@@ -12,6 +12,7 @@ import { localizeStatus, localizeReportType } from '@/lib/admin/labels'
 import { DataTable } from '@/components/admin/data-table'
 import { EmptyState } from '@/components/admin/empty-state'
 import { Pager } from '@/components/admin/pager'
+import { SearchBar } from '@/components/admin/filter-pills'
 import { formatRelative } from '@/lib/admin/format'
 import { ReportActions, CorrectionActions } from './trust-safety-actions'
 
@@ -34,7 +35,7 @@ const STATUS_LABELS: Record<StatusKey, keyof ReturnType<typeof getDictionary>['a
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; status?: string; page?: string }>
+  searchParams: Promise<{ tab?: string; status?: string; q?: string; page?: string }>
 }) {
   const locale = await getRequestLocale()
   await requireCapability('moderate', '/admin/dashboard')
@@ -45,25 +46,33 @@ export default async function Page({
   const params = await searchParams
   const tab = params.tab === 'corrections' ? 'corrections' : 'reports'
   const status = (STATUS_KEYS as readonly string[]).includes(params.status ?? '') ? (params.status as StatusKey) : 'all'
+  const search = params.q?.trim() || undefined
   const PAGE_SIZE = 20
   const rawPage = Number(params.page ?? '1')
   const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1
   const offset = (page - 1) * PAGE_SIZE
 
-  const [reports, corrections, totals, filtered] = await Promise.all([
-    getReports({ status: status === 'all' ? 'all' : status, limit: PAGE_SIZE, offset, locale }),
-    getCorrections({ status: status === 'all' ? 'all' : status, limit: PAGE_SIZE, offset, locale }),
+  const [reports, corrections, totals] = await Promise.all([
+    getReports({ status: status === 'all' ? 'all' : status, limit: PAGE_SIZE, offset, search, locale }),
+    getCorrections({ status: status === 'all' ? 'all' : status, limit: PAGE_SIZE, offset, search, locale }),
     getTrustSafetyCounts(),
-    getTrustSafetyFilteredCounts(status),
   ])
 
+  const qs = search ? `&q=${encodeURIComponent(search)}` : ''
   const base = localePath(locale, '/admin/trust-safety')
-  const hrefFor = (key: string) => `${base}?tab=${key}&status=${status}`
-  const pageHref = (p: number) => `${base}?tab=${tab}&status=${status}&page=${p}`
+  const hrefFor = (key: string) => `${base}?tab=${key}&status=${status}${qs}`
+  const pageHref = (p: number) => `${base}?tab=${tab}&status=${status}${qs}&page=${p}`
 
   return (
     <div className="space-y-5">
-      <PageHeader title={t.title} description={t.description} />
+      <PageHeader
+        title={t.title}
+        description={t.description}
+        breadcrumb={[
+          { label: dict.admin.sidebar.dashboard, href: localePath(locale, '/admin/dashboard') },
+          { label: t.title },
+        ]}
+      />
 
       <Tabs
         tabs={[
@@ -83,9 +92,28 @@ export default async function Page({
         active={status}
       />
 
+      <div className="mt-3 flex items-center gap-2">
+        <SearchBar
+          name="q"
+          defaultValue={search}
+          placeholder={tc.searchPlaceholder ?? 'Search reports…'}
+          action={`${base}?tab=${tab}&status=${status}`}
+        />
+      </div>
+
       {tab === 'reports' ? (
         reports.length === 0 ? (
-          <EmptyState message={status === 'all' ? t.emptyReports : tc.emptyFiltered} />
+          <EmptyState
+            message={status === 'all' ? t.emptyReports : tc.emptyFiltered}
+            secondaryAction={
+              <Link
+                href={localePath(locale, '/admin/trust-safety')}
+                className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+              >
+                {tc.clearFilters}
+              </Link>
+            }
+          />
         ) : (
           <>
           <DataTable
@@ -132,7 +160,7 @@ export default async function Page({
               { key: 'actions', header: '', stickyRight: true, render: (r) => <ReportActions report={r} copy={t} common={dict.admin.common} locale={locale} />, className: 'text-right' },
             ]}
           />
-          <Pager page={page} pageSize={PAGE_SIZE} total={filtered.reports} hrefFor={pageHref} copy={tc} />
+          <Pager page={page} pageSize={PAGE_SIZE} total={totals.reports} hrefFor={pageHref} copy={tc} />
           </>
         )
       ) : corrections.length === 0 ? (
@@ -180,7 +208,7 @@ export default async function Page({
             { key: 'actions', header: '', stickyRight: true, render: (r) => <CorrectionActions correction={r} copy={t} />, className: 'text-right' },
           ]}
         />
-        <Pager page={page} pageSize={PAGE_SIZE} total={filtered.corrections} hrefFor={pageHref} copy={tc} />
+        <Pager page={page} pageSize={PAGE_SIZE} total={totals.corrections} hrefFor={pageHref} copy={tc} />
         </>
       )}
     </div>

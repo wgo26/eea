@@ -1,4 +1,5 @@
 import { appStringsEn } from './en-app'
+import { chromeEn } from './chrome-en'
 
 export const en = {
   meta: {
@@ -6,28 +7,13 @@ export const en = {
     description:
       'A community-first African media platform: local journalism, photo stories, community notices, buy & sell and culture — seen by the community, verified by Eagle Eye.',
   },
-  nav: {
-    home: 'Home',
-    photoStories: 'Photo Stories',
-    news: 'Community News',
-    buySell: 'Buy & Sell',
-    notices: 'Notices',
-    culture: 'Culture',
-    submit: 'Submit a Story',
-    search: 'Search',
-    about: 'About',
-    advertise: 'Advertise',
-    locations: 'Locations',
-    contributors: 'Contributors',
-  },
-  header: {
-    searchPlaceholder: 'Search stories, notices, listings…',
-    tagline: 'Seen by the community. Verified by Eagle Eye.',
-    menu: 'Menu',
-    close: 'Close',
-  },
-  theme: { label: 'Theme', light: 'Light', dark: 'Dark', system: 'System', contrast: 'High contrast' },
-  language: { label: 'Language' },
+  // A2: every-page chrome strings live in chrome-en.ts (single source shared
+  // with the lightweight client module). Referenced here so Dictionary keeps
+  // its exact shape; the objects are identical at runtime.
+  nav: chromeEn.nav,
+  header: chromeEn.header,
+  theme: chromeEn.theme,
+  language: chromeEn.language,
   badges: {
     verified: 'Verified',
     community: 'Community submission',
@@ -817,14 +803,7 @@ export const en = {
     supportingMedia: 'Supporting media',
     supportingMediaBody: 'Video, audio and documents play on demand to save data.',
   },
-  command: {
-    openLabel: 'Search or jump to a section',
-    placeholder: 'Search sections and actions…',
-    sections: 'Sections',
-    actions: 'Actions',
-    empty: 'No matches found.',
-    goToSearch: 'Advanced search',
-  },
+  command: chromeEn.command,
   report: {
     button: 'Report',
     title: 'Report this content',
@@ -1119,22 +1098,7 @@ export const en = {
     errorGeneric: 'Something went wrong. Please try again.',
     privacyNote: 'One digest per day at most. Your contact stays private and is never sold.',
   },
-  footer: {
-    aboutTitle: 'Eagle Eye Africa',
-    aboutText:
-      'A community-first African media platform combining local journalism, visual storytelling, community information, classifieds and culture — a digital record of what is happening around people.',
-    sections: 'Sections',
-    community: 'Community',
-    legal: 'Legal',
-    followUs: 'Follow us',
-    terms: 'Terms of Service',
-    privacy: 'Privacy Policy',
-    guidelines: 'Community Guidelines',
-    copyright: 'Copyright & Takedown',
-    contact: 'Contact',
-    rights: 'All rights reserved.',
-    madeIn: 'Made for Africa’s communities.',
-  },
+  footer: chromeEn.footer,
   ...appStringsEn,
 }
 

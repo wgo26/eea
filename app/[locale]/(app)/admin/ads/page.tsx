@@ -5,6 +5,7 @@ import { requireCapability } from '@/lib/auth/guards'
 import { getAdSlots, getAdvertisers, getPendingAdInquiries, getCampaigns } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { EmptyState } from '@/components/admin/empty-state'
+import { SearchBar } from '@/components/admin/filter-pills'
 import { Tabs } from '@/components/admin/tabs'
 import { DataTable } from '@/components/admin/data-table'
 import { StatusBadge } from '@/components/admin/status-badge'
@@ -20,11 +21,12 @@ export async function generateMetadata(): Promise<{ title: string }> {
   return { title: getDictionary(locale).admin.ads.title }
 }
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+export default async function Page({ searchParams }: { searchParams: Promise<{ tab?: string; q?: string }> }) {
   await requireCapability('manageAds', '/admin/ads')
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
   const t = dict.admin.ads
+  const tc = dict.admin.common
 
   const [slots, advertisers, inquiries, campaigns] = await Promise.all([
     getAdSlots(),
@@ -40,11 +42,29 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
     ended: t.statusEnded,
   }
 
-  const tab = (await searchParams).tab === 'inquiries' ? 'inquiries' : 'operations'
+  const sp = await searchParams
+  const tab = sp.tab === 'inquiries' ? 'inquiries' : 'operations'
+  const search = sp.q?.trim() || undefined
 
   return (
     <div className="space-y-5">
-      <PageHeader title={t.title} description={t.description} />
+      <PageHeader
+        title={t.title}
+        description={t.description}
+        breadcrumb={[
+          { label: dict.admin.sidebar.dashboard, href: localePath(locale, '/admin/dashboard') },
+          { label: t.title },
+        ]}
+      />
+
+      <div className="mt-3 flex items-center gap-2">
+        <SearchBar
+          name="q"
+          defaultValue={search}
+          placeholder={tc.searchPlaceholder ?? 'Search ads…'}
+          action={`${localePath(locale, '/admin/ads')}?tab=operations`}
+        />
+      </div>
 
       <Tabs
         tabs={[
@@ -59,7 +79,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
         <AdCreateForms
           copy={t}
           slots={slots}
-          advertisers={advertisers.map((a) => ({ id: a.id, companyName: a.companyName }))}
+          advertisers={advertisers.map((a) => ({ id: a.id, companyName: a.companyName ?? '' }))}
         />
       )}
 

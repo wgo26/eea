@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { headers } from "next/headers";
 import { ArrowLeft, MapPin, ShieldCheck } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,11 +13,17 @@ import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getContributorById } from "@/lib/queries/contributors";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 
-type Props = { params: Promise<{ id: string }> };
+type Props = { params: Promise<{ id: string; locale: string }> };
+
+/**
+ * A3 — ISR: editorial content, revalidated every 5 minutes (or on demand).
+ * The literal is required: segment config must be statically analyzable.
+ */
+export const revalidate = 300;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-    const { id } = await params;
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { id, locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const { profile } = await getContributorById(id, locale);
     if (!profile) return { title: "Contributor" };
     return {
@@ -39,8 +44,8 @@ function initials(name: string | null): string {
 }
 
 export default async function ContributorProfilePage({ params }: Props) {
-    const { id } = await params;
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { id, locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
 
     const { profile, content } = await getContributorById(id, locale);

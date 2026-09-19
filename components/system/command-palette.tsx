@@ -11,17 +11,23 @@ import {
     CommandItem,
     CommandList,
 } from "@/components/ui/command";
-import { getDictionary, type Dictionary, type Locale } from "@/lib/i18n";
-import { localeHref, useLocaleFromPath } from "@/components/site-header";
+import type { ChromeStrings } from "@/lib/i18n/chrome";
+import type { Locale } from "@/lib/i18n/config";
+import { localeHref } from "@/components/site-header";
+
+/** Strings this palette needs — sliced server-side (A2). */
+type PaletteStrings = Pick<ChromeStrings, "nav" | "command">;
 
 /**
  * Site-wide command palette (Cmd/Ctrl+K): jump to sections, submit, or the
  * search page. Mounted in the SiteHeader so it is available on every public
  * page; entries are locale-prefixed and dictionary-driven, never hardcoded.
+ *
+ * A2: locale + strings arrive as props from the server shell — this module
+ * must not import getDictionary (see scripts/verify-client-dictionary.mjs).
  */
-export function CommandPaletteButton() {
-    const locale = useLocaleFromPath();
-    const dict = getDictionary(locale);
+export function CommandPaletteButton({ locale, chrome }: { locale: Locale; chrome: PaletteStrings }) {
+    const dict = chrome;
     const [open, setOpen] = useState(false);
 
     useEffect(() => {
@@ -64,7 +70,7 @@ function CommandPalette({
     open: boolean;
     onOpenChange: (open: boolean) => void;
     locale: Locale;
-    dict: Dictionary;
+    dict: PaletteStrings;
 }) {
     const router = useRouter();
 

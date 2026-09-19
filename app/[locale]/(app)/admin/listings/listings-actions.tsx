@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { expireListing, relistListing, moderateListing, updateListing } from '@/lib/admin/actions'
+import { expireListing, relistListing, moderateListing, updateListing, deleteContentItem } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { ActionMenu, ActionMenuTrigger } from '@/components/admin/action-menu'
@@ -31,11 +31,12 @@ const inputCls =
  * sold and remove — plus the full details dialog (price, seller, contacts)
  * so the manager rarely needs the content-edit hop.
  */
-export function ListingActions({ listing, copy, common, locale }: { listing: AdminListingRow; copy: Copy; common: CommonCopy; locale: Locale }) {
+export function ListingActions({ listing, copy, common, locale, canDelete }: { listing: AdminListingRow; copy: Copy; common: CommonCopy; locale: Locale; canDelete: boolean }) {
   const { addToast } = useToast()
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [price, setPrice] = useState(listing.price != null ? String(listing.price) : '')
   const [currency, setCurrency] = useState(listing.currency ?? '')
@@ -56,6 +57,17 @@ export function ListingActions({ listing, copy, common, locale }: { listing: Adm
       router.refresh()
     }
     else addToast(result.error, 'error')
+  }
+
+  async function handlePermanentDelete() {
+    setBusy(true)
+    const result = await deleteContentItem(listing.contentItemId)
+    setBusy(false)
+    if (result.ok) {
+      setConfirmDelete(false)
+      addToast(copy.toastDeleted, 'success')
+      router.refresh()
+    } else addToast(result.error, 'error')
   }
 
   async function handleRemove() {
@@ -161,6 +173,16 @@ export function ListingActions({ listing, copy, common, locale }: { listing: Adm
       tone: 'danger',
     })
   }
+  // Hard delete is admin-only and irreversible — Remove (soft, undoable)
+  // stays the default; this is the escape hatch for spam/test rows.
+  if (canDelete) {
+    menuItems.push({
+      label: copy.deletePermanent,
+      onSelect: () => setConfirmDelete(true),
+      disabled: busy,
+      tone: 'danger',
+    })
+  }
 
   return (
     <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
@@ -177,6 +199,16 @@ export function ListingActions({ listing, copy, common, locale }: { listing: Adm
         cancelLabel={common.cancel}
         loading={busy}
         onConfirm={handleRemove}
+      />
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={copy.deletePermanentTitle}
+        description={copy.deletePermanentBody}
+        confirmLabel={copy.deletePermanent}
+        cancelLabel={common.cancel}
+        loading={busy}
+        onConfirm={handlePermanentDelete}
       />
 
       {/* Listing details — price, seller and contacts live on the extension row. */}

@@ -16,6 +16,9 @@ export type SearchResultItem = {
     href: string;
     hasVideo?: boolean;
     hasAudio?: boolean;
+    /** ts_headline snippet around the match (`<mark>` included) — for future highlighted-result UI. */
+    headlineTitle?: string;
+    headlineExcerpt?: string;
 };
 
 export type SearchResults = {
@@ -80,8 +83,8 @@ function pickLocalized<T extends { locale: string }>(
     );
 }
 
-/** Canonical detail paths (locale-free — callers prefix via localePath). */
-function detailHref(type: string, slug: string | null, id: string): string {
+/** Canonical detail paths (locale-free — callers prefix via localePath). Also used by /api/search/suggest. */
+export function detailHref(type: string, slug: string | null, id: string): string {
     const key = slug ?? id;
     switch (type) {
         case "photo_story":
@@ -99,7 +102,7 @@ function detailHref(type: string, slug: string | null, id: string): string {
     }
 }
 
-/** Strip characters PostgREST `ilike` treats specially. */
+/** Trim + bound the raw query. FTS arguments travel as bind values, so no wildcard escaping is needed; the trim keeps cache/URL keys canonical. */
 function sanitizePhrase(input: string): string {
     return input
         .replace(/[,()%\\*]/g, " ")
@@ -126,11 +129,58 @@ const SEARCH_SELECT = `id, type, slug, published_at,
     translations:content_translations(locale, title, excerpt),
     media:media_assets(public_url, is_cover, kind, mime_type)`;
 
+/** One ranked match from the `search_content` RPC (migrations 20261009000000/1). */
+type FtsMatch = {
+    item_id: string;
+    rank: number;
+    headline_title: string;
+    headline_excerpt: string;
+};
+
 /**
- * Global search across all five content types. Mirrors the two-step pattern
- * from `lib/queries/news.ts` (PostgREST rejects `or()`+`ilike` against an
- * embedded table), collecting matching ids from `content_translations` first,
- * then fetching the full published items. `type` narrows to a single vertical.
+ * A5 — full-text search core. Matching and ranking live in Postgres via the
+ * `search_content` RPC (unaccented tsvector @@ plainto_tsquery with
+ * ts_rank_cd, published-only), so "ecole" matches "école" and multi-word
+ * queries rank by term coverage instead of substring luck.
+ *
+ * Returns matching published item ids, or:
+ *   - `null` when there is no term / no database configured — "no constraint"
+ *     (callers must not narrow the query), and
+ *   - `[]` when the RPC errored or found nothing — "definitely nothing"
+ *     (callers short-circuit instead of falling back to the unfiltered list).
+ *
+ * `types` narrows to one or more content verticals; the RPC caps `limit`
+ * itself (1..200).
+ */
+export async function searchContentIds(
+    q: string | undefined,
+    locale: Locale,
+    types?: string[],
+    limit = 200,
+): Promise<string[] | null> {
+    const phrase = q?.trim().slice(0, 80);
+    if (!phrase) return null;
+    if (!hasDatabase()) return null;
+
+    const { data, error } = await safe(
+        createAdminClient().rpc("search_content", {
+            p_q: phrase,
+            p_locale: locale,
+            p_types: types ?? undefined,
+            p_limit: limit,
+        }),
+    );
+    if (error) return [];
+    return ((data ?? []) as unknown as FtsMatch[]).map((row) => row.item_id);
+}
+
+/**
+ * Global search across all five content types, ranked by `ts_rank_cd`.
+ * A5: matching moved from `ilike` substring scans to the `search_content`
+ * RPC (accent-insensitive in both locales, ranked multi-term matching).
+ * Full rows are then fetched by id in one query and re-ordered by FTS rank,
+ * keeping the card mapping below the single source of truth. `type` narrows
+ * to a single vertical.
  */
 export async function getSearchResults(options: {
     q: string;
@@ -152,20 +202,20 @@ export async function getSearchResults(options: {
     if (!phrase) return empty;
     const limit = options.limit ?? 60;
 
-    // Step 1: matching content_item_ids in the active locale.
-    const { data: idRows } = await safe(
-        createAdminClient()
-            .from("content_translations")
-            .select("content_item_id")
-            .eq("locale", options.locale)
-            .or(`title.ilike.*${phrase}*,excerpt.ilike.*${phrase}*`)
-            .limit(200),
+    // Step 1: ranked matches from Postgres full-text search.
+    const { data: ftsData, error: ftsError } = await safe(
+        createAdminClient().rpc("search_content", {
+            p_q: phrase,
+            p_locale: options.locale,
+            p_types: options.type ? [options.type] : undefined,
+            p_limit: limit,
+        }),
     );
-    const ids = (idRows ?? []).flatMap((row) => {
-        const id = (row as { content_item_id: string | null }).content_item_id;
-        return id ? [id] : [];
-    });
-    if (ids.length === 0) return empty;
+    const ftsRows = ((ftsData ?? []) as unknown as FtsMatch[]).filter((m) => Boolean(m.item_id));
+    if (ftsError || ftsRows.length === 0) return empty;
+
+    const rankById = new Map(ftsRows.map((m) => [m.item_id, m]));
+    const ids = ftsRows.map((m) => m.item_id);
 
     // Step 2: full published items, optionally narrowed by type.
     let query = createAdminClient()
@@ -177,7 +227,10 @@ export async function getSearchResults(options: {
         .in("id", ids);
 
     if (options.type) {
-        query = query.eq("type", options.type);
+        query = query.eq(
+            "type",
+            options.type as "photo_story" | "news" | "notice" | "culture" | "listing" | "fundraiser",
+        );
     }
 
     const { data, count: total } = await safe(
@@ -206,9 +259,12 @@ export async function getSearchResults(options: {
                 href: detailHref(row.type, row.slug, row.id),
                 hasVideo: media.some((m) => m.kind === 'video' || (m.mime_type ?? '').startsWith('video/')),
                 hasAudio: media.some((m) => m.kind === 'audio' || (m.mime_type ?? '').startsWith('audio/')),
+                headlineTitle: rankById.get(row.id)?.headline_title,
+                headlineExcerpt: rankById.get(row.id)?.headline_excerpt,
             } satisfies SearchResultItem,
         ];
-    });
+    })
+        .sort((a, b) => (rankById.get(b.id)?.rank ?? 0) - (rankById.get(a.id)?.rank ?? 0));
 
     return {
         photoStories: items.filter((i) => i.type === "photo_story"),

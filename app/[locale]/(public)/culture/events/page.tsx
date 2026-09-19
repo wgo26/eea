@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { CalendarDays, Clock, Landmark, MapPin } from "lucide-react";
 
 import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
@@ -10,8 +9,9 @@ import { EventsViewToggle } from "@/components/events/events-view-toggle";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getUpcomingEvents } from "@/lib/queries/culture";
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     return {
         title: "Events",
         description:
@@ -29,11 +29,14 @@ function firstParam(value: string | string[] | undefined): string | undefined {
 }
 
 export default async function EventsPage({
+    params: routeParams,
     searchParams,
 }: {
+    params: Promise<{ locale: string }>;
     searchParams: Promise<EventsSearchParams>;
 }) {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { locale: rawLocale } = await routeParams;
+    const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
 
     const params = await searchParams;

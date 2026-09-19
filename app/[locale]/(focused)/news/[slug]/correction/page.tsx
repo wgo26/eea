@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { ArrowLeft } from "lucide-react";
 
 import { getDictionary, resolveLocale } from "@/lib/i18n";
@@ -8,8 +7,9 @@ import { localePath } from "@/lib/i18n/urls";
 import { CorrectionForm } from "@/components/news/correction-form";
 
 /** Localized metadata for the correction flow (checklist items 6 + 10). */
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     return {
         title: getDictionary(locale).news.correctionTitle,
         robots: { index: false, follow: false },

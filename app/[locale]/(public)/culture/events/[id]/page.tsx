@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { headers } from "next/headers";
 import { ArrowLeft, CalendarDays, Clock, Landmark, MapPin, Tag, User } from "lucide-react";
 
 import { ShareButtons } from "@/components/share-buttons";
@@ -13,12 +12,18 @@ import { getEventById } from "@/lib/queries/culture";
 import { sanitizeBodyHtml } from "@/lib/security/html";
 
 type Props = {
-    params: Promise<{ id: string }>;
+    params: Promise<{ id: string; locale: string }>;
 };
 
+/**
+ * A3 — ISR: editorial content, revalidated every 5 minutes (or on demand).
+ * The literal is required: segment config must be statically analyzable.
+ */
+export const revalidate = 300;
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-    const { id } = await params;
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { id, locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const event = await getEventById(id, locale);
     if (!event) return { title: "Event" };
     return {
@@ -29,8 +34,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function EventDetailPage({ params }: Props) {
-    const { id } = await params;
-    const locale = resolveLocale((await headers()).get("x-locale"));
+    const { id, locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
 
     const event = await getEventById(id, locale);

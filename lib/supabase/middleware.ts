@@ -1,14 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import type { Database } from "@/lib/supabase/database.types";
 
 /**
  * Refreshes the Supabase auth session and forwards updated cookies.
- * Called from proxy.ts on every matched request.
+ * Called from proxy.ts on every matched request (A4: only when a session
+ * cookie is present). A6: typed against the generated Database schema.
  */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
-  const supabase = createServerClient(
+  const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {

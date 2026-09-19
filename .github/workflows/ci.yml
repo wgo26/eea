@@ -94,6 +94,18 @@ jobs:
         if: env.SUPABASE_DB_URL == ''
         run: echo "SUPABASE_DB_URL secret not set — 'supabase db lint' skipped. Add the repo secret to enable live migration linting."
 
+      # A6 — schema-drift gate. Regenerates lib/supabase/database.types.ts from
+      # the migration DDL + the live PostgREST description and fails when the
+      # committed file differs. Needs the Supabase URL + service key; skipped
+      # (with a notice) on forks that have no secrets.
+      - name: Generated database types verification (requires Supabase secrets)
+        if: env.NEXT_PUBLIC_SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != ''
+        run: npm run verify:types
+
+      - name: Generated database types skipped (Supabase secrets not configured)
+        if: env.NEXT_PUBLIC_SUPABASE_URL == '' || env.SUPABASE_SERVICE_ROLE_KEY == ''
+        run: echo "Supabase URL/service key not set — generated-type drift check skipped."
+
       # Phase 5.3 — the vitest suite includes lib/i18n/parity.test.ts, the
       # automated EN/FR edge-case matrix: dictionary key parity at every depth,
       # no empty/whitespace strings, equal array lengths, two-locale sitemap

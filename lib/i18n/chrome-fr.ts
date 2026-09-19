@@ -1,0 +1,58 @@
+/**
+ * A2 — public chrome strings (French). Mirror of chrome-en.ts: same keys,
+ * French copy. See chrome-en.ts for the contract.
+ */
+export const chromeFr = {
+  nav: {
+    home: 'Accueil',
+    photoStories: 'Reportages photo',
+    news: 'Actualités communautaires',
+    buySell: 'Acheter & vendre',
+    notices: 'Avis',
+    culture: 'Culture',
+    submit: 'Soumettre une histoire',
+    search: 'Recherche',
+    about: 'À propos',
+    advertise: 'Annoncer',
+    locations: 'Lieux',
+    contributors: 'Contributeurs',
+  },
+  header: {
+    searchPlaceholder: 'Rechercher histoires, avis, annonces…',
+    tagline: 'Vu par la communauté. Vérifié par Eagle Eye.',
+    menu: 'Menu',
+    close: 'Fermer',
+  },
+  theme: { label: 'Thème', light: 'Clair', dark: 'Sombre', system: 'Système', contrast: 'Contraste élevé' },
+  language: { label: 'Langue' },
+  command: {
+    openLabel: 'Rechercher ou aller à une rubrique',
+    placeholder: 'Rechercher rubriques et actions…',
+    sections: 'Rubriques',
+    actions: 'Actions',
+    empty: 'Aucun résultat.',
+    goToSearch: 'Recherche avancée',
+  },
+  // A3: see chrome-en.ts — mirrors appStringsFr.system.notFound.
+  notFound: {
+    title: 'Page introuvable',
+    body: "La page que vous cherchez n'existe pas ou a peut-être été déplacée.",
+    home: "Retour à l'accueil",
+  },
+  footer: {
+    aboutTitle: 'Eagle Eye Africa',
+    aboutText:
+      'Une plateforme médiatique africaine centrée sur la communauté, combinant journalisme local, narration visuelle, information communautaire, petites annonces et culture — un enregistrement numérique de ce qui se passe autour des gens.',
+    sections: 'Rubriques',
+    community: 'Communauté',
+    legal: 'Légal',
+    followUs: 'Suivez-nous',
+    terms: 'Conditions d’utilisation',
+    privacy: 'Politique de confidentialité',
+    guidelines: 'Règles de la communauté',
+    copyright: 'Droit d’auteur & retrait',
+    contact: 'Contact',
+    rights: 'Tous droits réservés.',
+    madeIn: 'Fait pour les communautés d’Afrique.',
+  },
+}

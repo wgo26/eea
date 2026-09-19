@@ -391,8 +391,16 @@ const getCachedNotices = unstable_cache(
         );
         if (searchMatches) query = query.in("id", searchMatches);
         if (lifecycle) query = query.in("id", lifecycle);
-        if (args.noticeType) query = query.eq("notices.notice_type", sanitizePhrase(args.noticeType));
-        if (args.location) query = query.eq("locations.slug", sanitizePhrase(args.location));
+        if (args.noticeType) {
+            query = query.eq("notices.notice_type", sanitizePhrase(args.noticeType), {
+                referencedTable: "notices",
+            });
+        }
+        if (args.location) {
+            query = query.eq("locations.slug", sanitizePhrase(args.location), {
+                referencedTable: "locations",
+            });
+        }
 
         const from = (args.page - 1) * NOTICES_PAGE_SIZE;
 

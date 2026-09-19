@@ -70,7 +70,18 @@ export async function proxy(request: NextRequest) {
     const prefix = /^\/(en|fr)(?=\/|$)/.exec(pathname);
     const locale: Locale = prefix ? (prefix[1] as Locale) : negotiated;
 
-    const response = await updateSession(request);
+    // A4: anonymous fast path — Supabase SSR stores the session in
+    // `sb-<ref>-auth-token*` cookies, so their absence means there is no
+    // session to refresh. Skipping updateSession() avoids client
+    // construction plus a getUser() round-trip on every anonymous/static
+    // hit; the x-locale header is still set below. Authenticated requests
+    // always carry the cookie (expired or not), so refresh still runs.
+    const hasSessionCookie = request.cookies
+        .getAll()
+        .some((c) => c.name.startsWith("sb-") && c.name.includes("auth-token"));
+    const response = hasSessionCookie
+        ? await updateSession(request)
+        : NextResponse.next({ request });
     response.headers.set("x-locale", locale);
 
     return response;

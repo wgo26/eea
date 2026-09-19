@@ -1,6 +1,9 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
+
 import { createAdminClient } from "@/lib/supabase/admin";
+import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import { logger } from "@/lib/observability/logger";
 import { mapAttachments, previewImageUrl } from "@/lib/media/attachments";
 import type { Locale } from "@/lib/i18n";
@@ -59,6 +62,18 @@ function hasDatabase(): boolean {
     return Boolean(
         process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
     );
+}
+
+/**
+ * A3 — cached-query error policy (mirrors lib/queries/notices.ts): inside an
+ * `unstable_cache` scope a failed query THROWS instead of resolving to a
+ * fallback, so a transient outage is never baked into the cache. The exported
+ * wrappers catch, log, and fall back (the safe() semantics) at the boundary.
+ */
+function logCacheFailure(fn: string, err: unknown): void {
+    logger.error("locations", `cached query failed (${fn})`, {
+        error: err instanceof Error ? err.message : String(err),
+    });
 }
 
 /** PostgREST returns to-one embeds as object or array depending on relationship detection. */
@@ -174,48 +189,90 @@ const CONTENT_SELECT = `id, type, slug, published_at,
 /** Fetches all active locations, ordered by name. */
 export async function getAllLocations(): Promise<LocationData[]> {
     if (!hasDatabase()) return [];
-    const { data } = await safe(
-        createAdminClient()
-            .from("locations")
-            .select(LOCATION_SELECT)
-            .eq("is_active", true)
-            .order("name", { ascending: true }),
-    );
-    return (data ?? []).flatMap((row) => {
-        const location = mapLocation(row as RawLocationRow);
-        return location ? [location] : [];
-    });
+    try {
+        return await getCachedAllLocations();
+    } catch (err) {
+        logCacheFailure("getAllLocations", err);
+        return [];
+    }
 }
+
+const getCachedAllLocations = unstable_cache(
+    async (): Promise<LocationData[]> => {
+        const { data, error } = await safe(
+            createAdminClient()
+                .from("locations")
+                .select(LOCATION_SELECT)
+                .eq("is_active", true)
+                .order("name", { ascending: true }),
+        );
+        if (error) throw new Error(error.message);
+        return (data ?? []).flatMap((row) => {
+            const location = mapLocation(row as RawLocationRow);
+            return location ? [location] : [];
+        });
+    },
+    ["locations-all"],
+    { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
 
 /** Fetches a single location by slug (null when not found or inactive). */
 export async function getLocationBySlug(slug: string): Promise<LocationData | null> {
     if (!hasDatabase()) return null;
-    const { data } = await safe(
-        createAdminClient()
-            .from("locations")
-            .select(LOCATION_SELECT)
-            .eq("slug", slug)
-            .eq("is_active", true)
-            .limit(1),
-    );
-    const row = asOne(data);
-    return row ? mapLocation(row as RawLocationRow) : null;
+    try {
+        return await getCachedLocationBySlug(slug);
+    } catch (err) {
+        logCacheFailure("getLocationBySlug", err);
+        return null;
+    }
 }
+
+const getCachedLocationBySlug = unstable_cache(
+    async (slug: string): Promise<LocationData | null> => {
+        const { data, error } = await safe(
+            createAdminClient()
+                .from("locations")
+                .select(LOCATION_SELECT)
+                .eq("slug", slug)
+                .eq("is_active", true)
+                .limit(1),
+        );
+        if (error) throw new Error(error.message);
+        const row = asOne(data);
+        return row ? mapLocation(row as RawLocationRow) : null;
+    },
+    ["location-by-slug"],
+    { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
 
 /** Returns the current slug for a renamed location, if one was recorded. */
 export async function getLocationSlugRedirect(slug: string): Promise<string | null> {
     if (!hasDatabase()) return null;
-    const { data } = await safe(
-        createAdminClient()
-            .from("location_slug_redirects")
-            .select("location:locations!location_id(slug)")
-            .eq("old_slug", slug)
-            .limit(1),
-    );
-    const row = asOne(data) as { location?: { slug: string } | { slug: string }[] | null } | null;
-    const location = asOne(row?.location);
-    return location?.slug ?? null;
+    try {
+        return await getCachedLocationSlugRedirect(slug);
+    } catch (err) {
+        logCacheFailure("getLocationSlugRedirect", err);
+        return null;
+    }
 }
+
+const getCachedLocationSlugRedirect = unstable_cache(
+    async (slug: string): Promise<string | null> => {
+        const { data, error } = await safe(
+            createAdminClient()
+                .from("location_slug_redirects")
+                .select("location:locations!location_id(slug)")
+                .eq("old_slug", slug)
+                .limit(1),
+        );
+        if (error) throw new Error(error.message);
+        const row = asOne(data) as { location?: { slug: string } | { slug: string }[] | null } | null;
+        const location = asOne(row?.location);
+        return location?.slug ?? null;
+    },
+    ["location-slug-redirect"],
+    { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
 
 /** Fetches published content items for a location, optionally filtered by locale and type. */
 export async function getLocationContent(
@@ -224,61 +281,90 @@ export async function getLocationContent(
     type?: string,
 ): Promise<LocationContent[]> {
     if (!hasDatabase()) return [];
-    let query = createAdminClient()
-        .from("content_items")
-        .select(CONTENT_SELECT)
-        .eq("locations.slug", slug)
-        .eq("status", "published")
-        .eq("is_archived", false)
-        .not("published_at", "is", null);
-
-    if (type) {
-        query = query.eq("type", type);
+    try {
+        return await getCachedLocationContent(slug, locale, type ?? null);
+    } catch (err) {
+        logCacheFailure("getLocationContent", err);
+        return [];
     }
-
-    const { data } = await safe(
-        query.order("published_at", { ascending: false }).limit(50),
-    );
-    return (data ?? []).flatMap((row) => {
-        const item = mapContent(row as RawContentRow, locale);
-        return item ? [item] : [];
-    });
 }
+
+const getCachedLocationContent = unstable_cache(
+    async (slug: string, locale: Locale, type: string | null): Promise<LocationContent[]> => {
+        let query = createAdminClient()
+            .from("content_items")
+            .select(CONTENT_SELECT)
+            .eq("locations.slug", slug)
+            .eq("status", "published")
+            .eq("is_archived", false)
+            .not("published_at", "is", null);
+
+        if (type) {
+            query = query.eq("type", type as "photo_story" | "news" | "notice" | "culture" | "listing" | "fundraiser");
+        }
+
+        const { data, error } = await safe(
+            query.order("published_at", { ascending: false }).limit(50),
+        );
+        if (error) throw new Error(error.message);
+        return (data ?? []).flatMap((row) => {
+            const item = mapContent(row as RawContentRow, locale);
+            return item ? [item] : [];
+        });
+    },
+    ["location-content"],
+    { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
 
 /** Fetches all active locations with a count of published content items. */
 export async function getLocationsWithCounts(): Promise<LocationData[]> {
     if (!hasDatabase()) return [];
-    const supabase = createAdminClient();
-
-    const [locationsResult, contentResult] = await Promise.all([
-        safe(
-            supabase
-                .from("locations")
-                .select(LOCATION_SELECT)
-                .eq("is_active", true)
-                .order("name", { ascending: true }),
-        ),
-        safe(
-            supabase
-                .from("content_items")
-                .select("location_id")
-                .eq("status", "published")
-                .eq("is_archived", false)
-                .not("published_at", "is", null),
-        ),
-    ]);
-
-    const totals = new Map<string, number>();
-    for (const row of contentResult.data ?? []) {
-        const raw = row as { location_id: string | null };
-        if (raw.location_id) {
-            totals.set(raw.location_id, (totals.get(raw.location_id) ?? 0) + 1);
-        }
+    try {
+        return await getCachedLocationsWithCounts();
+    } catch (err) {
+        logCacheFailure("getLocationsWithCounts", err);
+        return [];
     }
-
-    return (locationsResult.data ?? []).flatMap((row) => {
-        const location = mapLocation(row as RawLocationRow);
-        if (!location) return [];
-        return [{ ...location, contentCount: totals.get(location.id) ?? 0 }];
-    });
 }
+
+const getCachedLocationsWithCounts = unstable_cache(
+    async (): Promise<LocationData[]> => {
+        const supabase = createAdminClient();
+
+        const [locationsResult, contentResult] = await Promise.all([
+            safe(
+                supabase
+                    .from("locations")
+                    .select(LOCATION_SELECT)
+                    .eq("is_active", true)
+                    .order("name", { ascending: true }),
+            ),
+            safe(
+                supabase
+                    .from("content_items")
+                    .select("location_id")
+                    .eq("status", "published")
+                    .eq("is_archived", false)
+                    .not("published_at", "is", null),
+            ),
+        ]);
+        if (locationsResult.error) throw new Error(locationsResult.error.message);
+        if (contentResult.error) throw new Error(contentResult.error.message);
+
+        const totals = new Map<string, number>();
+        for (const row of contentResult.data ?? []) {
+            const raw = row as { location_id: string | null };
+            if (raw.location_id) {
+                totals.set(raw.location_id, (totals.get(raw.location_id) ?? 0) + 1);
+            }
+        }
+
+        return (locationsResult.data ?? []).flatMap((row) => {
+            const location = mapLocation(row as RawLocationRow);
+            if (!location) return [];
+            return [{ ...location, contentCount: totals.get(location.id) ?? 0 }];
+        });
+    },
+    ["locations-with-counts"],
+    { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);

@@ -10,7 +10,7 @@ import {
   THEME_STORAGE_KEY,
   type Theme,
 } from '@/lib/theme'
-import { getDictionary, type Locale } from '@/lib/i18n'
+import type { ChromeStrings } from '@/lib/i18n/chrome'
 
 /**
  * The persisted theme is an external store (localStorage + prefers-color-scheme),
@@ -95,8 +95,12 @@ function subscribe(onChange: () => void): () => void {
   }
 }
 
-export function ThemeToggle({ locale }: { locale: Locale }) {
-  const t = getDictionary(locale).theme
+/**
+ * A2: the theme labels arrive as a prop from the server-rendered shell so
+ * this every-page island never imports the full dictionary into the bundle.
+ */
+export function ThemeToggle({ labels }: { labels: ChromeStrings['theme'] }) {
+  const t = labels
   const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
 
   function cycle() {

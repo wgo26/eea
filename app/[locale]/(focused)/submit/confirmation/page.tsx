@@ -1,22 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { CheckCircle2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { localePath } from "@/lib/i18n/urls";
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     return {
         title: getDictionary(locale).submit.successTitle,
         robots: { index: false, follow: false },
     };
 }
 
-export default async function Page() {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export default async function Page({ params }: { params: Promise<{ locale: string }> }) {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     return (
         <div className="mx-auto w-full max-w-xl px-4 py-16 text-center md:px-6 lg:px-8">

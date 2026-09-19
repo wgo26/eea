@@ -8,10 +8,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { getDictionary, resolveLocale, type Locale } from "@/lib/i18n";
 import { getPolicy } from "@/lib/queries/about";
-import { headers } from "next/headers";
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+/**
+ * A3 — ISR: editorial content, revalidated every 5 minutes (or on demand).
+ * The literal is required: segment config must be statically analyzable.
+ */
+export const revalidate = 300;
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     return {
         title: dict.footer.contact,
@@ -20,8 +26,9 @@ export async function generateMetadata(): Promise<Metadata> {
     };
 }
 
-export default async function Page() {
-    const locale: Locale = resolveLocale((await headers()).get("x-locale"));
+export default async function Page({ params }: { params: Promise<{ locale: string }> }) {
+    const { locale: rawLocale } = await params;
+    const locale: Locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     // Optional editor-authored intro from the policy table; the form below is
     // the actual contact channel (not a policy document).

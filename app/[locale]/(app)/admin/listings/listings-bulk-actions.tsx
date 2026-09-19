@@ -28,12 +28,22 @@ export function ListingsBulkTable({
   common,
   locale,
   commonLabels,
+  canDelete,
+  sortActive,
+  sortHref,
+  sortLabelAsc,
+  sortLabelDesc,
 }: {
   rows: AdminListingRow[]
   copy: Copy
   common: CommonCopy
   locale: Locale
   commonLabels: Dictionary['admin']['common']
+  canDelete: boolean
+  sortActive: boolean
+  sortHref: string
+  sortLabelAsc: string
+  sortLabelDesc: string
 }) {
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -101,9 +111,17 @@ export function ListingsBulkTable({
     {
       key: 'expires',
       header: copy.colExpires,
+      sortable: true,
+      sortHref: () => sortHref,
+      sortDir: sortActive ? 'asc' : null,
       render: (r) =>
         r.expiresAt ? (
-          <time className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(r.expiresAt, locale)}</time>
+          <time
+            className="text-xs text-muted-foreground whitespace-nowrap"
+            title={sortActive ? sortLabelAsc : sortLabelDesc}
+          >
+            {formatRelative(r.expiresAt, locale)}
+          </time>
         ) : (
           <span className="text-xs text-muted-foreground whitespace-nowrap">{copy.noExpiry}</span>
         ),
@@ -125,7 +143,7 @@ export function ListingsBulkTable({
       key: 'actions',
       header: '',
       stickyRight: true,
-      render: (r) => <ListingActions listing={r} copy={copy} common={common} locale={locale} />,
+      render: (r) => <ListingActions listing={r} copy={copy} common={common} locale={locale} canDelete={canDelete} />,
       className: 'text-right',
     },
   ]

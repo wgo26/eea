@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import { Globe } from 'lucide-react'
-import { locales, LOCALE_COOKIE, type Locale } from '@/lib/i18n'
+import { locales, LOCALE_COOKIE, type Locale } from '@/lib/i18n/config'
 
 /**
  * DOM side effects live at module scope: direct writes to globals such as

@@ -9,7 +9,8 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { MobileNav } from "@/components/mobile-nav";
 import { CommandPaletteButton } from "@/components/system/command-palette";
 import { ContrastToggle } from "@/components/system/contrast-toggle";
-import { getDictionary, locales, type Locale } from "@/lib/i18n";
+import type { ChromeStrings } from "@/lib/i18n/chrome";
+import { locales, type Locale } from "@/lib/i18n/config";
 
 /** Prefixes a canonical path with the active locale (prefix-all model). */
 export function localeHref(locale: Locale, path: string): string {
@@ -46,12 +47,16 @@ const SECTION_PATHS = [
     { key: "locations", path: "/locations" },
 ] as const;
 
-export function useNavItems() {
+/**
+ * A2: nav labels arrive as a prop (sliced server-side from the chrome
+ * strings) so this every-page client component never imports the full
+ * dictionary — and its ~147 KB of admin vocabulary — into the bundle.
+ */
+export function useNavItems(nav: ChromeStrings["nav"]) {
     const locale = useLocaleFromPath();
-    const dict = getDictionary(locale);
     return SECTION_PATHS.map(({ key, path }) => ({
         href: localeHref(locale, path),
-        label: dict.nav[key],
+        label: nav[key],
         path,
     }));
 }
@@ -79,10 +84,15 @@ function safeLogoSrc(value: string | null): string | null {
     }
 }
 
-export function SiteHeader({ branding }: { branding?: SiteBranding }) {
+/**
+ * A2: all user-visible strings arrive via the `chrome` prop from the server
+ * shell — this component must not import getDictionary (see
+ * scripts/verify-client-dictionary.mjs).
+ */
+export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chrome: ChromeStrings }) {
     const locale = useLocaleFromPath();
-    const dict = getDictionary(locale);
-    const items = useNavItems();
+    const dict = chrome;
+    const items = useNavItems(chrome.nav);
     const pathname = usePathname() ?? "/";
     const logoSrc = safeLogoSrc(branding?.logoUrl ?? null);
     const siteName =
@@ -147,9 +157,9 @@ export function SiteHeader({ branding }: { branding?: SiteBranding }) {
                 </nav>
 
                 <div className="ml-auto flex items-center gap-1.5">
-                    <CommandPaletteButton />
+                    <CommandPaletteButton locale={locale} chrome={{ nav: chrome.nav, command: chrome.command }} />
                     <LanguageSwitcher locale={locale} />
-                    <ThemeToggle locale={locale} />
+                    <ThemeToggle labels={chrome.theme} />
                     <ContrastToggle label={dict.theme.contrast} />
                     <Button
                         size="sm"

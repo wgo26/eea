@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { Camera, MapPin, Newspaper, ShieldCheck } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,8 +9,15 @@ import { SmartImage } from "@/components/media/smart-image";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getContributors } from "@/lib/queries/contributors";
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+/**
+ * A3 — ISR: editorial content, revalidated every 5 minutes (or on demand).
+ * The literal is required: segment config must be statically analyzable.
+ */
+export const revalidate = 300;
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     return {
         title: dict.contributors.title,
@@ -30,8 +36,9 @@ function initials(name: string | null): string {
         .toUpperCase();
 }
 
-export default async function ContributorsPage() {
-    const locale = resolveLocale((await headers()).get("x-locale"));
+export default async function ContributorsPage({ params }: { params: Promise<{ locale: string }> }) {
+    const { locale: rawLocale } = await params;
+    const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     const { contributors } = await getContributors({ page: 1, limit: 60, locale });
 

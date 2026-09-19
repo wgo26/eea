@@ -1,5 +1,6 @@
 import type { en } from './en'
 import { appStringsFr } from './fr-app'
+import { chromeFr } from './chrome-fr'
 
 
 export const fr: typeof en = {
@@ -8,28 +9,11 @@ export const fr: typeof en = {
     description:
       'Une plateforme médiatique africaine centrée sur la communauté : journalisme local, reportages photo, avis communautaires, petites annonces et culture — vu par la communauté, vérifié par Eagle Eye.',
   },
-  nav: {
-    home: 'Accueil',
-    photoStories: 'Reportages photo',
-    news: 'Actualités communautaires',
-    buySell: 'Acheter & vendre',
-    notices: 'Avis',
-    culture: 'Culture',
-    submit: 'Soumettre une histoire',
-    search: 'Recherche',
-    about: 'À propos',
-    advertise: 'Annoncer',
-    locations: 'Lieux',
-    contributors: 'Contributeurs',
-  },
-  header: {
-    searchPlaceholder: 'Rechercher histoires, avis, annonces…',
-    tagline: 'Vu par la communauté. Vérifié par Eagle Eye.',
-    menu: 'Menu',
-    close: 'Fermer',
-  },
-  theme: { label: 'Thème', light: 'Clair', dark: 'Sombre', system: 'Système', contrast: 'Contraste élevé' },
-  language: { label: 'Langue' },
+  // A2: see en.ts — chrome strings are owned by chrome-fr.ts.
+  nav: chromeFr.nav,
+  header: chromeFr.header,
+  theme: chromeFr.theme,
+  language: chromeFr.language,
   badges: {
     verified: 'Vérifié',
     community: 'Soumission communautaire',
@@ -897,14 +881,7 @@ export const fr: typeof en = {
     supportingMedia: 'Médias d’appui',
     supportingMediaBody: 'Vidéos, audios et documents se lisent à la demande pour économiser les données.',
   },
-  command: {
-    openLabel: 'Rechercher ou aller à une rubrique',
-    placeholder: 'Rechercher rubriques et actions…',
-    sections: 'Rubriques',
-    actions: 'Actions',
-    empty: 'Aucun résultat.',
-    goToSearch: 'Recherche avancée',
-  },
+  command: chromeFr.command,
   report: {
     button: 'Signaler',
     title: 'Signaler ce contenu',
@@ -1118,21 +1095,6 @@ export const fr: typeof en = {
     errorGeneric: 'Une erreur est survenue. Veuillez réessayer.',
     privacyNote: 'Un résumé par jour au maximum. Votre contact reste privé et n’est jamais vendu.',
   },
-  footer: {
-    aboutTitle: 'Eagle Eye Africa',
-    aboutText:
-      'Une plateforme médiatique africaine centrée sur la communauté, combinant journalisme local, narration visuelle, information communautaire, petites annonces et culture — un enregistrement numérique de ce qui se passe autour des gens.',
-    sections: 'Rubriques',
-    community: 'Communauté',
-    legal: 'Légal',
-    followUs: 'Suivez-nous',
-    terms: 'Conditions d’utilisation',
-    privacy: 'Politique de confidentialité',
-    guidelines: 'Règles de la communauté',
-    copyright: 'Droit d’auteur & retrait',
-    contact: 'Contact',
-    rights: 'Tous droits réservés.',
-    madeIn: 'Fait pour les communautés d’Afrique.',
-  },
+  footer: chromeFr.footer,
   ...appStringsFr,
 }
