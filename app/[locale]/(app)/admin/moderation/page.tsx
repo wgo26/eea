@@ -152,8 +152,8 @@ export default async function Page({
       ) : (
         <ModerationBulkTable
           rows={submissions}
-          copy={t as any}
-          common={tc as any}
+          copy={t}
+          common={tc}
           locale={locale}
         />
       )}

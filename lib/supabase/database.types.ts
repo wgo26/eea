@@ -2632,60 +2632,6 @@ export type Database = {
                 },
             ];
         }
-        role_requests: {
-            Row: {
-            id: string;
-            user_id: string;
-            requested_role: string;
-            motivation: string | null;
-            status: string;
-            reviewed_by: string | null;
-            reviewed_at: string | null;
-            decision_reason: string | null;
-            created_at: string;
-            updated_at: string;
-            };
-            Insert: {
-            id?: string;
-            user_id: string;
-            requested_role: string;
-            motivation?: string | null;
-            status?: string;
-            reviewed_by?: string | null;
-            reviewed_at?: string | null;
-            decision_reason?: string | null;
-            created_at?: string;
-            updated_at?: string;
-            };
-            Update: {
-            id?: string | null;
-            user_id?: string | null;
-            requested_role?: string | null;
-            motivation?: string | null;
-            status?: string | null;
-            reviewed_by?: string | null;
-            reviewed_at?: string | null;
-            decision_reason?: string | null;
-            created_at?: string | null;
-            updated_at?: string | null;
-            };
-            Relationships: [
-                {
-                    foreignKeyName: "public_role_requests_user_id_fkey",
-                    columns: ["user_id"],
-                    isOneToOne: false,
-                    referencedRelation: "profiles",
-                    referencedColumns: ["id"],
-                },
-                {
-                    foreignKeyName: "public_role_requests_reviewed_by_fkey",
-                    columns: ["reviewed_by"],
-                    isOneToOne: false,
-                    referencedRelation: "profiles",
-                    referencedColumns: ["id"],
-                },
-            ];
-        }
         saved_content: {
             Row: {
             user_id: string;
