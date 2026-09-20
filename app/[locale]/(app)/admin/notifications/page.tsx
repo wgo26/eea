@@ -37,12 +37,13 @@ export default async function Page() {
   const dict = getDictionary(locale)
   const t = dict.admin.notifications
 
-  const [queue, stats, subscribers, channels] = await Promise.all([
+  const [outbox, stats, subscribers, channels] = await Promise.all([
     getOutboxQueue(),
     getOutboxStats(),
     getDigestSubscribers(),
     Promise.resolve(channelStatus()),
   ])
+  const queue = outbox.rows
 
   const channelRows = [
     { name: t.channelEmail, on: channels.email },

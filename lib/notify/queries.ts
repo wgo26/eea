@@ -106,13 +106,25 @@ export type OutboxRow = {
   waMe: string | null;
 };
 
-export async function getOutboxQueue(limit = 50): Promise<OutboxRow[]> {
+export async function getOutboxQueue(options?: {
+  status?: string
+  search?: string
+  limit?: number
+  offset?: number
+}): Promise<{ rows: OutboxRow[]; total: number }> {
+  const status = options?.status ?? 'all'
+  const search = options?.search?.trim() ?? ''
+  const limit = options?.limit ?? 20
+  const offset = options?.offset ?? 0
   const supabase = createAdminClient();
-  const { data } = await supabase
+  let query = supabase
     .from('notification_outbox')
-    .select('id, event, audience, recipient_user_id, status, channels_sent, attempts, title, body, last_error, created_at, sent_at')
+    .select('id, event, audience, recipient_user_id, status, channels_sent, attempts, title, body, last_error, created_at, sent_at', { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .range(offset, offset + limit - 1);
+  if (status !== 'all') query = query.eq('status', status);
+  if (search) query = query.or(`event.ilike.%${search}%,title.ilike.%${search}%,last_error.ilike.%${search}%`);
+  const { data, count } = await query;
   const rows = (data ?? []) as Record<string, unknown>[];
   // Resolve direct-recipient contacts for manual follow-up (staff rows fan
   // out at send time — no single number, so wa.me stays null there).
@@ -124,7 +136,7 @@ export async function getOutboxQueue(limit = 50): Promise<OutboxRow[]> {
       contactById.set(p.id, { phone: p.phone, email: p.email });
     }
   }
-  return rows.map((row) => {
+  const mapped = rows.map((row) => {
     const title = (row.title as string | null) ?? null;
     const body = (row.body as string | null) ?? null;
     const contact = typeof row.recipient_user_id === 'string' ? contactById.get(row.recipient_user_id) : undefined;
@@ -147,6 +159,7 @@ export async function getOutboxQueue(limit = 50): Promise<OutboxRow[]> {
       waMe: phone && text ? waMeLink(phone, text) : null,
     };
   });
+  return { rows: mapped, total: count ?? mapped.length };
 }
 
 export async function getOutboxStats(): Promise<{ pending: number; sent24h: number; failed: number }> {

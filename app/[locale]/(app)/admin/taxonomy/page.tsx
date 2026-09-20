@@ -7,6 +7,7 @@ import { getCategoriesAdmin, getLocationsAdmin } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { Tabs } from '@/components/admin/tabs'
 import { DataTable } from '@/components/admin/data-table'
+import { SearchBar } from '@/components/admin/filter-pills'
 import { CategoryCreateForm, CategoryRowActions } from './category-client'
 import { LocationCreateForm, LocationRowActions } from './location-client'
 
@@ -26,7 +27,7 @@ const TYPE_LABEL_KEY: Record<string, 'photoStory' | 'news' | 'listings' | 'notic
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>
+  searchParams: Promise<{ tab?: string; q?: string }>
 }) {
   const { roles } = await requireCapability('manageContent', '/admin/taxonomy')
   const canDelete = isAdminRoles(roles)
@@ -38,23 +39,44 @@ export default async function Page({
 
   const params = await searchParams
   const activeTab = params.tab === 'locations' ? 'locations' : 'categories'
+  const search = params.q?.trim() || undefined
 
-  const [categories, locations] = await Promise.all([getCategoriesAdmin(), getLocationsAdmin()])
+  const [categories, locations] = await Promise.all([
+    getCategoriesAdmin(search),
+    getLocationsAdmin(search),
+  ])
 
   const base = localePath(locale, '/admin/taxonomy')
+  const qs = search ? `&q=${encodeURIComponent(search)}` : ''
 
   return (
     <div className="space-y-5">
-      <PageHeader title={t.title} description={t.description} />
-
-      <Tabs
-        tabs={[
-          { key: 'categories', label: t.tabCategories, count: categories.length },
-          { key: 'locations', label: t.tabLocations, count: locations.length },
+      <PageHeader
+        title={t.title}
+        description={t.description}
+        breadcrumb={[
+          { label: dict.admin.sidebar.dashboard, href: localePath(locale, '/admin/dashboard') },
+          { label: t.title },
         ]}
-        active={activeTab}
-        hrefFor={(key) => `${base}?tab=${key}`}
       />
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Tabs
+          tabs={[
+            { key: 'categories', label: t.tabCategories, count: categories.length },
+            { key: 'locations', label: t.tabLocations, count: locations.length },
+          ]}
+          active={activeTab}
+          hrefFor={(key) => `${base}?tab=${key}${qs}`}
+        />
+        <SearchBar
+          name="q"
+          defaultValue={search}
+          placeholder={common.searchPlaceholder}
+          action={`${base}?tab=${activeTab}`}
+          className="w-full sm:w-64"
+        />
+      </div>
 
       {activeTab === 'categories' ? (
         <div className="space-y-5">
@@ -63,7 +85,7 @@ export default async function Page({
           <DataTable
             rows={categories}
             rowKey={(r) => r.id}
-            emptyMessage={t.categoriesEmpty}
+            emptyMessage={search ? common.emptyFiltered : t.categoriesEmpty}
             columns={[
               {
                 key: 'name',
@@ -134,7 +156,7 @@ export default async function Page({
           <DataTable
             rows={locations}
             rowKey={(r) => r.id}
-            emptyMessage={t.locationsEmpty}
+            emptyMessage={search ? common.emptyFiltered : t.locationsEmpty}
             columns={[
               {
                 key: 'name',

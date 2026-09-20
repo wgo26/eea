@@ -1,11 +1,14 @@
 import Link from 'next/link'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
+import { localePath } from '@/lib/i18n/urls'
 import { requireCapability } from '@/lib/auth/guards'
 import { isAdminRoles } from '@/lib/auth/roles'
 import { getFundraisersAdmin } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { EmptyState } from '@/components/admin/empty-state'
+import { SearchBar } from '@/components/admin/filter-pills'
+import { Pager } from '@/components/admin/pager'
 import { StatusBadge } from '@/components/admin/status-badge'
 import { localizeStatus } from '@/lib/admin/labels'
 import { formatRelative, formatPrice } from '@/lib/admin/format'
@@ -30,7 +33,13 @@ function storyHref(locale: string, type: string | null, id: string, slug: string
   }
 }
 
-export default async function Page() {
+const PAGE_SIZE = 20
+
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; page?: string }>
+}) {
   const locale = await getRequestLocale()
   const { roles } = await requireCapability('manageFundraisers', '/admin/fundraisers')
   const canDelete = isAdminRoles(roles)
@@ -38,11 +47,28 @@ export default async function Page() {
   const t = dict.admin.fundraisers
   const common = dict.admin.common
 
-  const fundraisers = await getFundraisersAdmin(100, locale)
+  const sp = await searchParams
+  const search = sp.q?.trim() || undefined
+  const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1)
+
+  const { rows: fundraisers, total } = await getFundraisersAdmin({
+    search,
+    limit: PAGE_SIZE,
+    offset: (page - 1) * PAGE_SIZE,
+    locale,
+  })
+  const base = localePath(locale, '/admin/fundraisers')
 
   return (
     <div className="space-y-5">
-      <PageHeader title={t.title} description={t.description} />
+      <PageHeader
+        title={t.title}
+        description={t.description}
+        breadcrumb={[
+          { label: dict.admin.sidebar.dashboard, href: localePath(locale, '/admin/dashboard') },
+          { label: t.title },
+        ]}
+      />
 
       <FundraiserCreateForm copy={t} common={common} />
 
@@ -50,8 +76,18 @@ export default async function Page() {
         <p className="text-xs text-muted-foreground">{common.deleteAdminOnly}</p>
       ) : null}
 
+      <div className="flex items-center gap-2">
+        <SearchBar
+          name="q"
+          defaultValue={search}
+          placeholder={common.searchPlaceholder}
+          action={base}
+          className="w-full sm:w-64"
+        />
+      </div>
+
       {fundraisers.length === 0 ? (
-        <EmptyState message={t.empty} />
+        <EmptyState message={search ? common.emptyFiltered : t.empty} />
       ) : (
         <div className="space-y-2">
           {fundraisers.map((f) => {
@@ -123,6 +159,14 @@ export default async function Page() {
           })}
         </div>
       )}
+
+      <Pager
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={total}
+        hrefFor={(p) => `${base}?page=${p}${search ? `&q=${encodeURIComponent(search)}` : ''}`}
+        copy={common}
+      />
     </div>
   )
 }

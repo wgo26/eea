@@ -829,11 +829,19 @@ export type AdCampaignRow = {
   invoiceReference: string | null
 }
 
-export async function getAdSlots(): Promise<AdSlotRow[]> {
-  const { data } = await safe(
-    db()
-      .from('ad_slots')
-      .select(`id, slot_key, name, placement, dimensions, mobile_dimensions, allowed_formats, max_duration_seconds, capacity, base_price, currency, is_active,
+export async function getAdSlots(options?: {
+  search?: string
+  limit?: number
+  offset?: number
+}): Promise<{ rows: AdSlotRow[]; total: number }> {
+  const search = options?.search?.trim() ?? ''
+  const limit = options?.limit ?? 20
+  const offset = options?.offset ?? 0
+  const res = await safe(
+    (() => {
+      let query = db()
+        .from('ad_slots')
+        .select(`id, slot_key, name, placement, dimensions, mobile_dimensions, allowed_formats, max_duration_seconds, capacity, base_price, currency, is_active,
         campaigns:ad_campaigns(id, name, status, destination_url, copy_text, starts_at, ends_at, agreed_price, currency, payment_status,
           creative_type, creative_status, creative_rejection_reason, creative_html, creative_width, creative_height,
           budget_limit, impression_limit, click_limit, invoice_reference,
@@ -841,10 +849,16 @@ export async function getAdSlots(): Promise<AdSlotRow[]> {
           mobile_creative:media_assets!ad_campaigns_mobile_creative_media_id_fkey(public_url, duration_seconds),
           poster:media_assets!ad_campaigns_poster_media_id_fkey(public_url),
           advertiser:advertisers(company_name),
-          events:ad_events(id, event_type))`)
-      .order('slot_key', { ascending: true }),
+          events:ad_events(id, event_type))`, { count: 'exact' })
+        .order('slot_key', { ascending: true })
+        .range(offset, offset + limit - 1)
+      if (search) query = query.or(`name.ilike.%${search}%,slot_key.ilike.%${search}%,placement.ilike.%${search}%`)
+      return query
+    })(),
   )
-  return (data ?? []).map((row) => {
+  const data = res.data
+  const total = res.count ?? (data ?? []).length
+  const rows = (data ?? []).map((row) => {
     const campaigns = Array.isArray(row.campaigns) ? row.campaigns : row.campaigns ? [row.campaigns] : []
     const active = (campaigns as Record<string, unknown>[]).find((c) => c.status === 'active') ?? null
     const events = active && Array.isArray(active.events) ? active.events : active?.events ? [active.events] : []
@@ -886,9 +900,10 @@ export async function getAdSlots(): Promise<AdSlotRow[]> {
         : null,
     }
   })
+  return { rows, total }
 }
-
 /** Shared mapper: creative columns → AdCampaignRow creative fields. */
+
 function mapCampaignCreative(active: Record<string, unknown>): Pick<
   AdCampaignRow,
   | 'creativeType' | 'creativeStatus' | 'creativeRejectionReason' | 'creativeHtml'
@@ -917,15 +932,38 @@ function mapCampaignCreative(active: Record<string, unknown>): Pick<
   }
 }
 
-export async function getAdvertisers() {
-  const { data } = await safe(
-    db()
-      .from('advertisers')
-      .select(`id, company_name, contact_name, email, phone,
-        campaigns:ad_campaigns(id, status)`)
-      .order('company_name', { ascending: true }),
+export type AdvertiserRow = {
+  id: string
+  companyName: string | null
+  contactName: string | null
+  email: string | null
+  phone: string | null
+  totalCampaigns: number
+  activeCampaigns: number
+}
+
+export async function getAdvertisers(options?: {
+  search?: string
+  limit?: number
+  offset?: number
+}): Promise<{ rows: AdvertiserRow[]; total: number }> {
+  const search = options?.search?.trim() ?? ''
+  const limit = options?.limit ?? 20
+  const offset = options?.offset ?? 0
+  const res = await safe(
+    (() => {
+      let query = db()
+        .from('advertisers')
+        .select(`id, company_name, contact_name, email, phone,
+        campaigns:ad_campaigns(id, status)`, { count: 'exact' })
+        .order('company_name', { ascending: true })
+        .range(offset, offset + limit - 1)
+      if (search) query = query.or(`company_name.ilike.%${search}%,contact_name.ilike.%${search}%,email.ilike.%${search}%`)
+      return query
+    })(),
   )
-  return (data ?? []).map((row) => {
+  const data = res.data
+  const rows = (data ?? []).map((row) => {
     const campaigns = Array.isArray(row.campaigns) ? row.campaigns : row.campaigns ? [row.campaigns] : []
     return {
       id: row.id,
@@ -937,6 +975,7 @@ export async function getAdvertisers() {
       activeCampaigns: (campaigns as { status: string }[]).filter((c) => c.status === 'active').length,
     }
   })
+  return { rows, total: res.count ?? rows.length }
 }
 
 export type AdInquiryRow = {
@@ -949,12 +988,28 @@ export type AdInquiryRow = {
   phone: string | null
 }
 
-export async function getPendingAdInquiries(limit = 100): Promise<AdInquiryRow[]> {
-  const { data } = await safe(
-    db().from('ad_campaigns').select(`id, name, copy_text, created_at,
-      advertiser:advertisers(company_name, email, phone)`).eq('status', 'pending').order('created_at', { ascending: false }).limit(limit),
+export async function getPendingAdInquiries(options?: {
+  search?: string
+  limit?: number
+  offset?: number
+}): Promise<{ rows: AdInquiryRow[]; total: number }> {
+  const search = options?.search?.trim() ?? ''
+  const limit = options?.limit ?? 20
+  const offset = options?.offset ?? 0
+  const res = await safe(
+    (() => {
+      let query = db()
+        .from('ad_campaigns')
+        .select(`id, name, copy_text, created_at,
+      advertiser:advertisers(company_name, email, phone)`, { count: 'exact' })
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1)
+      if (search) query = query.or(`name.ilike.%${search}%,copy_text.ilike.%${search}%`)
+      return query
+    })(),
   )
-  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+  const rows = ((res.data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
     const advertiser = Array.isArray(row.advertiser) ? row.advertiser[0] : row.advertiser
     return {
       id: row.id as string,
@@ -966,14 +1021,25 @@ export async function getPendingAdInquiries(limit = 100): Promise<AdInquiryRow[]
       phone: (advertiser as { phone: string } | undefined)?.phone ?? null,
     }
   })
+  return { rows, total: res.count ?? rows.length }
 }
 
-/** Every campaign (not only slotted/active ones) for the full campaigns list. */
-export async function getCampaigns(limit = 100): Promise<AdCampaignRow[]> {
-  const { data } = await safe(
-    db()
-      .from('ad_campaigns')
-      .select(`id, name, status, destination_url, copy_text, starts_at, ends_at, agreed_price, currency, payment_status,
+/** Paginated page of campaigns (not only slotted/active ones) for the full campaigns list. */
+export async function getCampaigns(options?: {
+  search?: string
+  status?: string
+  limit?: number
+  offset?: number
+}): Promise<{ rows: AdCampaignRow[]; total: number }> {
+  const search = options?.search?.trim() ?? ''
+  const status = options?.status ?? 'all'
+  const limit = options?.limit ?? 20
+  const offset = options?.offset ?? 0
+  const res = await safe(
+    (() => {
+      let query = db()
+        .from('ad_campaigns')
+        .select(`id, name, status, destination_url, copy_text, starts_at, ends_at, agreed_price, currency, payment_status,
         creative_type, creative_status, creative_rejection_reason, creative_html, creative_width, creative_height,
         budget_limit, impression_limit, click_limit, invoice_reference,
         creative:media_assets!ad_campaigns_creative_media_id_fkey(public_url, duration_seconds),
@@ -981,11 +1047,15 @@ export async function getCampaigns(limit = 100): Promise<AdCampaignRow[]> {
         poster:media_assets!ad_campaigns_poster_media_id_fkey(public_url),
         advertiser:advertisers(company_name),
         slot:ad_slots(id, name),
-        events:ad_events(event_type)`)
-      .order('created_at', { ascending: false })
-      .limit(limit),
+        events:ad_events(event_type)`, { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1)
+      if (status !== 'all') query = query.eq('status', status)
+      if (search) query = query.or(`name.ilike.%${search}%,copy_text.ilike.%${search}%,invoice_reference.ilike.%${search}%`)
+      return query
+    })(),
   )
-  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+  const rows = ((res.data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
     const advertiser = Array.isArray(row.advertiser) ? row.advertiser[0] : row.advertiser
     const slot = Array.isArray(row.slot) ? row.slot[0] : row.slot
     const events = Array.isArray(row.events) ? row.events : row.events ? [row.events] : []
@@ -1010,6 +1080,7 @@ export async function getCampaigns(limit = 100): Promise<AdCampaignRow[]> {
       ...mapCampaignCreative(row),
     }
   })
+  return { rows, total: res.count ?? rows.length }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1607,15 +1678,20 @@ type RawCategoryAdminRow = {
 }
 
 /** Every category with both names + live usage count (service-role read). */
-export async function getCategoriesAdmin(): Promise<AdminCategoryRow[]> {
+export async function getCategoriesAdmin(search?: string): Promise<AdminCategoryRow[]> {
+  const term = search?.trim() ?? ''
   const { data } = await safe(
-    db()
-      .from('categories')
-      .select(
-        'id, slug, content_type, sort_order, is_active, translations:category_translations(locale, name, description), items:content_items(count)',
-      )
-      .order('content_type', { ascending: true })
-      .order('sort_order', { ascending: true }),
+    (() => {
+      let query = db()
+        .from('categories')
+        .select(
+          'id, slug, content_type, sort_order, is_active, translations:category_translations(locale, name, description), items:content_items(count)',
+        )
+        .order('content_type', { ascending: true })
+        .order('sort_order', { ascending: true })
+      if (term) query = query.or(`slug.ilike.%${term}%,name.ilike.%${term}%`)
+      return query
+    })(),
   )
   return ((data ?? []) as RawCategoryAdminRow[]).map((row) => {
     const trans = Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []
@@ -1667,14 +1743,19 @@ type RawLocationAdminRow = {
 }
 
 /** Every location with parent + live usage counts (service-role read). */
-export async function getLocationsAdmin(): Promise<AdminLocationRow[]> {
+export async function getLocationsAdmin(search?: string): Promise<AdminLocationRow[]> {
+  const term = search?.trim() ?? ''
   const { data } = await safe(
-    db()
-      .from('locations')
-      .select(
-        'id, name, slug, locale, location_type, description, latitude, longitude, is_active, parent_id, items:content_items(count), residents:profiles(count)',
-      )
-      .order('name', { ascending: true }),
+    (() => {
+      let query = db()
+        .from('locations')
+        .select(
+          'id, name, slug, locale, location_type, description, latitude, longitude, is_active, parent_id, items:content_items(count), residents:profiles(count)',
+        )
+        .order('name', { ascending: true })
+      if (term) query = query.or(`name.ilike.%${term}%,slug.ilike.%${term}%,description.ilike.%${term}%`)
+      return query
+    })(),
   )
   const rows = (data ?? []) as RawLocationAdminRow[]
   // Parent names via a second id→name pass (no self-join FK-hint dependence).
@@ -1724,18 +1805,29 @@ export type AdminPollRow = {
   totalVotes: number
 }
 
-/** All polls (active and closed) with per-option tallies, newest first. */
-export async function getPollsAdmin(limit = 100): Promise<AdminPollRow[]> {
+/** Paginated page of polls (active and closed) with per-option tallies, newest first. */
+export async function getPollsAdmin(options?: {
+  search?: string
+  limit?: number
+  offset?: number
+}): Promise<{ rows: AdminPollRow[]; total: number }> {
+  const search = options?.search?.trim() ?? ''
+  const limit = options?.limit ?? 20
+  const offset = options?.offset ?? 0
   // poll_results is a view with no FK metadata, so PostgREST cannot embed it
   // through poll_options — read the tallies separately and merge, mirroring
   // getActivePolls in lib/queries/polls.ts.
   const [pollsRes, talliesRes] = await Promise.all([
     safe(
-      db()
-        .from('polls')
-        .select('id, slug, question, locale, is_active, closes_at, created_at, content_item_id, poll_options(id, label, sort_order)')
-        .order('created_at', { ascending: false })
-        .limit(limit),
+      (() => {
+        let query = db()
+          .from('polls')
+          .select('id, slug, question, locale, is_active, closes_at, created_at, content_item_id, poll_options(id, label, sort_order)', { count: 'exact' })
+          .order('created_at', { ascending: false })
+          .range(offset, offset + limit - 1)
+        if (search) query = query.ilike('question', `%${search}%`)
+        return query
+      })(),
     ),
     safe(db().from('poll_results').select('option_id, votes')),
   ])
@@ -1745,7 +1837,7 @@ export async function getPollsAdmin(limit = 100): Promise<AdminPollRow[]> {
     tallies.set(r.option_id, Number(r.votes ?? 0))
   }
 
-  return ((pollsRes.data ?? []) as {
+  const rows = ((pollsRes.data ?? []) as {
     id: string
     slug: string | null
     question: string
@@ -1778,6 +1870,7 @@ export async function getPollsAdmin(limit = 100): Promise<AdminPollRow[]> {
       totalVotes: options.reduce((sum, o) => sum + o.votes, 0),
     }
   })
+  return { rows, total: pollsRes.count ?? rows.length }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1812,23 +1905,58 @@ export type AdminFundraiserRow = {
 }
 
 /**
- * Every fundraiser campaign with its parent story. `content_item_id` is the
- * fundraisers primary key, so the join is one-to-one. The story title prefers
- * the requested locale so /fr/admin/fundraisers shows French titles instead
- * of leaking English copy into the French back office.
+ * Paginated page of fundraiser campaigns with its parent story. `content_item_id`
+ * is the fundraisers primary key, so the join is one-to-one. The story title
+ * prefers the requested locale so /fr/admin/fundraisers shows French titles
+ * instead of leaking English copy into the French back office. Search matches
+ * the story slug, both translation titles, and the organizer name.
  */
-export async function getFundraisersAdmin(limit = 100, locale: Locale = 'en'): Promise<AdminFundraiserRow[]> {
-  const { data } = await safe(
-    db()
+export async function getFundraisersAdmin(options?: {
+  search?: string
+  limit?: number
+  offset?: number
+  locale?: Locale
+}): Promise<{ rows: AdminFundraiserRow[]; total: number }> {
+  const locale = options?.locale ?? 'en'
+  const search = options?.search?.trim() ?? ''
+  const limit = options?.limit ?? 20
+  const offset = options?.offset ?? 0
+
+  // Title search runs against the translation table first (PostgREST cannot
+  // filter on an embedded resource), then narrows fundraisers to those ids.
+  let contentIdFilter: string[] | null = null
+  if (search) {
+    const [slugMatches, titleMatches] = await Promise.all([
+      safe(db().from('content_items').select('id').ilike('slug', `%${search}%`)),
+      safe(db().from('content_translations').select('content_item_id').ilike('title', `%${search}%`)),
+    ])
+    const ids = new Set<string>()
+    for (const r of (slugMatches.data ?? []) as { id: string }[]) ids.add(r.id)
+    for (const r of (titleMatches.data ?? []) as { content_item_id: string }[]) ids.add(r.content_item_id)
+    if (ids.size === 0) return { rows: [], total: 0 }
+    contentIdFilter = Array.from(ids)
+  }
+
+  let query = db()
       .from('fundraisers')
       .select(`content_item_id, goal_amount, currency, raised_amount, organizer_name,
         organizer_phone, organizer_email, donation_url, payout_method, payout_account, payout_account_name, verification_notes, closed_at,
         story:content_items(id, slug, type, status, expires_at,
-          translations:content_translations(locale, title, body))`)
-      .limit(limit),
-  )
+          translations:content_translations(locale, title, body))`, { count: 'exact' })
+      .order('content_item_id', { ascending: false })
+      .range(offset, offset + limit - 1)
+  if (search) {
+    query = query.or(
+      [
+        `organizer_name.ilike.%${search}%`,
+        `content_item_id.in.(${contentIdFilter!.join(',')})`,
+      ].join(','),
+    )
+  }
+  const res = await safe(query)
+  const data = res.data
 
-  return (data ?? []).map((row) => {
+  const rows = (data ?? []).map((row) => {
     const story = Array.isArray(row.story) ? row.story[0] : row.story
     const translations = story && Array.isArray(story.translations) ? story.translations : []
     const list = translations as { locale: string; title: string | null; body: string | null }[]
@@ -1870,6 +1998,7 @@ export async function getFundraisersAdmin(limit = 100, locale: Locale = 'en'): P
       deadlineAt: story?.expires_at ?? null,
     }
   })
+  return { rows, total: res.count ?? rows.length }
 }
 
 /* ------------------------------------------------------------------ */

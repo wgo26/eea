@@ -7,7 +7,8 @@ import { getPollsAdmin } from '@/lib/admin/queries'
 import { localizeStatus } from '@/lib/admin/labels'
 import { PageHeader } from '@/components/admin/page-header'
 import { EmptyState } from '@/components/admin/empty-state'
-import { FilterPills } from '@/components/admin/filter-pills'
+import { FilterPills, SearchBar } from '@/components/admin/filter-pills'
+import { Pager } from '@/components/admin/pager'
 import { StatusBadge } from '@/components/admin/status-badge'
 import { formatRelative } from '@/lib/admin/format'
 import { PollCreateForm, PollRowActions } from './poll-actions'
@@ -17,10 +18,12 @@ export async function generateMetadata(): Promise<{ title: string }> {
   return { title: getDictionary(locale).admin.polls.title }
 }
 
+const PAGE_SIZE = 20
+
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ locale?: string }>
+  searchParams: Promise<{ locale?: string; q?: string; page?: string }>
 }) {
   const locale = await getRequestLocale()
   const { roles } = await requireCapability('managePolls', '/admin/polls')
@@ -31,14 +34,24 @@ export default async function Page({
 
   const params = await searchParams
   const localeFilter = params.locale === 'en' || params.locale === 'fr' ? params.locale : 'all'
+  const search = params.q?.trim() || undefined
+  const page = Math.max(1, Number.parseInt(params.page ?? '1', 10) || 1)
 
-  const allPolls = await getPollsAdmin()
+  const { rows: allPolls, total } = await getPollsAdmin({ search, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE })
   const polls = localeFilter === 'all' ? allPolls : allPolls.filter((p) => p.locale === localeFilter)
   const base = localePath(locale, '/admin/polls')
+  const qs = search ? `&q=${encodeURIComponent(search)}` : ''
 
   return (
     <div className="space-y-5">
-      <PageHeader title={t.title} description={t.description} />
+      <PageHeader
+        title={t.title}
+        description={t.description}
+        breadcrumb={[
+          { label: dict.admin.sidebar.dashboard, href: localePath(locale, '/admin/dashboard') },
+          { label: t.title },
+        ]}
+      />
 
       <PollCreateForm copy={t} locale={locale} />
 
@@ -46,20 +59,29 @@ export default async function Page({
         <p className="text-xs text-muted-foreground">{common.deleteAdminOnly}</p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground">{t.localeLabel}:</span>
-        <FilterPills
-          pills={[
-            { key: 'all', label: t.filterAll, href: base },
-            { key: 'en', label: t.filterEn, href: `${base}?locale=en` },
-            { key: 'fr', label: t.filterFr, href: `${base}?locale=fr` },
-          ]}
-          active={localeFilter}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">{t.localeLabel}:</span>
+          <FilterPills
+            pills={[
+              { key: 'all', label: t.filterAll, href: `${base}?q=${search ? encodeURIComponent(search) : ''}` },
+              { key: 'en', label: t.filterEn, href: `${base}?locale=en${qs}` },
+              { key: 'fr', label: t.filterFr, href: `${base}?locale=fr${qs}` },
+            ]}
+            active={localeFilter}
+          />
+        </div>
+        <SearchBar
+          name="q"
+          defaultValue={search}
+          placeholder={common.searchPlaceholder}
+          action={`${base}?locale=${localeFilter}`}
+          className="w-full sm:w-64"
         />
       </div>
 
       {polls.length === 0 ? (
-        <EmptyState message={t.empty} />
+        <EmptyState message={search ? common.emptyFiltered : t.empty} />
       ) : (
         <div className="space-y-2">
           {polls.map((poll) => (
@@ -115,6 +137,14 @@ export default async function Page({
           ))}
         </div>
       )}
+
+      <Pager
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={total}
+        hrefFor={(p) => `${base}?locale=${localeFilter}&page=${p}${qs}`}
+        copy={common}
+      />
     </div>
   )
 }

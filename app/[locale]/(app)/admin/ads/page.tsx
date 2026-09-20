@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/admin/empty-state'
 import { SearchBar } from '@/components/admin/filter-pills'
 import { Tabs } from '@/components/admin/tabs'
 import { DataTable } from '@/components/admin/data-table'
+import { Pager } from '@/components/admin/pager'
 import { StatusBadge } from '@/components/admin/status-badge'
 import { formatDate, formatPrice, formatPercent } from '@/lib/admin/format'
 import { AdSlotActions } from './ad-slot-actions'
@@ -21,19 +22,31 @@ export async function generateMetadata(): Promise<{ title: string }> {
   return { title: getDictionary(locale).admin.ads.title }
 }
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ tab?: string; q?: string }> }) {
+export default async function Page({ searchParams }: { searchParams: Promise<{ tab?: string; q?: string; page?: string }> }) {
   await requireCapability('manageAds', '/admin/ads')
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
   const t = dict.admin.ads
   const tc = dict.admin.common
 
-  const [slots, advertisers, inquiries, campaigns] = await Promise.all([
-    getAdSlots(),
-    getAdvertisers(),
-    getPendingAdInquiries(),
-    getCampaigns(),
+  const sp = await searchParams
+  const tab = sp.tab === 'inquiries' ? 'inquiries' : 'operations'
+  const search = sp.q?.trim() || undefined
+  const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1)
+  const PAGE_SIZE = 20
+  const base = localePath(locale, '/admin/ads')
+  const qs = search ? `&q=${encodeURIComponent(search)}` : ''
+
+  const [slotRes, advertiserRes, inquiryRes, campaignRes] = await Promise.all([
+    getAdSlots({ search, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
+    getAdvertisers({ search, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
+    getPendingAdInquiries({ search, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
+    getCampaigns({ search, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
   ])
+  const slots = slotRes.rows
+  const advertisers = advertiserRes.rows
+  const inquiries = inquiryRes.rows
+  const campaigns = campaignRes.rows
 
   const campaignStatusLabels: Record<string, string> = {
     active: t.statusActive,
@@ -41,10 +54,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
     pending: t.statusPending,
     ended: t.statusEnded,
   }
-
-  const sp = await searchParams
-  const tab = sp.tab === 'inquiries' ? 'inquiries' : 'operations'
-  const search = sp.q?.trim() || undefined
 
   return (
     <div className="space-y-5">
@@ -61,18 +70,18 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
         <SearchBar
           name="q"
           defaultValue={search}
-          placeholder={tc.searchPlaceholder ?? 'Search ads…'}
-          action={`${localePath(locale, '/admin/ads')}?tab=operations`}
+          placeholder={t.searchPlaceholder ?? tc.searchPlaceholder}
+          action={`${base}?tab=${tab}`}
         />
       </div>
 
       <Tabs
         tabs={[
-          { key: 'inquiries', label: t.inquiriesTab, count: inquiries.length },
+          { key: 'inquiries', label: t.inquiriesTab, count: inquiryRes.total },
           { key: 'operations', label: t.operationsTab },
         ]}
         active={tab}
-        hrefFor={(key) => `${localePath(locale, '/admin/ads')}?tab=${key}`}
+        hrefFor={(key) => `${base}?tab=${key}${qs}`}
       />
 
       {tab !== 'inquiries' && (
@@ -87,11 +96,20 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
         <section>
           <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.inquiriesHeading}</h2>
           {inquiries.length === 0 ? <EmptyState message={t.emptyInquiries} /> : (
+            <>
             <DataTable rows={inquiries} rowKey={(r) => r.id} columns={[
               { key: 'company', header: t.colCompany, render: (r) => <div className="min-w-[160px] max-w-[240px]"><div className="text-sm font-medium truncate">{r.advertiserName ?? r.name}</div><div className="text-xs text-muted-foreground truncate">{r.email} {r.phone}</div></div> },
               { key: 'message', header: t.inquiryMessage, render: (r) => <span className="block min-w-[200px] max-w-[320px] whitespace-pre-wrap break-words text-xs text-muted-foreground line-clamp-3">{r.copyText ?? '—'}</span> },
               { key: 'actions', header: '', stickyRight: true, render: (r) => <InquiryActions inquiry={r} slots={slots} copy={t} />, className: 'text-right' },
             ]} />
+            <Pager
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={inquiryRes.total}
+              hrefFor={(p) => `${base}?tab=inquiries&page=${p}${qs}`}
+              copy={tc}
+            />
+            </>
           )}
         </section>
       )}
@@ -101,6 +119,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
         {slots.length === 0 ? (
           <EmptyState message={t.emptySlots} />
         ) : (
+          <>
           <DataTable
             rows={slots}
             rowKey={(r) => r.id}
@@ -118,7 +137,15 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
               ), className: 'whitespace-nowrap' },
               { key: 'actions', header: '', stickyRight: true, render: (r) => <AdSlotActions slot={r} copy={t} />, className: 'text-right' },
             ]}
-          />
+            />
+            <Pager
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={slotRes.total}
+              hrefFor={(p) => `${base}?tab=operations&page=${p}${qs}`}
+              copy={tc}
+            />
+          </>
         )}
       </section>
 
@@ -127,6 +154,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
         {campaigns.length === 0 ? (
           <EmptyState message={t.emptyCampaigns} />
         ) : (
+          <>
           <DataTable
             rows={campaigns}
             rowKey={(r) => r.id}
@@ -178,15 +206,24 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
               ), headerClassName: 'hidden xl:table-cell', className: 'hidden xl:table-cell whitespace-nowrap' },
               { key: 'actions', header: '', stickyRight: true, render: (r) => <CampaignActions campaign={r} copy={t} />, className: 'text-right' },
             ]}
-          />
-        )}
-      </section>
+            />
+            <Pager
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={campaignRes.total}
+              hrefFor={(p) => `${base}?tab=operations&page=${p}${qs}`}
+              copy={tc}
+            />
+            </>
+          )}
+        </section>
 
       <section>
         <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{t.advertisersHeading}</h2>
         {advertisers.length === 0 ? (
           <EmptyState message={t.emptyAdvertisers} />
         ) : (
+          <>
           <DataTable
             rows={advertisers}
             rowKey={(r) => r.id}
@@ -208,9 +245,18 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
               ), className: 'whitespace-nowrap' },
               { key: 'actions', header: '', stickyRight: true, render: (r) => <AdvertiserActions advertiser={r} copy={t} />, className: 'text-right' },
             ]}
-          />
-        )}
-      </section></>}
+            />
+            <Pager
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={advertiserRes.total}
+              hrefFor={(p) => `${base}?tab=operations&page=${p}${qs}`}
+              copy={tc}
+            />
+            </>
+          )}
+        </section>
+      </>}
     </div>
   )
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createPoll, updatePoll, deletePoll, exportPollResults, activatePoll, closePoll } from '@/lib/admin/actions'
-import { useAdminMutation } from '@/components/admin/confirm-dialog'
+import { useAdminMutation, ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { useToast } from '@/components/admin/toast'
 import {
   Dialog,
@@ -266,44 +266,29 @@ export function PollRowActions({
         </DialogContent>
       </Dialog>
 
-      {/* Delete Dialog */}
-      {deleteOpen && (
-        <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-          <DialogContent className="max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{copy.deleteConfirmTitle}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                {copy.deleteConfirmBody.replace('{count}', String(poll.totalVotes))}
-              </p>
-              {poll.totalVotes > 0 && (
-                <label className="flex items-center gap-2 text-xs font-medium text-foreground">
-                  <input
-                    type="checkbox"
-                    checked={overrideChecked}
-                    onChange={(e) => setOverrideChecked(e.target.checked)}
-                  />
-                  {copy.overrideLabel}
-                </label>
-              )}
-            </div>
-            <DialogFooter>
-              <button type="button" onClick={() => setDeleteOpen(false)} className={btnGhost} disabled={actionLoading}>
-                {common.cancel}
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                className={btnDanger}
-                disabled={actionLoading || (poll.totalVotes > 0 && !overrideChecked)}
-              >
-                {actionLoading ? common.working : copy.delete}
-              </button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Delete confirmation (shared ConfirmDialog — destructive action). */}
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={copy.deleteConfirmTitle}
+        description={copy.deleteConfirmBody.replace('{count}', String(poll.totalVotes))}
+        confirmLabel={copy.delete}
+        cancelLabel={common.cancel}
+        loading={actionLoading}
+        tone="danger"
+        onConfirm={handleDelete}
+      >
+        {poll.totalVotes > 0 && (
+          <label className="flex items-center gap-2 text-xs font-medium text-foreground">
+            <input
+              type="checkbox"
+              checked={overrideChecked}
+              onChange={(e) => setOverrideChecked(e.target.checked)}
+            />
+            {copy.overrideLabel}
+          </label>
+        )}
+      </ConfirmDialog>
     </div>
   )
 }

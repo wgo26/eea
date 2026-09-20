@@ -14,6 +14,7 @@ import type { InsertOf, UpdateOf } from '@/lib/supabase/admin'
 import { isAdFormat, sanitizeCreativeHtml, validateCreative, type AdFormat } from '@/lib/ads/creatives'
 import { sanitizeBodyHtml } from '@/lib/security/html'
 import { enqueueUser, listingNotifyTarget, submissionNotifyTarget } from '@/lib/notify/queue'
+import { translateTexts } from '@/lib/translate/deepl'
 
 export type { ContentDraftInput } from './content-validation'
 
@@ -830,6 +831,55 @@ export async function searchContentForSlot(query: string, limit = 10) {
 export async function searchAuthors(term: string) {
   await assertCapability('manageContent')
   return searchAuthorProfiles(term)
+}
+
+export type TranslateContentInput = {
+  sourceLocale: 'en' | 'fr'
+  title?: string
+  excerpt?: string
+  body?: string
+  seoDescription?: string
+}
+
+export type TranslateContentResult =
+  | { ok: true; fields: { title: string; excerpt: string; body: string; seoDescription: string } }
+  | { ok: false; error: string }
+
+/**
+ * Auto-translate content fields into the other locale via DeepL
+ * (capability-gated, no DB write — the editor reviews before saving).
+ * Plain fields translate in one request; the body goes as HTML so markup
+ * and embedded media survive. Mirrors scripts/fill-fr.mjs (batch backfill).
+ */
+export async function translateContentFields(input: TranslateContentInput): Promise<TranslateContentResult> {
+  try {
+    await assertCapability('manageContent')
+    const sourceLang = input.sourceLocale === 'en' ? 'EN' as const : 'FR' as const
+    const targetLang = input.sourceLocale === 'en' ? 'FR' as const : 'EN' as const
+    const title = (input.title ?? '').slice(0, 2000)
+    const excerpt = (input.excerpt ?? '').slice(0, 8000)
+    const seoDescription = (input.seoDescription ?? '').slice(0, 2000)
+    const body = (input.body ?? '').slice(0, 100000)
+    if (!title.trim() && !excerpt.trim() && !body.trim() && !seoDescription.trim()) {
+      return { ok: false, error: 'Enter source text first.' }
+    }
+    const [plain, htmlBody] = await Promise.all([
+      translateTexts([title, excerpt, seoDescription], { sourceLang, targetLang }),
+      translateTexts([body], { sourceLang, targetLang, html: true }),
+    ])
+    return {
+      ok: true,
+      fields: {
+        // Keep the 300-char column budget the batch backfill uses.
+        title: (plain[0] ?? '').slice(0, 300),
+        excerpt: plain[1] ?? '',
+        body: htmlBody[0] ?? '',
+        seoDescription: (plain[2] ?? '').slice(0, 300),
+      },
+    }
+  } catch (e) {
+    return fail(e)
+  }
 }
 
 export async function rejectSubmission(submissionId: string, reason: string): Promise<ActionResult> {

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { saveAboutSection } from '@/lib/admin/actions'
 import { useToast } from '@/components/admin/toast'
+import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { localePath } from '@/lib/i18n/urls'
 import type { Dictionary, Locale } from '@/lib/i18n'
 import type { AboutSectionRow } from '@/lib/admin/queries'
@@ -39,6 +40,7 @@ export function AboutSectionEditor({
   viewHref: string
 }) {
   const base = `${localePath(locale, '/admin/policies')}?tab=about`
+  const [pendingLocale, setPendingLocale] = useState<Locale | null>(null)
 
   function confirmIfDirty(e: React.MouseEvent, targetLocale: Locale) {
     if (targetLocale === editLocale) {
@@ -46,11 +48,24 @@ export function AboutSectionEditor({
       return
     }
     if (typeof document !== 'undefined' && document.querySelector('[data-dirty="true"]')) {
-      if (!window.confirm(copy.save ?? 'You have unsaved changes. Switch language anyway?')) {
-        e.preventDefault()
-      }
+      e.preventDefault()
+      setPendingLocale(targetLocale)
     }
   }
+
+  const leaveConfirm = (
+    <ConfirmDialog
+      open={pendingLocale !== null}
+      onOpenChange={(v) => { if (!v) setPendingLocale(null) }}
+      title={copy.leaveTitle}
+      description={copy.leaveBody}
+      confirmLabel={copy.leaveConfirmLabel}
+      cancelLabel={copy.cancel}
+      onConfirm={() => {
+        if (pendingLocale) window.location.href = `${base}&locale=${pendingLocale}`
+      }}
+    />
+  )
 
   return (
     <div className="space-y-5">
@@ -98,6 +113,8 @@ export function AboutSectionEditor({
           )
         })}
       </div>
+
+      {leaveConfirm}
     </div>
   )
 }
