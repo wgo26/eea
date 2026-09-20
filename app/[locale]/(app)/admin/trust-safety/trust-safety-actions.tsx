@@ -22,7 +22,7 @@ const ghostBtn =
  * dismiss with an optional resolution note, for community reports and
  * content corrections. Resolve accepts a note inline.
  */
-export function CorrectionActions({ correction, copy }: { correction: CorrectionRow; copy: Copy }) {
+export function CorrectionActions({ correction, copy, common }: { correction: CorrectionRow; copy: Copy; common: Dictionary['admin']['common'] }) {
   const { addToast } = useToast()
   const router = useRouter()
   const [busy, setBusy] = useState(false)
@@ -95,7 +95,7 @@ export function CorrectionActions({ correction, copy }: { correction: Correction
         title={copy.dismiss}
         description={copy.resolutionPh}
         confirmLabel={copy.dismiss}
-        cancelLabel={copy.resolve === 'Resolve' ? 'Cancel' : 'Annuler'}
+        cancelLabel={common.cancel}
         loading={busy}
         onConfirm={() => run('dismissed', copy.toastCorrectionDismissed)}
       />

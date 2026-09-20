@@ -34,6 +34,17 @@ function db() {
   return createAdminClient()
 }
 
+/**
+ * Supabase `Json` columns (e.g. submissions.payload) can hold strings,
+ * arrays, or objects — narrow to the object shape SubmissionRow carries.
+ */
+function toPayloadRecord(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>
+  }
+  return null
+}
+
 /** The admin client is only usable when the service key is configured. */
 function hasDatabase(): boolean {
   return Boolean(
@@ -184,12 +195,14 @@ export async function getSubmissions(options?: {
   search?: string
   limit?: number
   offset?: number
+  order?: 'newest' | 'oldest'
 }): Promise<{ rows: SubmissionRow[]; total: number }> {
   const status = options?.status ?? 'pending'
   const type = options?.type ?? 'all'
   const search = options?.search?.trim() ?? ''
   const limit = options?.limit ?? 20
   const offset = options?.offset ?? 0
+  const ascending = options?.order === 'oldest'
 
   // Fail-safe: a DB hiccup or missing service-role env resolves to an empty
   // queue rather than crashing the page into the global error boundary.
@@ -198,21 +211,21 @@ export async function getSubmissions(options?: {
     let query = db()
       .from('submissions')
       .select('id, submission_type, status, guest_name, guest_email, guest_phone, consent_confirmed, rights_confirmed, submitted_at, reviewed_at, rejection_reason, internal_notes, payload, content_item_id', { count: 'exact' })
-      .order('submitted_at', { ascending: false, nullsFirst: false })
+      .order('submitted_at', { ascending, nullsFirst: false })
       .range(offset, offset + limit - 1)
 
     if (status !== 'all') {
       query = Array.isArray(status) ? query.in('status', status) : query.eq('status', status)
     }
     if (type !== 'all') query = query.eq('submission_type', type)
-    if (search) query = query.or(`guest_name.ilike.%${search}%,guest_email.ilike.%${search}%,guest_phone.ilike.%${search}%`)
+    if (search) query = query.or(`guest_name.ilike.%${search}%,guest_email.ilike.%${search}%,guest_phone.ilike.%${search}%,payload::text.ilike.%${search}%`)
 
     const { data, count } = await safe(query)
     return {
       rows: (data ?? []).map((r) => ({
       id: r.id,
       submissionType: r.submission_type,
-      status: r.status,
+      status: r.status as SubmissionStatus,
       guestName: r.guest_name,
       guestEmail: r.guest_email,
       guestPhone: r.guest_phone,
@@ -222,7 +235,7 @@ export async function getSubmissions(options?: {
       reviewedAt: r.reviewed_at,
       rejectionReason: r.rejection_reason,
       internalNotes: r.internal_notes,
-      payload: r.payload,
+      payload: toPayloadRecord(r.payload),
       contentItemId: r.content_item_id,
       })),
       total: count ?? 0,
@@ -281,7 +294,7 @@ export async function getSubmissionById(id: string): Promise<SubmissionRow | nul
   return {
     id: row.id,
     submissionType: row.submission_type,
-    status: row.status,
+    status: row.status as SubmissionStatus,
     guestName: row.guest_name,
     guestEmail: row.guest_email,
     guestPhone: row.guest_phone,
@@ -291,7 +304,7 @@ export async function getSubmissionById(id: string): Promise<SubmissionRow | nul
     reviewedAt: row.reviewed_at,
     rejectionReason: row.rejection_reason,
     internalNotes: row.internal_notes,
-    payload: row.payload,
+    payload: toPayloadRecord(row.payload),
     contentItemId: row.content_item_id,
   }
 }
@@ -772,8 +785,8 @@ export type AdSlotRow = {
   id: string
   slotKey: string
   name: string
-  placement: string
-  dimensions: string
+  placement: string | null
+  dimensions: string | null
   mobileDimensions: string | null
   allowedFormats: string[]
   maxDurationSeconds: number | null
@@ -2059,6 +2072,10 @@ export const SITE_SETTING_KEYS = [
   'announcement_text_en',
   'announcement_text_fr',
   'announcement_url',
+  'announcement_url_en',
+  'announcement_url_fr',
+  'announcement_starts_at',
+  'announcement_ends_at',
   'feature_reading_mode',
   'feature_event_reminders',
   'feature_text_to_speech',
@@ -2077,6 +2094,10 @@ export type SiteSettings = {
   announcementTextEn: string | null
   announcementTextFr: string | null
   announcementUrl: string | null
+  announcementUrlEn: string | null
+  announcementUrlFr: string | null
+  announcementStartsAt: string | null
+  announcementEndsAt: string | null
   featureReadingMode: boolean
   featureEventReminders: boolean
   featureTextToSpeech: boolean
@@ -2093,6 +2114,10 @@ const EMPTY_SITE_SETTINGS: SiteSettings = {
   announcementTextEn: null,
   announcementTextFr: null,
   announcementUrl: null,
+  announcementUrlEn: null,
+  announcementUrlFr: null,
+  announcementStartsAt: null,
+  announcementEndsAt: null,
   featureReadingMode: true,
   featureEventReminders: true,
   featureTextToSpeech: true,
@@ -2111,6 +2136,10 @@ function toSiteSettings(rows: { key: string; value: string | null }[]): SiteSett
     if (row.key === 'announcement_text_en') map.announcementTextEn = row.value?.trim() || null
     if (row.key === 'announcement_text_fr') map.announcementTextFr = row.value?.trim() || null
     if (row.key === 'announcement_url') map.announcementUrl = row.value?.trim() || null
+    if (row.key === 'announcement_url_en') map.announcementUrlEn = row.value?.trim() || null
+    if (row.key === 'announcement_url_fr') map.announcementUrlFr = row.value?.trim() || null
+    if (row.key === 'announcement_starts_at') map.announcementStartsAt = row.value?.trim() || null
+    if (row.key === 'announcement_ends_at') map.announcementEndsAt = row.value?.trim() || null
     if (row.key === 'feature_reading_mode') map.featureReadingMode = row.value !== 'false'
     if (row.key === 'feature_event_reminders') map.featureEventReminders = row.value !== 'false'
     if (row.key === 'feature_text_to_speech') map.featureTextToSpeech = row.value !== 'false'
@@ -2137,6 +2166,10 @@ export async function getSiteSettingsAdmin(): Promise<
     announcement_text_en: null,
     announcement_text_fr: null,
     announcement_url: null,
+    announcement_url_en: null,
+    announcement_url_fr: null,
+    announcement_starts_at: null,
+    announcement_ends_at: null,
     feature_reading_mode: null,
     feature_event_reminders: null,
     feature_text_to_speech: null,
@@ -2152,6 +2185,10 @@ export async function getSiteSettingsAdmin(): Promise<
     if (row.key === 'announcement_text_en') result.announcement_text_en = row.value
     if (row.key === 'announcement_text_fr') result.announcement_text_fr = row.value
     if (row.key === 'announcement_url') result.announcement_url = row.value
+    if (row.key === 'announcement_url_en') result.announcement_url_en = row.value
+    if (row.key === 'announcement_url_fr') result.announcement_url_fr = row.value
+    if (row.key === 'announcement_starts_at') result.announcement_starts_at = row.value
+    if (row.key === 'announcement_ends_at') result.announcement_ends_at = row.value
     if (row.key === 'feature_reading_mode') result.feature_reading_mode = row.value
     if (row.key === 'feature_event_reminders') result.feature_event_reminders = row.value
     if (row.key === 'feature_text_to_speech') result.feature_text_to_speech = row.value

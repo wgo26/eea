@@ -1,6 +1,7 @@
 'use server'
 
 import { getSessionUser } from '@/lib/auth/guards'
+import type { Database } from '@/lib/supabase/database.types'
 
 type Result = { ok: true } | { ok: false; error: string }
 
@@ -14,7 +15,7 @@ export async function updateOwnProfile(input: {
 }): Promise<Result> {
   const { supabase, user } = await getSessionUser()
   if (!user) return { ok: false, error: 'Authentication required.' }
-  const patch: Record<string, string | null> = {}
+  const patch: Database['public']['Tables']['profiles']['Update'] = {}
   if (input.displayName !== undefined) {
     const v = input.displayName?.trim() ?? ''
     if (v.length > 80) return { ok: false, error: 'Display name is too long.' }

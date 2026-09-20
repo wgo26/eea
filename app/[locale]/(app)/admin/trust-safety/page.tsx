@@ -6,13 +6,12 @@ import { getReports, getCorrections, getTrustSafetyCounts, getTrustSafetyFiltere
 import { requireCapability } from '@/lib/auth/guards'
 import { PageHeader } from '@/components/admin/page-header'
 import { Tabs } from '@/components/admin/tabs'
-import { FilterPills } from '@/components/admin/filter-pills'
+import { FilterPills, SearchBar } from '@/components/admin/filter-pills'
 import { StatusBadge } from '@/components/admin/status-badge'
 import { localizeStatus, localizeReportType } from '@/lib/admin/labels'
 import { DataTable } from '@/components/admin/data-table'
 import { EmptyState } from '@/components/admin/empty-state'
 import { Pager } from '@/components/admin/pager'
-import { SearchBar } from '@/components/admin/filter-pills'
 import { formatRelative } from '@/lib/admin/format'
 import { ReportActions, CorrectionActions } from './trust-safety-actions'
 
@@ -52,10 +51,11 @@ export default async function Page({
   const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1
   const offset = (page - 1) * PAGE_SIZE
 
-  const [reports, corrections, totals] = await Promise.all([
+    const [reports, corrections, totals, filtered] = await Promise.all([
     getReports({ status: status === 'all' ? 'all' : status, limit: PAGE_SIZE, offset, search, locale }),
     getCorrections({ status: status === 'all' ? 'all' : status, limit: PAGE_SIZE, offset, search, locale }),
     getTrustSafetyCounts(),
+    getTrustSafetyFilteredCounts(status),
   ])
 
   const qs = search ? `&q=${encodeURIComponent(search)}` : ''
@@ -87,7 +87,7 @@ export default async function Page({
         pills={STATUS_KEYS.map((key) => ({
           key,
           label: t[STATUS_LABELS[key]],
-          href: `${base}?tab=${tab}&status=${key}`,
+          href: `${base}?tab=${tab}&status=${key}${qs}`,
         }))}
         active={status}
       />
@@ -96,7 +96,7 @@ export default async function Page({
         <SearchBar
           name="q"
           defaultValue={search}
-          placeholder={tc.searchPlaceholder ?? 'Search reports…'}
+          placeholder={tc.searchPlaceholder}
           action={`${base}?tab=${tab}&status=${status}`}
         />
       </div>
@@ -105,14 +105,7 @@ export default async function Page({
         reports.length === 0 ? (
           <EmptyState
             message={status === 'all' ? t.emptyReports : tc.emptyFiltered}
-            secondaryAction={
-              <Link
-                href={localePath(locale, '/admin/trust-safety')}
-                className="text-xs text-muted-foreground hover:text-foreground hover:underline"
-              >
-                {tc.clearFilters}
-              </Link>
-            }
+
           />
         ) : (
           <>
@@ -160,7 +153,7 @@ export default async function Page({
               { key: 'actions', header: '', stickyRight: true, render: (r) => <ReportActions report={r} copy={t} common={dict.admin.common} locale={locale} />, className: 'text-right' },
             ]}
           />
-          <Pager page={page} pageSize={PAGE_SIZE} total={totals.reports} hrefFor={pageHref} copy={tc} />
+          <Pager page={page} pageSize={PAGE_SIZE} total={filtered.reports} hrefFor={pageHref} copy={tc} />
           </>
         )
       ) : corrections.length === 0 ? (
@@ -205,10 +198,10 @@ export default async function Page({
               },
               { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, dict.admin.common)} />, className: 'whitespace-nowrap' },
               { key: 'received', header: t.colReceived, render: (r) => <time className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(r.createdAt, locale)}</time>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
-            { key: 'actions', header: '', stickyRight: true, render: (r) => <CorrectionActions correction={r} copy={t} />, className: 'text-right' },
+            { key: 'actions', header: '', stickyRight: true, render: (r) => <CorrectionActions correction={r} copy={t} common={dict.admin.common} />, className: 'text-right' },
           ]}
         />
-        <Pager page={page} pageSize={PAGE_SIZE} total={totals.corrections} hrefFor={pageHref} copy={tc} />
+        <Pager page={page} pageSize={PAGE_SIZE} total={filtered.corrections} hrefFor={pageHref} copy={tc} />
         </>
       )}
     </div>

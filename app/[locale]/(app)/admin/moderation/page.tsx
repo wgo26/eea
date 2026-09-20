@@ -44,7 +44,7 @@ const ALL_STATUSES: SubmissionStatus[] = ['pending', 'in_review', 'needs_clarifi
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; type?: string; page?: string; q?: string }>
+  searchParams: Promise<{ status?: string; type?: string; page?: string; q?: string; sort?: string }>
 }) {
   const locale = await getRequestLocale()
   await requireCapability('moderate', '/admin/moderation')
@@ -58,6 +58,7 @@ export default async function Page({
   const type = (params.type as 'all' | 'photo_story' | 'news' | 'listing' | 'notice' | 'culture') || 'all'
   const page = Math.max(1, Number.parseInt(params.page ?? '1', 10) || 1)
   const search = params.q?.trim() || undefined
+  const sort = params.sort === 'oldest' ? 'oldest' : 'newest'
 
   // The pending queue also covers reopened rows (in_review) — fold both in.
   const statusFilter: SubmissionStatus[] | 'all' =
@@ -70,7 +71,7 @@ export default async function Page({
   // One paginated server query for the visible page + cheap index-only head
   // counts for the tab badges (replaces the 5×1000-row fetch + client merge).
   const [{ rows: submissions, total }, counts] = await Promise.all([
-    getSubmissions({ status: statusFilter, type, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, search }),
+    getSubmissions({ status: statusFilter, type, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, search, order: sort }),
     getSubmissionCounts(),
   ])
 
@@ -80,18 +81,21 @@ export default async function Page({
     count: (counts as Record<string, number>)[key === 'all' ? 'total' : key] ?? 0,
   }))
 
+  /** Locale-prefixed tab/type/page/sort hrefs (checklist: never a bare /admin constant). */
   const qs = search ? `&q=${encodeURIComponent(search)}` : ''
-  /** Locale-prefixed tab hrefs (checklist: never a bare /admin constant). */
   const hrefFor = (key: string) =>
-    `${localePath(locale, '/admin/moderation')}?status=${key}&type=${type}${qs}`
+    `${localePath(locale, '/admin/moderation')}?status=${key}&type=${type}&sort=${sort}${qs}`
 
   const typeHref = (key: string) =>
-    `${localePath(locale, '/admin/moderation')}?status=${status}&type=${key}${qs}`
+    `${localePath(locale, '/admin/moderation')}?status=${status}&type=${key}&sort=${sort}${qs}`
 
   const pageHref = (p: number) =>
-    `${localePath(locale, '/admin/moderation')}?status=${status}&type=${type}&page=${p}${qs}`
+    `${localePath(locale, '/admin/moderation')}?status=${status}&type=${type}&page=${p}&sort=${sort}${qs}`
 
-  const searchAction = `${localePath(locale, '/admin/moderation')}?status=${status}&type=${type}`
+  const sortHref = (dir: 'newest' | 'oldest') =>
+    `${localePath(locale, '/admin/moderation')}?status=${status}&type=${type}&sort=${dir}${qs}`
+
+  const searchAction = `${localePath(locale, '/admin/moderation')}?status=${status}&type=${type}&sort=${sort}`
   const isFiltered = type !== 'all' || !!search
 
   const statusWord =
@@ -126,13 +130,26 @@ export default async function Page({
             active={type}
           />
         </div>
-        <SearchBar
-          name="q"
-          defaultValue={search}
-          placeholder={tc.searchPlaceholder}
-          action={searchAction}
-          className="w-full sm:w-64"
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center text-xs text-muted-foreground">
+            {sort === 'newest' ? (
+              <Link href={sortHref('oldest')} className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+                {t.sortOldest}
+              </Link>
+            ) : (
+              <Link href={sortHref('newest')} className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+                {t.sortNewest}
+              </Link>
+            )}
+          </span>
+          <SearchBar
+            name="q"
+            defaultValue={search}
+            placeholder={tc.searchPlaceholder}
+            action={searchAction}
+            className="w-full sm:w-64"
+          />
+        </div>
       </div>
 
       {submissions.length === 0 ? (

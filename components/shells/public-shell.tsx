@@ -54,11 +54,11 @@ export async function PublicShell({ children, locale }: { children: ReactNode; l
       >
         {dict.common.skipToContent}
       </a>
-      {announcementText && (
+      {announcementText && windowOpen && (
         <AnnouncementBanner
-          id={announcementId(announcementText, settings.announcementUrl)}
+          id={announcementId(announcementText, announcementUrl)}
           text={announcementText}
-          url={settings.announcementUrl}
+          url={announcementUrl}
           dismissLabel={dict.common.dismiss}
         />
       )}

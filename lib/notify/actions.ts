@@ -8,6 +8,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/security/rate-limit';
 import { honeypotTripped } from '@/lib/security/honeypot';
 import { verifyTurnstileToken } from '@/lib/security/turnstile';
+import type { Database } from '@/lib/supabase/database.types';
 import { enqueueNotification } from './queue';
 import { processOutbox } from './worker';
 import { channelStatus, normalizePhone } from './channels';
@@ -57,7 +58,7 @@ export async function saveNotificationPrefs(input: {
         phone = raw.slice(0, 32);
       }
     }
-    const row: Record<string, unknown> = {
+    const row: Database['public']['Tables']['notification_prefs']['Insert'] = {
       user_id: user.id,
       inapp: input.inapp,
       email: input.email,
@@ -74,7 +75,7 @@ export async function saveNotificationPrefs(input: {
     if (error) return { ok: false, error: error.message };
     // Keep the worker's locale/phone fallback consistent: prefs.locale wins,
     // profiles.preferred_locale/phone is the fallback — update both together.
-    const profilePatch: Record<string, string | null> = {};
+    const profilePatch: Database['public']['Tables']['profiles']['Update'] = {};
     if (locale) profilePatch.preferred_locale = locale;
     if (phone !== undefined) profilePatch.phone = phone;
     if (Object.keys(profilePatch).length > 0) {

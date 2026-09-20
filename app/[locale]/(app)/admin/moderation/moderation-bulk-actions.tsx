@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { DataTable } from '@/components/admin/data-table'
 import type { Column } from '@/components/admin/data-table'
 import { BulkActionsBar } from '@/components/admin/bulk-actions'
+import { DetailDrawer, DetailButton } from '@/components/admin/detail-drawer'
 import { bulkApproveSubmissions, bulkRejectSubmissions } from '@/lib/admin/actions'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { formatRelative } from '@/lib/admin/format'
@@ -18,7 +19,11 @@ type ModerationRow = {
   status: string
   submissionType: string
   guestName: string | null
+  guestEmail?: string | null
+  guestPhone?: string | null
   submittedAt: string | null
+  reviewedAt?: string | null
+  payload?: unknown
 }
 
 type Copy = Dictionary['admin']['moderation']
@@ -46,13 +51,15 @@ export function ModerationBulkTable({
   common,
   locale,
 }: {
-  rows: (ModerationRow & { payload?: unknown; guestEmail?: string | null })[]
+  rows: ModerationRow[]
   copy: Copy
   common: CommonCopy
   locale: Locale
 }) {
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [rejectReason, setRejectReason] = useState('')
+  const [detailId, setDetailId] = useState<string | null>(null)
 
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id))
 
@@ -112,15 +119,20 @@ export function ModerationBulkTable({
     {
       key: 'review',
       header: '',
+      stickyRight: true,
       render: (r) => (
-        <Link href={localePath(locale, `/admin/moderation/${r.id}`)} className="whitespace-nowrap text-xs text-primary hover:underline">
-          {copy.review}
-        </Link>
+        <span className="inline-flex items-center justify-end gap-1.5">
+          <DetailButton label={common.viewDetails} onClick={() => setDetailId(r.id)} />
+          <Link href={localePath(locale, `/admin/moderation/${r.id}`)} className="whitespace-nowrap text-xs text-primary hover:underline">
+            {copy.review}
+          </Link>
+        </span>
       ),
-      headerClassName: 'hidden xl:table-cell',
-      className: 'hidden xl:table-cell whitespace-nowrap',
+      className: 'text-right whitespace-nowrap',
     },
   ]
+
+  const detailRow = detailId ? (rows.find((r) => r.id === detailId) ?? null) : null
 
   return (
     <>
@@ -136,20 +148,33 @@ export function ModerationBulkTable({
           confirmLabel={common.confirm}
           actions={[
             {
-              label: copy.bulkApprove,
+              label: common.bulkApprove,
               action: (keys) => bulkApproveSubmissions(keys),
               successToast: common.bulkUpdated,
               tone: 'default',
-              confirmTitle: common.bulkApproveConfirmTitle ?? 'Approve selected submissions?',
-              confirmBody: common.bulkApproveConfirmBody ?? 'The reason below is applied to every selected submission.',
+              confirmTitle: common.bulkApprove,
+              confirmBody: common.bulkUpdated,
             },
             {
               label: copy.bulkReject,
-              action: (keys) => bulkRejectSubmissions(keys, common.rejectPlaceholder ?? 'Reason for rejection…'),
-              successToast: common.bulkUpdated,
+              action: (keys) => bulkRejectSubmissions(keys, rejectReason.trim() || copy.rejectPlaceholder),
+              successToast: copy.bulkRejectedToast,
               tone: 'danger',
-              confirmTitle: common.bulkRejectConfirmTitle ?? 'Reject selected submissions?',
-              confirmBody: common.bulkRejectConfirmBody ?? 'The reason below is applied to every selected submission.',
+              confirmTitle: copy.bulkRejectTitle,
+              confirmBody: copy.bulkRejectBody,
+              confirmLabel: copy.reject,
+              cancelLabel: copy.cancel,
+              children: (
+                <label className="mt-3 block text-left">
+                  <span className="text-xs font-medium text-muted-foreground">{copy.rejectPlaceholder}</span>
+                  <textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    rows={2}
+                    className="mt-1 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </label>
+              ),
             },
           ]}
         />
@@ -164,6 +189,20 @@ export function ModerationBulkTable({
         onToggleRow={toggleRow}
         onToggleAll={toggleAll}
         allSelected={allSelected}
+      />
+
+      <DetailDrawer
+        open={detailRow !== null}
+        onOpenChange={(v) => { if (!v) setDetailId(null) }}
+        title={detailRow ? (payloadTitle(detailRow.payload) ?? detailRow.guestName ?? copy.detailTitle) : copy.detailTitle}
+        fields={detailRow ? [
+          { label: copy.detailSubmitter, value: detailRow.guestName ?? copy.anonymous },
+          { label: copy.detailContact, value: [detailRow.guestEmail, detailRow.guestPhone].filter(Boolean).join(' · ') || '—' },
+          { label: copy.detailType, value: detailRow.submissionType.replace(/_/g, ' ') },
+          { label: copy.detailStatus, value: detailRow.status.replace(/_/g, ' ') },
+          { label: copy.detailSubmitted, value: detailRow.submittedAt ? formatRelative(detailRow.submittedAt, locale) : '—' },
+          { label: copy.detailReviewed, value: detailRow.reviewedAt ? formatRelative(detailRow.reviewedAt, locale) : '—' },
+        ] : []}
       />
     </>
   )

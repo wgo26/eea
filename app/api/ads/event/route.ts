@@ -68,8 +68,8 @@ export async function POST(request: Request) {
     const { error } = await supabase.rpc('increment_ad_event', {
       p_campaign_id: campaignId,
       p_event_type: eventType,
-      p_session_hash: null,
-      p_metadata: slot ? { slot_key: slot } : null,
+      p_session_hash: undefined,
+      p_metadata: slot ? { slot_key: slot } : undefined,
     })
     if (error) {
       logger.error('ads-event', 'RPC failed', { error: error.message })

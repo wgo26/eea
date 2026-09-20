@@ -899,6 +899,31 @@ export async function bulkRejectSubmissions(ids: string[], reason: string): Prom
   return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} submission(s) failed.` } : { ok: true }
 }
 
+/**
+ * Bulk trust & safety: resolve/dismiss/delete over a selection of community
+ * reports. Same sequential per-item pattern as the moderation bulk actions.
+ */
+export async function bulkResolveReports(
+  ids: string[],
+  status: 'investigating' | 'resolved' | 'dismissed',
+): Promise<ActionResult> {
+  let failed = 0
+  for (const id of ids) {
+    const result = await resolveReport(id, status)
+    if (!result.ok) failed += 1
+  }
+  return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} report(s) failed.` } : { ok: true }
+}
+
+export async function bulkDeleteReports(ids: string[]): Promise<ActionResult> {
+  let failed = 0
+  for (const id of ids) {
+    const result = await deleteReport(id)
+    if (!result.ok) failed += 1
+  }
+  return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} report(s) failed.` } : { ok: true }
+}
+
 /* ------------------------------------------------------------------ */
 /* Clarification & reopen (Phase 3 moderation loop)                    */
 /* ------------------------------------------------------------------ */
