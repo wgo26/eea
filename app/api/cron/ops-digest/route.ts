@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
+import { bearerMatches } from '@/lib/security/secrets'
 import { sendEmail, sendWhatsAppProactive } from '@/lib/notify/channels'
 import { SITE } from '@/lib/constants'
 
@@ -35,25 +36,52 @@ const count = async (fn: (db: ReturnType<typeof createAdminClient>) => Promise<n
 
 type DigestStory = { title: string; path: string };
 
-async function latestStories(): Promise<DigestStory[]> {
+const BRIEF_SEGMENT: Record<string, string> = {
+  news: 'news',
+  micro_story: 'news',
+  timeline: 'news',
+  photo_story: 'photo-stories',
+  listing: 'buy-sell',
+  notice: 'notices',
+  culture: 'culture',
+};
+
+/**
+ * Phase 4 — WhatsApp-first Daily Brief (Differentiator #9). Curates the
+ * freshest published stories per type (Diff. #9 caps live in
+ * lib/digest/brief.ts), prefers the editor's Pidgin/Camfranglais share_text
+ * per line, and links every line to the story URL (not the section index)
+ * so WhatsApp unfurls the preview.
+ */
+async function latestBriefStories(): Promise<import('@/lib/digest/brief').BriefStory[]> {
   try {
     const db = createAdminClient();
     const { data } = await db
       .from('content_items')
-      .select('id, type, translations:content_translations(locale, title)')
+      .select('id, type, slug, translations:content_translations(locale, title, share_text)')
       .eq('status', 'published')
+      .eq('is_archived', false)
       .order('published_at', { ascending: false, nullsFirst: false })
-      .limit(5);
+      .limit(40);
     const rows = (data ?? []) as {
       id: string;
       type: string | null;
-      translations: { locale: string; title: string | null } | { locale: string; title: string | null }[] | null;
+      slug: string | null;
+      translations: { locale: string; title: string | null; share_text: string | null } | { locale: string; title: string | null; share_text: string | null }[] | null;
     }[];
-    return rows.map((r) => {
+    return rows.flatMap((r) => {
       const list = Array.isArray(r.translations) ? r.translations : r.translations ? [r.translations] : [];
-      const title = list.find((t) => t.title)?.title ?? r.type ?? 'Story';
-      const section = r.type === 'news' ? 'news' : r.type === 'photo_story' ? 'photo-stories' : r.type === 'listing' ? 'buy-sell' : r.type === 'notice' ? 'notices' : 'culture';
-      return { title: title.slice(0, 120), path: `/${section}` };
+      const preferred = list.find((t) => t.locale === 'en' && t.title) ?? list.find((t) => t.title);
+      const title = preferred?.title ?? r.type ?? 'Story';
+      if (!title) return [];
+      const segment = BRIEF_SEGMENT[r.type ?? ''] ?? 'news';
+      const shareText = list.find((t) => t.share_text?.trim())?.share_text ?? null;
+      return [{
+        title: title.slice(0, 120),
+        type: r.type ?? 'news',
+        path: `/${segment}/${r.slug ?? r.id}`,
+        shareText,
+      }];
     });
   } catch {
     return [];
@@ -76,19 +104,26 @@ async function deliverPublicDigest(correlationId: string): Promise<{ emailed: nu
     }
     const subs = (data ?? []) as { email: string | null; phone: string | null; whatsapp: string | null; locale: string | null }[];
     if (subs.length === 0) return out;
-    const stories = await latestStories();
-    if (stories.length === 0) {
+    const briefStories = await latestBriefStories();
+    if (briefStories.length === 0) {
       out.skipped = subs.length;
       return out;
     }
+    const { groupBriefStories, buildDailyBrief } = await import('@/lib/digest/brief');
+    const sections = groupBriefStories(briefStories);
+    const stories: DigestStory[] = [...sections.visual, ...sections.community, ...sections.notices, ...sections.listings, ...sections.culture].map(
+      (s) => ({ title: s.title, path: s.path }),
+    );
+    const dateLabel = new Date().toISOString().slice(0, 10);
     const perLocale: Record<string, { emailed: number; whatsapped: number }> = {};
     for (const s of subs) {
       const fr = /^fr/i.test(s.locale ?? '');
-      const lines = stories.map((st) => `• ${st.title}\n  ${SITE.url}/${fr ? 'fr' : 'en'}${st.path}`).join('\n');
-      const title = fr ? 'Eagle Eye Africa — résumé du jour' : 'Eagle Eye Africa — daily digest';
-      const body = fr
-        ? `Voici les histoires vérifiées du jour :\n\n${lines}\n\nPour arrêter : répondez STOP ou visitez ${SITE.url}/fr/digest.`
-        : `Here are today's verified stories:\n\n${lines}\n\nTo stop: reply STOP or visit ${SITE.url}/en/digest.`;
+      const { title, body } = buildDailyBrief(sections, {
+        locale: fr ? 'fr' : 'en',
+        dateLabel,
+        siteUrl: SITE.url,
+        digestPath: fr ? '/fr/digest' : '/en/digest',
+      });
       const url = `${SITE.url}/${fr ? 'fr' : 'en'}/digest`;
       const bucket = perLocale[fr ? 'fr' : 'en'] ?? { emailed: 0, whatsapped: 0 };
       perLocale[fr ? 'fr' : 'en'] = bucket;
@@ -151,7 +186,7 @@ async function runDigest(request: Request) {
       return NextResponse.json({ ok: false, error: 'Digest cron not configured' }, { status: 500 })
     }
     logger.warn('cron/ops-digest', 'running without CRON_SECRET (non-production only)', { correlationId })
-  } else if (authHeader !== `Bearer ${cronSecret}`) {
+  } else if (!bearerMatches(authHeader, cronSecret)) {
     logger.warn('cron/ops-digest', 'unauthorized invocation', { correlationId })
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

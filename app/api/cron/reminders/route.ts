@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
+import { bearerMatches } from '@/lib/security/secrets'
 import { processDueReminders } from '@/lib/reminders/worker'
 
 export const dynamic = 'force-dynamic'
@@ -21,7 +22,7 @@ async function runReminders(request: Request) {
       return NextResponse.json({ ok: false, error: 'Reminders cron not configured' }, { status: 500 })
     }
     logger.warn('cron/reminders', 'running without CRON_SECRET (non-production only)', { correlationId })
-  } else if (authHeader !== `Bearer ${cronSecret}`) {
+  } else if (!bearerMatches(authHeader, cronSecret)) {
     logger.warn('cron/reminders', 'unauthorized invocation', { correlationId })
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

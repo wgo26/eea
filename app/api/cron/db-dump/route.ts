@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger, generateCorrelationId } from "@/lib/observability/logger";
+import { bearerMatches } from "@/lib/security/secrets";
 import { storageConfig } from "@/lib/storage/config";
 import { uploadToB2 } from "@/lib/storage/providers/b2";
 import { createHash } from "node:crypto";
@@ -35,7 +36,7 @@ async function runDbDump(request: Request) {
     logger.warn("cron/db-dump", "running without CRON_SECRET (non-production only)", {
       correlationId,
     });
-  } else if (authHeader !== `Bearer ${cronSecret}`) {
+  } else if (!bearerMatches(authHeader, cronSecret)) {
     logger.warn("cron/db-dump", "unauthorized invocation", { correlationId });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

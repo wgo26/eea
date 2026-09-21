@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
+import { bearerMatches } from '@/lib/security/secrets'
 import { processOutbox } from '@/lib/notify/worker'
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +28,7 @@ async function runNotify(request: Request) {
       return NextResponse.json({ ok: false, error: 'Notify cron not configured' }, { status: 500 })
     }
     logger.warn('cron/notify', 'running without CRON_SECRET (non-production only)', { correlationId })
-  } else if (authHeader !== `Bearer ${cronSecret}`) {
+  } else if (!bearerMatches(authHeader, cronSecret)) {
     logger.warn('cron/notify', 'unauthorized invocation', { correlationId })
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

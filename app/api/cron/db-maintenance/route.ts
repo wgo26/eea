@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
+import { bearerMatches } from '@/lib/security/secrets'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +36,7 @@ async function runMaintenance(request: Request) {
     }
     // Non-production without a secret: allow (local drills) but log loudly.
     logger.warn('cron/db-maintenance', 'running without CRON_SECRET (non-production only)', { correlationId })
-  } else if (authHeader !== `Bearer ${cronSecret}`) {
+  } else if (!bearerMatches(authHeader, cronSecret)) {
     logger.warn('cron/db-maintenance', 'unauthorized invocation', { correlationId })
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

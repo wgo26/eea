@@ -8,6 +8,7 @@ import {
   BACKUP_LEASE_SECONDS,
 } from '@/lib/storage/backup'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
+import { bearerMatches } from '@/lib/security/secrets'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,7 +37,7 @@ async function runBackup(request: Request) {
     }
     // Non-production without a secret: allow (local drills) but log loudly.
     logger.warn('cron/storage-backup', 'running without CRON_SECRET (non-production only)', { correlationId })
-  } else if (authHeader !== `Bearer ${cronSecret}`) {
+  } else if (!bearerMatches(authHeader, cronSecret)) {
     logger.warn('cron/storage-backup', 'unauthorized invocation', { correlationId })
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
