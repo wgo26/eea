@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Nested agent worktrees are full copies of this repo (excluded from git
+    // via .git/info/exclude). Linting them re-reports every finding twice.
+    ".kilo/**",
+    ".kilocode/**",
   ]),
 ]);
 
