@@ -1287,6 +1287,11 @@ export const appStringsEn = {
       toastPublished: 'Submission approved and published.',
       toastScheduled: 'Submission approved and scheduled.',
       copyFromEn: 'Copy English → French',
+      translateEnToFr: 'Translate EN → FR',
+      translateFrToEn: 'Translate FR → EN',
+      translating: 'Translating…',
+      toastTranslated: 'Translation applied — review before saving.',
+      translateEmpty: 'Enter source text first.',
       nextPending: 'Next pending submission',
       payloadLabels: {
         title: 'Title',
@@ -1526,6 +1531,11 @@ export const appStringsEn = {
       missingTranslation: 'French story missing — showing English.',
       editStoryTitle: 'Story titles & description',
       copyFromEn: 'Copy English → French',
+      translateEnToFr: 'Translate EN → FR',
+      translateFrToEn: 'Translate FR → EN',
+      translating: 'Translating…',
+      toastTranslated: 'Translation applied — review before saving.',
+      translateEmpty: 'Enter source text first.',
     },
     policies: {
       title: 'Policies',

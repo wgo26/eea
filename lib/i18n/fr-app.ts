@@ -1287,6 +1287,11 @@ export const appStringsFr = {
       toastPublished: 'Proposition approuvée et publiée.',
       toastScheduled: 'Proposition approuvée et programmée.',
       copyFromEn: 'Copier l’anglais → français',
+      translateEnToFr: 'Traduire EN → FR',
+      translateFrToEn: 'Traduire FR → EN',
+      translating: 'Traduction en cours…',
+      toastTranslated: 'Traduction appliquée — relisez avant d’enregistrer.',
+      translateEmpty: 'Saisissez d’abord le texte source.',
       nextPending: 'Proposition en attente suivante',
       payloadLabels: {
         title: 'Titre',
@@ -1525,6 +1530,11 @@ export const appStringsFr = {
       verification: 'Notes de vérification',
       missingTranslation: 'Histoire en français manquante — affichage de l’anglais.',
       editStoryTitle: 'Titres & description de l’histoire',
+      translateEnToFr: 'Traduire EN → FR',
+      translateFrToEn: 'Traduire FR → EN',
+      translating: 'Traduction en cours…',
+      toastTranslated: 'Traduction appliquée — relisez avant d’enregistrer.',
+      translateEmpty: 'Saisissez d’abord le texte source.',
       copyFromEn: 'Copier l’anglais → français',
     },
     policies: {

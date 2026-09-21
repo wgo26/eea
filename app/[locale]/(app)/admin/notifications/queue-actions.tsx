@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Copy, Megaphone, MessageCircle, Play, RotateCcw } from 'lucide-react';
 import { retryFailedNotifications, retryOutboxRow, runNotifyWorkerNow, sendTestNotification, toggleDigestSubscriber } from '@/lib/notify/actions';
-import { useAdminMutation } from '@/components/admin/confirm-dialog';
+import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog';
 import { useToast } from '@/components/admin/toast';
 import type { Dictionary } from '@/lib/i18n';
 import type { OutboxRow } from '@/lib/notify/queries';
@@ -27,6 +27,7 @@ export function NotificationQueueActions({ copy }: { copy: Copy }) {
   const router = useRouter();
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [retryAllOpen, setRetryAllOpen] = useState(false);
 
   async function after(promise: Promise<{ ok: true } | { ok: false; error: string }>, message: string) {
     const res = await run(() => promise, message);
@@ -81,7 +82,7 @@ export function NotificationQueueActions({ copy }: { copy: Copy }) {
       </button>
       <button
         type="button"
-        onClick={() => after(retryFailedNotifications(), copy.retried)}
+        onClick={() => setRetryAllOpen(true)}
         disabled={loading}
         className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
       >
@@ -89,6 +90,19 @@ export function NotificationQueueActions({ copy }: { copy: Copy }) {
         {copy.retryFailed}
       </button>
       {note ? <span className="text-xs font-medium text-emerald-600">{note}</span> : null}
+      <ConfirmDialog
+        open={retryAllOpen}
+        onOpenChange={setRetryAllOpen}
+        title={copy.retryAllConfirmTitle}
+        description={copy.retryAllConfirmBody}
+        confirmLabel={copy.retryFailed}
+        cancelLabel={copy.retryFailed === '' ? 'Cancel' : undefined ?? 'Cancel'}
+        loading={loading}
+        onConfirm={() => {
+          setRetryAllOpen(false);
+          void after(retryFailedNotifications(), copy.retried);
+        }}
+      />
     </div>
   );
 }
