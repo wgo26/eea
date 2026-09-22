@@ -107,7 +107,7 @@ export function AdSlot({ ad, dict, variant, className }: AdSlotProps) {
 
   return (
     <div className={cn("w-full", className)}>
-      <p className="mb-1 text-right text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">
+      <p className="mb-1 text-right text-xs font-medium uppercase tracking-widest text-muted-foreground/70">
         {dict.home.advertisement}
       </p>
       <AdTracker ad={ad}>
@@ -203,7 +203,7 @@ function VideoCreative({ ad, dict, onNavigate }: { ad: AdCreative; dict: Diction
           <source src={src} />
         </video>
         {duration ? (
-          <span className="absolute right-2 bottom-2 inline-flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-white">
+          <span className="absolute right-2 bottom-2 inline-flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-xs font-bold tabular-nums text-white">
             <Clock className="h-3 w-3" aria-hidden />
             {duration}
           </span>

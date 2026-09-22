@@ -5,6 +5,7 @@ import { buildAlternates } from "@/lib/i18n/urls";
 import { getHomeData } from "@/lib/queries/home";
 import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
 import { SubmitCta } from "@/components/home/submit-cta";
+import { DigestCta } from "@/components/home/digest-cta";
 import {
     AdSkeleton,
     GridSkeleton,
@@ -18,6 +19,8 @@ import {
     HomeNewsTrending,
     HomePhotoStories,
 } from "@/components/home/home-sections";
+import { HomeDegradedNotice } from "@/components/home/home-degraded-notice";
+import { HomeNearYouClient } from "@/components/home/home-near-you-client";
 
 type LocaleHomePageProps = { params: Promise<{ locale: string }> };
 
@@ -83,8 +86,18 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
 
     return (
         <div className="mx-auto w-full max-w-7xl space-y-12 px-4 py-6 md:px-6 md:py-10">
+            <Suspense fallback={null}>
+                <HomeDegradedNotice locale={locale} dict={dict} />
+            </Suspense>
             <Suspense fallback={<HeroSkeleton />}>
                 <HomeHeroSection locale={locale} dict={dict} />
+            </Suspense>
+
+            {/* "Near You" rail — client island (reads the place cookie + fetches
+                /api/places?place= after the static shell streams, so the page
+                keeps revalidate = 300). */}
+            <Suspense fallback={<GridSkeleton cards={3} />}>
+                <HomeNearYouClient locale={locale} dict={dict} />
             </Suspense>
 
             <Suspense fallback={<AdSkeleton />}>
@@ -123,6 +136,8 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
             </Suspense>
 
             <SubmitCta dict={dict} submitHref={`/${locale}/submit`} />
+
+            <DigestCta dict={dict} digestHref={`/${locale}/digest`} />
         </div>
     );
 }

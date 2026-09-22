@@ -8,6 +8,8 @@ import { EmptyState } from "@/components/admin/empty-state";
 import { PageHeader } from "@/components/admin/page-header";
 import { Pager } from "@/components/admin/pager";
 import { WithdrawSubmissionButton } from "@/components/account/withdraw-submission-button";
+import { ResubmitSubmissionButton } from "@/components/account/resubmit-submission-button";
+import { ModerationTimeline, stageForStatus } from "@/components/submit/moderation-timeline";
 
 export async function generateMetadata(): Promise<{ title: string }> {
     const locale = await getRequestLocale();
@@ -76,24 +78,46 @@ export default async function Page({
                 <>
                     <div className="space-y-3">
                         {rows.map((s) => (
-                            <div key={s.id} className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-3">
-                                <div className="min-w-0">
-                                    <p className="font-medium truncate">
-                                        {submissionTitle(s)}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                        {s.submitted_at
-                                            ? new Date(s.submitted_at).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-GB")
-                                            : t.submittedRecently}
-                                    </p>
+                            <div key={s.id} className="rounded-xl border border-border bg-card p-3">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div className="min-w-0">
+                                        <p className="font-medium truncate">
+                                            {submissionTitle(s)}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {s.submitted_at
+                                                ? new Date(s.submitted_at).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-GB")
+                                                : t.submittedRecently}
+                                        </p>
+                                    </div>
+                                    <div className="flex shrink-0 items-center gap-2">
+                                        {(s.status === "pending" || s.status === "in_review") ? (
+                                            <WithdrawSubmissionButton submissionId={s.id} dict={dict} />
+                                        ) : null}
+                                        {(s.status === "rejected" || s.status === "withdrawn") ? (
+                                            <ResubmitSubmissionButton submissionId={s.id} dict={dict} />
+                                        ) : null}
+                                        <span className="shrink-0 rounded-full border border-border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                                            {s.status ? localizeStatus(s.status, common) : t.pending}
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="flex shrink-0 items-center gap-2">
-                                    {(s.status === "pending" || s.status === "in_review") ? (
-                                        <WithdrawSubmissionButton submissionId={s.id} dict={dict} />
-                                    ) : null}
-                                    <span className="shrink-0 rounded-full border border-border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                                        {s.status ? localizeStatus(s.status, common) : t.pending}
-                                    </span>
+                                {/* Phase 3 — per-submission pipeline position. */}
+                                <div className="mt-3 border-t border-border/60 pt-3">
+                                    <ModerationTimeline
+                                        stage={stageForStatus(s.status)}
+                                        compact
+                                        copy={{
+                                            submitted: dict.submit.timelineSubmitted,
+                                            submittedBody: dict.submit.timelineSubmittedBody,
+                                            inReview: dict.submit.timelineInReview,
+                                            inReviewBody: dict.submit.timelineInReviewBody,
+                                            published: dict.submit.timelinePublished,
+                                            publishedBody: dict.submit.timelinePublishedBody,
+                                            rejected: dict.submit.timelineRejected,
+                                            rejectedBody: dict.submit.timelineRejectedBody,
+                                        }}
+                                    />
                                 </div>
                             </div>
                         ))}

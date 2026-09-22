@@ -1,4 +1,4 @@
-# Known issues & debt (regenerated 2026-09-13)
+# Known issues & debt (regenerated 2026-10-21)
 
 Living debt list verified against the current code. The old `m.md` /
 `implementation_plan.md` / `scaffold_plan.md` (archived under `docs/history/`)
@@ -92,6 +92,18 @@ was deleted — do not recreate it.)
 - Storage: per-asset table + verify + admin delete.
 - Audit log: select/date filters + CSV export; inputs labelled.
 - Homepage slots: assign/search/toggle/reorder/delete + thumbnails.
+- **Security posture gate (EEAD-002 item 15):** `npm run verify:posture`
+  (`scripts/verify-security-posture.mjs`, also wired into CI) consolidates the
+  anon-bundle + service-role, server-action, migration, cron and sitemap gates
+  plus a `data_requests` RLS regression check (the EEAD-002 P1 anonymous-read
+  leak stays closed: the final `Own data requests` policy scopes SELECT to
+  owner + staff). The bundle gate also caught a real leak during
+  implementation — a server-only `SUPABASE_SERVICE_ROLE_KEY` env read inside
+  the homepage `HomeDegradedNotice` component.
+- **Turnstile fail-closed in production (EEAD-002):** `verifyTurnstileToken`
+  returns false when the secret is unset in production (dev stays fail-open
+  for local convenience; `TURNSTILE_REQUIRE=1` rehearses production).
+  Covered by `lib/security/turnstile.test.ts`.
 - Defensive infra: durable rate limits, Turnstile, honeypot, upload ownership
   checks, intake URL allowlisting, security headers, health/ready endpoints,
   cron scheduler, `verify-clean`, `verify-backup`, migration gates.
@@ -109,22 +121,64 @@ was deleted — do not recreate it.)
   GitHub Actions, grouped dev updates) + an advisory `npm audit
   --audit-level=high` step in `ci.yml`.
 
-## P1 — fix soon (visible gaps)
+## Audit fixes (D1–D6) applied per due-diligence audit
 
-1. **WhatsApp link-preview verification in production is unverified.**
-   Canonical/hreflang/OG tags ship per page, but nobody has checked a real
-   WhatsApp render of a story link — run the handset steps in
-   `docs/notifications.md` §production checklist. (Manual/ops only — no code
-   change.)
+- **D1 — Legacy Blogger redirects unreachable (FIXED).** `proxy.ts` now loads
+  the `legacy_redirects` map **before** the asset-extension exemption and
+  issues `308` (permanent, method-preserving) instead of 307. The legacy map
+  itself is sourced from the DB (`20261015000000_legacy_redirects.sql`) with a
+  5-minute TTL cache. Validated: `tests/unit/proxy.test.ts` (7 tests),
+  `scripts/probe-live.mjs` spot-checks live redirect status.
+- **D2 — Unbounded in-memory rate-limit Maps (FIXED).** Both
+  `/api/uploads` (`route.ts`) and `/api/ads/event` (`route.ts`) now prune
+  expired entries at a hard cap (10 000 IPs) and drop the oldest half on flood,
+  preventing memory-exhaustion under IP rotation.
+- **D3 — Zero RLS/integration test coverage (FIXED).** `scripts/rls-harness.mjs`
+  builds an ephemeral Postgres with Supabase-equivalent stubs + all 58
+  migrations in order, then asserts 10 structural gates (RLS enabled on every
+  public table, ≥40 policies, anon can execute `is_staff()`,
+  `rate_limit_hits` stays revoked). `tests/integration/rls.test.ts` (12
+  invariants) and `rls-phase2.test.ts` (6 invariants) assert actual policy
+  semantics. CI job `rls-invariants` (postgres:16 service) blocks on failure.
+  Proven by negative test: dropping "Own/reviewable submissions" turns the
+  suite red.
+- **D5 — Advertiser persona is structurally dead (FIXED).** `/account` now
+  shows the advertiser their campaign status, booked slots, and impressions/
+  clicks read from `ad_events`. Quote → invoice note is in-product; payments
+  remain manual (see P3).
+- **D6 — Sentry tracesSampleRate: 1 in production (FIXED).** All three configs
+  (`sentry.client/server/edge.config.ts`) replaced with a
+  `tracesSampler`: 1.0 in dev/preview, 0.1 in production — error fidelity
+  unaffected (errors inherit the parent transaction's sampling decision);
+  controls cost and main-thread overhead on low-end Android.
+- **New migrations (58 total, +10 since 2026-09-13):** `legacy_redirects`,
+  `db_dumps` (nightly pg_dump → B2 tracking),
+  `fix_digest_subscribers_rls` (closed anon PII leak),
+  `ad_event_atomic_guard` (closed beacon race), `price_watches` (owner-scoped
+  price-drop alerts), `moderation_log_ad_events_rls` (enabled RLS on two
+  tables that had policies but no `enable row level security`).
+- **New tooling:** `scripts/probe-live.mjs` (read-only production posture
+  check), `scripts/rls-harness.mjs`, `scripts/verify-security-posture.mjs`
+  (EEAD-002 consolidated gates: anon bundle, server actions, migrations,
+  crons, sitemap, `data_requests` RLS regression). CI wires all of these.
+
+## P1 — fix soon (live validation only)
+
+1. **WhatsApp link-preview + SMTP/DMARC verification in production is unverified.**
+   Run `node scripts/probe-live.mjs` (automated read-only checks) then the
+   handset + receipt steps in `docs/notifications.md` §production checklist:
+   guest digest receipt lands in inbox, WhatsApp test on a real handset with
+   reply-to-open-window, story-link OG card renders. (Manual/ops only — no
+   code change. See R5–R6 in `audit.md` §Risks.)
 
 ## P2 — schedule, don't panic
 
 - Monoliths: `lib/admin/actions.ts`, `lib/admin/queries.ts` (~2,000+ lines
   each) → split per-domain.
-- Tests: 97+ vitest unit tests but **no RLS/integration, no component, no e2e**.
-  Highest-value next: "editor cannot delete" RLS integration test + a smoke
-  e2e for the submit→moderate→publish loop (which now also covers the
-  notification outbox).
+- Tests: 231 vitest tests (28 files) — 203 unit + 18 RLS integration (D3
+  FIXED). **No component e2e for the submit→moderate→publish loop**
+  (smoke.spec.ts covers static routes only). Highest-value next: end-to-end
+  test of the full publish → notification → outbox flow.
 - CSP: `script-src 'unsafe-inline' 'unsafe-eval'`, wildcard img/connect-src —
   strict-nonce CSP is the target (big effort, low urgency for v1).
 - Bootstrap: `unstable_cache` (documented choice) — re-audit on Next 17.
@@ -139,13 +193,21 @@ was deleted — do not recreate it.)
   `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE`
   (+`_LANG`) on the host — pre-check with `npm run notify:env`; wire
   `docs/observability.md` §3 (uptime monitor against `/api/ready`).
-- Apply migrations (`supabase db push` — includes the notifications/ads-format
-  batch and `20261001000003_submission_documents.sql`). Verify with
-  `scripts/verify-migrations.mjs`.
-- Run the handset + receipt steps in `docs/notifications.md` §production
-  checklist (guest receipt in-inbox, WhatsApp test on a real handset with
-  reply-to-open-window, story-link OG card render).
-- Add a `pg_dump` → B2 job + rehearse a restore (media mirrors exist, DB backup
-  does not).
+- Apply migrations via the **manual-only** `db-push.yml` workflow
+  (`workflow_dispatch`, dry-run by default, apply only with explicit
+  confirmation input). `supabase db push` is NOT automatic — this is a
+  deliberate ops gate so a bad migration cannot land on prod silently.
+  Verify with `scripts/verify-migrations.mjs` + `npm run test:rls`.
+- Run `npm run verify:posture` (EEAD-002: anon bundle, server actions,
+  migrations, crons, sitemap, `data_requests` RLS regression) +
+  `npm run test:rls` (54 migrations + 10 structural gates + 18 invariants)
+  locally before merge — CI enforces both.
+- Run `node scripts/probe-live.mjs` for the read-only production posture
+  check (security headers, health/ready, legacy redirects).
+- Nightly pg_dump → B2 pipeline is live (`20261015000001_db_dumps.sql` tracks
+  each run; `db_dumps` table carries sha256 + 30-day expiry). **Rehearse a
+  restore** — see `docs/observability.md` §5 (row-count assertions on the
+  latest db_dump artifact). Media mirrors already exist; DB restore drill is
+  the only remaining gap.
 
 Keep this file in sync with reality — delete items as they land.

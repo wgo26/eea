@@ -11,8 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { submitStory } from "@/lib/public/actions";
+import { submitStory, saveStoryDraft } from "@/lib/public/actions";
 import { MediaField } from "@/components/submit/media-field";
+import { useSubmitDraft } from "@/components/submit/use-submit-draft";
 import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import type { SubmitState } from "@/lib/public/types";
 import { localePath } from "@/lib/i18n/urls";
@@ -36,7 +37,7 @@ export type SubmitInitial = {
     locationText?: string | null;
 };
 
-const TYPE_TO_DB: Record<SubmitType, string> = {
+export const TYPE_TO_DB: Record<SubmitType, string> = {
     "photo-story": "photo_story",
     news: "news",
     culture: "culture",
@@ -267,16 +268,22 @@ export function SubmitForm({
     dict,
     canUpload = false,
     initial,
+    initialDraft,
 }: {
     type: SubmitType;
     dict: Dictionary;
     canUpload?: boolean;
     initial?: SubmitInitial;
+    initialDraft?: Record<string, string>;
 }) {
     const router = useRouter();
     const locale = useLocaleFromPath();
     const [state, formAction, pending] = useActionState<SubmitState, FormData>(
         submitStory,
+        { ok: false },
+    );
+    const [draftState, draftAction, draftPending] = useActionState<SubmitState, FormData>(
+        saveStoryDraft,
         { ok: false },
     );
     const f = dict.submit.fields;
@@ -288,9 +295,38 @@ export function SubmitForm({
     const formRef = React.useRef<HTMLFormElement>(null);
     const stepRef = React.useRef<HTMLDivElement>(null);
 
+    // Phase 3 — draft autosave: restore unsent fields after a dropped
+    // connection, clear on success.
+    const { restored, clearDraft } = useSubmitDraft(type, formRef);
     React.useEffect(() => {
-        if (state.ok) router.push(localePath(locale, "/submit/confirmation"));
-    }, [state.ok, router, locale]);
+        if (initialDraft && formRef.current) {
+            // Apply the server draft values to the form inputs if present
+            for (const [key, val] of Object.entries(initialDraft)) {
+                const el = formRef.current.elements.namedItem(key);
+                if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
+                    if (el instanceof HTMLInputElement && el.type === "checkbox") {
+                        el.checked = Boolean(val);
+                    } else if (val && typeof val === "string") {
+                        el.value = val;
+                    }
+                }
+            }
+        }
+    }, [initialDraft]);
+    
+    React.useEffect(() => {
+        if (state.ok) {
+            clearDraft();
+            router.push(localePath(locale, "/submit/confirmation"));
+        }
+    }, [state.ok, router, locale, clearDraft]);
+
+    React.useEffect(() => {
+        if (draftState.ok) {
+            // Optional: show a toast or message
+            clearDraft(); // clear local draft since server took over
+        }
+    }, [draftState.ok, clearDraft]);
 
     const goStep = (next: number) => {
         if (next > step) {
@@ -334,9 +370,27 @@ export function SubmitForm({
     const isNotice = type === "notice";
     const isBuySell = type === "buy-sell";
 
+    const uploadCopy = {
+        retryFailed: dict.submit.retryUpload,
+        failedCount: dict.submit.uploadFailedCount,
+    };
     return (
         <form ref={formRef} action={formAction} className="space-y-5">
             <input type="hidden" name="submissionType" value={TYPE_TO_DB[type]} />
+
+            {/* Phase 3 — restored-draft notice (autosave survived a dropped connection). */}
+            {restored ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+                    <p className="font-medium">{dict.submit.draftRestored}</p>
+                    <button
+                        type="button"
+                        onClick={clearDraft}
+                        className="font-medium text-primary hover:underline"
+                    >
+                        {dict.submit.draftDiscard}
+                    </button>
+                </div>
+            ) : null}
 
             {/* Stepper */}
             <ol className="flex items-center gap-2 text-xs font-medium" aria-label={s.label}>
@@ -599,17 +653,25 @@ export function SubmitForm({
                             {s.media} <span className="text-xs font-medium text-muted-foreground">{s.optional}</span>
                         </button>
                         <div hidden={!mediaOpen} className="space-y-5 border-t p-4">
+                            {!canUpload ? (
+                                <p className="rounded-xl border border-border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
+                                    {dict.submit.signInToUpload}{" "}
+                                    <Link href={localePath(locale, "/account/login")} className="font-medium text-primary underline">
+                                        {dict.auth.login.submit}
+                                    </Link>
+                                </p>
+                            ) : null}
                             <Field label={f.photos} htmlFor="photos" hint={f.photosHint}>
-                                <MediaField kind="image" name="photos" placeholder={f.photosPlaceholder} canUpload={canUpload} />
+                                <MediaField kind="image" name="photos" placeholder={f.photosPlaceholder} canUpload={canUpload} uploadCopy={uploadCopy} />
                             </Field>
                             <Field label={f.videos} htmlFor="videos" hint={f.videosHint}>
-                                <MediaField kind="video" name="videos" placeholder={f.videosPlaceholder} canUpload={canUpload} />
+                                <MediaField kind="video" name="videos" placeholder={f.videosPlaceholder} canUpload={canUpload} uploadCopy={uploadCopy} />
                             </Field>
                             <Field label={f.audios} htmlFor="audios" hint={f.audiosHint}>
-                                <MediaField kind="audio" name="audios" placeholder={f.audiosPlaceholder} canUpload={canUpload} />
+                                <MediaField kind="audio" name="audios" placeholder={f.audiosPlaceholder} canUpload={canUpload} uploadCopy={uploadCopy} />
                             </Field>
                             <Field label={f.documents} htmlFor="documents" hint={f.documentsHint}>
-                                <MediaField kind="document" name="documents" placeholder={f.documentsPlaceholder} canUpload={canUpload} />
+                                <MediaField kind="document" name="documents" placeholder={f.documentsPlaceholder} canUpload={canUpload} uploadCopy={uploadCopy} />
                             </Field>
                         </div>
                     </div>
@@ -655,16 +717,36 @@ export function SubmitForm({
                     />
                     <TurnstileWidget />
 
-                    <Button type="submit" disabled={pending} className="w-full">
-                        {pending ? (
-                            <>
-                                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                                {dict.submit.submitting}
-                            </>
-                        ) : (
-                            dict.submit.submit
-                        )}
-                    </Button>
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                        {canUpload ? (
+                            <Button 
+                                type="submit" 
+                                formAction={draftAction} 
+                                disabled={pending || draftPending} 
+                                variant="outline" 
+                                className="w-full sm:w-1/3"
+                            >
+                                {draftPending ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                                        {dict.submit.submitting}
+                                    </>
+                                ) : (
+                                    "Save Draft"
+                                )}
+                            </Button>
+                        ) : null}
+                        <Button type="submit" disabled={pending || draftPending} className="w-full flex-1">
+                            {pending ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                                    {dict.submit.submitting}
+                                </>
+                            ) : (
+                                dict.submit.submit
+                            )}
+                        </Button>
+                    </div>
                 </div>
             </div>
 

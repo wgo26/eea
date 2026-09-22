@@ -176,14 +176,14 @@ export function PollCard({ poll, dict, locale, variant = "feature", className }:
         >
             {/* Header */}
             <div className="flex items-center justify-between gap-3 border-b bg-muted/40 px-5 py-3">
-                <span className="inline-flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-foreground">
+                <span className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.18em] text-foreground">
                     <Vote className="h-3.5 w-3.5 text-primary" aria-hidden />
                     {variant === "feature" ? dict.polls.title : dict.polls.upcoming}
                 </span>
                 {closingLabel ? (
                     <span
                         className={cn(
-                            "rounded-full px-2.5 py-0.5 text-[10px] font-bold",
+                            "rounded-full px-2.5 py-0.5 text-xs font-bold",
                             closed
                                 ? "bg-muted text-muted-foreground"
                                 : "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300",
@@ -261,7 +261,7 @@ export function PollCard({ poll, dict, locale, variant = "feature", className }:
                                                     {option.label}
                                                 </span>
                                                 {isPick ? (
-                                                    <span className="shrink-0 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                                                    <span className="shrink-0 rounded-full bg-primary/15 px-1.5 py-0.5 text-xs font-bold uppercase tracking-wide">
                                                         {dict.polls.yourPick}
                                                     </span>
                                                 ) : null}
@@ -345,7 +345,7 @@ export function PollCard({ poll, dict, locale, variant = "feature", className }:
                 {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
 
                 {variant === "feature" ? (
-                    <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+                    <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
                         {dict.polls.note}
                     </p>
                 ) : null}

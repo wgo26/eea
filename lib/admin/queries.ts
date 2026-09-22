@@ -218,7 +218,15 @@ export async function getSubmissions(options?: {
       query = Array.isArray(status) ? query.in('status', status) : query.eq('status', status)
     }
     if (type !== 'all') query = query.eq('submission_type', type)
-    if (search) query = query.or(`guest_name.ilike.%${search}%,guest_email.ilike.%${search}%,guest_phone.ilike.%${search}%,payload::text.ilike.%${search}%`)
+    if (search) {
+      // Phase 3: sanitize or() metacharacters (commas break the expression,
+      // %/_ widen the scan) and extend the search to internal_notes +
+      // rejection_reason so editors can find annotated rows.
+      const phrase = search.replace(/[,()%\\*]/g, ' ').replace(/[%_]/g, '').trim().slice(0, 80)
+      if (phrase) {
+        query = query.or(`guest_name.ilike.*${phrase}*,guest_email.ilike.*${phrase}*,guest_phone.ilike.*${phrase}*,payload::text.ilike.*${phrase}*,internal_notes.ilike.*${phrase}*,rejection_reason.ilike.*${phrase}*`)
+      }
+    }
 
     const { data, count } = await safe(query)
     return {
@@ -458,6 +466,9 @@ export type ContentEditData = ContentRow & {
   frSeoDescription: string | null
   /** Byline fallback (translation row); public byline prefers profile authorName. */
   byline: string | null
+  /** Phase 4 — WhatsApp share line + voice register (EN row preferred). */
+  shareText: string | null
+  voiceType: string | null
   tags: { id: string; name: string | null }[]
   photos: { id: string; url: string; alt: string | null; caption: string | null; credit: string | null }[]
   listing: { price: number | null; currency: string | null; contactPhone: string | null; contactEmail: string | null; whatsappNumber: string | null; sellerName: string | null; listingStatus: string | null; sellerVerified: boolean } | null
@@ -470,14 +481,14 @@ export async function getContentItemEditData(contentItemId: string): Promise<Con
   const { data } = await safe(
     db()
       .from('content_items')
-      .select('id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by, location_id, category_id, translations:content_translations(locale, title, excerpt, body, seo_description, byline), tags:content_tags(tag:tags(id, tag_translations(locale, name))), location:locations(name), category:categories!category_id(category_translations(locale, name)), media:media_assets(id, public_url, caption, alt_text, photographer_credit, sort_order), author:profiles!content_items_author_id_fkey(display_name), listing:listings(price, currency, contact_phone, contact_email, whatsapp_number, seller_name, listing_status, seller_is_verified), notice:notices(notice_type, organization_name, contact_phone, is_official, notice_date, expiry_date), event:events(starts_at, ends_at, venue_name, ticket_url, organizer_name, organizer_phone, organizer_email)')
+      .select('id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by, location_id, category_id, translations:content_translations(locale, title, excerpt, body, seo_description, byline, share_text, voice_type), tags:content_tags(tag:tags(id, tag_translations(locale, name))), location:locations(name), category:categories!category_id(category_translations(locale, name)), media:media_assets(id, public_url, caption, alt_text, photographer_credit, sort_order), author:profiles!content_items_author_id_fkey(display_name), listing:listings(price, currency, contact_phone, contact_email, whatsapp_number, seller_name, listing_status, seller_is_verified), notice:notices(notice_type, organization_name, contact_phone, is_official, notice_date, expiry_date), event:events(starts_at, ends_at, venue_name, ticket_url, organizer_name, organizer_phone, organizer_email)')
       .eq('id', contentItemId)
       .limit(1),
   )
   const row = ((data ?? []) as unknown as Record<string, unknown>[])[0] ?? null
   if (!row) return null
   const base = mapContentRow(row, 'en')
-  const translations = (Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []) as { locale: string; title: string | null; excerpt: string | null; body: string | null; seo_description: string | null; byline: string | null }[]
+  const translations = (Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []) as { locale: string; title: string | null; excerpt: string | null; body: string | null; seo_description: string | null; byline: string | null; share_text: string | null; voice_type: string | null }[]
   const tagRows = (Array.isArray(row.tags) ? row.tags : row.tags ? [row.tags] : []) as { tag: { id: string; tag_translations: { locale: string; name: string }[] } | { id: string; tag_translations: { locale: string; name: string }[] }[] }[]
   const en = translations.find((t) => t.locale === 'en')
   const fr = translations.find((t) => t.locale === 'fr')
@@ -496,6 +507,8 @@ export async function getContentItemEditData(contentItemId: string): Promise<Con
     enSeoDescription: en?.seo_description ?? null,
     frSeoDescription: fr?.seo_description ?? null,
     byline: en?.byline ?? fr?.byline ?? null,
+    shareText: en?.share_text ?? fr?.share_text ?? null,
+    voiceType: en?.voice_type ?? fr?.voice_type ?? null,
     tags: tagRows
       .flatMap((t) => (Array.isArray(t.tag) ? t.tag : [t.tag]))
       .map((tag) => {
@@ -1506,6 +1519,12 @@ export async function getTrustSafetyFilteredCounts(status: string): Promise<{ re
  * 20260904000000_phase3_content_loop.sql): flips due `scheduled` items to
  * `published` and expires overdue active listings. Called on admin loads —
  * cheap (indexed updates) and idempotent.
+ *
+ * Phase 3 — owner push: listings the sweep expires notify their owners
+ * (`listing.update` → /account/listings, one-tap renew). Expiring-soon
+ * (≤24 h) nudges are idempotent via a 7-day moderation_log guard so the
+ * daily sweep never spams. All pushes are best-effort and never fail the
+ * sweep itself.
  */
 export async function runDueContentSweep(): Promise<void> {
   const nowIso = new Date().toISOString()
@@ -1528,6 +1547,12 @@ export async function runDueContentSweep(): Promise<void> {
   )
   const dueIds = ((dueListings ?? []) as { id: string }[]).map((r) => r.id)
   if (dueIds.length > 0) {
+    // Capture the flip set BEFORE updating: only rows still 'active' get the
+    // one-time expired push (already-expired rows stay silent).
+    const { data: activeRows } = await safe(
+      db().from('listings').select('content_item_id').in('content_item_id', dueIds).eq('listing_status', 'active'),
+    )
+    const flipping = ((activeRows ?? []) as { content_item_id: string }[]).map((r) => r.content_item_id)
     await safe(
       db()
         .from('listings')
@@ -1535,7 +1560,57 @@ export async function runDueContentSweep(): Promise<void> {
         .in('content_item_id', dueIds)
         .eq('listing_status', 'active'),
     )
+    if (flipping.length > 0) {
+      const { enqueueUser, listingNotifyTarget } = await import('@/lib/notify/queue')
+      const admin = db()
+      for (const id of flipping.slice(0, 100)) {
+        try {
+          const target = await listingNotifyTarget(admin, id)
+          await enqueueUser('listing.update', target.userId, { title: target.title, status: 'expired — renew it in one tap' }, '/account/listings')
+        } catch { /* best-effort: never fail the sweep */ }
+      }
+    }
   }
+  // Expiring-soon (≤24 h, still active): one nudge per listing per 7 days.
+  try {
+    const soonIso = new Date(Date.now() + 24 * 3_600_000).toISOString()
+    const { data: soonRows } = await safe(
+      db()
+        .from('content_items')
+        .select('id')
+        .eq('is_archived', false)
+        .not('expires_at', 'is', null)
+        .gt('expires_at', nowIso)
+        .lte('expires_at', soonIso)
+        .limit(200),
+    )
+    const soonIds = ((soonRows ?? []) as { id: string }[]).map((r) => r.id)
+    if (soonIds.length > 0) {
+      const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString()
+      const { data: recent } = await safe(
+        db()
+          .from('moderation_log')
+          .select('content_item_id')
+          .in('content_item_id', soonIds)
+          .eq('action', 'listing:expiring_soon:system')
+          .gte('created_at', weekAgo)
+          .limit(200),
+      )
+      const reminded = new Set(((recent ?? []) as { content_item_id: string | null }[]).map((r) => r.content_item_id))
+      const fresh = soonIds.filter((id) => !reminded.has(id))
+      if (fresh.length > 0) {
+        const { enqueueUser, listingNotifyTarget } = await import('@/lib/notify/queue')
+        const admin = db()
+        for (const id of fresh.slice(0, 50)) {
+          try {
+            const target = await listingNotifyTarget(admin, id)
+            await enqueueUser('listing.update', target.userId, { title: target.title, status: 'expires within 24 hours — renew from your listings page' }, '/account/listings')
+            await admin.from('moderation_log').insert({ action: 'listing:expiring_soon:system', content_item_id: id })
+          } catch { /* best-effort */ }
+        }
+      }
+    }
+  } catch { /* best-effort: never fail the sweep */ }
 }
 
 /* ------------------------------------------------------------------ */

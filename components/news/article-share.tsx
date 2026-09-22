@@ -21,6 +21,12 @@ export function ArticleShare({
     facebookLabel,
     xLabel,
     emailLabel,
+    /**
+     * Phase 4 — Pidgin/Camfranglais share line (Differentiators #8/#9).
+     * When the editor wrote one, WhatsApp + native share lead with it
+     * instead of the formal title.
+     */
+    shareText,
 }: {
     url: string;
     title: string;
@@ -31,10 +37,12 @@ export function ArticleShare({
     facebookLabel: string;
     xLabel: string;
     emailLabel: string;
+    shareText?: string | null;
 }) {
     const [copied, setCopied] = useState(false);
     const encodedUrl = encodeURIComponent(url);
-    const encodedTitle = encodeURIComponent(title);
+    const shareLine = shareText?.trim() || title;
+    const encodedTitle = encodeURIComponent(shareLine);
 
     async function copyLink() {
         try {
@@ -56,7 +64,7 @@ export function ArticleShare({
             try {
                 await (navigator as Navigator & { share: (d: { title: string; text: string; url: string }) => Promise<void> }).share({
                     title,
-                    text: title,
+                    text: shareLine,
                     url,
                 });
                 return;

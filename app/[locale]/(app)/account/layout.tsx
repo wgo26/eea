@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { requireUser } from '@/lib/auth/guards'
 import { AccountTopbar } from '@/components/account/account-topbar'
+import { appMono } from '../fonts'
 
 /**
  * Account AppShell (checklist item 2): topbar + content for the logged-in
@@ -15,7 +16,7 @@ export default async function AccountLayout({ children }: { children: ReactNode 
   await requireUser('/account/dashboard')
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className={`min-h-screen bg-muted/30 ${appMono.variable}`}>
       <AccountTopbar />
       {children}
     </div>

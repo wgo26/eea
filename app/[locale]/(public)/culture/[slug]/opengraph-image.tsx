@@ -3,7 +3,7 @@ import { getCultureBySlug } from '@/lib/queries/culture'
 import { previewImageUrl } from '@/lib/media/attachments'
 import { articleOgImage, OG_WIDTH, OG_HEIGHT } from '@/lib/seo/og-image'
 
-export const alt = 'Culture story'
+export const alt = 'Eagle Eye Africa'
 export const size = { width: OG_WIDTH, height: OG_HEIGHT }
 export const contentType = 'image/png'
 

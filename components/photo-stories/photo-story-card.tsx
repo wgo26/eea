@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Eye, Images, MapPin } from "lucide-react";
 
 import { formatDate, type Dictionary, type Locale } from "@/lib/i18n";
-import { verificationBadgeInfo } from "@/lib/verification";
+import { TrustBadge } from "@/components/system/trust-badge";
 import type { PhotoStoryData } from "@/lib/queries/photo-stories";
 import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 import { cn } from "@/lib/utils";
@@ -26,8 +26,6 @@ export function PhotoStoryCard({
     locale,
     className,
 }: PhotoStoryCardProps) {
-    const badge = verificationBadgeInfo(story.verification ?? null, dict);
-
     return (
         <Link
             href={story.href}
@@ -51,24 +49,21 @@ export function PhotoStoryCard({
                     className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/10"
                     aria-hidden
                 />
-                {badge ? (
-                    <span
-                        className={cn(
-                            "absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-bold shadow-sm",
-                            badge.className,
-                        )}
-                    >
-                        {badge.label}
-                    </span>
-                ) : null}
-                <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur">
+                <TrustBadge
+                    verification={story.verification}
+                    dict={dict}
+                    locale={locale}
+                    link={false}
+                    className="absolute left-2 top-2"
+                />
+                <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-xs font-bold text-white backdrop-blur">
                     <Images className="h-3 w-3" aria-hidden />
                     {story.photos.length} {dict.photoStories.photosLabel}
                 </span>
             </div>
             <div className="flex flex-1 flex-col p-4">
                 {story.category ? (
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-link">
+                    <span className="text-xs font-bold uppercase tracking-widest text-link">
                         {story.category}
                     </span>
                 ) : null}

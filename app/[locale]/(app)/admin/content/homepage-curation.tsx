@@ -378,7 +378,7 @@ function SlotCard({
           <div className="mt-1 flex flex-wrap items-center gap-1">
             <span
               suppressHydrationWarning
-              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${windowChip.cls}`}
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${windowChip.cls}`}
             >
               {windowChip.label}
             </span>
@@ -391,13 +391,13 @@ function SlotCard({
               }}
               disabled={loading}
               title={copy.windowEdit}
-              className="text-[11px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline disabled:opacity-50"
+              className="text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline disabled:opacity-50"
             >
               {copy.windowEdit}
             </button>
           </div>
           {(slot.startsAt || slot.endsAt) && (
-            <div className="mt-1 text-[11px] text-muted-foreground">
+            <div className="mt-1 text-xs text-muted-foreground">
               {slot.startsAt ? formatDate(slot.startsAt, locale) : '…'} → {slot.endsAt ? formatDate(slot.endsAt, locale) : '…'}
             </div>
           )}
@@ -464,7 +464,7 @@ function SlotCard({
             <div className="truncate text-xs font-medium">{slot.title}</div>
             {slot.type && <div className="text-xs text-muted-foreground">{slot.type}</div>}
             {slot.missingLocale && (
-              <div className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+              <div className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
                 {locale === 'fr' ? 'FR manquant — EN affiché' : 'FR missing — showing EN'}
               </div>
             )}
@@ -530,7 +530,7 @@ function SlotCard({
                     <div className="truncate text-xs font-medium">
                       {locale === 'fr' ? (r.titleFr ?? r.titleEn) : (r.titleEn ?? r.titleFr)}
                     </div>
-                    <div className="text-[10px] text-muted-foreground">
+                    <div className="text-xs text-muted-foreground">
                       {r.type} · {r.status}
                     </div>
                   </div>
@@ -543,7 +543,7 @@ function SlotCard({
                       setQuery('')
                       setResults([])
                     }}
-                    className="shrink-0 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                    className="shrink-0 rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
                   >
                     {copy.assign}
                   </button>

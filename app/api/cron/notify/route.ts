@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
-import { bearerMatches } from '@/lib/security/secrets'
+import { requireCronSecret } from '@/lib/security/cron-auth'
 import { processOutbox } from '@/lib/notify/worker'
 
 export const dynamic = 'force-dynamic'
@@ -19,19 +19,10 @@ export const dynamic = 'force-dynamic'
 async function runNotify(request: Request) {
   const correlationId = generateCorrelationId()
   const startedAt = Date.now()
-  const authHeader = request.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-
-  if (!cronSecret) {
-    logger.error('cron/notify', 'CRON_SECRET not configured', { correlationId })
-    if (process.env.NODE_ENV === 'production') {
-      return NextResponse.json({ ok: false, error: 'Notify cron not configured' }, { status: 500 })
-    }
-    logger.warn('cron/notify', 'running without CRON_SECRET (non-production only)', { correlationId })
-  } else if (!bearerMatches(authHeader, cronSecret)) {
-    logger.warn('cron/notify', 'unauthorized invocation', { correlationId })
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  // Phase 0 — single fail-closed guard (lib/security/cron-auth.ts). Unset
+  // secret fails closed (500 prod / 401 dev) unless ALLOW_UNAUTH_CRON=1.
+  const denied = requireCronSecret(request, 'notify', correlationId)
+  if (denied) return denied
 
   try {
     const summary = await processOutbox()

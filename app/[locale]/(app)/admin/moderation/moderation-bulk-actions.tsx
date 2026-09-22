@@ -7,7 +7,7 @@ import { DataTable } from '@/components/admin/data-table'
 import type { Column } from '@/components/admin/data-table'
 import { BulkActionsBar } from '@/components/admin/bulk-actions'
 import { DetailDrawer, DetailButton } from '@/components/admin/detail-drawer'
-import { bulkApproveSubmissions, bulkRejectSubmissions } from '@/lib/admin/actions'
+import { bulkApproveSubmissions, bulkRejectSubmissions, bulkRequestClarification } from '@/lib/admin/actions'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { formatRelative } from '@/lib/admin/format'
 import { localePath } from '@/lib/i18n/urls'
@@ -59,6 +59,7 @@ export function ModerationBulkTable({
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [rejectReason, setRejectReason] = useState('')
+  const [clarifyQuestion, setClarifyQuestion] = useState('')
   const [detailId, setDetailId] = useState<string | null>(null)
 
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id))
@@ -170,6 +171,27 @@ export function ModerationBulkTable({
                   <textarea
                     value={rejectReason}
                     onChange={(e) => setRejectReason(e.target.value)}
+                    rows={2}
+                    className="mt-1 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </label>
+              ),
+            },
+            {
+              label: copy.bulkClarify,
+              action: (keys) => bulkRequestClarification(keys, clarifyQuestion.trim() || copy.clarifyPlaceholder),
+              successToast: copy.bulkClarifiedToast,
+              tone: 'default',
+              confirmTitle: copy.bulkClarifyTitle,
+              confirmBody: copy.bulkClarifyBody,
+              confirmLabel: copy.clarify,
+              cancelLabel: copy.cancel,
+              children: (
+                <label className="mt-3 block text-left">
+                  <span className="text-xs font-medium text-muted-foreground">{copy.clarifyPlaceholder}</span>
+                  <textarea
+                    value={clarifyQuestion}
+                    onChange={(e) => setClarifyQuestion(e.target.value)}
                     rows={2}
                     className="mt-1 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />

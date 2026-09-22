@@ -17,19 +17,27 @@ const inter = localFont({
     display: "swap",
 });
 
-const geistSans = localFont({
-    src: "./fonts/Geist-Variable.woff2",
-    variable: "--font-geist-sans",
-    weight: "100 900",
+/**
+ * Display serif for editorial headlines (Newsreader, "newspaper of record"
+ * feel). Two static latin weights (700 + 800 ≈ 47 KB total) instead of the
+ * 132 KB full variable file — the data-plan budget wins over weight
+ * interpolation. `display: swap` + opt-in `font-display` utility means body
+ * UI text never triggers the download; only pages rendering display
+ * headlines fetch it (cached immutably by next/font's hashed URL).
+ */
+const newsreader = localFont({
+    src: [
+        { path: "./fonts/Newsreader-Bold.woff2", weight: "700" },
+        { path: "./fonts/Newsreader-ExtraBold.woff2", weight: "800" },
+    ],
+    variable: "--font-display",
     display: "swap",
 });
 
-const geistMono = localFont({
-    src: "./fonts/GeistMono-Variable.woff2",
-    variable: "--font-geist-mono",
-    weight: "100 900",
-    display: "swap",
-});
+// Phase 1 font budget: GeistSans was dead code (globals.css only references
+// --font-sans, never --font-geist-sans) and is not loaded. GeistMono is
+// admin/account-only — loaded by appFonts in app/[locale]/(app)/fonts.ts so
+// anonymous public pages never download it.
 
 export const metadata: Metadata = {
     title: {
@@ -91,6 +99,12 @@ type RootLayoutProps = Readonly<{ children: React.ReactNode }>
 
 export default function RootLayout({ children }: RootLayoutProps) {
 
+    // Phase 1 font budget: anonymous public readers get Inter only. The
+    // GeistMono variable is NOT attached here (it was 58 KB of unused font
+    // bytes on every public page — font-mono is only used in admin/account
+    // surfaces, which set the variable via the (app) layout instead).
+    // --font-geist-sans was already dead (only --font-sans is referenced in
+    // globals.css), so the GeistSans download is dropped entirely.
     return (
         <html
             lang="en"
@@ -98,10 +112,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
             className={cn(
                 "h-full",
                 "antialiased",
-                geistSans.variable,
-                geistMono.variable,
                 "font-sans",
-                inter.variable
+                inter.variable,
+                newsreader.variable
             )}
         >
             <body className="flex min-h-full flex-col">

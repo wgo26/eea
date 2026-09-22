@@ -39,7 +39,7 @@ export function AccountTopbarNav({ tabs }: { tabs: Tab[] }) {
             {tab.badge != null && tab.badge > 0 ? (
               <span
                 aria-label={`${tab.badge} unread`}
-                className="inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold tabular-nums text-primary-foreground"
+                className="inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-xs font-bold tabular-nums text-primary-foreground"
               >
                 {tab.badge > 99 ? '99+' : tab.badge}
               </span>

@@ -351,6 +351,37 @@ export async function getListings(options: {
     }
 }
 
+/**
+ * Location filter facets from the shared `locations` table (active only).
+ * Phase 4.1: cached (tag `listings`).
+ */
+const getCachedListingsLocations = unstable_cache(
+    async (): Promise<{ slug: string; name: string }[]> => {
+        const { data, error } = await createAdminClient()
+            .from("locations")
+            .select("slug, name")
+            .eq("is_active", true)
+            .order("name", { ascending: true });
+        if (error) throw new Error(error.message);
+        return (data ?? []).flatMap((row) => {
+            const location = row as { slug: string; name: string | null };
+            return location.name ? [{ slug: location.slug, name: location.name }] : [];
+        });
+    },
+    ["listings-locations"],
+    { tags: [CACHE_TAGS.listings], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getListingsLocations(): Promise<{ slug: string; name: string }[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedListingsLocations();
+    } catch (err) {
+        logCacheFailure("getListingsLocations", err);
+        return [];
+    }
+}
+
 /** One listing by id, for the detail page (null when not found). */
 export async function getListingById(id: string, locale: Locale = "en"): Promise<ListingData | null> {
     if (!hasDatabase()) return null;

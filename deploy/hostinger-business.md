@@ -47,6 +47,8 @@ NEXT_PUBLIC_SITE_URL=https://eagleeyeafrica.org
 NEXT_PUBLIC_SUPABASE_URL=<production Supabase URL>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<production publishable/anon key>
 SUPABASE_SERVICE_ROLE_KEY=<new server-only key>
+TURNSTILE_SECRET_KEY=<production Turnstile secret — bot protection is fail-closed without it>
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=<production Turnstile site key>
 R2_ACCOUNT_ID=<production value>
 R2_ACCESS_KEY_ID=<production value>
 R2_SECRET_ACCESS_KEY=<production value>
@@ -58,10 +60,23 @@ B2_APPLICATION_KEY=<production value>
 B2_BACKUP_BUCKET=<production value>
 SUPABASE_ADMIN_ASSET_BUCKET=admin-asset
 CRON_SECRET=<long random value — guards /api/cron/*, fail-closed>
+READY_PROBE_SECRET=<long random value — unlocks detailed /api/ready; never reuse CRON_SECRET>
+ALLOW_UNAUTH_CRON=<unset in production; =1 only for explicit local drills>
+NODE_ENV=production
+TRUSTED_PROXY_COUNT=1
+APP_VERSION=<git sha or release tag, surfaced on /api/health>
 ```
 
-Optional: `TURNSTILE_SECRET_KEY` (enables Cloudflare Turnstile verification
-when set — feature switch, safe to omit at launch).
+Production secrets checklist (all fail closed — see `lib/security/cron-auth.ts`
+and `app/api/ready/route.ts`):
+
+Launch blockers (public intake silently breaks or opens to bots without them):
+`TURNSTILE_SECRET_KEY` + `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (bot protection is
+fail-closed in production — `verifyTurnstileToken` returns false when the
+secret is unset, so anonymous forms reject until both keys are set).
+
+Optional: `DIGEST_WEBHOOK_URL`, `SMTP_*`, `WHATSAPP_*` (graceful skips with
+honest worker statuses — safe to omit at launch).
 
 ## Domain and HTTPS
 
@@ -133,14 +148,15 @@ repository alone:
 
 ## Scheduled jobs (cron)
 
-`vercel.json` declares **five** jobs, but Vercel crons only fire on Vercel —
-**not** on Hostinger Business Node.js hosting. All five must be scheduled
+`vercel.json` declares **six** jobs, but Vercel crons only fire on Vercel —
+**not** on Hostinger Business Node.js hosting. All six must be scheduled
 externally:
 
 | Endpoint | Schedule (UTC) | Purpose |
 |---|---|---|
 | `POST/GET https://eagleeyeafrica.org/api/cron/storage-backup?batch=100` | 02:00 daily | R2 + Supabase Storage → Backblaze B2 delta backup |
 | `POST/GET https://eagleeyeafrica.org/api/cron/db-maintenance` | 02:30 daily | Rate-limit purge, DB telemetry, schema integrity verification (500 = alert) |
+| `POST/GET https://eagleeyeafrica.org/api/cron/db-dump` | 02:45 daily | `pg_dump` → B2 compressed dump + `db_dumps` row (needs `SUPABASE_DB_URL`) |
 | `POST/GET https://eagleeyeafrica.org/api/cron/ops-digest` | 06:00 daily | Post a queue summary (moderation/legal-inbox/ads/storage) to `DIGEST_WEBHOOK_URL`; 200 `{skipped:true}` when unset |
 | `POST/GET https://eagleeyeafrica.org/api/cron/notify` | `*/15 * * * *` | Drain the notification outbox → in-app / email / WhatsApp |
 | `POST/GET https://eagleeyeafrica.org/api/cron/reminders` | `0 * * * *` hourly | Deliver due event "remind me" rows via the outbox |
@@ -152,7 +168,7 @@ production (500 when `CRON_SECRET` is unset in production).
 Options, in order of preference:
 
 1. **GitHub Actions scheduled workflow — already in this repo:**
-   `.github/workflows/scheduled-jobs.yml` fires **all five** endpoints on the
+    `.github/workflows/scheduled-jobs.yml` fires **all six** endpoints on the
    schedules above once the `CRON_SECRET` repo secret is set, and supports
    manual runs from the Actions tab (`workflow_dispatch`). Zero extra
    infrastructure, auditable runs, and it works even when no one is pushing.
@@ -160,7 +176,7 @@ Options, in order of preference:
    run — raising a GitHub failure email — when no *scheduled* run of the
    workflow has succeeded in the last 3 hours. Because `notify` runs every 15
    minutes, that 3-hour gap means the outbox has stalled.
-2. **External cron service** (e.g. cron-job.org) hitting all five URLs with the
+2. **External cron service** (e.g. cron-job.org) hitting all six URLs with the
    bearer header. Simple, but the secret lives with a third party.
 3. **Upgrade to a VPS** — real crontab/systemd timers, plus full control of
    the runtime. Choose this if the Business plan pre-flight below fails.
@@ -182,7 +198,7 @@ Options, in order of preference:
 
 ## Supabase migrations
 
-Apply all 43 migrations from `supabase/migrations/` in filename order
+Apply all 50 migrations from `supabase/migrations/` in filename order
 (`scripts/verify-migrations.mjs`, wired into `npm run check`, gates the build on
 filename format, duplicate timestamps, and empty files — it reports the count
 but does not enforce a specific number):

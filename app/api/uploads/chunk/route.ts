@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { checkRateLimitForKey, buildRateLimitKey } from '@/lib/security/rate-limit'
+import { checkRateLimitForKey, buildRateLimitKey, resolveClientIpFromRequest } from '@/lib/security/rate-limit'
 import { uploadMedia } from '@/lib/storage/upload'
 import { logger } from '@/lib/observability/logger'
 import { StorageValidationError } from '@/lib/storage/types'
@@ -56,7 +56,8 @@ function chunkRateLimited(ip: string): boolean {
 }
 
 function clientIp(request: Request): string {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  // Phase 0 — trusted-proxy contract; never xff.split(',')[0] (forgeable).
+  return resolveClientIpFromRequest(request);
 }
 
 function bad(message: string, status = 400) {

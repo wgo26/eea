@@ -26,7 +26,7 @@ export function HomeHero({ featured, secondary, dict, locale, submitHref, photoS
     if (featured.length === 0) {
         return (
             <section className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/10 via-background to-muted p-6 sm:p-8 md:p-14">
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-link">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-link">
                     {dict.home.kicker}
                 </p>
                 <h1 className="mt-3 max-w-2xl break-words text-2xl font-extrabold tracking-tight sm:text-3xl md:text-5xl">
@@ -60,7 +60,7 @@ export function HomeHero({ featured, secondary, dict, locale, submitHref, photoS
                 )}
                 <aside className="flex min-w-0 flex-col gap-3">
                     {/* <aside className="flex flex-col gap-3"> */}
-                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
                         {dict.home.kicker}
                     </p>
                     {secondary.length > 0 ? (

@@ -103,9 +103,41 @@ export async function removeOwnListing(contentItemId: string): Promise<Result> {
 }
 
 /**
+ * Owner resubmits a rejected/withdrawn submission (status → pending).
+ * Gives rejected contributors a one-tap "fix and resend" path instead of
+ * starting over — the edit happens by resubmitting the same payload the
+ * editors already annotated. Published/pending rows are out of scope.
+ */
+export async function resubmitOwnSubmission(submissionId: string): Promise<Result> {
+  try {
+    const { user } = await getSessionUser()
+    if (!user) return { ok: false, error: 'Authentication required.' }
+    const supabase = createAdminClient()
+    const { data: sub } = await supabase
+      .from('submissions')
+      .select('id, status, submitted_by, guest_email')
+      .eq('id', submissionId)
+      .maybeSingle()
+    const row = sub as { id: string; status: string; submitted_by: string | null; guest_email: string | null } | null
+    if (!row) return { ok: false, error: 'Submission not found.' }
+    const owns = row.submitted_by === user.id || (row.guest_email != null && row.guest_email === user.email)
+    if (!owns) return { ok: false, error: 'This submission is not yours.' }
+    if (!['rejected', 'withdrawn'].includes(row.status)) {
+      return { ok: false, error: `Only rejected or withdrawn submissions can be resubmitted (this one is ${row.status}).` }
+    }
+    const { error } = await supabase.from('submissions').update({ status: 'pending' }).eq('id', submissionId)
+    if (error) return { ok: false, error: error.message }
+    await supabase.from('moderation_log').insert({ action: 'submission:resubmitted:owner', submission_id: submissionId, actor_id: user.id, from_status: row.status, to_status: 'pending' })
+    revalidatePath('/account/submissions', 'page')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+/**
  * Owner withdraws their own pending/in-review submission (status → withdrawn).
- * Rejected/published rows are out of scope — rejected items can be
- * resubmitted, published items need staff takedown.
+ * Rejected rows resubmit via resubmitOwnSubmission; published items need
+ * staff takedown.
  */
 export async function withdrawOwnSubmission(submissionId: string): Promise<Result> {
   try {

@@ -124,7 +124,7 @@ export default async function ContributorsPage({ params }: { params: Promise<{ l
                                     {c.categories.length > 0 ? (
                                         <div className="mt-3 flex flex-wrap gap-1.5">
                                             {c.categories.slice(0, 3).map((cat) => (
-                                                <Badge key={cat} variant="secondary" className="text-[10px]">
+                                                <Badge key={cat} variant="secondary" className="text-xs">
                                                     {cat}
                                                 </Badge>
                                             ))}

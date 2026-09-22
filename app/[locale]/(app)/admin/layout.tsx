@@ -4,6 +4,7 @@ import { getDashboardStats } from '@/lib/admin/queries'
 import { AdminSidebar } from '@/components/admin/sidebar'
 import { AdminTopbar } from '@/components/admin/topbar'
 import { AdminClientWrapper } from '@/components/admin/admin-client-wrapper'
+import { appMono } from '../fonts'
 
 // Every page under /admin (both locales — this layout lives in the [locale]
 // tree) inherits the staff guard automatically, closing the /en/admin/*
@@ -23,7 +24,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   return (
     <AdminClientWrapper>
-      <div className="flex min-h-screen bg-muted/30">
+      <div className={`flex min-h-screen bg-muted/30 ${appMono.variable}`}>
         <div className="hidden lg:block">
           <div className="sticky top-0 h-screen">
             <AdminSidebar pendingCount={stats.pendingSubmissions} roles={roles} />

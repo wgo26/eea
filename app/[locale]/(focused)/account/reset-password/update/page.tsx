@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { getDictionary } from "@/lib/i18n";
-import { getRequestLocale } from "@/lib/i18n/server";
+import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { UpdatePasswordForm } from "./update-password-form";
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = await getRequestLocale();
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     return {
         title: getDictionary(locale).auth.reset.updateTitle,
         robots: { index: false, follow: false },
@@ -18,9 +18,12 @@ export async function generateMetadata(): Promise<Metadata> {
  * recovery code — unauthenticated visits fall back to the request screen
  * via the account guard-less render (the update call simply fails with a
  * localized error and the reset-request screen is one click away).
+ *
+ * Phase 1: locale comes from params (static-compatible), not headers().
  */
-export default async function UpdatePasswordPage() {
-    const locale = await getRequestLocale();
+export default async function UpdatePasswordPage({ params }: { params: Promise<{ locale: string }> }) {
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
 
     return (

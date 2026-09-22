@@ -66,11 +66,11 @@ export function GalleryGrid({ photos, storyTitle, dict }: GalleryGridProps) {
                             aria-hidden
                         />
                         <span className="absolute right-4 bottom-4 left-4 flex flex-wrap items-center justify-between gap-2 md:right-6 md:bottom-5 md:left-6">
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-[11px] font-bold text-white backdrop-blur">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-xs font-bold text-white backdrop-blur">
                                 <MousePointerClick className="h-3.5 w-3.5" aria-hidden />
                                 {dict.photoStories.scrollStory}
                             </span>
-                            <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[10px] font-bold text-primary-foreground">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground">
                                 <Images className="h-3 w-3" aria-hidden />
                                 {photos.length} {dict.photoStories.photosLabel}
                             </span>
@@ -110,7 +110,7 @@ export function GalleryGrid({ photos, storyTitle, dict }: GalleryGridProps) {
                                     className="absolute inset-0 flex items-end justify-between bg-gradient-to-t from-black/25 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100"
                                     aria-hidden
                                 >
-                                    <span className="rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-bold text-white">
+                                    <span className="rounded-full bg-black/50 px-2 py-0.5 text-xs font-bold text-white">
                                         {galleryIndex + 1} / {photos.length}
                                     </span>
                                     <Expand className="rounded-full bg-black/50 p-1 text-white" />

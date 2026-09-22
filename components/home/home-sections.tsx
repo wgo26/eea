@@ -18,6 +18,11 @@ import { TrendingList } from "@/components/home/trending-list";
  * presentational components. The page wraps each section in its own
  * `<Suspense>` with a shell-matched skeleton, so the hero streams first and
  * rails/ads follow instead of the whole page waiting for the slowest query.
+ *
+ * Phase 1: this module reads NO request-time APIs (no cookies()/headers()),
+ * so the homepage keeps `revalidate = 300`. The personalized "Near You"
+ * rail lives in home-near-you-client.tsx — it reads the place cookie and
+ * fetches its content client-side after the static shell streams.
  */
 
 type SectionProps = { locale: Locale; dict: Dictionary };
@@ -58,6 +63,8 @@ export function GridSkeleton({ cards = 4 }: { cards?: number }) {
 export function AdSkeleton() {
     return <div aria-hidden className="min-h-6" />;
 }
+
+/** "Near You" rail moved to home-near-you-client.tsx (Phase 1 ISR fix). */
 
 /** Hero + explore tiles: the first paint after the shell. */
 export async function HomeHeroSection({ locale, dict }: SectionProps) {

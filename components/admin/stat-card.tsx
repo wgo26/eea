@@ -33,7 +33,7 @@ export function StatCard({ label, value, icon, hint, trend, href, tone = 'defaul
       )}
     >
       <div className="flex items-center justify-between gap-2 min-w-0">
-        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate">{label}</span>
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide truncate">{label}</span>
         {icon && <span className="h-4 w-4 shrink-0 text-muted-foreground">{icon}</span>}
       </div>
       <div className="flex items-baseline gap-2">
@@ -49,7 +49,7 @@ export function StatCard({ label, value, icon, hint, trend, href, tone = 'defaul
           </span>
         )}
       </div>
-      {hint && <span className="text-[11px] leading-tight text-muted-foreground truncate">{hint}</span>}
+      {hint && <span className="text-xs leading-tight text-muted-foreground truncate">{hint}</span>}
     </div>
   )
 

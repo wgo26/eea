@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 import Link from "next/link";
 import { getDictionary, locales, type Locale } from "@/lib/i18n";
 
@@ -30,6 +31,7 @@ export function RouteError({
 }) {
     useEffect(() => {
         console.error(error);
+        Sentry.captureException(error);
     }, [error]);
 
     const locale = localeFromLocation();

@@ -94,7 +94,7 @@ export function SaveButton({
             {notice ? (
                 <span
                     role="status"
-                    className="absolute left-1/2 top-full z-10 mt-1 w-max max-w-52 -translate-x-1/2 rounded-md border border-border bg-popover px-2 py-1 text-[11px] text-popover-foreground shadow-md"
+                    className="absolute left-1/2 top-full z-10 mt-1 w-max max-w-52 -translate-x-1/2 rounded-md border border-border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md"
                 >
                     {notice}
                 </span>

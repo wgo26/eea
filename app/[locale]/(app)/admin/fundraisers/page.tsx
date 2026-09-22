@@ -100,7 +100,7 @@ export default async function Page({
                       <StatusBadge status={f.closedAt ? 'closed' : 'open'} label={localizeStatus(f.closedAt ? 'closed' : 'open', dict.admin.common)} />
                       {f.storyStatus && <StatusBadge status={f.storyStatus} label={localizeStatus(f.storyStatus, dict.admin.common)} />}
                       {f.missingLocale && (
-                        <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                        <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
                           {t.missingTranslation}
                         </span>
                       )}

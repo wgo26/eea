@@ -49,7 +49,9 @@ type Recipient = {
   quietEnd: number | null;
 };
 
-/** Africa/Douala local hour (0–23) for a given instant. Cameroon is UTC+1 with no DST. */
+/** Africa/Douala local hour (0–23) for a given instant. Cameroon is UTC+1 with no DST.
+ * Phase 1 note: 'en-GB' here only selects numeric part formatting — the
+ * return value is a number, never user-visible text, so no locale switch needed. */
 export function doualaHour(at: Date = new Date()): number {
   const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Douala', hour: 'numeric', hour12: false }).formatToParts(at);
   const h = Number(parts.find((p) => p.type === 'hour')?.value ?? '0') % 24;

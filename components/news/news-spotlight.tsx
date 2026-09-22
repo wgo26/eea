@@ -4,8 +4,8 @@ import { ArrowRight, CalendarDays, Clock, Eye, MapPin, UserRound } from "lucide-
 import { Button } from "@/components/ui/button";
 import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { formatDate, timeAgo, type Dictionary, type Locale } from "@/lib/i18n";
-import { verificationBadgeInfo } from "@/lib/verification";
-import { cn } from "@/lib/utils";
+import { TrustBadge } from "@/components/system/trust-badge";
+
 import type { NewsArticle } from "@/lib/queries/news";
 
 type NewsSpotlightProps = {
@@ -24,8 +24,6 @@ type NewsSpotlightProps = {
  */
 export function NewsSpotlight({ featured, nextUp, dict, locale }: NewsSpotlightProps) {
     if (!featured) return null;
-
-    const badge = verificationBadgeInfo(featured.verification ?? null, dict);
 
     return (
         <section aria-label={dict.news.featured}>
@@ -48,32 +46,29 @@ export function NewsSpotlight({ featured, nextUp, dict, locale }: NewsSpotlightP
                         />
                         <span className="absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-2 p-4 md:p-5">
                             {featured.category ? (
-                                <span className="rounded-full bg-primary px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-primary-foreground">
+                                <span className="rounded-full bg-primary px-3 py-1 text-xs font-extrabold uppercase tracking-[0.16em] text-primary-foreground">
                                     {featured.category}
                                 </span>
                             ) : null}
                             {featured.credit ? (
-                                <span className="rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur">
+                                <span className="rounded-full bg-black/55 px-2.5 py-1 text-xs font-bold text-white backdrop-blur">
                                     {dict.home.photographBy} {featured.credit}
                                 </span>
                             ) : null}
                         </span>
-                        {badge ? (
-                            <span
-                                className={cn(
-                                    "absolute left-4 top-4 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm md:left-5 md:top-5",
-                                    badge.className,
-                                )}
-                            >
-                                {badge.label}
-                            </span>
-                        ) : null}
+                        <TrustBadge
+                            verification={featured.verification}
+                            dict={dict}
+                            locale={locale}
+                            link={false}
+                            className="absolute left-4 top-4 md:left-5 md:top-5"
+                        />
                     </div>
                 </Link>
 
                 {/* Editorial column */}
                 <div className="flex flex-col">
-                    <span className="inline-flex w-fit items-center gap-2 rounded-full bg-primary px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.18em] text-primary-foreground">
+                    <span className="inline-flex w-fit items-center gap-2 rounded-full bg-primary px-3 py-1 text-xs font-extrabold uppercase tracking-[0.18em] text-primary-foreground">
                         <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
                         {dict.news.featured}
                     </span>
@@ -130,7 +125,7 @@ export function NewsSpotlight({ featured, nextUp, dict, locale }: NewsSpotlightP
 
                     {nextUp.length > 0 ? (
                         <div className="mt-6 border-t pt-5">
-                            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
                                 {dict.photoStories.nextUp}
                             </p>
                             <ul className="mt-2 space-y-0.5">
@@ -155,7 +150,7 @@ export function NewsSpotlight({ featured, nextUp, dict, locale }: NewsSpotlightP
                                                     {article.title}
                                                 </span>
                                                 {article.publishedAt ? (
-                                                    <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                                                    <span className="mt-0.5 block text-xs text-muted-foreground">
                                                         {timeAgo(article.publishedAt, locale)}
                                                     </span>
                                                 ) : null}

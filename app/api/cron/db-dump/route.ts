@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger, generateCorrelationId } from "@/lib/observability/logger";
-import { bearerMatches } from "@/lib/security/secrets";
+import { requireCronSecret } from "@/lib/security/cron-auth";
 import { storageConfig } from "@/lib/storage/config";
 import { uploadToB2 } from "@/lib/storage/providers/b2";
 import { createHash } from "node:crypto";
@@ -22,24 +22,8 @@ export const dynamic = "force-dynamic";
 async function runDbDump(request: Request) {
   const startedAt = Date.now();
   const correlationId = generateCorrelationId();
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret) {
-    logger.error("cron/db-dump", "CRON_SECRET not configured", { correlationId });
-    if (process.env.NODE_ENV === "production") {
-      return NextResponse.json(
-        { ok: false, error: "DB dump cron not configured" },
-        { status: 500 },
-      );
-    }
-    logger.warn("cron/db-dump", "running without CRON_SECRET (non-production only)", {
-      correlationId,
-    });
-  } else if (!bearerMatches(authHeader, cronSecret)) {
-    logger.warn("cron/db-dump", "unauthorized invocation", { correlationId });
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const denied = requireCronSecret(request, "db-dump", correlationId);
+  if (denied) return denied;
 
   const dbUrl = process.env.SUPABASE_DB_URL;
   if (!dbUrl) {

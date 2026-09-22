@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, MapPin, ShieldCheck } from "lucide-react";
+import { MapPin, ShieldCheck } from "lucide-react";
+import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
+import { personJsonLd, breadcrumbJsonLd, renderJsonLd } from "@/lib/seo/jsonld";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +14,7 @@ import { FollowButton } from "@/components/system/follow-button";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getContributorById } from "@/lib/queries/contributors";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
+import { SITE } from "@/lib/constants";
 
 type Props = { params: Promise<{ id: string; locale: string }> };
 
@@ -25,9 +28,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const { id, locale: rawLocale } = await params;
     const locale = resolveLocale(rawLocale);
     const { profile } = await getContributorById(id, locale);
-    if (!profile) return { title: "Contributor" };
+    if (!profile) return { title: locale === "fr" ? "Contributeur introuvable" : "Contributor not found" };
     return {
-        title: profile.displayName ?? "Contributor",
+        title: profile.displayName ?? (locale === "fr" ? "Contributeur" : "Contributor"),
         description: profile.bio ?? undefined,
         alternates: buildAlternates(locale, `/contributors/${id}`),
     };
@@ -51,15 +54,38 @@ export default async function ContributorProfilePage({ params }: Props) {
     const { profile, content } = await getContributorById(id, locale);
     if (!profile) notFound();
 
+    const profileName = profile.displayName ?? dict.contributors.viewProfile;
+    const profileUrl = `${SITE.url}${localePath(locale, `/contributors/${id}`)}`;
+    // Phase 3 — Person + breadcrumb structured data (rich results).
+    const jsonLd = renderJsonLd([
+        personJsonLd({
+            name: profileName,
+            description: profile.bio,
+            image: profile.avatarUrl,
+            url: profileUrl,
+            homeLocation: profile.locationName,
+        }),
+        breadcrumbJsonLd([
+            { name: dict.contributors.title, url: `${SITE.url}${localePath(locale, "/contributors")}` },
+            { name: profileName, url: profileUrl },
+        ]),
+    ]);
+
     return (
+        <>
+        <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: jsonLd }}
+        />
         <div className="mx-auto w-full max-w-6xl px-4 py-8 md:px-6 lg:px-8">
-            <Link
-                href={localePath(locale, "/contributors")}
-                className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-                <ArrowLeft className="h-4 w-4" aria-hidden />
-                {dict.contributors.back}
-            </Link>
+            <ContentBreadcrumb
+                locale={locale}
+                homeLabel={dict.nav.home}
+                trail={[
+                    { label: dict.contributors.title, path: "/contributors" },
+                    { label: profileName },
+                ]}
+            />
 
             {/* Profile header */}
             <header className="mt-4 flex flex-col gap-5 rounded-3xl border bg-card p-6 sm:flex-row sm:items-center">
@@ -107,13 +133,13 @@ export default async function ContributorProfilePage({ params }: Props) {
                 <div className="flex shrink-0 gap-6 border-t pt-4 text-center sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
                     <div>
                         <p className="text-2xl font-black">{profile.publishedCount}</p>
-                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
                             {dict.contributors.stories}
                         </p>
                     </div>
                     <div>
                         <p className="text-2xl font-black">{profile.photoCount}</p>
-                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
                             {dict.contributors.photographs}
                         </p>
                     </div>
@@ -158,7 +184,7 @@ export default async function ContributorProfilePage({ params }: Props) {
                                         <h3 className="line-clamp-2 text-sm font-bold leading-snug group-hover:underline">
                                             {item.title}
                                         </h3>
-                                        <span className="mt-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                        <span className="mt-1 block text-xs font-bold uppercase tracking-widest text-muted-foreground">
                                             {item.category ?? ""}
                                         </span>
                                     </CardContent>
@@ -176,5 +202,6 @@ export default async function ContributorProfilePage({ params }: Props) {
                 className="mt-12"
             />
         </div>
+        </>
     );
 }

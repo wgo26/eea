@@ -458,7 +458,7 @@ function ApproveDrawer({
                   setFrExcerpt(enExcerpt)
                   setFrBody(enBody)
                 }}
-                className="shrink-0 rounded-md border border-border px-2 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+                className="shrink-0 rounded-md border border-border px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
                 disabled={!enTitle.trim() && !enBody.trim()}
                 title={copy.copyFromEn}
               >

@@ -29,6 +29,7 @@ export function MediaField({
   hint,
   canUpload,
   rows = 3,
+  uploadCopy,
 }: {
   name: string
   kind: MediaFieldKind
@@ -36,6 +37,8 @@ export function MediaField({
   hint?: string
   canUpload: boolean
   rows?: number
+  /** Localized retry strings for failed uploads (defaults are English). */
+  uploadCopy?: { retryFailed?: string; failedCount?: string }
 }) {
   const [value, setValue] = useState('')
   const [newFiles, setNewFiles] = useState<Parameters<typeof MediaUploader>[0]['newPhotos']>([])
@@ -62,8 +65,9 @@ export function MediaField({
           showAltCaption={kind === 'image'}
           acceptedTypes={ACCEPTS[kind]}
           maxSizeBytes={kind === 'video' ? 50 * 1024 * 1024 : kind === 'audio' ? 25 * 1024 * 1024 : kind === 'document' ? 10 * 1024 * 1024 : 15 * 1024 * 1024}
-          copy={
-            kind === 'image'
+          copy={{
+            ...uploadCopy,
+            ...(kind === 'image'
               ? undefined
               : {
                   label: kind === 'video' ? 'Videos' : kind === 'audio' ? 'Audio' : 'Documents',
@@ -74,8 +78,8 @@ export function MediaField({
                         ? 'Upload voice notes or clips (max 25 MB) or paste audio links below.'
                         : 'Upload a PDF (max 10 MB) or paste document links below.',
                   empty: kind === 'video' ? 'No videos yet.' : kind === 'audio' ? 'No audio yet.' : 'No documents yet.',
-                }
-          }
+                }),
+          }}
         />
         <Textarea
           id={name}

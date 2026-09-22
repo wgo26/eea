@@ -28,8 +28,9 @@ export const runtime = 'nodejs'
  * code, a timestamp and a correlation ID — never the check names, the missing
  * environment-variable names, or raw driver error strings, which previously
  * told an anonymous prober exactly which secrets were unset. Callers presenting
- * the probe secret (`READY_PROBE_SECRET`, falling back to `CRON_SECRET`) get
- * full per-check detail so an alert can name the failing dependency.
+ * the dedicated probe secret (`READY_PROBE_SECRET`) get
+ * full per-check detail so an alert can name the failing dependency. Phase 0:
+ * no fallback to CRON_SECRET.
  *
  * ## Cost control
  * Each probe makes four live dependency round-trips, so an anonymous caller
@@ -58,9 +59,10 @@ const PROBE_TTL_MS = 15_000
 let cachedProbe: { completedAt: number; result: ProbeResult } | null = null
 let probeInFlight: Promise<ProbeResult> | null = null
 
-/** Secret that unlocks per-check detail. Never read by the public path. */
+/** Secret that unlocks per-check detail. Phase 0: dedicated secret only —
+ * no fallback to CRON_SECRET (one secret must not unlock jobs + probe). */
 function probeSecret(): string | undefined {
-  return process.env.READY_PROBE_SECRET ?? process.env.CRON_SECRET
+  return process.env.READY_PROBE_SECRET
 }
 
 async function timed<T>(fn: () => Promise<T>): Promise<{ result: T | null; latencyMs: number; error: string | null }> {

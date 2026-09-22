@@ -5,6 +5,7 @@ import { getDictionary, isLocale, locales, resolveLocale } from "@/lib/i18n";
 import { HtmlLang } from "@/components/html-lang";
 import { CookieBanner } from "@/components/system/cookie-banner";
 import { BackToTop } from "@/components/system/back-to-top";
+import { ServiceWorkerRegister } from "@/components/system/sw-register";
 
 type LocaleLayoutProps = {
     children: ReactNode;
@@ -51,6 +52,8 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
                 shell stays request-API-free and ISR becomes possible. */}
             <CookieBanner locale={locale} dict={dict} />
             <BackToTop label={dict.common.backToTop} />
+            {/* Phase 4 — offline PWA: registers /sw.js on load (production only). */}
+            <ServiceWorkerRegister />
         </>
     );
 }

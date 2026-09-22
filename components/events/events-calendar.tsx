@@ -83,7 +83,7 @@ export function EventsCalendar({ events, locale }: { events: EventData[]; locale
             </div>
             <div className="grid grid-cols-7 gap-1" role="grid" aria-label={monthLabel}>
                 {weekdayLabels.map((d) => (
-                    <div key={d} className="pb-1 text-center text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                    <div key={d} className="pb-1 text-center text-xs font-bold uppercase tracking-wide text-muted-foreground">
                         {d}
                     </div>
                 ))}
@@ -108,13 +108,13 @@ export function EventsCalendar({ events, locale }: { events: EventData[]; locale
                                     <Link
                                         key={e.id}
                                         href={e.href}
-                                        className="block truncate rounded bg-primary/10 px-1 py-0.5 text-[11px] font-medium text-primary hover:underline"
+                                        className="block truncate rounded bg-primary/10 px-1 py-0.5 text-xs font-medium text-primary hover:underline"
                                     >
                                         {e.title}
                                     </Link>
                                 ))}
                                 {dayEvents.length > 3 ? (
-                                    <span className="block text-[10px] text-muted-foreground">
+                                    <span className="block text-xs text-muted-foreground">
                                         +{dayEvents.length - 3}
                                     </span>
                                 ) : null}

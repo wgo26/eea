@@ -4,10 +4,10 @@ import { ArrowRight, CalendarDays, Eye, Images, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDate, type Dictionary, type Locale } from "@/lib/i18n";
 import { localePath } from "@/lib/i18n/urls";
-import { verificationBadgeInfo } from "@/lib/verification";
+import { TrustBadge } from "@/components/system/trust-badge";
 import type { PhotoStoryData } from "@/lib/queries/photo-stories";
 import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
-import { cn } from "@/lib/utils";
+
 
 type FeaturedSpotlightProps = {
     featured: PhotoStoryData | null;
@@ -42,7 +42,7 @@ function NextUpItem({ story, rank }: { story: PhotoStoryData; rank: number }) {
                         {story.title}
                     </span>
                     {story.category ? (
-                        <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        <span className="mt-0.5 block text-xs font-bold uppercase tracking-widest text-muted-foreground">
                             {story.category}
                         </span>
                     ) : null}
@@ -65,10 +65,6 @@ export function FeaturedSpotlight({
     dict,
     locale,
 }: FeaturedSpotlightProps) {
-    const badge = featured
-        ? verificationBadgeInfo(featured.verification ?? null, dict)
-        : null;
-
     if (!featured) {
         return (
             <section
@@ -117,36 +113,33 @@ export function FeaturedSpotlight({
                         />
                         <span className="absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-2 p-4 md:p-5">
                             {featured.credit ? (
-                                <span className="rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur">
+                                <span className="rounded-full bg-black/55 px-2.5 py-1 text-xs font-bold text-white backdrop-blur">
                                     {dict.home.photographBy} {featured.credit}
                                 </span>
                             ) : null}
-                            <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[10px] font-bold text-primary-foreground">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground">
                                 <Images className="h-3 w-3" aria-hidden />
                                 {featured.photos.length} {dict.photoStories.photosLabel}
                             </span>
                         </span>
-                        {badge ? (
-                            <span
-                                className={cn(
-                                    "absolute left-4 top-4 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm md:left-5 md:top-5",
-                                    badge.className,
-                                )}
-                            >
-                                {badge.label}
-                            </span>
-                        ) : null}
+                        <TrustBadge
+                            verification={featured.verification}
+                            dict={dict}
+                            locale={locale}
+                            link={false}
+                            className="absolute left-4 top-4 md:left-5 md:top-5"
+                        />
                     </div>
                 </Link>
 
                 {/* Editorial column */}
                 <div className="flex flex-col">
-                    <span className="inline-flex w-fit items-center gap-2 rounded-full bg-primary px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.18em] text-primary-foreground">
+                    <span className="inline-flex w-fit items-center gap-2 rounded-full bg-primary px-3 py-1 text-xs font-extrabold uppercase tracking-[0.18em] text-primary-foreground">
                         <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
                         {dict.photoStories.featured}
                     </span>
                     {featured.category ? (
-                        <span className="mt-4 text-[11px] font-bold uppercase tracking-[0.18em] text-link">
+                        <span className="mt-4 text-xs font-bold uppercase tracking-[0.18em] text-link">
                             {featured.category}
                         </span>
                     ) : null}
@@ -183,7 +176,7 @@ export function FeaturedSpotlight({
 
                     {nextUp.length > 0 ? (
                         <div className="mt-6 border-t pt-5">
-                            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
                                 {dict.photoStories.nextUp}
                             </p>
                             <ul className="mt-2 space-y-0.5">

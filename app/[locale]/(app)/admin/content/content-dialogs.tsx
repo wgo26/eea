@@ -6,6 +6,7 @@ import { createContentItem, deleteContentItem, saveContentItem, getContentItemEd
 import { useContentTranslator, TranslateButtons } from '@/components/admin/translate-buttons'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import { useToast } from '@/components/admin/toast'
+import { PublishReadiness, buildReadinessChecks } from '@/components/admin/publish-readiness'
 import { formatRelative } from '@/lib/admin/format'
 import {
   Dialog,
@@ -25,7 +26,9 @@ type CommonCopy = Dictionary['admin']['common']
 type TypeFilters = Dictionary['admin']['typeFilters']
 type Option = { id: string; name: string; slug?: string }
 
-const CONTENT_TYPES = ['photo_story', 'news', 'listing', 'notice', 'culture'] as const
+// Phase 4 — 'micro_story' is the Eye on the Street one-photo format
+// (Differentiator #8); it shares the news detail template + categories.
+const CONTENT_TYPES = ['photo_story', 'news', 'listing', 'notice', 'culture', 'micro_story'] as const
 
 // Use shared ui constants instead of duplicated string literals
 const inputCls = ui.input
@@ -78,6 +81,10 @@ export function ContentCreateDialog({
   const [slugInput, setSlugInput] = useState('')
   const [tagsInput, setTagsInput] = useState('')
   const [byline, setByline] = useState('')
+  // Phase 4 — WhatsApp share line (one field, written to both locale rows)
+  // + voice register for Eye on the Street / Daily Brief distribution.
+  const [shareText, setShareText] = useState('')
+  const [voiceType, setVoiceType] = useState('')
   const [enSeoDescription, setEnSeoDescription] = useState('')
   const [frSeoDescription, setFrSeoDescription] = useState('')
   const [videosInput, setVideosInput] = useState('')
@@ -163,6 +170,8 @@ export function ContentCreateDialog({
     setSlugInput('')
     setTagsInput('')
     setByline('')
+    setShareText('')
+    setVoiceType('')
     setEnSeoDescription('')
     setFrSeoDescription('')
     setVideosInput('')
@@ -236,8 +245,8 @@ export function ContentCreateDialog({
       authorId: authorId || null,
       photographerCredit: credit.trim() || null,
       translations: [
-        { locale: 'en', title: enTitle, excerpt: enExcerpt, body: enBody, seoDescription: enSeoDescription.trim() || null, byline: byline.trim() || null },
-        { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody, seoDescription: frSeoDescription.trim() || null, byline: byline.trim() || null },
+        { locale: 'en', title: enTitle, excerpt: enExcerpt, body: enBody, seoDescription: enSeoDescription.trim() || null, byline: byline.trim() || null, shareText: shareText.trim().slice(0, 280) || undefined, voiceType: (voiceType || undefined) as 'formal' | 'pidgin' | 'camfranglais' | undefined },
+        { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody, seoDescription: frSeoDescription.trim() || null, byline: byline.trim() || null, shareText: shareText.trim().slice(0, 280) || undefined, voiceType: (voiceType || undefined) as 'formal' | 'pidgin' | 'camfranglais' | undefined },
       ],
       tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
       // assetId/kind/mime passthrough lets syncPhotos link the already-stored
@@ -434,6 +443,19 @@ export function ContentCreateDialog({
                   <input value={byline} onChange={(e) => setByline(e.target.value)} className={inputCls} />
                 </Field>
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label={copy.shareTextLabel} hint={copy.shareTextHint}>
+                    <input value={shareText} onChange={(e) => setShareText(e.target.value)} maxLength={280} className={inputCls} />
+                  </Field>
+                  <Field label={copy.voiceLabel}>
+                    <select value={voiceType} onChange={(e) => setVoiceType(e.target.value)} className={inputCls}>
+                      <option value="">—</option>
+                      <option value="formal">formal</option>
+                      <option value="pidgin">pidgin</option>
+                      <option value="camfranglais">camfranglais</option>
+                    </select>
+                  </Field>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
                   <Field label={copy.enSeoDescription} hint={copy.seoHint}>
                     <textarea value={enSeoDescription} onChange={(e) => setEnSeoDescription(e.target.value)} rows={2} className={inputCls} />
                   </Field>
@@ -487,17 +509,19 @@ export function ContentCreateDialog({
               </div>
             </details>
 
-            {type === 'listing' && (
-              <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
-                <Field label={copy.priceLabel}>
-                  <input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label={copy.currencyLabel}>
-                  <input value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={3} className={inputCls} />
-                </Field>
-                <Field label={copy.sellerName}>
-                  <input value={sellerName} onChange={(e) => setSellerName(e.target.value)} className={inputCls} />
-                </Field>
+             {type === 'listing' && (
+               <details className="rounded-md border border-border bg-muted/30 p-3 open:bg-muted/50" open>
+                 <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">{copy.listingDetails}</summary>
+               <div className="grid gap-3 pt-3 sm:grid-cols-2">
+                 <Field label={copy.priceLabel}>
+                   <input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
+                 </Field>
+                 <Field label={copy.currencyLabel}>
+                   <input value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={3} className={inputCls} />
+                 </Field>
+                 <Field label={copy.sellerName}>
+                   <input value={sellerName} onChange={(e) => setSellerName(e.target.value)} className={inputCls} />
+                 </Field>
                 <Field label={copy.contactPhone}>
                   <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} className={inputCls} />
                 </Field>
@@ -508,10 +532,13 @@ export function ContentCreateDialog({
                   <input value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)} className={inputCls} />
                 </Field>
               </div>
+               </details>
             )}
 
             {type === 'notice' && (
-              <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
+              <details className="rounded-md border border-border bg-muted/30 p-3 open:bg-muted/50" open>
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">{copy.noticeDetails}</summary>
+              <div className="grid gap-3 pt-3 sm:grid-cols-2">
                 <Field label={copy.noticeTypeLabel}>
                   <select value={noticeType} onChange={(e) => setNoticeType(e.target.value)} className={inputCls}>
                     {Object.entries(copy.noticeTypes).map(([value, label]) => (
@@ -532,11 +559,14 @@ export function ContentCreateDialog({
                   <input type="checkbox" checked={isOfficial} onChange={(e) => setIsOfficial(e.target.checked)} />
                   {copy.isOfficial}
                 </label>
-              </div>
+               </div>
+               </details>
             )}
 
             {type === 'culture' && (
-              <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
+              <details className="rounded-md border border-border bg-muted/30 p-3 open:bg-muted/50" open>
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">{copy.eventDetails}</summary>
+              <div className="grid gap-3 pt-3 sm:grid-cols-2">
                 <Field label={copy.eventStartsAt}>
                   <input type="datetime-local" value={eventStartsAt} onChange={(e) => setEventStartsAt(e.target.value)} className={inputCls} />
                 </Field>
@@ -559,6 +589,7 @@ export function ContentCreateDialog({
                   <input value={organizerEmail} onChange={(e) => setOrganizerEmail(e.target.value)} className={inputCls} placeholder="name@example.com" />
                 </Field>
               </div>
+               </details>
             )}
 
             <div className="grid gap-3 rounded-md border border-border bg-background p-3">
@@ -584,17 +615,34 @@ export function ContentCreateDialog({
               <Field label={`${copy.expiresAt} (${copy.optional})`}>
                 <input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} className={inputCls} />
               </Field>
-            </div>
+             </div>
 
-            <DialogFooter>
-              <button type="button" onClick={() => { reset(); setOpen(false) }} className={btnGhost} disabled={loading}>
-                {common.cancel}
-              </button>
-              <button type="submit" className={btnPrimary} disabled={loading || !enTitle.trim()}>
-                {loading ? common.working : publish === 'now' ? copy.createPublish : publish === 'schedule' ? copy.createSchedule : copy.createDraft}
-              </button>
-            </DialogFooter>
-          </form>
+             {(publish === 'now' || publish === 'schedule') && (
+               <PublishReadiness
+                 row={{ id: '', type, status: 'draft', isArchived: false, isFeatured: false, publishedAt: null, scheduledFor: null, expiresAt: null, createdAt: null, updatedAt: null, title: enTitle, excerpt: enExcerpt ?? null, missingLocale: false, locationName: null, categoryName: null, coverUrl: newPhotos.find((p) => p.isCover)?.url ?? null, authorId: null, authorName: null, submittedBy: null, slug: null, verification: null } as ContentRow}
+                 copy={copy}
+                 checks={buildReadinessChecks(
+                   type,
+                   enTitle,
+                   frTitle,
+                   locationId,
+                   categoryId,
+                   Boolean(newPhotos.find((p) => p.isCover)?.url),
+                   frExcerpt ?? '',
+                   copy,
+                 )}
+               />
+             )}
+
+             <DialogFooter>
+               <button type="button" onClick={() => { reset(); setOpen(false) }} className={btnGhost} disabled={loading}>
+                 {common.cancel}
+               </button>
+               <button type="submit" className={btnPrimary} disabled={loading || !enTitle.trim() || (publish === 'now' || publish === 'schedule' ? buildReadinessChecks(type, enTitle, frTitle, locationId, categoryId, Boolean(newPhotos.find((p) => p.isCover)?.url), frExcerpt ?? '', copy).some((c) => !c.passed) : false)}>
+                 {loading ? common.working : publish === 'now' ? copy.createPublish : publish === 'schedule' ? copy.createSchedule : copy.createDraft}
+               </button>
+             </DialogFooter>
+           </form>
         </DialogContent>
       </Dialog>
     </>
@@ -706,6 +754,10 @@ function ContentEditForm({
   const [publishedAtInput, setPublishedAtInput] = useState(data.publishedAt ? data.publishedAt.slice(0, 16) : '')
   const [expiresAtInput, setExpiresAtInput] = useState(data.expiresAt ? data.expiresAt.slice(0, 10) : '')
   const [byline, setByline] = useState(data.byline ?? '')
+  // Phase 4 — share line edits write to both locale rows (undefined = keep
+  // stored when untouched: the drawer tracks dirtiness via value change).
+  const [shareText, setShareText] = useState(data.shareText ?? '')
+  const [voiceType, setVoiceType] = useState(data.voiceType ?? '')
   const [enSeoDescription, setEnSeoDescription] = useState(data.enSeoDescription ?? '')
   const [frSeoDescription, setFrSeoDescription] = useState(data.frSeoDescription ?? '')
   const [tagsInput, setTagsInput] = useState(data.tags.map((t) => t.name).filter(Boolean).join(', '))
@@ -827,9 +879,12 @@ function ContentEditForm({
       authorId: authorId || null,
       photographerCredit: credit.trim() || null,
       // Byline is a single editorial field shared by both locale rows.
+      // Share text + voice likewise fan out to both rows — but only when the
+      // editor touched them (undefined = keep stored, so opening the drawer
+      // never wipes an existing share line).
       translations: [
-        { locale: 'en', title: enTitle, excerpt: enExcerpt, body: enBody, seoDescription: enSeoDescription, byline },
-        { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody, seoDescription: frSeoDescription, byline },
+        { locale: 'en', title: enTitle, excerpt: enExcerpt, body: enBody, seoDescription: enSeoDescription, byline, shareText: shareText !== (data.shareText ?? '') ? (shareText.trim().slice(0, 280) || null) : undefined, voiceType: voiceType !== (data.voiceType ?? '') ? ((voiceType || null) as 'formal' | 'pidgin' | 'camfranglais' | null) : undefined },
+        { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody, seoDescription: frSeoDescription, byline, shareText: shareText !== (data.shareText ?? '') ? (shareText.trim().slice(0, 280) || null) : undefined, voiceType: voiceType !== (data.voiceType ?? '') ? ((voiceType || null) as 'formal' | 'pidgin' | 'camfranglais' | null) : undefined },
       ],
       tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
       photos: newPhotos.map((p) => ({ url: p.url, alt: p.alt, caption: p.caption, credit: p.credit, assetId: p.assetId, kind: p.kind, mimeType: p.mimeType, durationSeconds: p.durationSeconds })),
@@ -918,6 +973,19 @@ function ContentEditForm({
       <Field label={copy.bylineLabel} hint={copy.bylineHint}>
         <input value={byline} onChange={(e) => setByline(e.target.value)} className={inputCls} />
       </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={copy.shareTextLabel} hint={copy.shareTextHint}>
+          <input value={shareText} onChange={(e) => setShareText(e.target.value)} maxLength={280} className={inputCls} />
+        </Field>
+        <Field label={copy.voiceLabel}>
+          <select value={voiceType} onChange={(e) => setVoiceType(e.target.value)} className={inputCls}>
+            <option value="">—</option>
+            <option value="formal">formal</option>
+            <option value="pidgin">pidgin</option>
+            <option value="camfranglais">camfranglais</option>
+          </select>
+        </Field>
+      </div>
       <Field label={copy.authorLabel} hint={copy.authorHint}>
         <div className="relative">
           <div className={inputCls + " flex items-center justify-between gap-2"}>

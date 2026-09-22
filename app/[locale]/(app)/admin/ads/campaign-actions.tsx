@@ -244,7 +244,7 @@ export function CampaignActions({ campaign, copy }: { campaign: AdCampaignRow; c
                     copy={{ label: copy.creativePoster, hint: copy.creativePosterHint }}
                   />
                 ) : null}
-                <p className="text-[11px] text-muted-foreground">{copy.creativeReviewNote}</p>
+                <p className="text-xs text-muted-foreground">{copy.creativeReviewNote}</p>
               </div>
             ) : null}
 
@@ -254,7 +254,7 @@ export function CampaignActions({ campaign, copy }: { campaign: AdCampaignRow; c
                   <span className="text-xs font-medium text-muted-foreground">{copy.creativeHtmlLabel}</span>
                   <textarea value={html} onChange={(e) => setHtml(e.target.value)} rows={5} className={`${ui.input} font-mono`} placeholder="<div>…" />
                 </label>
-                <p className="text-[11px] text-muted-foreground">{copy.creativeHtmlHint}</p>
+                <p className="text-xs text-muted-foreground">{copy.creativeHtmlHint}</p>
                 <div className="grid grid-cols-2 gap-3">
                   <label className="space-y-1">
                     <span className="text-xs font-medium text-muted-foreground">{copy.creativeWidth}</span>

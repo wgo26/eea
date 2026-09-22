@@ -4,6 +4,8 @@ import Link from "next/link";
 import { CalendarDays, MapPin } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
+import { TrustBadge } from "@/components/system/trust-badge";
+import { CardMeta, CardMetaItem, CardTitle } from "@/components/home/card-parts";
 import { SearchSuggest } from "@/components/search/search-suggest";
 import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { formatDate, getDictionary, resolveLocale, type Dictionary, type Locale } from "@/lib/i18n";
@@ -69,26 +71,22 @@ function ResultRow({
                         <span className="w-24 shrink-0 bg-muted sm:w-32" />
                     )}
                     <div className="min-w-0 flex-1 p-3">
-                        <h3 className="line-clamp-2 text-sm font-semibold leading-snug group-hover:underline">
+                        <CardTitle size="sm" className="font-semibold">
                             {item.title}
-                        </h3>
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                        </CardTitle>
+                        <CardMeta className="mt-1.5">
                             <span className="font-medium uppercase tracking-wide text-primary/80">
                                 {typeLabel(item.type, dict)}
                             </span>
+                            {/* Search row: inside the result link, so no nested link. */}
+                            <TrustBadge verification={item.verification} dict={dict} locale={locale} link={false} />
                             {item.location ? (
-                                <span className="inline-flex items-center gap-1">
-                                    <MapPin className="h-3 w-3" aria-hidden />
-                                    {item.location}
-                                </span>
+                                <CardMetaItem icon={MapPin}>{item.location}</CardMetaItem>
                             ) : null}
                             {item.publishedAt ? (
-                                <span className="inline-flex items-center gap-1">
-                                    <CalendarDays className="h-3 w-3" aria-hidden />
-                                    {formatDate(item.publishedAt, locale)}
-                                </span>
+                                <CardMetaItem icon={CalendarDays}>{formatDate(item.publishedAt, locale)}</CardMetaItem>
                             ) : null}
-                        </div>
+                        </CardMeta>
                     </div>
                 </div>
             </Card>

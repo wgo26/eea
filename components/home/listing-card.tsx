@@ -1,9 +1,15 @@
-import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { formatDate, type Dictionary, type Locale } from "@/lib/i18n";
 import type { StoryCardData } from "@/lib/queries/home";
 import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 import { SaveButton } from "@/components/system/save-button";
+import {
+    CardCover,
+    CardMeta,
+    CardMetaItem,
+    CardShell,
+    CardTitle,
+} from "@/components/home/card-parts";
 
 function formatPrice(
   price: number | null | undefined,
@@ -40,17 +46,14 @@ export function ListingCard({
   const price = formatPrice(listing.price, listing.currency, locale, dict.home.free);
   return (
     <div className="relative">
-    <Link
-      href={listing.href}
-      className="group block overflow-hidden rounded-2xl border bg-card transition-shadow hover:shadow-md"
-    >
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
+    <CardShell href={listing.href}>
+      <CardCover aspect="aspect-[4/3]">
         {listing.imageUrl ? (
           <SmartImage
             src={listing.imageUrl}
             alt={listing.title}
             sizes={CARD_SIZES}
-            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            className="object-cover transition-transform duration-300 ease-standard group-hover:scale-[1.03]"
           />
         ) : null}
         {price ? (
@@ -58,22 +61,19 @@ export function ListingCard({
             {price}
           </span>
         ) : null}
-      </div>
+      </CardCover>
       <div className="p-3">
-        <p className="line-clamp-2 text-sm font-semibold leading-snug group-hover:underline">
+        <CardTitle size="sm" className="font-semibold">
           {listing.title}
-        </p>
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+        </CardTitle>
+        <CardMeta className="mt-1.5">
           {listing.location ? (
-            <span className="inline-flex items-center gap-1">
-              <MapPin className="h-3 w-3" aria-hidden />
-              {listing.location}
-            </span>
+            <CardMetaItem icon={MapPin}>{listing.location}</CardMetaItem>
           ) : null}
           {listing.publishedAt ? <span>{formatDate(listing.publishedAt, locale)}</span> : null}
-        </div>
+        </CardMeta>
       </div>
-    </Link>
+    </CardShell>
     {showSave ? (
       <SaveButton
         contentItemId={listing.id}

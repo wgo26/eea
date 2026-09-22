@@ -23,6 +23,8 @@ import {
     getFeaturedCulture,
     getUpcomingEvents,
 } from "@/lib/queries/culture";
+import { FacetFilter, type FilterGroup } from "@/components/shared/facet-filter";
+import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
 
 export async function generateMetadata({
     params,
@@ -120,7 +122,7 @@ export default async function CulturePage({
             <header className="mb-8 overflow-hidden rounded-[28px] border border-border/70 bg-[radial-gradient(circle_at_top_left,_rgba(168,85,247,0.22),transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.18),transparent_30%),linear-gradient(135deg,hsl(var(--background)),hsl(var(--muted)/0.66))] p-6 shadow-sm md:p-8">
                 <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                     <div className="max-w-3xl">
-                        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-500/25 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-700 dark:text-violet-300">
+                        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-500/25 bg-violet-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-violet-700 dark:text-violet-300">
                             <Palette className="h-3.5 w-3.5" aria-hidden />
                             {dict.culture.title}
                         </div>
@@ -147,12 +149,12 @@ export default async function CulturePage({
                 <div className="overflow-hidden rounded-[28px] border border-border/70 bg-card p-4 shadow-sm md:p-5">
                     <div className="mb-4 flex items-center justify-between gap-3">
                         <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                                 {dict.culture.sceneEyebrow}
                             </p>
                             <h2 className="mt-2 text-2xl font-bold tracking-tight">{dict.culture.sceneTitle}</h2>
                         </div>
-                        <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-2.5 py-1 text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
                             <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
                             {dict.culture.sceneActive}
                         </span>
@@ -181,7 +183,7 @@ export default async function CulturePage({
                                 >
                                     <div className="flex flex-col items-center gap-1">
                                         <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 border-background bg-primary shadow-sm" aria-hidden />
-                                        <span className="rounded-full border border-border/70 bg-background/85 px-2 py-1 text-[10px] font-medium text-foreground shadow-sm backdrop-blur-sm">
+                                        <span className="rounded-full border border-border/70 bg-background/85 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm">
                                             {dict.culture[node.dictKey as "music" | "art" | "food" | "film" | "events" | "fashion"]}
                                         </span>
                                     </div>
@@ -207,7 +209,7 @@ export default async function CulturePage({
                                     className="block rounded-2xl border border-border/70 bg-muted/40 p-3 transition-colors hover:border-primary/40 hover:bg-muted/60"
                                 >
                                     {event.eventDate ? (
-                                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+                                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                                             {new Date(event.eventDate).toLocaleDateString(locale)}
                                         </p>
                                     ) : null}
@@ -226,32 +228,25 @@ export default async function CulturePage({
                 </Card>
             </section>
 
-            {/* Sub-section navigation */}
-            <nav
-                aria-label={dict.culture.subSections}
-                className="mb-8 flex flex-wrap items-center gap-2"
-            >
-                {SUB_SECTIONS.map((section) => {
-                    const Icon = section.icon;
-                    const isActive = category === section.slug;
-                    const label = dict.culture[section.dictKey];
-                    return (
-                        <Link
-                            key={section.slug}
-                            href={hrefL({ search, location, category: section.slug })}
-                            aria-current={isActive ? "page" : undefined}
-                            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold transition-all ${
-                                isActive
-                                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                                    : "border-border/70 bg-muted/40 text-muted-foreground hover:border-primary/30 hover:bg-accent"
-                            }`}
-                        >
-                            <Icon className="h-4 w-4" aria-hidden />
-                            {label}
-                        </Link>
-                    );
-                })}
-            </nav>
+            {/* Sub-section navigation — unified FacetFilter */}
+            <FacetFilter
+                locale={locale}
+                labels={{
+                    filterLabel: dict.culture.subSections,
+                }}
+                groups={[
+                    {
+                        key: "category",
+                        label: dict.culture.subSections,
+                        activeKey: category ?? null,
+                        hrefFor: (k) => (k ? hrefL({ search, location, category: k }) : hrefL({ search, location })),
+                        facets: SUB_SECTIONS.map((s) => ({
+                            key: s.slug,
+                            label: dict.culture[s.dictKey as keyof typeof dict.culture],
+                        })),
+                    },
+                ]}
+            />
 
             {/* Featured spotlight */}
             {browseMode && featured ? (
@@ -272,7 +267,7 @@ export default async function CulturePage({
                             ) : null}
                             <span className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" aria-hidden />
                             <span className="absolute inset-x-0 bottom-0 p-6 md:p-8">
-                                <span className="inline-block rounded-full bg-primary px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.18em] text-primary-foreground">
+                                <span className="inline-block rounded-full bg-primary px-3 py-1 text-xs font-extrabold uppercase tracking-[0.18em] text-primary-foreground">
                                     {dict.culture.featured}
                                 </span>
                                 <h2 className="mt-3 text-2xl font-extrabold text-white md:text-4xl">
@@ -299,24 +294,17 @@ export default async function CulturePage({
                         title={isFiltered ? dict.culture.searchLabel : dict.culture.latest}
                         hint={dict.home.sectionHintCulture}
                     />
-                    {articles.length === 0 ? (
-                        <Card>
-                            <CardContent className="flex flex-col items-start gap-3 py-10 text-center sm:items-center">
-                                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                                    <Palette className="h-6 w-6" aria-hidden />
-                                </span>
-                                <p className="max-w-md text-sm text-muted-foreground">
-                                    {isFiltered
-                                        ? dict.culture.empty
-                                        : dict.culture.comingSoon}
-                                </p>
-                                {!isFiltered ? (
-                                    <Button render={<Link href={localePath(locale, "/submit")} />}>
-                                        {dict.culture.submitCtaButton}
-                                    </Button>
-                                ) : null}
-                            </CardContent>
-                        </Card>
+                     {articles.length === 0 ? (
+                        <EmptyStateWithCTA
+                            icon={Palette}
+                            title={dict.culture.searchLabel}
+                            body={isFiltered ? dict.culture.empty : dict.culture.comingSoon}
+                            isFiltered={isFiltered}
+                            ctaLabel={dict.culture.submitCtaButton}
+                            ctaHref={localePath(locale, "/submit")}
+                            clearHref={localePath(locale, "/culture")}
+                            clearLabel={dict.culture.clearFilters}
+                        />
                     ) : (
                         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
                             {articles.map((article) => (
@@ -335,7 +323,7 @@ export default async function CulturePage({
                                             />
                                         ) : null}
                                         {article.category ? (
-                                            <span className="absolute left-2 top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                                            <span className="absolute left-2 top-2 rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">
                                                 {article.category}
                                             </span>
                                         ) : null}
@@ -464,7 +452,7 @@ export default async function CulturePage({
                                                 className="group block rounded-xl p-2 transition-colors hover:bg-muted"
                                             >
                                                 {event.eventDate ? (
-                                                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
+                                                    <span className="text-xs font-bold uppercase tracking-widest text-primary">
                                                         {new Date(event.eventDate).toLocaleDateString(locale)}
                                                     </span>
                                                 ) : null}
@@ -535,7 +523,7 @@ function StatBlock({
                 {icon}
             </div>
             <div className="text-2xl font-black tabular-nums">{value}</div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
+            <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
         </div>
     );
 }

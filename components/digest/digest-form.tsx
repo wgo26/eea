@@ -71,6 +71,13 @@ export function DigestForm({ dict, locale }: { dict: Dictionary; locale: Locale 
             <option value="fr">{t.localeFr}</option>
           </select>
         </div>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" name="diaspora_mode" className="mt-1" />
+          <span>
+            {t.diasporaMode}
+            <span className="block text-xs text-muted-foreground">{t.diasporaHint}</span>
+          </span>
+        </label>
         {errorText ? <p className="text-sm text-destructive">{errorText}</p> : null}
         <input type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
         <TurnstileWidget />

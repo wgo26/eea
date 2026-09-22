@@ -82,7 +82,7 @@ export function MfaSection({ copy, initial }: { copy: SecurityCopy; initial: Mfa
             dangerouslySetInnerHTML={{ __html: enrolling.qrCode }}
           />
           <p className="text-xs text-muted-foreground">
-            {copy.mfaManual}: <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">{enrolling.secret}</code>
+            {copy.mfaManual}: <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{enrolling.secret}</code>
           </p>
           <div className="flex gap-2">
             <input

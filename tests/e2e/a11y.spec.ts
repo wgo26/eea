@@ -18,16 +18,25 @@ const ROUTES = [
   '/en/notices',
   '/en/buy-sell',
   '/en/culture',
+  '/en/culture/events',
   '/en/locations',
   '/en/map',
   '/en/street',
   '/en/search?q=market',
   '/en/submit',
+  // Phase 2: the flows keyboard users struggle with most — focused intake,
+  // auth shell and advertiser entry — were previously unaxe'd.
+  '/en/submit/notice',
+  '/en/submit/confirmation',
+  '/en/account/login',
+  '/en/advertise',
+  '/en/contributors',
   '/en/about',
   '/en/about/verification',
   '/en/digest',
   '/en/offline',
   '/fr/about/verification',
+  '/fr/submit/notice',
 ]
 
 for (const route of ROUTES) {

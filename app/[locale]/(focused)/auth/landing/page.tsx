@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
-import { getDictionary } from "@/lib/i18n";
-import { getRequestLocale } from "@/lib/i18n/server";
+import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { safeNextPath, localePath } from "@/lib/i18n/urls";
 import { requireUser } from "@/lib/auth/guards";
 import { getUserRoles, isStaffRoles } from "@/lib/auth/roles";
 import { AuthLandingClient } from "./auth-landing-client";
 
-type Props = { searchParams: Promise<{ next?: string | string[] }> };
+type Props = {
+    params: Promise<{ locale: string }>;
+    searchParams: Promise<{ next?: string | string[] }>;
+};
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = await getRequestLocale();
+export async function generateMetadata({ params }: { params: Props["params"] }): Promise<Metadata> {
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     return {
         title: getDictionary(locale).auth.landing.welcome,
         robots: { index: false, follow: false },
@@ -23,9 +26,12 @@ export async function generateMetadata(): Promise<Metadata> {
  *   2. the role landing: staff → admin dashboard, everyone else → the
  *      account dashboard. A zero-role authenticated user is a "member"
  *      (documented model) and gets the member dashboard.
+ *
+ * Phase 1: locale comes from params (static-compatible), not headers().
  */
-export default async function Page({ searchParams }: Props) {
-    const locale = await getRequestLocale();
+export default async function Page({ params, searchParams }: Props) {
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const { next: rawNext } = await searchParams;
     const nextParam = Array.isArray(rawNext) ? rawNext[0] : rawNext;
 

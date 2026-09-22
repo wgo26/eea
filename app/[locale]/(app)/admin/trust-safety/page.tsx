@@ -1,19 +1,15 @@
-import { getRequestLocale } from '@/lib/i18n/server'
-import { getDictionary, type Locale } from '@/lib/i18n'
-import { localePath } from '@/lib/i18n/urls'
 import Link from 'next/link'
+import { getRequestLocale } from '@/lib/i18n/server'
+import { getDictionary } from '@/lib/i18n'
+import { localePath } from '@/lib/i18n/urls'
 import { getReports, getCorrections, getTrustSafetyCounts, getTrustSafetyFilteredCounts } from '@/lib/admin/queries'
 import { requireCapability } from '@/lib/auth/guards'
 import { PageHeader } from '@/components/admin/page-header'
 import { Tabs } from '@/components/admin/tabs'
 import { FilterPills, SearchBar } from '@/components/admin/filter-pills'
-import { StatusBadge } from '@/components/admin/status-badge'
-import { localizeStatus, localizeReportType } from '@/lib/admin/labels'
-import { DataTable } from '@/components/admin/data-table'
 import { EmptyState } from '@/components/admin/empty-state'
 import { Pager } from '@/components/admin/pager'
-import { formatRelative } from '@/lib/admin/format'
-import { ReportActions, CorrectionActions } from './trust-safety-actions'
+import { TrustSafetyReportsBulk, TrustSafetyCorrectionsBulk } from './trust-safety-bulk-actions'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -51,7 +47,7 @@ export default async function Page({
   const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1
   const offset = (page - 1) * PAGE_SIZE
 
-    const [reports, corrections, totals, filtered] = await Promise.all([
+  const [reports, corrections, totals, filtered] = await Promise.all([
     getReports({ status: status === 'all' ? 'all' : status, limit: PAGE_SIZE, offset, search, locale }),
     getCorrections({ status: status === 'all' ? 'all' : status, limit: PAGE_SIZE, offset, search, locale }),
     getTrustSafetyCounts(),
@@ -105,121 +101,51 @@ export default async function Page({
         reports.length === 0 ? (
           <EmptyState
             message={status === 'all' ? t.emptyReports : tc.emptyFiltered}
-
+            action={
+              <Link
+                href={localePath(locale, '/admin/moderation')}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                {dict.admin.sidebar.moderation}
+              </Link>
+            }
+            secondaryAction={
+              status !== 'all' || search ? (
+                <Link
+                  href={base}
+                  className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  {tc.clearFilters}
+                </Link>
+              ) : undefined
+            }
           />
         ) : (
           <>
-          <DataTable
-            rows={reports}
-            rowKey={(r) => r.id}
-            columns={[
-              {
-                key: 'type',
-                header: t.colType,
-                render: (r) => (
-                  <div className="space-y-1 min-w-[120px] max-w-[220px]">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {localizeReportType(r.reportType, dict.admin.common)}
-                    </span>
-                    <div className="text-sm truncate">{r.subject ?? t.noContent}</div>
-                  </div>
-                ),
-              },
-              {
-                key: 'content',
-                header: t.colContent,
-                render: (r) => (
-                  <div className="min-w-[140px] max-w-[240px]">
-                    {r.contentItemId ? (
-                      <Link
-                        href={contentHref(locale, r.contentType, r.contentItemId, r.contentSlug)}
-                        className="block truncate text-sm text-primary hover:underline"
-                      >
-                        {r.contentTitle ?? r.contentItemId}
-                      </Link>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">{t.noContent}</span>
-                    )}
-                    {r.missingLocale && (
-                      <div className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                        {t.missingTranslation}
-                      </div>
-                    )}
-                  </div>
-                ),
-              },
-              { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, dict.admin.common)} />, className: 'whitespace-nowrap' },
-              { key: 'received', header: t.colReceived, render: (r) => <time className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(r.createdAt, locale)}</time>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
-              { key: 'actions', header: '', stickyRight: true, render: (r) => <ReportActions report={r} copy={t} common={dict.admin.common} locale={locale} />, className: 'text-right' },
-            ]}
-          />
-          <Pager page={page} pageSize={PAGE_SIZE} total={filtered.reports} hrefFor={pageHref} copy={tc} />
+            <TrustSafetyReportsBulk rows={reports} copy={t} common={tc} locale={locale} />
+            <Pager page={page} pageSize={PAGE_SIZE} total={filtered.reports} hrefFor={pageHref} copy={tc} />
           </>
         )
       ) : corrections.length === 0 ? (
-        <EmptyState message={status === 'all' ? t.emptyCorrections : tc.emptyFiltered} />
+        <EmptyState
+          message={status === 'all' ? t.emptyCorrections : tc.emptyFiltered}
+          secondaryAction={
+            status !== 'all' || search ? (
+              <Link
+                href={base}
+                className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+              >
+                {tc.clearFilters}
+              </Link>
+            ) : undefined
+          }
+        />
       ) : (
         <>
-        <DataTable
-          rows={corrections}
-          rowKey={(r) => r.id}
-          columns={[
-            {
-                key: 'content',
-                header: t.colContent,
-                render: (r) => (
-                  <div className="min-w-[160px] max-w-[280px]">
-                    <Link
-                      href={contentHref(locale, r.contentType, r.contentItemId, r.contentSlug)}
-                      className="block truncate text-sm text-primary hover:underline"
-                    >
-                      {r.contentTitle ?? r.contentItemId}
-                    </Link>
-                    <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2 break-words">{r.correctionText}</p>
-                    {r.missingLocale && (
-                      <div className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                        {t.missingTranslation}
-                      </div>
-                    )}
-                  </div>
-                ),
-              },
-              {
-                key: 'reporter',
-                header: t.reporterLabel,
-                render: (r) => (
-                  <div className="text-xs text-muted-foreground max-w-[160px]">
-                    <div className="truncate">{r.reporterName ?? t.anonymous}</div>
-                    {r.reporterEmail && <div className="truncate">{r.reporterEmail}</div>}
-                  </div>
-                ),
-                headerClassName: 'hidden md:table-cell',
-                className: 'hidden md:table-cell',
-              },
-              { key: 'status', header: t.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, dict.admin.common)} />, className: 'whitespace-nowrap' },
-              { key: 'received', header: t.colReceived, render: (r) => <time className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(r.createdAt, locale)}</time>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
-            { key: 'actions', header: '', stickyRight: true, render: (r) => <CorrectionActions correction={r} copy={t} common={dict.admin.common} />, className: 'text-right' },
-          ]}
-        />
-        <Pager page={page} pageSize={PAGE_SIZE} total={filtered.corrections} hrefFor={pageHref} copy={tc} />
+          <TrustSafetyCorrectionsBulk rows={corrections} copy={t} common={tc} locale={locale} />
+          <Pager page={page} pageSize={PAGE_SIZE} total={filtered.corrections} hrefFor={pageHref} copy={tc} />
         </>
       )}
     </div>
   )
-}
-
-/** Public detail path for reported content, mirroring the moderation screen. */
-function contentHref(locale: Locale, type: string | null, id: string, slug: string | null): string {
-  switch (type) {
-    case 'photo_story':
-      return localePath(locale, `/photo-stories/${slug ?? id}`)
-    case 'culture':
-      return localePath(locale, `/culture/${slug ?? id}`)
-    case 'notice':
-      return localePath(locale, `/notices/${id}`)
-    case 'listing':
-      return localePath(locale, `/buy-sell/${id}`)
-    default:
-      return localePath(locale, `/news/${slug ?? id}`)
-  }
 }

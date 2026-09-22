@@ -5,10 +5,10 @@
 # secrets: CRON_SECRET (Bearer token). Optional repo variable: PRODUCTION_URL
 # (defaults to the production domain below).
 #
-# All FIVE cron endpoints are covered here (the vercel.json entries never fire
+# All SIX cron endpoints are covered here (the vercel.json entries never fire
 # off Vercel):
-#   storage-backup 02:00 · db-maintenance 02:30 · ops-digest 06:00
-#   notify */15 · reminders hourly
+#   storage-backup 02:00 · db-maintenance 02:30 · db-dump 02:45
+#   ops-digest 06:00 · notify */15 · reminders hourly
 # plus an hourly WATCHDOG that fails (→ GitHub failure email) when no run of
 # this workflow has succeeded in the last 3 hours — that is the missed-run
 # alert for the */15 notify worker.
@@ -24,6 +24,7 @@ on:
   schedule:
     - cron: "0 2 * * *"   # 02:00 UTC — storage backup
     - cron: "30 2 * * *"  # 02:30 UTC — db maintenance
+    - cron: "45 2 * * *"  # 02:45 UTC — db dump (pg_dump → B2)
     - cron: "0 6 * * *"   # 06:00 UTC — ops digest
     - cron: "*/15 * * * *"  # every 15 min — notification outbox worker
     - cron: "0 * * * *"   # hourly — event reminders
@@ -38,6 +39,7 @@ on:
         options:
           - storage-backup
           - db-maintenance
+          - db-dump
           - ops-digest
           - notify
           - reminders
@@ -80,6 +82,24 @@ jobs:
         run: |
           set -euo pipefail
           url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/db-maintenance"
+          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "$url")
+          echo "HTTP $code from $url"
+          cat /tmp/out.txt
+          test "$code" = "200"
+
+  db-dump:
+    name: DB dump (pg_dump → B2)
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '45 2 * * *')
+      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'db-dump' || inputs.job == 'both'))
+    steps:
+      - name: Call db-dump endpoint
+        run: |
+          set -euo pipefail
+          url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/db-dump"
           code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             "$url")

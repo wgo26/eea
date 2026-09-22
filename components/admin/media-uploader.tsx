@@ -4,6 +4,8 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/admin/toast'
 import { MediaPicker } from '@/components/admin/media-picker'
+import { uploadResumable } from '@/lib/uploads/resumable'
+import type { StorageDestination } from '@/lib/storage/types'
 
 export type MediaPickerCopy = {
   title: string
@@ -27,17 +29,7 @@ export type UploadedPhoto = {
   caption?: string
   credit?: string
   assetId?: string
-}
-
-type UploadResult = {
-  assetId?: string
-  publicUrl: string | null
-  kind: string
-  mimeType: string
-  fileSizeBytes: number
-  width?: number | null
-  height?: number | null
-  durationSeconds?: number | null
+  isCover?: boolean
 }
 
 export type ExistingPhoto = {
@@ -113,6 +105,8 @@ type MediaUploaderProps = {
     tooLarge?: string
     wrongType?: string
     empty?: string
+    retryFailed?: string
+    failedCount?: string
   }
 }
 
@@ -148,6 +142,52 @@ function probeDuration(file: File): Promise<number | null> {
   })
 }
 
+/**
+ * Phase 3 — single-file upload worker (module-level pure: no hook deps).
+ * Returns successes plus the failed File refs so callers can offer a
+ * per-file retry instead of dropping the batch on a flaky connection.
+ */
+async function uploadFiles(
+  fileArr: File[],
+  opts: {
+    destination: StorageDestination;
+    contentItemId?: string;
+    errorLabel: string;
+    onFileProgress?: (fileName: string, uploadedBytes: number, totalBytes: number) => void;
+  },
+): Promise<{ uploaded: UploadedPhoto[]; failed: { file: File; error: string }[] }> {
+  const uploaded: UploadedPhoto[] = []
+  const failed: { file: File; error: string }[] = []
+  for (const file of fileArr) {
+    // Advisory duration for video/audio (browser metadata probe — the
+    // server has no transcoder, so this fills duration_seconds for
+    // moderation triage). Probe failure is non-fatal.
+    const duration = await probeDuration(file)
+    try {
+      // Resumable chunked upload: a dropped connection resumes mid-file on
+      // retry (server keeps received chunks; the session survives reloads).
+      // Retry needs no uploadId plumbing — the local session is keyed by
+      // name+size+type, so a re-run resumes automatically.
+      const { result } = await uploadResumable(file, {
+        destination: opts.destination,
+        contentItemId: opts.contentItemId,
+        durationSeconds: duration,
+        onProgress: (p) => opts.onFileProgress?.(file.name, p.uploadedBytes, p.totalBytes),
+      })
+      uploaded.push({
+        url: result.url,
+        kind: result.kind,
+        mimeType: result.mimeType,
+        durationSeconds: result.durationSeconds ?? null,
+        assetId: result.assetId,
+      })
+    } catch (err) {
+      failed.push({ file, error: err instanceof Error ? err.message : opts.errorLabel })
+    }
+  }
+  return { uploaded, failed }
+}
+
 const DEFAULT_COPY: Required<NonNullable<MediaUploaderProps['copy']>> = {  label: 'Media',
   hint: 'Upload images or videos (audio also supported) or paste URLs. The first item is the cover.',
   drop: 'Drop files here',
@@ -168,6 +208,10 @@ const DEFAULT_COPY: Required<NonNullable<MediaUploaderProps['copy']>> = {  label
   dragReorder: 'Drag to reorder',
   uploading: 'Uploading…',
   uploadError: 'Upload failed',
+  // Phase 3 — per-file retry: flaky connections fail single files, and the
+  // failed File refs are kept so only those are re-sent (text never at risk).
+  retryFailed: 'Retry failed uploads',
+  failedCount: '{count} upload(s) failed — your text is safe.',
   tooLarge: 'File too large (max 50 MB video, 25 MB audio, 15 MB images)',
   wrongType: 'Unsupported file type (images, video MP4/MOV/WebM, audio MP3/M4A/WAV/OGG)',
   empty: 'No media yet. Upload or paste URLs above.',
@@ -192,6 +236,10 @@ export function MediaUploader({
   const c = useMemo(() => ({ ...DEFAULT_COPY, ...copy }), [copy])
   const { addToast } = useToast()
   const [uploading, setUploading] = useState(false)
+  // Phase 3 — failed File refs kept for per-file retry (flaky connections).
+  const [failed, setFailed] = useState<{ file: File; error: string }[]>([])
+  // Live progress for the file currently streaming (resumable chunks).
+  const [progress, setProgress] = useState<{ fileName: string; percent: number } | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [urlInput, setUrlInput] = useState('')
@@ -236,46 +284,55 @@ export function MediaUploader({
     }
 
     setUploading(true)
-    const uploaded: UploadedPhoto[] = []
-
-    for (const file of fileArr) {
-      try {
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('destination', destination)
-        if (contentItemId) formData.append('contentItemId', contentItemId)
-        // Advisory duration for video/audio (browser metadata probe — the
-        // server has no transcoder, so this fills duration_seconds for
-        // moderation triage). Probe failure is non-fatal.
-        const duration = await probeDuration(file)
-        if (duration != null) formData.append('durationSeconds', String(duration))
-
-        const res = await fetch('/api/uploads', { method: 'POST', body: formData })
-        const data: UploadResult & { error?: string } = await res.json()
-
-        if (!res.ok) {
-          addToast(data.error || c.uploadError, 'error')
-          continue
-        }
-
-        uploaded.push({
-          url: data.publicUrl ?? '',
-          kind: data.kind,
-          mimeType: data.mimeType,
-          durationSeconds: data.durationSeconds ?? null,
-          assetId: data.assetId,
-        })
-      } catch {
-        addToast(c.uploadError, 'error')
-      }
-    }
-
+    const onFileProgress = (fileName: string, uploadedBytes: number, totalBytes: number) =>
+      setProgress({
+        fileName,
+        percent: totalBytes > 0 ? Math.min(100, Math.round((uploadedBytes / totalBytes) * 100)) : 0,
+      })
+    const { uploaded, failed } = await uploadFiles(fileArr, {
+      destination,
+      contentItemId,
+      errorLabel: c.uploadError,
+      onFileProgress,
+    })
     if (uploaded.length > 0) {
       updateNewPhotos([...newPhotos, ...uploaded])
       addToast(`${uploaded.length} file${uploaded.length > 1 ? 's' : ''} uploaded.`, 'success')
     }
+    if (failed.length > 0) {
+      setFailed((prev) => [...prev, ...failed])
+      addToast(c.failedCount.replace('{count}', String(failed.length)), 'error')
+    }
+    setProgress(null)
     setUploading(false)
   }, [addToast, c, maxSizeBytes, destination, contentItemId, newPhotos, updateNewPhotos, acceptedTypes])
+
+  // Phase 3 — per-file retry: re-sends only the failed File refs, so a
+  // flaky connection costs one tap instead of a lost submission.
+  const retryFailed = useCallback(async () => {
+    if (failed.length === 0 || uploading) return
+    setUploading(true)
+    const { uploaded, failed: stillFailed } = await uploadFiles(
+      failed.map((f) => f.file),
+      {
+        destination,
+        contentItemId,
+        errorLabel: c.uploadError,
+        onFileProgress: (fileName, uploadedBytes, totalBytes) =>
+          setProgress({
+            fileName,
+            percent: totalBytes > 0 ? Math.min(100, Math.round((uploadedBytes / totalBytes) * 100)) : 0,
+          }),
+      },
+    )
+    if (uploaded.length > 0) {
+      updateNewPhotos([...newPhotos, ...uploaded])
+      addToast(`${uploaded.length} file${uploaded.length > 1 ? 's' : ''} uploaded.`, 'success')
+    }
+    setFailed(stillFailed)
+    setProgress(null)
+    setUploading(false)
+  }, [addToast, c, destination, contentItemId, failed, uploading, newPhotos, updateNewPhotos])
 
   const handleUrlAdd = useCallback(() => {
     const url = urlInput.trim()
@@ -365,6 +422,45 @@ export function MediaUploader({
           }}
         />
       </div>
+
+      {/* Phase 3 — live progress for the streaming file (resumable chunks). */}
+      {uploading && progress ? (
+        <div className="space-y-1" role="status" aria-live="polite">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span className="max-w-[70%] truncate font-medium text-foreground">
+              {progress.fileName}
+            </span>
+            <span className="tabular-nums">{progress.percent}%</span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-[width]"
+              style={{ width: `${progress.percent}%` }}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {/* Phase 3 — per-file retry for failed uploads (flaky connections). */}
+      {failed.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2">
+          <p className="text-xs font-medium text-foreground">
+            {c.failedCount.replace('{count}', String(failed.length))}
+            <span className="mt-0.5 block font-normal text-muted-foreground">
+              {failed.map((f) => f.file.name).filter(Boolean).slice(0, 3).join(', ')}
+              {failed.length > 3 ? '…' : ''}
+            </span>
+          </p>
+          <button
+            type="button"
+            onClick={retryFailed}
+            disabled={uploading}
+            className="inline-flex h-8 shrink-0 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {uploading ? c.uploading : c.retryFailed}
+          </button>
+        </div>
+      )}
 
       {/* URL paste fallback */}
       {allowUrlPaste && (
@@ -478,7 +574,7 @@ export function MediaUploader({
                     </div>
                     <div className="flex items-center gap-1 p-1.5">
                       {cover ? (
-                        <span className="rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground">
+                        <span className="rounded bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
                           {c.cover}
                         </span>
                       ) : (
@@ -489,7 +585,7 @@ export function MediaUploader({
                             if (isExisting) setCoverExisting((photo as ExistingPhoto).id)
                             else setCoverNew(idx - keepIds.length)
                           }}
-                          className="rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white hover:bg-black/80"
+                          className="rounded bg-black/60 px-1.5 py-0.5 text-xs font-medium text-white hover:bg-black/80"
                         >
                           {c.setCover}
                         </button>
@@ -513,7 +609,7 @@ export function MediaUploader({
                     {photo.kind === 'video' || /\.mp4|\.mov|\.webm|\.m4v(\?|#|$)/i.test(photo.url) ? (
                       <video src={photo.url} preload="metadata" muted playsInline className="h-12 w-12 rounded object-cover" />
                     ) : photo.kind === 'audio' || /\.(mp3|m4a|wav|ogg|oga|opus|weba)(\?|#|$)/i.test(photo.url) ? (
-                      <span className="flex h-12 w-12 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground">Audio</span>
+                      <span className="flex h-12 w-12 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground">Audio</span>
                     ) : (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img src={photo.url} alt="" className="h-12 w-12 rounded object-cover" />

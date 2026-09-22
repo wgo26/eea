@@ -45,6 +45,19 @@ export async function processDueReminders(limit = 100): Promise<ReminderSummary>
   }[]
   let enqueued = 0
   let skipped = 0
+  // Phase 1: recipient locales for date formatting (prefs.locale wins,
+  // consistent with the notify worker fallback).
+  const userIds = [...new Set(rows.map((r) => r.user_id))]
+  const localeByUser = new Map<string, string>()
+  if (userIds.length > 0) {
+    const { data: prefs } = await supabase
+      .from('notification_prefs')
+      .select('user_id, locale')
+      .in('user_id', userIds)
+    for (const p of (prefs ?? []) as { user_id: string; locale: string | null }[]) {
+      if (p.locale === 'fr' || p.locale === 'en') localeByUser.set(p.user_id, p.locale)
+    }
+  }
   for (const row of rows) {
     const translations = row.content?.translations ?? []
     const title = translations[0]?.title ?? row.content?.slug ?? 'An event you follow'
@@ -64,9 +77,10 @@ export async function processDueReminders(limit = 100): Promise<ReminderSummary>
           : row.content.type === 'listing'
             ? `/buy-sell/${row.content.id}`
             : `/news/${row.content.slug ?? row.content.id}`
+    const locale = localeByUser.get(row.user_id) === 'fr' ? 'fr-FR' : 'en-GB'
     const when = startsAt
-      ? startsAt.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-      : 'soon'
+      ? startsAt.toLocaleString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+      : locale === 'fr-FR' ? 'bientôt' : 'soon'
     await enqueueNotification({
       event: 'event.reminder',
       audience: 'user',

@@ -46,7 +46,7 @@ export function ReaderToolbar({
         <>
             <div
                 role="toolbar"
-                aria-label={title}
+                aria-label={dict.readerToolbar.label}
                 className="no-print mt-4 flex flex-wrap items-center gap-2 border-y border-border/70 py-3"
             >
                 <TextSizeControl copy={dict.textSize} />

@@ -77,7 +77,7 @@ export function ListingsBulkTable({
           <div className="text-sm font-medium truncate">{r.title ?? copy.untitled}</div>
           {r.sellerName && <div className="text-xs text-muted-foreground truncate">{r.sellerName}</div>}
           {r.missingLocale && (
-            <span className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+            <span className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
               {copy.missingTranslation}
             </span>
           )}
@@ -103,7 +103,7 @@ export function ListingsBulkTable({
       render: (r) => (
         <div className="space-y-1">
           <StatusBadge status={r.listingStatus} label={localizeStatus(r.listingStatus, commonLabels)} />
-          <div className="text-[10px] text-muted-foreground whitespace-nowrap">{localizeStatus(r.contentStatus, commonLabels)}</div>
+          <div className="text-xs text-muted-foreground whitespace-nowrap">{localizeStatus(r.contentStatus, commonLabels)}</div>
         </div>
       ),
       className: 'whitespace-nowrap',

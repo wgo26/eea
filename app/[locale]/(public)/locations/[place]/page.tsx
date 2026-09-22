@@ -17,9 +17,25 @@ import { localizeType } from "@/lib/admin/labels";
 import { formatDate, getDictionary, resolveLocale } from "@/lib/i18n";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
+import { SITE } from "@/lib/constants";
+import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
+import { breadcrumbJsonLd, placeJsonLd, renderJsonLd } from "@/lib/seo/jsonld";
 import { getLocationBySlug, getLocationContent, getLocationSlugRedirect } from "@/lib/queries/locations";
+import { getPhotoPairsForPlace } from "@/lib/queries/photo-pairs";
+import { LocationHubMap, type MappedContent } from "@/components/locations/location-map";
+import { FollowTopicButton } from "@/components/system/follow-topic-button";
+import { ThenNowSlider } from "@/components/locations/then-now-slider";
 import Image from "next/image";
 import type { Metadata } from "next";
+
+/**
+ * Phase 1 — ISR. Locale comes from params (no headers()/cookies() read) and
+ * the location/content/photo-pair reads are cached under
+ * CACHE_TAGS.locations, so hub pages prerender and revalidate on the
+ * 5-minute window. The literal is required by the static-analyzability rule
+ * for segment config.
+ */
+export const revalidate = 300;
 
 export async function generateMetadata({
     params,
@@ -60,7 +76,47 @@ export default async function Page({
         notFound();
     }
 
-    const content = await getLocationContent(place, locale);
+    const [content, photoPairs] = await Promise.all([
+        getLocationContent(place, locale),
+        getPhotoPairsForPlace(place, locale, 4),
+    ]);
+
+    // Phase 4.1 — clustered pins for this hub: stories inherit the hub's
+    // coordinates with a tiny deterministic jitter so same-place pins
+    // spiderfy instead of stacking exactly.
+    const hubLat = location.latitude != null ? Number(location.latitude) : null;
+    const hubLng = location.longitude != null ? Number(location.longitude) : null;
+    const hubContent: MappedContent[] =
+        hubLat == null || hubLng == null
+            ? []
+            : content.slice(0, 30).map((item, i) => {
+                  const angle = (i * 2.399963) % (Math.PI * 2); // golden angle
+                  const radius = 0.008 * Math.sqrt(i + 1);
+                  return {
+                      id: item.id,
+                      type: item.type,
+                      title: item.title,
+                      slug: item.id,
+                      latitude: hubLat + Math.sin(angle) * radius,
+                      longitude: hubLng + Math.cos(angle) * radius,
+                      href: item.href,
+                      imageUrl: item.imageUrl,
+                      publishedAt: item.publishedAt,
+                      category: item.category,
+                  };
+              });
+
+    // Phase 4 — Community Memory (Differentiator #10): year-by-year archive
+    // driven by published_at, newest year first.
+    const byYear = new Map<number, typeof content>();
+    for (const item of content) {
+        if (!item.publishedAt) continue;
+        const year = new Date(item.publishedAt).getFullYear();
+        if (!Number.isFinite(year)) continue;
+        byYear.set(year, [...(byYear.get(year) ?? []), item]);
+    }
+    const years = [...byYear.entries()].sort((a, b) => b[0] - a[0]);
+
     const grouped = {
         news: [],
         photo_story: [],
@@ -75,6 +131,20 @@ export default async function Page({
         grouped[item.type] = bucket;
     }
 
+    // Phase 3 — Place + breadcrumb structured data (rich results).
+    const hubUrl = `${SITE.url}${localePath(locale, `/locations/${location.slug}`)}`;
+    const jsonLd = renderJsonLd([
+        placeJsonLd({
+            name: location.name,
+            url: hubUrl,
+            parentName: location.parentName,
+        }),
+        breadcrumbJsonLd([
+            { name: dict.nav.locations, url: `${SITE.url}${localePath(locale, "/locations")}` },
+            { name: location.name, url: hubUrl },
+        ]),
+    ]);
+
     const totalCoverage = content.length;
     const topTypes = Object.entries(grouped)
         .filter(([, items]) => items.length > 0)
@@ -85,7 +155,20 @@ export default async function Page({
     const recentCoverage = content.slice(0, 4);
 
     return (
+        <>
+        <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: jsonLd }}
+        />
         <div className="mx-auto w-full max-w-7xl space-y-8 px-4 py-8 md:px-6 lg:px-8">
+            <ContentBreadcrumb
+                locale={locale}
+                homeLabel={dict.nav.home}
+                trail={[
+                    { label: dict.nav.locations, path: "/locations" },
+                    { label: location.name },
+                ]}
+            />
             <header className="overflow-hidden rounded-[28px] border border-border/70 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.20),transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(34,197,94,0.18),transparent_35%),linear-gradient(135deg,hsl(var(--background)),hsl(var(--muted)/0.55))] p-6 shadow-sm md:p-8">
                 <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                     <div className="max-w-3xl">
@@ -93,7 +176,7 @@ export default async function Page({
                             <Compass className="h-3.5 w-3.5" aria-hidden />
                             Community hub
                         </div>
-                        <h1 className="text-3xl font-black tracking-tight md:text-5xl">
+                        <h1 className="font-display text-3xl font-black tracking-tight md:text-5xl">
                             {location.name}
                         </h1>
                         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
@@ -108,6 +191,10 @@ export default async function Page({
                                 </span>
                             ) : null}
                         </div>
+                        {/* Phase 3 — place follow (content_follows). */}
+                        <div className="mt-4">
+                            <FollowTopicButton kind="place" id={location.id} name={location.name} copy={dict.follow} />
+                        </div>
                     </div>
 
                     <div className="grid w-full max-w-md gap-3 sm:grid-cols-2 lg:w-auto">
@@ -116,6 +203,22 @@ export default async function Page({
                     </div>
                 </div>
             </header>
+
+            {hubLat != null && hubLng != null ? (
+                <section aria-label={dict.locations.onTheMapTitle}>
+                    <LocationHubMap
+                        hub={{
+                            slug: location.slug,
+                            name: location.name,
+                            latitude: hubLat,
+                            longitude: hubLng,
+                            href: localePath(locale, `/locations/${location.slug}`),
+                        }}
+                        content={hubContent}
+                        copy={dict.map}
+                    />
+                </section>
+            ) : null}
 
             {totalCoverage === 0 ? (
                 <EmptyState
@@ -210,11 +313,11 @@ export default async function Page({
                                 className="group rounded-2xl border border-border/70 bg-muted/30 p-4 transition-colors hover:border-primary/40 hover:bg-muted/50"
                             >
                                 <div className="mb-3 flex items-center justify-between gap-3">
-                                    <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                                    <span className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                                         {localizeType(item.type, dict.admin.common)}
                                     </span>
                                     {item.publishedAt ? (
-                                        <span className="text-[10px] font-medium text-primary">
+                                        <span className="text-xs font-medium text-primary">
                                             {formatDate(item.publishedAt, locale)}
                                         </span>
                                     ) : null}
@@ -223,6 +326,72 @@ export default async function Page({
                                     {item.title}
                                 </p>
                             </Link>
+                        ))}
+                    </div>
+                </section>
+            ) : null}
+
+            {photoPairs.length > 0 ? (
+                <section className="rounded-[28px] border border-border/70 bg-card p-5 shadow-sm md:p-6">
+                    <div className="mb-5">
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                            {dict.locations.thenNowTitle}
+                        </p>
+                        <h2 className="mt-2 text-2xl font-bold tracking-tight">{dict.locations.thenNowTitle}</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">{dict.locations.thenNowHint}</p>
+                    </div>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                        {photoPairs.map((pair) => (
+                            <ThenNowSlider
+                                key={pair.id}
+                                pair={pair}
+                                thenLabel={dict.locations.thenLabel}
+                                nowLabel={dict.locations.nowLabel}
+                            />
+                        ))}
+                    </div>
+                </section>
+            ) : null}
+
+            {years.length > 0 ? (
+                <section className="rounded-[28px] border border-border/70 bg-card p-5 shadow-sm md:p-6">
+                    <div className="mb-5">
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                            {dict.locations.memoryTitle}
+                        </p>
+                        <h2 className="mt-2 text-2xl font-bold tracking-tight">{dict.locations.memoryTitle}</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">{dict.locations.memoryHint}</p>
+                    </div>
+                    <div className="space-y-6">
+                        {years.map(([year, items]) => (
+                            <div key={year}>
+                                <div className="mb-3 flex items-center gap-3">
+                                    <h3 className="text-xl font-extrabold tabular-nums">{year}</h3>
+                                    <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
+                                        {items.length}
+                                    </span>
+                                    <span className="h-px flex-1 bg-border" aria-hidden />
+                                </div>
+                                <ul className="grid gap-2 md:grid-cols-2">
+                                    {items.slice(0, 8).map((item) => (
+                                        <li key={item.id}>
+                                            <Link
+                                                href={item.href}
+                                                className="group flex items-baseline justify-between gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-muted/60"
+                                            >
+                                                <span className="min-w-0 truncate text-sm font-medium group-hover:text-primary">
+                                                    {item.title}
+                                                </span>
+                                                {item.publishedAt ? (
+                                                    <span className="shrink-0 text-xs text-muted-foreground">
+                                                        {formatDate(item.publishedAt, locale)}
+                                                    </span>
+                                                ) : null}
+                                            </Link>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
                         ))}
                     </div>
                 </section>
@@ -265,7 +434,7 @@ export default async function Page({
                                             )}
                                         </div>
                                         <div className="space-y-3 p-4">
-                                            <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                                            <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                                                 {item.category ? <span>{item.category}</span> : null}
                                                 {item.publishedAt ? (
                                                     <>
@@ -291,6 +460,7 @@ export default async function Page({
                 </>
             )}
         </div>
+        </>
     );
 }
 
@@ -309,7 +479,7 @@ function StatBlock({
                 {icon}
             </div>
             <div className="text-2xl font-black tabular-nums">{value}</div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
+            <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
         </div>
     );
 }

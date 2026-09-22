@@ -125,7 +125,7 @@ export function SearchSuggest({
             </form>
             {showDropdown ? (
                 <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-border bg-popover shadow-lg">
-                    <p className="border-b border-border px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    <p className="border-b border-border px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         {dict.search.suggestionsLabel}
                     </p>
                     <ul role="listbox">

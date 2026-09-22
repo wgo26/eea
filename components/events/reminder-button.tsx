@@ -123,7 +123,7 @@ export function ReminderButton({
                 )}
             </span>
             {notice ? (
-                <span role="status" className="mt-1 text-[11px] text-muted-foreground">
+                <span role="status" className="mt-1 text-xs text-muted-foreground">
                     {notice}
                 </span>
             ) : null}

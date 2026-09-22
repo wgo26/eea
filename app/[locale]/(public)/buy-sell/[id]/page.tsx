@@ -10,10 +10,13 @@ import {
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
 import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
+import { RecordRecentView } from "@/components/system/record-recent-view";
+import { PrintHeader } from "@/components/system/print-header";
 import { StoryCard } from "@/components/home/story-card";
 import { SmartImage } from "@/components/media/smart-image";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { RevealContact } from "@/components/buy-sell/reveal-contact";
+import { PriceWatchButton } from "@/components/buy-sell/price-watch-button";
 import { Badge } from "@/components/ui/badge";
 import { ArticleActionRow } from "@/components/system/article-actions";
 import { RatingWidget } from "@/components/system/rating-widget";
@@ -27,6 +30,7 @@ import {
     type ListingData,
 } from "@/lib/queries/buy-sell";
 import { getAdForSlot } from "@/lib/queries/ads";
+import { breadcrumbJsonLd, productJsonLd, renderJsonLd } from "@/lib/seo/jsonld";
 
 type ListingPageProps = { params: Promise<{ locale: string; id: string }> };
 
@@ -45,7 +49,7 @@ export async function generateMetadata({
     const { id, locale: raw } = await params;
     const locale = resolveLocale(raw);
     const listing = await getListingDetail(id, locale);
-    if (!listing) return { title: "Listing not found" };
+    if (!listing) return { title: locale === "fr" ? "Annonce introuvable" : "Listing not found" };
     return {
         title: listing.title,
         description: listing.excerpt ?? undefined,
@@ -92,13 +96,52 @@ export default async function ListingPage({ params }: ListingPageProps) {
     const photos = listing.photos ?? [];
     const [cover, ...rest] = photos;
     const isSold = listing.listingStatus === "sold";
+    // Phase 3 — Product+Offer + breadcrumb structured data (rich results).
+    const jsonLd = renderJsonLd([
+        productJsonLd({
+            name: listing.title,
+            description: listing.excerpt ?? listing.body?.replace(/<[^>]*>/g, " ").slice(0, 300) ?? null,
+            images: photos.map((p) => p.url),
+            url: shareUrl,
+            price: listing.price,
+            currency: listing.currency,
+            isSold,
+            sellerName: listing.sellerName,
+        }),
+        breadcrumbJsonLd([
+            { name: dict.nav.buySell, url: `${SITE.url}${localePath(locale, "/buy-sell")}` },
+            { name: listing.title, url: shareUrl },
+        ]),
+    ]);
 
     return (
+        <>
+        {/* Phase 3 — device-local reading history. */}
+        <RecordRecentView
+            view={{
+                id: listing.id,
+                href: localePath(locale, `/buy-sell/${listing.id}`),
+                title: listing.title,
+                imageUrl: cover?.url ?? null,
+            }}
+        />
+        <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: jsonLd }}
+        />
         <div className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
             <ContentBreadcrumb
                 locale={locale}
                 homeLabel={dict.nav.home}
                 trail={[{ label: dict.nav.buySell, path: "/buy-sell" }, { label: listing.title }]}
+            />
+
+            {/* Phase 3 — print attribution header (paper only). */}
+            <PrintHeader
+                title={listing.title}
+                dateLine={listing.publishedAt ? formatDate(listing.publishedAt, locale) : null}
+                url={shareUrl}
+                extra={listing.price != null ? formatPrice(listing.price, listing.currency, locale) : null}
             />
 
             <div className="mt-6 grid gap-8 lg:grid-cols-2">
@@ -142,7 +185,7 @@ export default async function ListingPage({ params }: ListingPageProps) {
                             <Badge variant="secondary">{dict.buySell.statusActive}</Badge>
                         )}
                     </div>
-                    <h1 className="mt-3 text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">
+                    <h1 className="font-display mt-3 text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">
                         {listing.title}
                     </h1>
                     <p className="mt-3 text-3xl font-black text-primary">
@@ -242,6 +285,26 @@ export default async function ListingPage({ params }: ListingPageProps) {
                         />
                         <RatingWidget contentItemId={listing.id} copy={dict.ratings} />
                     </div>
+                    {/* Phase 3 — price-drop watch + reply expectation */}
+                    {!isSold ? (
+                        <div className="mt-4 space-y-1.5">
+                            <PriceWatchButton
+                                listingId={listing.id}
+                                labels={{
+                                    watch: dict.buySell.watchPrice,
+                                    watching: dict.buySell.watchingPrice,
+                                    watchers: dict.buySell.priceWatchers,
+                                    signIn: dict.buySell.priceWatchSignIn,
+                                    rateLimited: dict.buySell.priceWatchRateLimited,
+                                    unavailable: dict.buySell.priceWatchUnavailable,
+                                    loading: dict.buySell.contactLoading,
+                                }}
+                            />
+                            <p className="text-center text-xs text-muted-foreground">
+                                {dict.buySell.replyExpectation}
+                            </p>
+                        </div>
+                    ) : null}
                 </section>
             </div>
 
@@ -281,5 +344,6 @@ export default async function ListingPage({ params }: ListingPageProps) {
                 className="mt-12"
             />
         </div>
+        </>
     );
 }

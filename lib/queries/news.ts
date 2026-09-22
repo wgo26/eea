@@ -26,6 +26,13 @@ export const NEWS_PAGE_SIZE = 12;
 export type NewsArticle = StoryCardData & {
     slug: string;
     body?: string | null;
+    /**
+     * Phase 4 — Pidgin/Camfranglais share line for WhatsApp-first
+     * distribution (Differentiators #8/#9), plus its voice register.
+     * Null when the editor left the formal title as the share text.
+     */
+    shareText?: string | null;
+    voiceType?: string | null;
     authorName?: string | null;
     authorId?: string | null;
     /** Human byline from the translation row (imported posts without a profile author). */
@@ -46,6 +53,7 @@ export type NewsArticle = StoryCardData & {
 type RawStoryRow = {
     id: string;
     slug: string | null;
+    type: string | null;
     verification: string | null;
     published_at: string | null;
     view_count: number | null;
@@ -64,7 +72,7 @@ type RawStoryRow = {
         | { tags: { slug: string | null; tag_translations: { locale: string; name: string }[] } }[]
         | null;
     translations?:
-        | { locale: string; title: string | null; excerpt: string | null; body: string | null; byline: string | null }[]
+        | { locale: string; title: string | null; excerpt: string | null; body: string | null; byline: string | null; share_text?: string | null; voice_type?: string | null }[]
         | null;
     media?:
         | { public_url: string | null; alt_text: string | null; photographer_credit: string | null; caption: string | null; is_cover: boolean | null; kind: string | null; mime_type: string | null }[]
@@ -73,7 +81,7 @@ type RawStoryRow = {
     category_id?: string | null;
 };
 
-const STORY_SELECT = `id, slug, verification, published_at, view_count, category_id,
+const STORY_SELECT = `id, slug, type, verification, published_at, view_count, category_id,
     location:locations(name, slug),
     category:categories(category_translations(locale, name), slug),
     translations:content_translations(locale, title, excerpt, body, byline),
@@ -165,16 +173,27 @@ function sanitizePhrase(input: string): string {
         .slice(0, 80);
 }
 
-/** Base builder for every public news query (published, unarchived). */
-function publishedNews(selectQuery = STORY_SELECT, countExact = false) {
+/**
+ * Base builder for every public news query (published, unarchived).
+ *
+ * Phase 4 — Eye on the Street micro-stories (`micro_story`) share the news
+ * detail template (one-photo variant), so detail reads accept both types
+ * while the news landing/rails keep passing the default `["news"]`.
+ */
+function publishedNews(selectQuery = STORY_SELECT, countExact = false, types: string[] = ["news"]) {
     const supabase = createAdminClient();
-    return supabase
+    let query = supabase
         .from("content_items")
         .select(selectQuery, countExact ? { count: "exact" } : undefined)
-        .eq("type", "news")
         .eq("status", "published")
         .eq("is_archived", false)
         .not("published_at", "is", null);
+    if (types.length === 1) {
+        query = query.eq("type", types[0] as "photo_story" | "news" | "notice" | "culture" | "listing" | "fundraiser" | "micro_story" | "timeline");
+    } else {
+        query = query.in("type", types);
+    }
+    return query;
 }
 
 /** Maps one raw row to the shared card shape (+ author/location extras); null without a title. */
@@ -192,10 +211,12 @@ function toCard(row: RawStoryRow, locale: Locale): NewsArticle | null {
     return {
         id: row.id,
         slug: row.slug ?? row.id,
-        type: "news",
+        type: row.type ?? "news",
         href: `/news/${row.slug ?? row.id}`,
         title: translation.title,
         excerpt: translation.excerpt ?? null,
+        shareText: translation.share_text?.trim() || null,
+        voiceType: translation.voice_type ?? null,
         imageUrl: coverUrl,
         location: location?.name ?? null,
         category: category
@@ -703,14 +724,62 @@ export async function getNewsArticles(options: {
  * article pages; a published/unpublished article is invalidated via
  * revalidateTag('news', 'max') from the admin actions.
  */
+/**
+ * Best-effort WhatsApp share line (Phase 4 share_text/voice_type columns may
+ * lag behind deploys on DBs that haven't applied the differentiators
+ * migration — a missing column resolves to "no share text", never a 404).
+ */
+async function getArticleShareText(
+    contentItemId: string,
+    locale: Locale,
+): Promise<{ shareText: string | null; voiceType: string | null }> {
+    const fallback = { shareText: null, voiceType: null };
+    if (!hasDatabase()) return fallback;
+    try {
+        const { data, error } = await createAdminClient()
+            .from("content_translations")
+            .select("locale, share_text, voice_type")
+            .eq("content_item_id", contentItemId)
+            .limit(2);
+        if (error || !data) return fallback;
+        const rows = data as { locale: string; share_text: string | null; voice_type: string | null }[];
+        const pick =
+            rows.find((r) => r.locale === locale) ??
+            rows.find((r) => r.locale === "en") ??
+            rows[0];
+        if (!pick) return fallback;
+        return { shareText: pick.share_text?.trim() || null, voiceType: pick.voice_type ?? null };
+    } catch {
+        return fallback;
+    }
+}
+
 const getCachedNewsBySlug = unstable_cache(
     async (slug: string, locale: Locale): Promise<NewsArticle | null> => {
-        const { data, error } = await publishedNews()
-            .eq("slug", slug)
-            .limit(1);
-        if (error) throw new Error(error.message);
-        const row = asOne((data ?? []) as unknown as RawStoryRow[]);
-        return row ? toCard(row, locale) : null;
+        // The micro_story enum value may not exist yet on DBs behind the
+        // differentiators migration — retry as plain news so the archive
+        // never 404s during the deploy window.
+        const attempts: string[][] = [["news", "micro_story"], ["news"]];
+        let lastError: unknown = null;
+        for (const types of attempts) {
+            try {
+                const { data, error } = await publishedNews(STORY_SELECT, false, types)
+                    .eq("slug", slug)
+                    .limit(1);
+                if (error) throw new Error(error.message);
+                const row = asOne((data ?? []) as unknown as RawStoryRow[]);
+                const card = row ? toCard(row, locale) : null;
+                if (card) {
+                    const share = await getArticleShareText(card.id, locale);
+                    card.shareText = share.shareText;
+                    card.voiceType = share.voiceType;
+                }
+                return card;
+            } catch (err) {
+                lastError = err;
+            }
+        }
+        throw lastError instanceof Error ? lastError : new Error(String(lastError));
     },
     ["news-by-slug"],
     { tags: [CACHE_TAGS.news], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
@@ -828,6 +897,39 @@ export async function getRelatedNews(
         return await getCachedRelatedNews(articleId, categoryId, locale, limit);
     } catch (err) {
         logCacheFailure("getRelatedNews", err);
+        return [];
+    }
+}
+
+/**
+ * Phase 4 — Eye on the Street index (Differentiator #8): the newest
+ * published micro-stories, newest first. Cached under the `news` tag so
+ * editor publishes invalidate it via the standard news revalidation.
+ */
+const getCachedMicroStories = unstable_cache(
+    async (locale: Locale, limit: number): Promise<NewsArticle[]> => {
+        const { data, error } = await publishedNews(STORY_SELECT, false, ["micro_story"])
+            .order("published_at", { ascending: false, nullsFirst: false })
+            .limit(limit);
+        if (error) throw new Error(error.message);
+        return ((data ?? []) as unknown as RawStoryRow[]).flatMap((row) => {
+            const card = toCard(row, locale);
+            return card ? [card] : [];
+        });
+    },
+    ["news-micro-stories"],
+    { tags: [CACHE_TAGS.news], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getMicroStories(
+    locale: Locale = "en",
+    limit = 12,
+): Promise<NewsArticle[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedMicroStories(locale, limit);
+    } catch (err) {
+        logCacheFailure("getMicroStories", err);
         return [];
     }
 }

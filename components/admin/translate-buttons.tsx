@@ -83,7 +83,7 @@ export function TranslateButtons({
 }) {
   const busy = translating !== null
   const btn =
-    'shrink-0 rounded-md border border-border px-2 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50'
+    'shrink-0 rounded-md border border-border px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50'
   return (
     <div className="flex flex-wrap items-center gap-2">
       <button type="button" onClick={() => translate('en-fr')} disabled={busy} className={btn}>

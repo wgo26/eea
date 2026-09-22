@@ -39,7 +39,7 @@ export function FilterPills({
             {pill.label}
             {pill.count != null && (
               <span className={cn(
-                'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold',
+                'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-xs font-semibold',
                 isActive ? 'bg-primary-foreground/20' : 'bg-muted',
               )}>
                 {pill.count}

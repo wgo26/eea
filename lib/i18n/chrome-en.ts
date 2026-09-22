@@ -23,6 +23,12 @@ export const chromeEn = {
     advertise: 'Advertise',
     locations: 'Locations',
     contributors: 'Contributors',
+    main: 'Main',
+    digest: 'Daily digest',
+    filters: 'Filters',
+  },
+  readerToolbar: {
+    label: 'Reader tools',
   },
   header: {
     searchPlaceholder: 'Search stories, notices, listings…',
@@ -49,7 +55,7 @@ export const chromeEn = {
     body: "The page you're looking for doesn't exist or may have moved.",
     home: 'Back to homepage',
   },
-  footer: {
+footer: {
     aboutTitle: 'Eagle Eye Africa',
     aboutText:
       'A community-first African media platform combining local journalism, visual storytelling, community information, classifieds and culture — a digital record of what is happening around people.',
@@ -63,6 +69,18 @@ export const chromeEn = {
     copyright: 'Copyright & Takedown',
     contact: 'Contact',
     rights: 'All rights reserved.',
-    madeIn: 'Made for Africa’s communities.',
+    madeIn: 'Made for Africa\'s communities.',
+  },
+  locations: {
+    yourPlace: 'Your place',
+    selectPlace: 'Select your place',
+    searchPlaces: 'Search places…',
+    noPlacesFound: 'No places found.',
+    clearPlace: 'Clear place',
+    nearYou: 'Near you',
+    nearYouTitle: 'Latest from {place}',
+    placePromptTitle: 'Where is home?',
+    placePromptBody: 'Pick your place once — the homepage will lead with news, notices, listings and events near you.',
+    placePromptLater: 'Not now',
   },
 }

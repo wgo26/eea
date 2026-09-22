@@ -36,7 +36,7 @@ export function LiveRail({ stories, dict, locale }: LiveRailProps) {
     return (
         <section aria-label={dict.news.liveUpdates} className="rounded-3xl border bg-card p-4 md:p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
-                <p className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.18em]">
+                <p className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.18em]">
                     <Radio className="h-4 w-4 text-rose-600 dark:text-rose-400" aria-hidden />
                     {dict.news.liveUpdates}
                 </p>
@@ -67,7 +67,7 @@ export function LiveRail({ stories, dict, locale }: LiveRailProps) {
                                 <span className="flex min-w-0 flex-1 flex-col">
                                     <span
                                         className={cn(
-                                            "mb-1 inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider",
+                                            "mb-1 inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-extrabold uppercase tracking-wider",
                                             breaking
                                                 ? "bg-rose-600 text-white"
                                                 : "bg-amber-400/90 text-neutral-900",
@@ -85,7 +85,7 @@ export function LiveRail({ stories, dict, locale }: LiveRailProps) {
                                     <span className="line-clamp-2 text-sm font-semibold leading-snug group-hover:underline">
                                         {story.title}
                                     </span>
-                                    <span className="mt-auto pt-1 text-[11px] text-muted-foreground">
+                                    <span className="mt-auto pt-1 text-xs text-muted-foreground">
                                         {story.publishedAt
                                             ? `${dict.news.updated} ${timeAgo(story.publishedAt, locale)}`
                                             : null}

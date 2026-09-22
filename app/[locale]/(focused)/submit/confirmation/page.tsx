@@ -5,6 +5,7 @@ import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { localePath } from "@/lib/i18n/urls";
+import { ModerationTimeline } from "@/components/submit/moderation-timeline";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
     const { locale: rawLocale } = await params;
@@ -28,6 +29,23 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground md:text-base">
                 {dict.submit.successBody}
             </p>
+            {/* Phase 3 — moderation timeline: what happens next, no polling needed. */}
+            <div className="mt-8 rounded-2xl border border-border/70 bg-card p-4 text-left shadow-card md:p-5">
+                <p className="mb-3 text-sm font-bold">{dict.submit.timelineTrackTitle}</p>
+                <ModerationTimeline
+                    stage="submitted"
+                    copy={{
+                        submitted: dict.submit.timelineSubmitted,
+                        submittedBody: dict.submit.timelineSubmittedBody,
+                        inReview: dict.submit.timelineInReview,
+                        inReviewBody: dict.submit.timelineInReviewBody,
+                        published: dict.submit.timelinePublished,
+                        publishedBody: dict.submit.timelinePublishedBody,
+                        rejected: dict.submit.timelineRejected,
+                        rejectedBody: dict.submit.timelineRejectedBody,
+                    }}
+                />
+            </div>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
                 <Button render={<Link href={localePath(locale, "/submit")} />} variant="outline">
                     {dict.submit.title}

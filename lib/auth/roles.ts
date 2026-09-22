@@ -27,7 +27,8 @@ export type ContentType =
   | "news"
   | "listing"
   | "notice"
-  | "culture";
+  | "culture"
+  | "micro_story";
 
 export type VerificationStatus =
   | "verified"
@@ -41,6 +42,8 @@ export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
   listing: "Buy & Sell",
   notice: "Notices",
   culture: "Culture & Entertainment",
+  // Phase 4 — Eye on the Street micro-format (Differentiator #8).
+  micro_story: "Eye on the Street",
 };
 
 export function isRole(value: string | undefined | null): value is AppRole {

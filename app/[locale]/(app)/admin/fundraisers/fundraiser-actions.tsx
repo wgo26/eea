@@ -231,7 +231,7 @@ export function FundraiserCard({ row, copy, common, canDelete }: { row: Editable
         <div className="space-y-2 rounded-md border border-border/60 bg-muted/30 p-2.5">
           <p className="text-xs font-medium text-muted-foreground">{copy.editStoryTitle}</p>
           {row.missingLocale && (
-            <p className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+            <p className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
               {copy.missingTranslation}
             </p>
           )}
@@ -249,7 +249,7 @@ export function FundraiserCard({ row, copy, common, canDelete }: { row: Editable
                   onClick={() => { setTitleFr(titleEn); setDescFr(descEn) }}
                   disabled={!titleEn.trim() && !descEn.trim()}
                   title={copy.copyFromEn}
-                  className="shrink-0 rounded-md border border-border px-2 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+                  className="shrink-0 rounded-md border border-border px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
                 >
                   {copy.copyFromEn}
                 </button>

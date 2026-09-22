@@ -9,6 +9,7 @@ import type { Column } from '@/components/admin/data-table'
 import type { ContentRow } from '@/lib/admin/queries'
 import { updateContentStatus, archiveContent, unarchiveContent, deleteContentItem } from '@/lib/admin/actions'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
+import { StatusToggleCell } from '@/components/admin/status-toggle-cell'
 import { localizeStatus, localizeType } from '@/lib/admin/labels'
 import { formatDate, formatRelative } from '@/lib/admin/format'
 import { localePath } from '@/lib/i18n/urls'
@@ -292,7 +293,7 @@ export function ContentTable({
             {r.excerpt && <div className="text-xs text-muted-foreground truncate">{r.excerpt}</div>}
             {r.missingLocale && (
               <span
-                className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
                 title={copy.bilingualHint}
               >
                 {locale === 'fr' ? 'FR manquant — EN affiché' : 'FR missing — showing EN'}
@@ -307,6 +308,7 @@ export function ContentTable({
     { key: 'published', header: copy.colPublished, render: (r) => <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(r.publishedAt, locale)}</span>, headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell whitespace-nowrap' },
     { key: 'author', header: copy.colAuthor, render: (r) => <span className="text-xs text-muted-foreground truncate block max-w-[140px]">{r.authorName ?? '—'}</span>, headerClassName: 'hidden xl:table-cell', className: 'hidden xl:table-cell' },
     { key: 'updated', header: copy.colUpdated, render: (r) => <time className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(r.updatedAt ?? r.createdAt)}</time>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
+    { key: 'status_toggle', header: copy.colStatus, render: (r) => <StatusToggleCell row={r} copy={copy} typeLabels={typeLabels} />, className: 'whitespace-nowrap' },
     {
       key: 'actions',
       header: '',

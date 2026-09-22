@@ -6,7 +6,7 @@ import { AlertTriangle, MapPin, Search } from "lucide-react";
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
 import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
-import { VerificationBadge } from "@/components/verification-badge";
+import { TrustBadge } from "@/components/system/trust-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,9 +24,12 @@ import {
     getNotices,
     getFeaturedNotice,
     getNoticeTypes,
-    getNoticesLocations,
     NOTICE_TYPE_LABELS,
 } from "@/lib/queries/notices";
+import { getLocationsByContentType } from "@/lib/queries/locations";
+import { FacetFilter, type FilterGroup } from "@/components/shared/facet-filter";
+import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
+import { LocationProvider } from "@/hooks/use-location-context";
 
 export async function generateMetadata({
     params,
@@ -111,7 +114,7 @@ export default async function NoticesPage({
         getFeaturedNotice(locale),
         getNotices({ search, noticeType, location, status, locale, page }),
         getNoticeTypes(),
-        getNoticesLocations(),
+         getLocationsByContentType("notice"),
     ]);
     const { notices: allNotices, pageCount } = list;
     const notices =
@@ -127,6 +130,15 @@ export default async function NoticesPage({
                 .sort((a, b) => a - b);
 
     return (
+        <LocationProvider
+            locations={locations}
+            activeLocation={location ?? null}
+            locationHref={(slug) =>
+                slug
+                    ? hrefL({ search, type: noticeType, status, location: slug })
+                    : hrefL({ search, type: noticeType, status })
+            }
+        >
         <div className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
             <header className="mb-8">
                 <div className="flex items-center gap-3">
@@ -171,11 +183,13 @@ export default async function NoticesPage({
                                                 {NOTICE_TYPE_LABELS[featured.noticeType] ?? featured.noticeType}
                                             </Badge>
                                         ) : null}
-                                        {featured.isOfficial ? (
-                                            <VerificationBadge status="official_source" />
-                                        ) : featured.verification ? (
-                                            <VerificationBadge status={featured.verification as "verified" | "community_submission" | "official_source" | "developing"} />
-                                        ) : null}
+                                        {/* Featured card: inside the card link, so no nested link. */}
+                                        <TrustBadge
+                                            verification={featured.isOfficial ? "official_source" : featured.verification}
+                                            dict={dict}
+                                            locale={locale}
+                                            link={false}
+                                        />
                                     </div>
                                     <h2 className="text-xl font-extrabold leading-snug group-hover:underline md:text-2xl">
                                         {featured.title}
@@ -206,56 +220,61 @@ export default async function NoticesPage({
                 </section>
             ) : null}
 
+            {/* Notice type filter */}
             {types.length > 0 ? (
+                <FacetFilter
+                    locale={locale}
+                    labels={{
+                        filterLabel: dict.notices.noticeTypes,
+                    }}
+                    groups={[
+                        {
+                            key: "type",
+                            label: dict.notices.noticeTypes,
+                            activeKey: noticeType ?? null,
+                            allLabel: dict.notices.allTypes,
+                            hrefFor: (k) =>
+                                k ? hrefL({ search, location, status, type: k }) : hrefL({ search, location, status }),
+                            facets: types.map((f) => ({
+                                key: f.type,
+                                label: f.label,
+                                count: f.total,
+                            })),
+                        },
+                        {
+                            key: "status",
+                            label: dict.notices.board,
+                            activeKey: status === "active" ? null : status,
+                            hrefFor: (k) =>
+                                k ? hrefL({ search, type: noticeType, location, status: k }) : hrefL({ search, type: noticeType, location, status: "active" }),
+                            facets: statuses.map((s) => ({
+                                key: s.value,
+                                label: s.label,
+                                count: s.value === "all" ? undefined : undefined,
+                            })),
+                        },
+                    ]}
+                />
+            ) : (
                 <nav
-                    aria-label={dict.notices.noticeTypes}
+                    aria-label={dict.notices.board}
                     className="mb-8 flex flex-wrap items-center gap-1.5"
                 >
-                    <Link
-                        href={hrefL({ search, location, status })}
-                        aria-current={!noticeType ? "page" : undefined}
-                        className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${!noticeType
+                    {statuses.map((s) => (
+                        <Link
+                            key={s.value}
+                            href={hrefL({ search, type: noticeType, location, status: s.value })}
+                            aria-current={status === s.value ? "page" : undefined}
+                            className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${status === s.value
                                 ? "bg-primary text-primary-foreground"
                                 : "bg-muted text-muted-foreground hover:bg-accent"
                             }`}
-                    >
-                        {dict.notices.allTypes}
-                    </Link>
-                    {types.map((facet) => (
-                        <Link
-                            key={facet.type}
-                            href={hrefL({ search, location, status, type: facet.type })}
-                            aria-current={noticeType === facet.type ? "page" : undefined}
-                            className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${noticeType === facet.type
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-muted text-muted-foreground hover:bg-accent"
-                                }`}
                         >
-                            {facet.label}
-                            <span className="ml-1.5 tabular-nums opacity-70">{facet.total}</span>
+                            {s.label}
                         </Link>
                     ))}
                 </nav>
-            ) : null}
-
-            <nav
-                aria-label={dict.notices.board}
-                className="mb-8 flex flex-wrap items-center gap-1.5"
-            >
-                {statuses.map((s) => (
-                    <Link
-                        key={s.value}
-                        href={hrefL({ search, type: noticeType, location, status: s.value })}
-                        aria-current={status === s.value ? "page" : undefined}
-                        className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${status === s.value
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted text-muted-foreground hover:bg-accent"
-                            }`}
-                    >
-                        {s.label}
-                    </Link>
-                ))}
-            </nav>
+            )}
 
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div>
@@ -265,24 +284,17 @@ export default async function NoticesPage({
                         }
                         hint={dict.home.sectionHintNotices}
                     />
-                    {notices.length === 0 ? (
-                        <Card>
-                            <CardContent className="flex flex-col items-start gap-3 py-10 text-center sm:items-center">
-                                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                                    <AlertTriangle className="h-6 w-6" aria-hidden />
-                                </span>
-                                <p className="max-w-md text-sm text-muted-foreground">
-                                    {isFiltered
-                                        ? dict.notices.empty
-                                        : dict.notices.comingSoon}
-                                </p>
-                                {!isFiltered ? (
-                                    <Button render={<Link href={localePath(locale, "/submit")} />}>
-                                        {dict.notices.submitCtaButton}
-                                    </Button>
-                                ) : null}
-                            </CardContent>
-                        </Card>
+                     {notices.length === 0 ? (
+                        <EmptyStateWithCTA
+                            icon={AlertTriangle}
+                            title={dict.notices.searchLabel}
+                            body={isFiltered ? dict.notices.empty : dict.notices.comingSoon}
+                            isFiltered={isFiltered}
+                            ctaLabel={dict.notices.submitCtaButton}
+                            ctaHref={localePath(locale, "/submit")}
+                            clearHref={localePath(locale, "/notices")}
+                            clearLabel={dict.notices.clearFilters}
+                        />
                     ) : (
                         <div className="space-y-4">
                             {notices.map((notice) => (
@@ -302,15 +314,16 @@ export default async function NoticesPage({
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex flex-wrap items-center gap-2 mb-1">
                                                     {notice.noticeType ? (
-                                                        <Badge variant="secondary" className="text-[10px]">
+                                                        <Badge variant="secondary" className="text-xs">
                                                             {NOTICE_TYPE_LABELS[notice.noticeType] ?? notice.noticeType}
                                                         </Badge>
                                                     ) : null}
-                                                    {notice.isOfficial ? (
-                                                        <VerificationBadge status="official_source" />
-                                                    ) : notice.verification ? (
-                                                        <VerificationBadge status={notice.verification as "verified" | "community_submission" | "official_source" | "developing"} />
-                                                    ) : null}
+                                                    <TrustBadge
+                                                        verification={notice.isOfficial ? "official_source" : notice.verification}
+                                                        dict={dict}
+                                                        locale={locale}
+                                                        link={false}
+                                                    />
                                                 </div>
                                                 <h3 className="text-sm font-bold leading-snug group-hover:underline line-clamp-2">
                                                     {notice.title}
@@ -320,7 +333,7 @@ export default async function NoticesPage({
                                                         {notice.excerpt}
                                                     </p>
                                                 ) : null}
-                                                <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+                                                <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                                                     {notice.location ? (
                                                         <span className="inline-flex items-center gap-1">
                                                             <MapPin className="h-3 w-3" aria-hidden />
@@ -446,8 +459,8 @@ export default async function NoticesPage({
                                                 href={hrefL({
                                                     search,
                                                     type: noticeType,
-                                                    location: loc.slug,
                                                     status,
+                                                    location: loc.slug,
                                                 })}
                                                 aria-current={location === loc.slug ? "page" : undefined}
                                                 className={`inline-block rounded-full border px-2.5 py-1 text-xs transition-colors hover:bg-muted ${location === loc.slug
@@ -460,6 +473,14 @@ export default async function NoticesPage({
                                         </li>
                                     ))}
                                 </ul>
+                                {location && (
+                                    <Link
+                                        href={hrefL({ search, type: noticeType, status })}
+                                        className="mt-2 block text-xs font-semibold text-muted-foreground underline-offset-4 hover:underline"
+                                    >
+                                        {dict.notices.allLocations}
+                                    </Link>
+                                )}
                             </CardContent>
                         </Card>
                     ) : null}
@@ -495,5 +516,6 @@ export default async function NoticesPage({
                 </aside>
             </div>
         </div>
+        </LocationProvider>
     );
 }

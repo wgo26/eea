@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 import Link from "next/link";
 import { getDictionary, locales, type Locale } from "@/lib/i18n";
+import { localePath } from "@/lib/i18n/urls";
 
 /** Error boundaries receive no params — derive the locale from the URL. */
 function localeFromLocation(): Locale {
@@ -23,12 +25,13 @@ export default function LocaleError({
     reset: () => void;
 }) {
     useEffect(() => {
-        console.error(error);
+        if (process.env.NODE_ENV !== "production") console.error(error);
+        Sentry.captureException(error);
     }, [error]);
 
     const dict = getDictionary(localeFromLocation());
     const locale = localeFromLocation();
-    const homeHref = locale === "en" ? "/en" : `/${locale}`;
+    const homeHref = localePath(locale, "/");
 
     return (
         <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 text-center">

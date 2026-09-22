@@ -21,12 +21,16 @@ import {
 } from "@/components/ui/pagination";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
+import { FollowTopicButton } from "@/components/system/follow-topic-button";
+import { FacetFilter, type FilterGroup } from "@/components/shared/facet-filter";
+import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
+import { getLocationsByContentType } from "@/lib/queries/locations";
+import { LocationProvider } from "@/hooks/use-location-context";
 import {
     getFeaturedPhotoStory,
     getMostViewedPhotoStories,
     getPhotoStories,
     getPhotoStoryCategories,
-    getPhotoStoryLocations,
     getPhotoStoriesStats,
 } from "@/lib/queries/photo-stories";
 
@@ -111,7 +115,7 @@ export default async function PhotoStoriesPage({
         getFeaturedPhotoStory(),
         getPhotoStories({ search, category, location, locale, page }),
         getPhotoStoryCategories(),
-        getPhotoStoryLocations(),
+        getLocationsByContentType("photo_story"),
         getPhotoStoriesStats(),
         getMostViewedPhotoStories(locale, 5),
     ]);
@@ -127,6 +131,15 @@ export default async function PhotoStoriesPage({
                 .sort((a, b) => a - b);
 
     return (
+        <LocationProvider
+            locations={locations}
+            activeLocation={location ?? null}
+            locationHref={(slug) =>
+                slug
+                    ? hrefL({ search, category, location: slug })
+                    : hrefL({ search, category })
+            }
+        >
         <div className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
             {/* Page band */}
             <header className="mb-8">
@@ -184,37 +197,46 @@ export default async function PhotoStoriesPage({
                 </section>
             ) : null}
 
-            {/* Category chips */}
+            {/* Category filter — unified FacetFilter */}
             {categories.length > 0 ? (
-                <nav
-                    aria-label={dict.photoStories.categories}
-                    className="mb-8 flex flex-wrap items-center gap-1.5"
-                >
-                    <Link
-                        href={hrefL({ search, location })}
-                        aria-current={!category ? "page" : undefined}
-                        className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${category
-                                ? "bg-muted text-muted-foreground hover:bg-accent"
-                                : "bg-primary text-primary-foreground"
-                            }`}
-                    >
-                        {dict.photoStories.allCategories}
-                    </Link>
-                    {categories.map((facet) => (
-                        <Link
-                            key={facet.id}
-                            href={hrefL({ search, location, category: facet.slug })}
-                            aria-current={category === facet.slug ? "page" : undefined}
-                            className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${category === facet.slug
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-muted text-muted-foreground hover:bg-accent"
-                                }`}
-                        >
-                            {facet.name}
-                            <span className="ml-1.5 tabular-nums opacity-70">{facet.total}</span>
-                        </Link>
-                    ))}
-                </nav>
+                <FacetFilter
+                    locale={locale}
+                    labels={{
+                        filterLabel: dict.photoStories.categories,
+                        clearFilters: dict.photoStories.clearFilters,
+                    }}
+                    groups={[
+                        {
+                            key: "category",
+                            label: dict.photoStories.categories,
+                            activeKey: category ?? null,
+                            allLabel: dict.photoStories.allCategories,
+                            hrefFor: (k) =>
+                                k ? hrefL({ search, location, category: k }) : hrefL({ search, location }),
+                            facets: categories.map((f) => ({
+                                key: f.slug,
+                                label: f.name,
+                                count: f.total,
+                            })),
+                        },
+                        ...(locations.length > 0
+                            ? [
+                                {
+                                    key: "location",
+                                    label: dict.photoStories.locations,
+                                    activeKey: location ?? null,
+                                    allLabel: "All",
+                                    hrefFor: (k) =>
+                                        k ? hrefL({ search, category, location: k }) : hrefL({ search, category }),
+                                    facets: locations.map((loc) => ({
+                                        key: loc.slug,
+                                        label: loc.name,
+                                    })),
+                                } as FilterGroup,
+                            ]
+                            : []),
+                    ]}
+                />
             ) : null}
 
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -226,24 +248,28 @@ export default async function PhotoStoriesPage({
                         }
                         hint={dict.home.sectionHintPhoto}
                     />
+                    {/* Phase 3 — follow the active topic without leaving the filter. */}
+                    {category ? (
+                        (() => {
+                            const facet = categories.find((f) => f.slug === category);
+                            return facet ? (
+                                <div className="mb-4">
+                                    <FollowTopicButton kind="category" id={facet.id} name={facet.name} copy={dict.follow} />
+                                </div>
+                            ) : null;
+                        })()
+                    ) : null}
                     {stories.length === 0 ? (
-                        <Card>
-                            <CardContent className="flex flex-col items-start gap-3 py-10 text-center sm:items-center">
-                                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                                    <Camera className="h-6 w-6" aria-hidden />
-                                </span>
-                                <p className="max-w-md text-sm text-muted-foreground">
-                                    {isFiltered
-                                        ? dict.photoStories.empty
-                                        : dict.photoStories.comingSoon}
-                                </p>
-                                {!isFiltered ? (
-                                    <Button render={<Link href={localePath(locale, "/submit")} />}>
-                                        {dict.photoStories.submitCtaButton}
-                                    </Button>
-                                ) : null}
-                            </CardContent>
-                        </Card>
+                        <EmptyStateWithCTA
+                            icon={Camera}
+                            title={dict.photoStories.searchLabel}
+                            body={isFiltered ? dict.photoStories.empty : dict.photoStories.comingSoon}
+                            isFiltered={isFiltered}
+                            ctaLabel={dict.photoStories.submitCtaButton}
+                            ctaHref={localePath(locale, "/submit")}
+                            clearHref={localePath(locale, "/photo-stories")}
+                            clearLabel={dict.photoStories.clearFilters}
+                        />
                     ) : (
                         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
                             {stories.map((story) => (
@@ -370,7 +396,7 @@ export default async function PhotoStoriesPage({
                                                         {story.title}
                                                     </span>
                                                     {story.category ? (
-                                                        <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                                        <span className="mt-0.5 block text-xs font-bold uppercase tracking-widest text-muted-foreground">
                                                             {story.category}
                                                         </span>
                                                     ) : null}
@@ -379,39 +405,6 @@ export default async function PhotoStoriesPage({
                                         </li>
                                     ))}
                                 </ol>
-                            </CardContent>
-                        </Card>
-                    ) : null}
-
-                    {locations.length > 0 ? (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2 text-base">
-                                    <MapPin className="h-4 w-4 text-muted-foreground" aria-hidden />
-                                    {dict.photoStories.locations}
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ul className="flex flex-wrap gap-1.5">
-                                    {locations.map((loc) => (
-                                        <li key={loc.slug}>
-                                            <Link
-                                                href={hrefL({
-                                                    search,
-                                                    category,
-                                                    location: loc.slug,
-                                                })}
-                                                aria-current={location === loc.slug ? "page" : undefined}
-                                                className={`inline-block rounded-full border px-2.5 py-1 text-xs transition-colors hover:bg-muted ${location === loc.slug
-                                                        ? "border-primary bg-primary/10 font-semibold text-foreground"
-                                                        : "text-muted-foreground"
-                                                    }`}
-                                            >
-                                                {loc.name}
-                                            </Link>
-                                        </li>
-                                    ))}
-                                </ul>
                             </CardContent>
                         </Card>
                     ) : null}
@@ -447,5 +440,6 @@ export default async function PhotoStoriesPage({
                 </aside>
             </div>
         </div>
+        </LocationProvider>
     );
 }

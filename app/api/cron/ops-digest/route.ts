@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
-import { bearerMatches } from '@/lib/security/secrets'
+import { requireCronSecret } from '@/lib/security/cron-auth'
 import { sendEmail, sendWhatsAppProactive } from '@/lib/notify/channels'
 import { SITE } from '@/lib/constants'
 
@@ -176,20 +176,9 @@ async function deliverPublicDigest(correlationId: string): Promise<{ emailed: nu
 async function runDigest(request: Request) {
   const correlationId = generateCorrelationId()
   const startedAt = Date.now()
-  const authHeader = request.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
+  const denied = requireCronSecret(request, 'ops-digest', correlationId)
+  if (denied) return denied
   const webhook = process.env.DIGEST_WEBHOOK_URL
-
-  if (!cronSecret) {
-    logger.error('cron/ops-digest', 'CRON_SECRET not configured', { correlationId })
-    if (process.env.NODE_ENV === 'production') {
-      return NextResponse.json({ ok: false, error: 'Digest cron not configured' }, { status: 500 })
-    }
-    logger.warn('cron/ops-digest', 'running without CRON_SECRET (non-production only)', { correlationId })
-  } else if (!bearerMatches(authHeader, cronSecret)) {
-    logger.warn('cron/ops-digest', 'unauthorized invocation', { correlationId })
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
 
   if (!webhook) {
     // Ops webhook unset — still deliver the public subscriber digest so the
@@ -242,6 +231,20 @@ async function runDigest(request: Request) {
     return count ?? 0
   })
 
+  // Phase 2: abuse signal — rate-limit hits in the last 24 h (limiter volume
+  // spike = someone probing anon intake). Best-effort; count() returns -1 on
+  // error, normalized to null so the digest never fails on this signal.
+  const abuseRaw = await count(async (db) => {
+    const since = new Date(Date.now() - 24 * 3_600_000).toISOString()
+    const { count, error } = await db
+      .from('rate_limit_hits')
+      .select('counter_key', { count: 'exact', head: true })
+      .gte('window_start', since)
+    if (error) throw new Error(error.message)
+    return count ?? 0
+  })
+  const abuseHits24h = abuseRaw < 0 ? null : abuseRaw
+
   const payload = JSON.stringify({
     content: `**Eagle Eye Africa — ops digest** (${new Date().toISOString()})`,
     embeds: [
@@ -254,6 +257,7 @@ async function runDigest(request: Request) {
           { name: 'Pending backup', value: String(storagePendingBackup), inline: true },
           { name: 'Pending verification', value: String(storagePendingVerification), inline: true },
           { name: 'Staff', value: String(staffCount), inline: true },
+          { name: 'Abuse hits 24h', value: abuseHits24h == null ? 'n/a' : String(abuseHits24h), inline: true },
         ],
       },
     ],
@@ -291,6 +295,7 @@ async function runDigest(request: Request) {
     storagePendingBackup,
     storagePendingVerification,
     staffCount,
+    abuseHits24h,
   }
 
   // Public daily-digest fan-out (gap B): active opt-in subscribers get the

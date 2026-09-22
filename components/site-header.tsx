@@ -9,6 +9,8 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { MobileNav } from "@/components/mobile-nav";
 import { CommandPaletteButton } from "@/components/system/command-palette";
 import { ContrastToggle } from "@/components/system/contrast-toggle";
+import { PlaceSelector } from "@/components/locations/place-selector";
+import { PlacePrompt } from "@/components/locations/place-prompt";
 import type { ChromeStrings } from "@/lib/i18n/chrome";
 import { locales, type Locale } from "@/lib/i18n/config";
 
@@ -126,13 +128,13 @@ export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chro
                     )}
                     <span className="hidden flex-col leading-tight sm:flex">
                         <span className="text-sm font-extrabold tracking-tight">{siteName}</span>
-                        <span className="text-[10px] font-medium text-muted-foreground">
+                        <span className="text-xs font-medium text-muted-foreground">
                             {tagline}
                         </span>
                     </span>
                 </Link>
 
-                <nav className="ml-4 hidden items-center gap-0.5 lg:flex" aria-label="Main">
+                <nav className="ml-4 hidden items-center gap-0.5 lg:flex" aria-label={chrome.nav.main}>
                     {items.map((item) => {
                         const canonical = (item as { path?: string }).path ?? stripLocalePrefix(item.href)
                         const stripped = stripLocalePrefix(pathname)
@@ -157,6 +159,8 @@ export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chro
                 </nav>
 
                 <div className="ml-auto flex items-center gap-1.5">
+                    <PlaceSelector locale={locale} dict={chrome.locations} />
+                    <PlacePrompt locale={locale} dict={chrome.locations} />
                     <CommandPaletteButton locale={locale} chrome={{ nav: chrome.nav, command: chrome.command }} />
                     <LanguageSwitcher locale={locale} />
                     <ThemeToggle labels={chrome.theme} />

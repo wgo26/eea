@@ -43,6 +43,8 @@ export type PhotoStoryData = StoryCardData & {
     viewCount?: number;
     /** Full essay prose in the active locale. */
     body?: string | null;
+    /** Pidgin/Camfranglais WhatsApp share line when the editor wrote one. */
+    shareText?: string | null;
 };
 
 /** Landing-page filter facet, derived from the shared `categories` table. */
@@ -66,7 +68,7 @@ type RawStoryRow = {
         | { category_translations: { locale: string; name: string }[] }[]
         | null;
     translations?:
-        | { locale: string; title: string | null; excerpt: string | null; body: string | null }[]
+        | { locale: string; title: string | null; excerpt: string | null; body: string | null; share_text?: string | null }[]
         | null;
     media?:
         | {
@@ -87,7 +89,7 @@ type RawStoryRow = {
 const STORY_SELECT = `id, slug, verification, published_at, view_count,
     location:locations(name),
     category:categories(category_translations(locale, name)),
-    translations:content_translations(locale, title, excerpt, body),
+    translations:content_translations(locale, title, excerpt, body, share_text),
     media:media_assets(public_url, alt_text, caption, photographer_credit, is_cover, sort_order, width, height, kind, mime_type)`;
 
 type QueryResult<T> = {
@@ -229,6 +231,7 @@ function toCard(row: RawStoryRow, locale: Locale): PhotoStoryData | null {
         publishedAt: row.published_at,
         viewCount: Number(row.view_count ?? 0),
         body: translation.body ?? null,
+        shareText: translation.share_text?.trim() || null,
         photos,
         hasVideo: allMedia.some((m) => m.kind === 'video'),
         hasAudio: allMedia.some((m) => m.kind === 'audio'),
@@ -240,7 +243,7 @@ function toCard(row: RawStoryRow, locale: Locale): PhotoStoryData | null {
 const FEATURED_SELECT = `id, slug, verification, published_at, view_count,
     location:locations(name),
     category:categories(category_translations(locale, name)),
-    translations:content_translations(locale, title, excerpt, body),
+    translations:content_translations(locale, title, excerpt, body, share_text),
     media:media_assets!inner(public_url, alt_text, caption, photographer_credit, is_cover, sort_order, width, height, kind, mime_type)`;
 
 /**
@@ -298,6 +301,7 @@ const getCachedPhotoStories = unstable_cache(
         location: string | null,
         locale: Locale,
         page: number,
+        year: number | null,
     ): Promise<{
         stories: PhotoStoryData[];
         total: number;
@@ -319,6 +323,13 @@ const getCachedPhotoStories = unstable_cache(
         }
         if (location) {
             query = query.eq("locations.slug", location);
+        }
+        // Phase 3/P4 — visual-archive year depth (Differentiator #2): bound
+        // published_at to the calendar year so ?year=2024 browses the archive.
+        if (year) {
+            query = query
+                .gte("published_at", `${year}-01-01T00:00:00.000Z`)
+                .lt("published_at", `${year + 1}-01-01T00:00:00.000Z`);
         }
 
         const from = (page - 1) * PHOTO_STORIES_PAGE_SIZE;
@@ -349,6 +360,8 @@ export async function getPhotoStories(filters: {
     location?: string;
     locale?: Locale;
     page?: number;
+    /** Calendar year of published_at (visual-archive browsing). */
+    year?: number;
 }): Promise<{
     stories: PhotoStoryData[];
     total: number;
@@ -363,8 +376,12 @@ export async function getPhotoStories(filters: {
     const search = filters.search?.trim() ? sanitizePhrase(filters.search) || null : null;
     const category = filters.category?.trim() ? sanitizePhrase(filters.category) || null : null;
     const location = filters.location?.trim() ? sanitizePhrase(filters.location) || null : null;
+    const year =
+        filters.year != null && Number.isInteger(filters.year) && filters.year >= 2000 && filters.year <= 2100
+            ? filters.year
+            : null;
     try {
-        return await getCachedPhotoStories(search, category, location, locale, page);
+        return await getCachedPhotoStories(search, category, location, locale, page, year);
     } catch (err) {
         logCacheFailure("getPhotoStories", err);
         return { stories: [], total: 0, page: 1, pageCount: 1 };
@@ -431,6 +448,46 @@ export async function getPhotoStoryCategories(): Promise<CategoryFacet[]> {
         return await getCachedPhotoStoryCategories();
     } catch (err) {
         logCacheFailure("getPhotoStoryCategories", err);
+        return [];
+    }
+}
+
+/**
+ * Phase 3/P4 — archive years for the visual-archive browser. Distinct
+ * calendar years of published_at across the published archive (newest
+ * first), derived from a single light column query. Cached (tag `stories`)
+ * so the pills never cost more than the category facets.
+ */
+const getCachedPhotoStoryYears = unstable_cache(
+    async (): Promise<number[]> => {
+        const { data, error } = await createAdminClient()
+            .from("content_items")
+            .select("published_at")
+            .eq("type", "photo_story")
+            .eq("status", "published")
+            .eq("is_archived", false)
+            .not("published_at", "is", null)
+            .order("published_at", { ascending: false })
+            .limit(2000);
+        if (error) throw new Error(error.message);
+        const years = new Set<number>();
+        for (const row of (data ?? []) as { published_at: string | null }[]) {
+            if (!row.published_at) continue;
+            const y = new Date(row.published_at).getUTCFullYear();
+            if (Number.isInteger(y) && y >= 2000 && y <= 2100) years.add(y);
+        }
+        return [...years].sort((a, b) => b - a);
+    },
+    ["photo-story-years"],
+    { tags: [CACHE_TAGS.stories], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getPhotoStoryYears(): Promise<number[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedPhotoStoryYears();
+    } catch (err) {
+        logCacheFailure("getPhotoStoryYears", err);
         return [];
     }
 }

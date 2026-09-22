@@ -11,17 +11,28 @@ export function isTurnstileConfigured(): boolean {
  * Verifies a Cloudflare Turnstile token server-side (features.md: "CAPTCHA or
  * equivalent at submission").
  *
- * - Feature off (TURNSTILE_SECRET_KEY unset, the pre-production default):
- *   always true. Set BOTH TURNSTILE_SECRET_KEY (server) and
- *   NEXT_PUBLIC_TURNSTILE_SITE_KEY (client widget) to enable.
- * - Feature on: missing token or failed verification → false (fail closed).
+ * - Feature on (TURNSTILE_SECRET_KEY set): missing token or failed
+ *   verification → false (fail closed).
+ * - Feature off + production: fail closed (false) so an unset secret can
+ *   never silently disable bot protection on the live site. Set BOTH
+ *   TURNSTILE_SECRET_KEY (server) and NEXT_PUBLIC_TURNSTILE_SITE_KEY
+ *   (client widget) to enable.
+ * - Feature off + non-production: true (local-dev convenience; the widget
+ *   has no keys locally). Override with TURNSTILE_REQUIRE=1 to rehearse the
+ *   production behaviour in dev.
  */
 export async function verifyTurnstileToken(
     token: string | null | undefined,
     remoteIp?: string,
 ): Promise<boolean> {
     const secret = process.env.TURNSTILE_SECRET_KEY;
-    if (!secret) return true;
+    if (!secret) {
+        if (process.env.NODE_ENV === "production" || process.env.TURNSTILE_REQUIRE === "1") {
+            logger.warn("turnstile", "rejected: secret not configured (fail-closed)");
+            return false;
+        }
+        return true;
+    }
     if (!token) return false;
 
     try {

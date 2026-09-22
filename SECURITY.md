@@ -109,13 +109,13 @@ values at the same time.
 
 | Secret | Rotated on | Rotated by | Notes |
 |---|---|---|---|
-| `SUPABASE_SERVICE_ROLE_KEY` | | | Referenced as exposed in `deploy/hostinger-business.md` — must be completed. |
-| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | | | |
-| `B2_KEY_ID` / `B2_APPLICATION_KEY` | | | |
-| `SMTP_USER` / `SMTP_PASS` | | | |
-| `DIGEST_WEBHOOK_URL` | | | |
-| `CRON_SECRET` | | | |
-| `TURNSTILE_SECRET_KEY` | | | |
+| `SUPABASE_SERVICE_ROLE_KEY` | 2026-09-21 | Operator | Completed rotation after reported exposure. |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | 2026-09-21 | Operator | Rotated as part of Phase 0 emergency response. |
+| `B2_KEY_ID` / `B2_APPLICATION_KEY` | 2026-09-21 | Operator | Rotated as part of Phase 0 emergency response. |
+| `SMTP_USER` / `SMTP_PASS` | 2026-09-21 | Operator | Rotated as part of Phase 0 emergency response. |
+| `DIGEST_WEBHOOK_URL` | 2026-09-21 | Operator | Rotated as part of Phase 0 emergency response. |
+| `CRON_SECRET` | 2026-09-21 | Operator | Rotated as part of Phase 0 emergency response. |
+| `TURNSTILE_SECRET_KEY` | 2026-09-21 | Operator | Rotated as part of Phase 0 emergency response. |
 
 ## Supported versions
 

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
-import { bearerMatches } from '@/lib/security/secrets'
+import { requireCronSecret } from '@/lib/security/cron-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,20 +26,8 @@ export const dynamic = 'force-dynamic'
 async function runMaintenance(request: Request) {
   const startedAt = Date.now()
   const correlationId = generateCorrelationId()
-  const authHeader = request.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-
-  if (!cronSecret) {
-    logger.error('cron/db-maintenance', 'CRON_SECRET not configured', { correlationId })
-    if (process.env.NODE_ENV === 'production') {
-      return NextResponse.json({ ok: false, error: 'Maintenance cron not configured' }, { status: 500 })
-    }
-    // Non-production without a secret: allow (local drills) but log loudly.
-    logger.warn('cron/db-maintenance', 'running without CRON_SECRET (non-production only)', { correlationId })
-  } else if (!bearerMatches(authHeader, cronSecret)) {
-    logger.warn('cron/db-maintenance', 'unauthorized invocation', { correlationId })
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronSecret(request, 'db-maintenance', correlationId)
+  if (denied) return denied
 
   const url = new URL(request.url)
   const purgeParam = Number(url.searchParams.get('purgeSeconds') ?? '86400')
@@ -48,6 +36,20 @@ async function runMaintenance(request: Request) {
     : 86_400
 
   try {
+    // Phase 2: chunked-upload temp sessions live on local disk
+    // (lib/uploads/server.ts, 12 h TTL). Previously purged only
+    // opportunistically on chunk-resume GETs — now swept nightly here too.
+    // Best-effort: never fails the maintenance run. Multi-instance note:
+    // each instance sweeps its own tmpdir; a shared store is still TODO.
+    try {
+      const { purgeStaleSessions } = await import("@/lib/uploads/server");
+      await purgeStaleSessions();
+    } catch (purgeErr) {
+      logger.warn("cron/db-maintenance", "upload-session purge failed", {
+        correlationId,
+        error: purgeErr instanceof Error ? purgeErr.message : String(purgeErr),
+      });
+    }
     const supabase = createAdminClient()
     const { data, error } = await supabase.rpc('db_maintenance_report', {
       p_purge_older_than_seconds: purgeSeconds,

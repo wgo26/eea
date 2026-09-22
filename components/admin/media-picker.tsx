@@ -160,7 +160,7 @@ export function MediaPicker({
                     </div>
                   )}
                   {(asset.kind === 'video' || asset.kind === 'audio') && formatDuration(asset.duration_seconds) ? (
-                    <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-white">
+                    <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-xs font-bold tabular-nums text-white">
                       {formatDuration(asset.duration_seconds)}
                     </span>
                   ) : null}

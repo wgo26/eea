@@ -91,7 +91,7 @@ export default async function Page({
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={poll.isActive ? 'active' : 'closed'} label={localizeStatus(poll.isActive ? 'active' : 'closed', common)} />
                     <span
-                      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide border ${
+                      className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide border ${
                         poll.locale === 'fr'
                           ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300'
                           : 'border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300'

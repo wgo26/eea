@@ -11,6 +11,9 @@ export const revalidate = 600
  */
 const SEGMENT_BY_TYPE: Record<string, string> = {
   news: '/news',
+  // Phase 4 — Eye on the Street micro-stories render in the one-photo news
+  // template, so they share the /news segment.
+  micro_story: '/news',
   photo_story: '/photo-stories',
   culture: '/culture',
   listing: '/buy-sell',
@@ -53,7 +56,32 @@ export async function GET() {
     rows = []
   }
 
-  const items = rows
+  // Phase 4 — one RSS item per timeline update (Differentiator #6): a
+  // developing story's live entries surface as "Developing: {update}" items
+  // anchored to the article's timeline section. Best-effort like the rest.
+  type TimelineRow = {
+    id: string
+    timestamp: string | null
+    title: string | null
+    body: string | null
+    content_item: { slug: string | null; id: string } | { slug: string | null; id: string }[] | null
+  }
+  let timelineRows: TimelineRow[] = []
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('timeline_entries')
+      .select('id, timestamp, title, body, content_item:content_items!content_item_id(id, slug)')
+      .eq('is_published', true)
+      .eq('locale', 'en')
+      .order('timestamp', { ascending: false })
+      .limit(10)
+    if (!error) timelineRows = (data ?? []) as unknown as TimelineRow[]
+  } catch {
+    timelineRows = []
+  }
+
+  const storyItems = rows
     .map((row) => {
       const segment = SEGMENT_BY_TYPE[row.type]
       if (!segment) return null
@@ -72,7 +100,26 @@ export async function GET() {
       )
     })
     .filter((x): x is string => x !== null)
-    .join('\n')
+
+  const timelineItems = timelineRows
+    .map((row) => {
+      const item = Array.isArray(row.content_item) ? row.content_item[0] : row.content_item
+      if (!item || !row.title?.trim()) return null
+      const link = `${SITE.url}/en/news/${item.slug ?? item.id}#timeline-${row.id}`
+      const pubDate = row.timestamp ? new Date(row.timestamp).toUTCString() : null
+      return (
+        `    <item>\n` +
+        `      <title>${escapeXml(`Developing: ${row.title.trim()}`)}</title>\n` +
+        `      <link>${escapeXml(link)}</link>\n` +
+        `      <guid>${escapeXml(link)}</guid>\n` +
+        (row.body ? `      <description>${escapeXml(row.body.slice(0, 500))}</description>\n` : '') +
+        (pubDate ? `      <pubDate>${pubDate}</pubDate>\n` : '') +
+        `    </item>`
+      )
+    })
+    .filter((x): x is string => x !== null)
+
+  const items = [...timelineItems, ...storyItems].join('\n')
 
   const xml =
     `<?xml version="1.0" encoding="UTF-8"?>\n` +

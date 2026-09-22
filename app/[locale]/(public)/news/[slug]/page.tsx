@@ -22,17 +22,22 @@ import { ArticleActionRow } from "@/components/system/article-actions";
 import { FeedbackWidget } from "@/components/system/feedback-widget";
 import { StoryCard } from "@/components/home/story-card";
 import { MediaBadge } from "@/components/media/media-attachment";
-import { SmartImage } from "@/components/media/smart-image";
+import { AdaptiveImage } from "@/components/media/adaptive-image";
+import { SaveOfflineButton } from "@/components/system/save-offline-button";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { ArticleShare } from "@/components/news/article-share";
 import { CorrectionForm } from "@/components/news/correction-form";
 import { ReadingProgress } from "@/components/news/reading-progress";
+import { TimelineSection } from "@/components/news/timeline-section";
+import { ReaderToolbar } from "@/components/system/reader-toolbar";
+import { RecordRecentView } from "@/components/system/record-recent-view";
+import { PrintHeader } from "@/components/system/print-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SITE } from "@/lib/constants";
 import { formatDate, formatDateTime, getDictionary, resolveLocale } from "@/lib/i18n";
-import { verificationBadgeInfo } from "@/lib/verification";
+import { TrustBadge } from "@/components/system/trust-badge";
 import {
     getAdjacentNews,
     getNewsBySlug,
@@ -105,7 +110,6 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
     const filtered = related.filter((n) => n.id !== article.id);
     const { prev, next } = neighbours;
 
-    const badge = verificationBadgeInfo(article.verification ?? null, dict);
     const shareUrl = `${SITE.url}${localePath(locale, `/news/${article.slug}`)}`;
     // Blogger imports store the body as HTML — render it as sanitized rich
     // text. Native drafts are plain text and keep the blank-line split.
@@ -163,6 +167,15 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
     return (
         <>
         <ReadingProgress targetId="article-body" />
+        {/* Phase 3 — device-local reading history. */}
+        <RecordRecentView
+            view={{
+                id: article.id,
+                href: localePath(locale, `/news/${article.slug}`),
+                title: article.title,
+                imageUrl: article.imageUrl,
+            }}
+        />
         <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: escapeJsonForLd(jsonLd) }}
@@ -180,9 +193,22 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                 ]}
             />
 
+            {/* Phase 3 — print attribution header (paper only). */}
+            <PrintHeader
+                title={article.title}
+                dateLine={article.publishedAt ? formatDate(article.publishedAt, locale) : null}
+                url={shareUrl}
+            />
+
             {/* Editorial header */}
             <header className="mt-6 max-w-4xl">
                 <div className="flex flex-wrap items-center gap-2">
+                    {/* Phase 4 — Eye on the Street one-photo template marker. */}
+                    {article.type === "micro_story" ? (
+                        <span className="rounded-full bg-primary px-2.5 py-1 text-xs font-bold uppercase tracking-[0.14em] text-primary-foreground">
+                            {dict.news.streetEyebrow}
+                        </span>
+                    ) : null}
                     {article.category ? (
                         article.categorySlug ? (
                             <Link href={localePath(locale, `/news?category=${article.categorySlug}`)}>
@@ -194,20 +220,21 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                     ) : null}
                     {article.hasVideo ? <MediaBadge kind="video" /> : null}
                     {article.hasAudio ? <MediaBadge kind="audio" /> : null}
-                    {badge ? (
-                        <span
-                            className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${badge.className}`}
-                        >
-                            {badge.label}
-                        </span>
-                    ) : null}
+                    <TrustBadge verification={article.verification} dict={dict} locale={locale} />
                 </div>
-                <h1 className="mt-3 text-3xl font-extrabold leading-tight tracking-tight md:text-4xl lg:text-5xl">
+                <h1 className="font-display mt-3 text-3xl font-extrabold leading-tight tracking-tight md:text-4xl lg:text-5xl">
                     {article.title}
                 </h1>
                 {article.excerpt ? (
                     <p className="mt-4 text-base leading-relaxed text-muted-foreground md:text-lg">
                         {article.excerpt}
+                    </p>
+                ) : null}
+                {/* Phase 4 — Eye on the Street one-photo template line. */}
+                {article.type === "micro_story" && article.location ? (
+                    <p className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-primary">
+                        <MapPin className="h-4 w-4" aria-hidden />
+                        {(dict.news.streetSpottedIn ?? "Spotted in {place}").replace("{place}", article.location)}
                     </p>
                 ) : null}
                 {/* Byline row: avatar + name + meta + share */}
@@ -222,7 +249,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                                     {authorInitials}
                                 </span>
                                 <span className="min-w-0">
-                                    <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                                    <span className="block text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
                                         {dict.news.authorBoxTitle}
                                     </span>
                                     {authorHref && article.authorName ? (
@@ -286,15 +313,30 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                         facebookLabel={dict.news.shareFacebook}
                         xLabel={dict.news.shareX}
                         emailLabel={dict.news.shareEmail}
+                        shareText={article.shareText ?? undefined}
                     />
                 </div>
             </header>
+
+            {/* Phase 3 — reader toolbar: text size, lite mode, offline save, WhatsApp. */}
+            <ReaderToolbar
+                path={localePath(locale, `/news/${article.slug}`)}
+                shareUrl={shareUrl}
+                title={article.title}
+                shareText={article.shareText ?? undefined}
+                saveLabel={dict.news.saveOffline}
+                savedLabel={dict.news.savedOffline}
+                offlineUnavailableLabel={dict.news.offlineUnavailable}
+                whatsappLabel={dict.news.shareWhatsapp}
+                dict={dict}
+            />
 
             {/* Hero figure: optimized image + caption/credit */}
             {article.imageUrl ? (
                 <figure className="mt-8 overflow-hidden rounded-3xl border bg-muted">
                     <span className="relative block aspect-[16/9] w-full overflow-hidden md:aspect-[21/9]">
-                        <SmartImage
+                        {/* Phase 4 — Save-Data aware hero (low-bandwidth readers get ~35 quality). */}
+                        <AdaptiveImage
                             src={article.imageUrl}
                             alt={article.coverCaption ?? article.title}
                             sizes="(max-width: 1280px) 100vw, 1280px"
@@ -361,6 +403,9 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                 </div>
             ) : null}
 
+            {/* Eagle Eye Timeline (Differentiator #6): live updates for developing stories. */}
+            <TimelineSection contentItemId={article.id} locale={locale} dict={dict} />
+
             {/* Prev / next navigation */}
             {(prev || next) ? (
                 <nav aria-label={dict.news.moreStories} className="mt-10 grid gap-3 sm:grid-cols-2">
@@ -371,7 +416,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                         >
                             <ArrowLeft className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:-translate-x-0.5" aria-hidden />
                             <span className="min-w-0">
-                                <span className="block text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                                <span className="block text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
                                     {dict.news.prevArticle}
                                 </span>
                                 <span className="mt-0.5 line-clamp-2 block text-sm font-bold leading-snug group-hover:underline">
@@ -386,7 +431,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                             className="group flex items-center justify-end gap-3 rounded-2xl border bg-card p-4 text-right transition-shadow hover:shadow-md"
                         >
                             <span className="min-w-0">
-                                <span className="block text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                                <span className="block text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
                                     {dict.news.nextArticle}
                                 </span>
                                 <span className="mt-0.5 line-clamp-2 block text-sm font-bold leading-snug group-hover:underline">
@@ -456,7 +501,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                                 {dict.common.share}
                             </CardTitle>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="space-y-3">
                             <ArticleActionRow
                                 contentItemId={article.id}
                                 shareUrl={shareUrl}
@@ -466,6 +511,14 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                                 showReadingMode={readingModeOn}
                                 showListen={ttsOn}
                                 dict={dict}
+                            />
+                            {/* Phase 4 — Save for offline (service worker + Cache API). */}
+                            <SaveOfflineButton
+                                url={localePath(locale, `/news/${article.slug}`)}
+                                title={article.title}
+                                saveLabel={dict.news.saveOffline}
+                                savedLabel={dict.news.savedOffline}
+                                unavailableLabel={dict.news.offlineUnavailable}
                             />
                         </CardContent>
                     </Card>

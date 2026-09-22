@@ -7,6 +7,14 @@ import { AdvertiseForm } from "@/components/advertise/advertise-form";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getAdvertiseOverrides } from "@/lib/admin/queries";
 
+/**
+ * Phase 1 — ISR. Locale comes from params (no headers()/cookies() read) and
+ * the overrides read is cached server-side, so this page prerenders and
+ * revalidates on the 5-minute window. The literal is required by the
+ * static-analyzability rule for segment config.
+ */
+export const revalidate = 300;
+
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
     const { locale: rawLocale } = await params;
     const locale = resolveLocale(rawLocale);

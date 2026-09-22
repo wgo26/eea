@@ -52,7 +52,7 @@ export async function generateMetadata({
     const dict = getDictionary(locale);
     return {
         title: `${dict.map.title} — ${dict.nav.locations}`,
-        description: "Explore Eagle Eye Africa stories on the map — news, photo stories, notices, culture and listings across the region.",
+        description: dict.map.description,
         alternates: buildAlternates(locale, "/map"),
         openGraph: {
             title: `${dict.map.title} — ${dict.nav.locations}`,
@@ -129,10 +129,10 @@ export default async function MapPage({
                             {dict.map.title}
                         </div>
                         <h1 className="text-3xl font-black tracking-tight md:text-5xl">
-                            {dict.map.heading ?? "Explore the map"}
+                            {dict.map.heading}
                         </h1>
                         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
-                            {dict.map.description ?? "Discover stories, notices, events and listings across the region."}
+                            {dict.map.description}
                         </p>
                     </div>
 
@@ -158,7 +158,7 @@ export default async function MapPage({
                             <div className="flex items-center justify-between">
                                 <CardTitle className="flex items-center gap-2 text-lg">
                                     <Filter className="h-4 w-4 text-primary" aria-hidden />
-                                    {dict.map.filters ?? "Filters"}
+                                    {dict.map.filters}
                                 </CardTitle>
                             </div>
                         </CardHeader>
@@ -176,7 +176,7 @@ export default async function MapPage({
                             <Separator />
                             <div className="space-y-2">
                                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                                    {dict.map.locationFilter ?? "Location"}
+                                    {dict.map.locationFilter}
                                 </p>
                                 <div className="max-h-48 overflow-y-auto space-y-1">
                                     {allLocations
@@ -199,7 +199,7 @@ export default async function MapPage({
                         <CardHeader className="pb-3">
                             <CardTitle className="flex items-center gap-2 text-lg">
                                 <Layers className="h-4 w-4 text-primary" aria-hidden />
-                                {dict.map.legend ?? "Legend"}
+                                {dict.map.legend}
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-2">
@@ -213,7 +213,7 @@ export default async function MapPage({
                                 <span className="w-6 h-6 rounded-full border-2 border-primary flex items-center justify-center text-xs">
                                     12
                                 </span>
-                                <span>{dict.map.cluster ?? "Cluster"}</span>
+                                <span>{dict.map.cluster}</span>
                             </div>
                         </CardContent>
                     </Card>
@@ -230,12 +230,12 @@ export default async function MapPage({
                     </Suspense>
                     <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
                         <span>
-                            {hubs.length} {dict.map.hubsCount?.replace("{count}", String(hubs.length)) ?? `${hubs.length} places`}
+                            {hubs.length}                             {dict.map.hubsCount?.replace("{count}", String(hubs.length))}
                             {pins.length > 0 ? ` · ${dict.map.storiesOnMap.replace("{count}", String(pins.length))}` : ""}
                         </span>
                         <Button variant="outline" size="sm" className="gap-2">
                             <Layers className="h-4 w-4" aria-hidden />
-                            {dict.map.listView ?? "List view"}
+                            {dict.map.listView}
                         </Button>
                     </div>
                 </main>

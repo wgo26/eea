@@ -7,6 +7,7 @@ import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags"
 import { logger } from "@/lib/observability/logger";
 import { mapAttachments, previewImageUrl } from "@/lib/media/attachments";
 import type { Locale } from "@/lib/i18n";
+import type { Database } from "@/lib/supabase/database.types";
 
 export type LocationData = {
     id: string;
@@ -20,6 +21,17 @@ export type LocationData = {
 };
 
 export type LocationContent = {
+    id: string;
+    type: string;
+    title: string;
+    href: string;
+    imageUrl: string | null;
+    publishedAt: string | null;
+    location: string | null;
+    category: string | null;
+};
+
+export type NearYouContent = {
     id: string;
     type: string;
     title: string;
@@ -368,3 +380,268 @@ const getCachedLocationsWithCounts = unstable_cache(
     ["locations-with-counts"],
     { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
 );
+
+/** Fetches user's place preference from the database (for authenticated users). */
+export async function getUserPlacePreference(userId: string): Promise<string | null> {
+    if (!hasDatabase()) return null;
+    try {
+        const { data, error } = await safe(
+            createAdminClient()
+                .from("user_place_preferences")
+                .select("place_slug")
+                .eq("user_id", userId)
+                .limit(1),
+        );
+        if (error) throw new Error(error.message);
+        return (data as { place_slug: string }[])?.[0]?.place_slug ?? null;
+    } catch (err) {
+        logger.error("locations", "getUserPlacePreference failed", { error: err instanceof Error ? err.message : String(err) });
+        return null;
+    }
+}
+
+/** Sets user's place preference in the database. */
+export async function setUserPlacePreference(userId: string, placeSlug: string, locale: Locale = "en"): Promise<boolean> {
+    if (!hasDatabase()) return false;
+    try {
+        const { error } = await safe(
+            createAdminClient()
+                .from("user_place_preferences")
+                .upsert({ user_id: userId, place_slug: placeSlug, locale }, { onConflict: "user_id" }),
+        );
+        if (error) throw new Error(error.message);
+        return true;
+    } catch (err) {
+        logger.error("locations", "setUserPlacePreference failed", { error: err instanceof Error ? err.message : String(err) });
+        return false;
+    }
+}
+
+/** Fetches recent content for a specific place (for "Near You" rail). */
+export async function getNearYouContent(
+    placeSlug: string,
+    locale: Locale = "en",
+    limit = 10
+): Promise<NearYouContent[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedNearYouContent(placeSlug, locale, limit);
+    } catch (err) {
+        logCacheFailure("getNearYouContent", err);
+        return [];
+    }
+}
+
+const getCachedNearYouContent = unstable_cache(
+    async (placeSlug: string, locale: Locale, limit: number): Promise<NearYouContent[]> => {
+        const { data, error } = await safe(
+            createAdminClient()
+                .from("content_items")
+                .select(CONTENT_SELECT)
+                .eq("locations.slug", placeSlug)
+                .eq("status", "published")
+                .eq("is_archived", false)
+                .not("published_at", "is", null)
+                .order("published_at", { ascending: false })
+                .limit(limit),
+        );
+        if (error) throw new Error(error.message);
+        return (data ?? []).flatMap((row) => {
+            const item = mapContent(row as RawContentRow, locale);
+            return item ? [item] : [];
+        });
+    },
+    ["near-you-content"],
+    { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+/**
+ * Phase 4.1 — mapped story pins for the /map clustering layer. Locations
+ * carry the coordinates (content_items have no geo columns by design), so
+ * each published story inherits its location's lat/lng. The inner join
+ * keeps only stories with a location; null coordinates are dropped in JS
+ * (PostgREST embedded null-filters are version-sensitive).
+ */
+export type MappedStory = {
+    id: string;
+    type: string;
+    title: string;
+    href: string;
+    imageUrl: string | null;
+    publishedAt: string | null;
+    category: string | null;
+    locationSlug: string;
+    locationName: string;
+    latitude: number;
+    longitude: number;
+};
+
+export async function getMappedContent(
+    locale: Locale = "en",
+    limit = 400,
+): Promise<MappedStory[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedMappedContent(locale, limit);
+    } catch (err) {
+        logCacheFailure("getMappedContent", err);
+        return [];
+    }
+}
+
+const getCachedMappedContent = unstable_cache(
+    async (locale: Locale, limit: number): Promise<MappedStory[]> => {
+        const { data, error } = await safe(
+            createAdminClient()
+                .from("content_items")
+                .select(
+                    `id, type, slug, published_at,
+                    location:locations!inner(slug, name, latitude, longitude),
+                    category:categories(category_translations(locale, name)),
+                    translations:content_translations(locale, title),
+                    media:media_assets(public_url, is_cover, kind, mime_type)`,
+                )
+                .eq("status", "published")
+                .eq("is_archived", false)
+                .not("published_at", "is", null)
+                .order("published_at", { ascending: false })
+                .limit(limit),
+        );
+        if (error) throw new Error(error.message);
+        return ((data ?? []) as RawContentRow[]).flatMap((row) => {
+            const item = mapContent(row, locale);
+            if (!item) return [];
+            type GeoLoc = {
+                slug?: string | null;
+                name?: string | null;
+                latitude?: number | null;
+                longitude?: number | null;
+            };
+            const loc = asOne(
+                (row as unknown as { location?: GeoLoc | GeoLoc[] | null }).location,
+            );
+            if (loc?.latitude == null || loc?.longitude == null) return [];
+            return [
+                {
+                    id: item.id,
+                    type: item.type,
+                    title: item.title,
+                    href: item.href,
+                    imageUrl: item.imageUrl,
+                    publishedAt: item.publishedAt,
+                    category: item.category,
+                    locationSlug: loc.slug ?? "",
+                    locationName: loc.name ?? item.location ?? "",
+                    latitude: Number(loc.latitude),
+                    longitude: Number(loc.longitude),
+                },
+            ];
+        });
+    },
+    ["mapped-content"],
+    { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+/** Fetches all active locations with lat/lng for the map page. */
+export async function getMappedLocations(): Promise<LocationData[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedMappedLocations();
+    } catch (err) {
+        logCacheFailure("getMappedLocations", err);
+        return [];
+    }
+}
+
+const getCachedMappedLocations = unstable_cache(
+    async (): Promise<LocationData[]> => {
+        const { data, error } = await safe(
+            createAdminClient()
+                .from("locations")
+                .select(LOCATION_SELECT)
+                .eq("is_active", true)
+                .not("latitude", "is", null)
+                .not("longitude", "is", null)
+                .order("name", { ascending: true }),
+        );
+        if (error) throw new Error(error.message);
+        return (data ?? []).flatMap((row) => {
+            const location = mapLocation(row as RawLocationRow);
+            return location ? [location] : [];
+        });
+    },
+    ["mapped-locations"],
+    { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export type LocationFacet = {
+    slug: string;
+    name: string;
+    count?: number;
+};
+
+/**
+ * Unified location facet query for any content type. Replaces the per-vertical
+ * `getNewsLocations()` / `getListingsLocations()` helpers that each re-query
+ * the same `locations` table. Returns active locations with an optional
+ * count of published, non-archived content of the given type in each.
+ * Phase 4.1: cached (tag `locations`).
+ */
+const getCachedLocationsByContentType = unstable_cache(
+    async (contentType: string | null): Promise<LocationFacet[]> => {
+        const supabase = createAdminClient();
+
+        const locationsResult = await safe(
+            supabase
+                .from("locations")
+                .select("slug, name")
+                .eq("is_active", true)
+                .order("name", { ascending: true }),
+        );
+        if (locationsResult.error) throw new Error(locationsResult.error.message);
+
+        const facets: LocationFacet[] = (locationsResult.data ?? []).flatMap((row) => {
+            const loc = row as { slug: string; name: string | null };
+            return loc.name ? [{ slug: loc.slug, name: loc.name }] : [];
+        });
+
+        if (contentType) {
+            const contentResult = await safe(
+                supabase
+                    .from("content_items")
+                    .select("location_id", { count: "exact" })
+                    .eq("type", contentType)
+                    .eq("status", "published")
+                    .eq("is_archived", false)
+                    .not("published_at", "is", null),
+            );
+            if (contentResult.error) throw new Error(contentResult.error.message);
+
+            const totals = new Map<string, number>();
+            for (const row of contentResult.data ?? []) {
+                const raw = row as { location_id: string | null };
+                if (raw.location_id) {
+                    totals.set(raw.location_id, (totals.get(raw.location_id) ?? 0) + 1);
+                }
+            }
+
+            return facets.map((f) => ({ ...f, count: totals.get(f.slug) ?? 0 }));
+        }
+
+        return facets;
+    },
+    ["locations-by-content-type"],
+    { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getLocationsByContentType(
+    contentType: string | null = null,
+): Promise<LocationFacet[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedLocationsByContentType(contentType);
+    } catch (err) {
+        logCacheFailure("getLocationsByContentType", err);
+        return [];
+    }
+}

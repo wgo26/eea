@@ -7,7 +7,7 @@ import { expiryLabel, whatsappHref } from "@/lib/format";
 import { SITE } from "@/lib/constants";
 import { localePath } from "@/lib/i18n/urls";
 import { isExpiringSoon, isExpired, noticeTypeLabel, noticeTypeMeta } from "@/lib/notice-types";
-import { verificationBadgeInfo } from "@/lib/verification";
+import { TrustBadge } from "@/components/system/trust-badge";
 import { formatDate, type Dictionary, type Locale } from "@/lib/i18n";
 import type { NoticeData } from "@/lib/queries/notices";
 import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
@@ -30,10 +30,6 @@ type NoticeCardProps = {
 export function NoticeCard({ notice, dict, locale, className }: NoticeCardProps) {
     const meta = noticeTypeMeta(notice.noticeType);
     const TypeIcon = meta.icon;
-    const badge = verificationBadgeInfo(
-        notice.isOfficial ? "official_source" : (notice.verification ?? null),
-        dict,
-    );
 
     const expired = isExpired(notice.expiresAt);
     const soon = isExpiringSoon(notice.expiresAt);
@@ -70,27 +66,22 @@ export function NoticeCard({ notice, dict, locale, className }: NoticeCardProps)
                     <div className="flex flex-wrap items-center gap-2">
                         <span
                             className={cn(
-                                "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide",
+                                "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-extrabold uppercase tracking-wide",
                                 meta.chip,
                             )}
                         >
                             <TypeIcon className="h-3 w-3 sm:hidden" aria-hidden />
                             {noticeTypeLabel(notice.noticeType)}
                         </span>
-                        {badge ? (
-                            <span
-                                className={cn(
-                                    "rounded-full px-2 py-0.5 text-[10px] font-bold",
-                                    badge.className,
-                                )}
-                            >
-                                {badge.label}
-                            </span>
-                        ) : null}
+                        <TrustBadge
+                            verification={notice.isOfficial ? "official_source" : notice.verification}
+                            dict={dict}
+                            locale={locale}
+                        />
                         {notice.expiresAt ? (
                             <span
                                 className={cn(
-                                    "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                                    "rounded-full px-2 py-0.5 text-xs font-semibold",
                                     expired
                                         ? "bg-muted text-muted-foreground"
                                         : soon
@@ -120,7 +111,7 @@ export function NoticeCard({ notice, dict, locale, className }: NoticeCardProps)
                     <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                         {notice.location ? (
                             <Link
-                                href={`/locations/${notice.locationSlug ?? ""}`}
+                                href={localePath(locale, `/locations/${notice.locationSlug ?? ""}`)}
                                 className="inline-flex items-center gap-1 hover:text-foreground hover:underline"
                             >
                                 <MapPin className="h-3.5 w-3.5" aria-hidden />

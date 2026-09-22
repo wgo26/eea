@@ -112,6 +112,23 @@ export async function getClientIp(): Promise<string> {
     );
 }
 
+/**
+ * Phase 0 — request-scoped IP resolution for Route Handlers.
+ *
+ * `getClientIp()` reads `next/headers`, which is unavailable in some handler
+ * contexts and untestable against forged chains. Route handlers already hold
+ * the `Request`, so resolve directly from its headers with the same
+ * trusted-proxy contract (`resolveClientIpFromHeaders`). Never read
+ * `x-forwarded-for.split(',')[0]` inline — the client can prepend forged
+ * hops and rotate the throttle key.
+ */
+export function resolveClientIpFromRequest(request: Request): string {
+    return resolveClientIpFromHeaders(
+        (name) => request.headers.get(name),
+        getTrustedProxyCount(),
+    );
+}
+
 /** Proxy depth from the environment (evaluated per call so tests can stub it). */
 export function getTrustedProxyCount(): number {
     return parseTrustedProxyCount(process.env.TRUSTED_PROXY_COUNT);

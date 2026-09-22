@@ -40,7 +40,7 @@ export function NoticesList({ notices, dict, locale }: NoticesListProps) {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                  className={`rounded-full px-2 py-0.5 text-xs font-bold uppercase tracking-wide ${
                     notice.isOfficial
                       ? "bg-emerald-600/10 text-emerald-700 dark:text-emerald-400"
                       : "bg-muted text-muted-foreground"
@@ -49,7 +49,7 @@ export function NoticesList({ notices, dict, locale }: NoticesListProps) {
                   {notice.isOfficial ? dict.badges.official : dict.badges.community}
                 </span>
                 {notice.noticeType ? (
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {notice.noticeType.replaceAll("_", " ")}
                   </span>
                 ) : null}

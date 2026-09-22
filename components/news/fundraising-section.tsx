@@ -30,7 +30,7 @@ function StatBlock({ value, label, accent }: { value: string; label: string; acc
             >
                 {value}
             </p>
-            <p className="mt-0.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+            <p className="mt-0.5 text-xs uppercase tracking-wider text-muted-foreground">
                 {label}
             </p>
         </div>
@@ -123,7 +123,7 @@ export function FundraisingSection({
                 {/* How it works + start a campaign */}
                 <aside className="space-y-4">
                     <div className="rounded-3xl border bg-card p-5">
-                        <p className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.18em]">
+                        <p className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.18em]">
                             <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden />
                             {dict.fundraisers.howItWorks}
                         </p>

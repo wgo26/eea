@@ -492,11 +492,21 @@ function parseArgs(argList) {
     return splitTopLevel(argList)
         .map((raw) => {
             const m = raw.trim().match(
-                /^(?:in(?:out)?\s+|out\s+|variadic\s+)?([a-zA-Z_][\w]*)\s+([\w\s."'[\]]+?)\s*(?:default\s+[^,]*)?$/i,
+                /^(?:in(?:out)?\s+|out\s+|variadic\s+)?([a-zA-Z_][\w]*)\s+([\w\s."'[\]]+?)\s*(?:default\s+([^,]+))?$/i,
             );
             if (!m) return null;
-            const [, name, type] = m;
-            return { name: name.trim(), type: pgTypeToTs(type), optional: /default\s/i.test(raw) };
+            const [, name, type, defaultExpr] = m;
+            const optional = /default\s/i.test(raw);
+            // `default null` makes the parameter nullable as well as optional —
+            // callers may pass NULL explicitly (PostgREST forwards it as the RPC
+            // default), so the generated TS must admit `| null`, not merely omit.
+            const nullableDefault = optional && /\bnull\b/i.test(defaultExpr ?? "");
+            return {
+                name: name.trim(),
+                type: pgTypeToTs(type),
+                optional,
+                nullableDefault,
+            };
         })
         .filter(Boolean);
 }
@@ -544,8 +554,8 @@ function buildFunctionBlocks(functions) {
                     ? "            Args: Record<string, never>;"
                     : `            Args: {\n${args
                           .map(
-                              ({ name: argName, type, optional }) =>
-                                  `                ${argName}${optional ? "?" : ""}: ${type};`,
+                              ({ name: argName, type, optional, nullableDefault }) =>
+                                  `                ${argName}${optional ? "?" : ""}: ${type}${nullableDefault ? " | null" : ""};`,
                           )
                           .join("\n")}\n            };`;
             return `        ${name}: {\n${argsBlock}\n${returns}\n        }`;

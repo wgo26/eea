@@ -179,6 +179,7 @@ export type DigestSubscriber = {
   phone: string | null;
   whatsapp: string | null;
   locale: string | null;
+  diasporaMode: boolean;
   isActive: boolean;
 };
 
@@ -186,7 +187,7 @@ export async function getDigestSubscribers(limit = 100): Promise<DigestSubscribe
   const supabase = createAdminClient();
   const { data } = await supabase
     .from('digest_subscribers')
-    .select('id, email, phone, whatsapp, locale, is_active')
+    .select('id, email, phone, whatsapp, locale, diaspora_mode, is_active')
     .order('created_at', { ascending: false })
     .limit(limit);
   return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
@@ -195,6 +196,7 @@ export async function getDigestSubscribers(limit = 100): Promise<DigestSubscribe
     phone: (row.phone as string | null) ?? null,
     whatsapp: (row.whatsapp as string | null) ?? null,
     locale: (row.locale as string | null) ?? null,
+    diasporaMode: Boolean(row.diaspora_mode),
     isActive: Boolean(row.is_active),
   }));
 }

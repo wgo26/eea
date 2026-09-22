@@ -77,7 +77,7 @@ export function AdminCommandPalette({ items }: { items: AdminNavItem[] }) {
         className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
         <Search className="h-3.5 w-3.5" aria-hidden />
-        <kbd className="hidden rounded border border-border bg-background px-1 py-0.5 text-[10px] font-semibold sm:inline">
+        <kbd className="hidden rounded border border-border bg-background px-1 py-0.5 text-xs font-semibold sm:inline">
           ⌘K
         </kbd>
       </button>
@@ -109,7 +109,7 @@ export function AdminCommandPalette({ items }: { items: AdminNavItem[] }) {
                   onSelect={() => go(`${localePath(locale, '/admin/content')}?edit=${c.id}`)}
                 >
                   <span className="min-w-0 flex-1 truncate">{c.title}</span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">{c.status}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{c.status}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -123,7 +123,7 @@ export function AdminCommandPalette({ items }: { items: AdminNavItem[] }) {
                   onSelect={() => go(localePath(locale, `/admin/users/${u.id}`))}
                 >
                   <span className="min-w-0 flex-1 truncate">{u.name}</span>
-                  <span className="shrink-0 truncate text-[11px] text-muted-foreground">{u.email}</span>
+                  <span className="shrink-0 truncate text-xs text-muted-foreground">{u.email}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

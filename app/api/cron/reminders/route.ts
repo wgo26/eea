@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
-import { bearerMatches } from '@/lib/security/secrets'
+import { requireCronSecret } from '@/lib/security/cron-auth'
 import { processDueReminders } from '@/lib/reminders/worker'
 
 export const dynamic = 'force-dynamic'
@@ -13,19 +13,8 @@ export const dynamic = 'force-dynamic'
 async function runReminders(request: Request) {
   const correlationId = generateCorrelationId()
   const startedAt = Date.now()
-  const authHeader = request.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-
-  if (!cronSecret) {
-    logger.error('cron/reminders', 'CRON_SECRET not configured', { correlationId })
-    if (process.env.NODE_ENV === 'production') {
-      return NextResponse.json({ ok: false, error: 'Reminders cron not configured' }, { status: 500 })
-    }
-    logger.warn('cron/reminders', 'running without CRON_SECRET (non-production only)', { correlationId })
-  } else if (!bearerMatches(authHeader, cronSecret)) {
-    logger.warn('cron/reminders', 'unauthorized invocation', { correlationId })
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronSecret(request, 'reminders', correlationId)
+  if (denied) return denied
 
   try {
     const summary = await processDueReminders()

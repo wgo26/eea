@@ -16,7 +16,7 @@ Status: approved baseline for deployment planning
 | Node.js | Node.js 22 LTS if available in the Business plan; otherwise use the newest Hostinger-supported LTS version. |
 | Primary domain | `eagleeyeafrica.org`. |
 | `www` host | `www.eagleeyeafrica.org` redirects to `https://eagleeyeafrica.org`. |
-| Production branch | `master`, matching the current local branch. Rename it only as a separate, deliberate repository change. |
+| Production branch | `main` — the repository's default branch; CI (`.github/workflows/ci.yml`) and deploys run from it. (Audit W5: this row previously said `master`, a branch that does not exist.) |
 | Production approval | A production deployment requires an explicit human approval in the deployment workflow. |
 | Staging | Use `staging.eagleeyeafrica.org` and a separate Supabase staging project. Never use production credentials for staging. |
 | Reverse proxy and TLS | Managed by Hostinger. Configure the domain and HTTPS in hPanel. |
@@ -66,14 +66,14 @@ If Hostinger Business only supports static exports or does not support a persist
 - [ ] A human approver is assigned for production deployments.
 - [ ] The exposed Supabase service-role key in the local `.env` has been revoked and replaced.
 - [ ] Production Auth redirect URLs use the final HTTPS domain.
-- [ ] The Hostinger deployment workflow is configured for the `master` branch.
+- [ ] The Hostinger deployment workflow is configured for the `main` branch.
 
 ## Branch policy
 
-- Pull requests target `master`.
+- Pull requests target `main`.
 - CI must pass before merge.
-- Production deployment runs only from `master`.
-- Direct pushes to `master` should be disabled in the Git hosting provider.
+- Production deployment runs only from `main`.
+- Direct pushes to `main` should be disabled in the Git hosting provider.
 - Production deployment approval should be required in the GitHub environment named `production`.
 - Staging deployment may run automatically after merge, subject to the staging workflow.
 

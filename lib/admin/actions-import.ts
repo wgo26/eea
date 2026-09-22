@@ -103,6 +103,7 @@ export async function importPosts(
         ? (item.filename.split('/').pop() ?? '').replace(/\.html?$/i, '')
         : ''
       const slug = await uniqueSlug(admin, slugBase || title)
+      const legacyPath = item.originalUrl ?? item.filename ?? null;
       const { data: created, error: createErr } = await admin
         .from('content_items')
         .insert({
@@ -110,6 +111,7 @@ export async function importPosts(
           slug,
           status: 'draft',
           author_id: user.id,
+          legacy_path: legacyPath,
           // Live posts keep their original publish date (the status flip to
           // published preserves an existing published_at); never-published
           // Blogger drafts keep published_at null like any native draft.

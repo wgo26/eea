@@ -46,6 +46,12 @@ type SmartImageProps = {
   height?: number;
   sizes?: string;
   priority?: boolean;
+  /**
+   * Phase 4 — Save-Data aware quality (1–100, default 75). The AdaptiveImage
+   * wrapper drops this to ~35 on metered connections; pass explicitly for
+   * fixed low-byte slots (thumbs, rails).
+   */
+  quality?: number;
 };
 
 /**
@@ -57,7 +63,7 @@ export const CARD_SIZES = '(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 3
 export const THUMB_SIZES = '160px';
 
 /** Drop-in image for editorial surfaces: optimized when possible, plain otherwise. */
-export function SmartImage({ src, alt, className, fill = true, width, height, sizes, priority = false }: SmartImageProps) {
+export function SmartImage({ src, alt, className, fill = true, width, height, sizes, priority = false, quality }: SmartImageProps) {
   if (!isOptimizableImage(src)) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -73,7 +79,7 @@ export function SmartImage({ src, alt, className, fill = true, width, height, si
     );
   }
   if (fill) {
-    return <Image src={src} alt={alt} fill sizes={sizes ?? CARD_SIZES} priority={priority} className={className} />;
+    return <Image src={src} alt={alt} fill sizes={sizes ?? CARD_SIZES} priority={priority} quality={quality} className={className} />;
   }
   return (
     <Image
@@ -83,6 +89,7 @@ export function SmartImage({ src, alt, className, fill = true, width, height, si
       height={height ?? 300}
       sizes={sizes}
       priority={priority}
+      quality={quality}
       className={className}
     />
   );

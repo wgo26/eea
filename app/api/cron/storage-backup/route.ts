@@ -8,7 +8,7 @@ import {
   BACKUP_LEASE_SECONDS,
 } from '@/lib/storage/backup'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
-import { bearerMatches } from '@/lib/security/secrets'
+import { requireCronSecret } from '@/lib/security/cron-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,20 +27,8 @@ export const dynamic = 'force-dynamic'
 async function runBackup(request: Request) {
   const startedAt = Date.now()
   const correlationId = generateCorrelationId()
-  const authHeader = request.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-
-  if (!cronSecret) {
-    logger.error('cron/storage-backup', 'CRON_SECRET not configured', { correlationId });
-    if (process.env.NODE_ENV === 'production') {
-      return NextResponse.json({ ok: false, error: 'Backup cron not configured' }, { status: 500 })
-    }
-    // Non-production without a secret: allow (local drills) but log loudly.
-    logger.warn('cron/storage-backup', 'running without CRON_SECRET (non-production only)', { correlationId })
-  } else if (!bearerMatches(authHeader, cronSecret)) {
-    logger.warn('cron/storage-backup', 'unauthorized invocation', { correlationId })
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronSecret(request, 'storage-backup', correlationId)
+  if (denied) return denied
 
   const owner = `cron-${correlationId}`
   const supabase = createAdminClient()

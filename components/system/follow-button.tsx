@@ -77,7 +77,7 @@ export function FollowButton({
                 </span>
             </span>
             {notice ? (
-                <span role="status" className="text-[11px] text-muted-foreground">
+                <span role="status" className="text-xs text-muted-foreground">
                     {notice}
                 </span>
             ) : null}

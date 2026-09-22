@@ -260,7 +260,7 @@ export function ListingActions({ listing, copy, common, locale, canDelete }: { l
               </label>
             </div>
             {listing.sellerVerified ? (
-              <p className="text-[11px] font-medium text-emerald-600">{copy.verifiedSeller}</p>
+              <p className="text-xs font-medium text-emerald-600">{copy.verifiedSeller}</p>
             ) : null}
           </div>
           <DialogFooter>

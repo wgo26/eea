@@ -57,6 +57,9 @@ checklist-dump.txt
 tsc-out.txt
 eea-read-build.cjs
 
+# local AI-agent worktrees / scratch (never repo content)
+.kilo/
+
 # vercel
 .vercel
 

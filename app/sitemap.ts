@@ -16,11 +16,15 @@ const STATIC_PATHS = [
     "/",
     "/photo-stories",
     "/news",
+    "/street",
+    "/map",
+    // NOTE (Phase 1): /offline and /submit are intentionally absent — both
+    // render with robots noindex (offline/page.tsx, (focused)/layout.tsx) and
+    // must not consume crawl budget or surface as URL-only results.
     "/buy-sell",
     "/notices",
     "/culture",
     "/culture/events",
-    "/submit",
     "/locations",
     "/contributors",
     "/digest",
@@ -32,12 +36,15 @@ const STATIC_PATHS = [
     "/about/guidelines",
     "/about/copyright",
     "/about/contact",
+    "/about/verification",
 ];
 
 type DynamicEntry = { path: string; lastModified?: Date };
 
 const SEGMENT_BY_TYPE: Record<string, string> = {
     news: "/news",
+    // Phase 4 — Eye on the Street micro-stories share the /news detail route.
+    micro_story: "/news",
     photo_story: "/photo-stories",
     culture: "/culture",
     listing: "/buy-sell",
@@ -52,7 +59,7 @@ async function fetchDynamicEntries(): Promise<DynamicEntry[]> {
 
         const supabase = createAdminClient();
         const nowIso = new Date().toISOString();
-        const [content, notices, locations, contributors] = await Promise.all([
+        const [content, notices, events, locations, contributors] = await Promise.all([
             supabase
                 .from("content_items")
                 .select("type, id, slug, published_at, expires_at")
@@ -67,6 +74,13 @@ async function fetchDynamicEntries(): Promise<DynamicEntry[]> {
                 .select("content_item_id, expiry_date")
                 .not("expiry_date", "is", null)
                 .lte("expiry_date", nowIso),
+            // Phase 1: events are culture content with an events extension row
+            // and live at /culture/events/[id] — not covered by SEGMENT_BY_TYPE.
+            // Only upcoming/ongoing published events are indexed.
+            supabase
+                .from("events")
+                .select("content_item_id, starts_at, ends_at")
+                .gte("starts_at", nowIso),
             supabase.from("locations").select("slug").eq("is_active", true),
             supabase
                 .from("profiles")
@@ -96,6 +110,28 @@ async function fetchDynamicEntries(): Promise<DynamicEntry[]> {
             const entry: DynamicEntry = { path: `${segment}/${identifier}` };
             if (row.published_at) entry.lastModified = new Date(row.published_at);
             entries.push(entry);
+        }
+        // Phase 1: indexable event detail pages (/culture/events/[id]).
+        // Resolved against published content_items so drafts/scheduled never leak.
+        if (!events.error) {
+            const eventRows = (events.data ?? []) as {
+                content_item_id: string | null;
+                starts_at: string | null;
+            }[];
+            const publishedById = new Map(
+                rows.map((r) => [r.id, r] as const),
+            );
+            for (const ev of eventRows) {
+                if (!ev.content_item_id) continue;
+                const parent = publishedById.get(ev.content_item_id);
+                if (!parent) continue;
+                if (expiredNoticeIds.has(ev.content_item_id)) continue;
+                const identifier = parent.slug ?? parent.id;
+                entries.push({
+                    path: `/culture/events/${identifier}`,
+                    lastModified: parent.published_at ? new Date(parent.published_at) : undefined,
+                });
+            }
         }
         if (!locations.error) {
             for (const row of (locations.data ?? []) as { slug: string | null }[]) {

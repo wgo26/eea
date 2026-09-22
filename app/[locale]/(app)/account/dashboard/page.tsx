@@ -43,6 +43,8 @@ type CampaignRow = {
     status: string | null;
     agreed_price: number | string | null;
     currency: string | null;
+    impressions_count?: number | string | null;
+    clicks_count?: number | string | null;
 };
 
 type Copy = Dictionary["account"]["dashboard"];
@@ -178,6 +180,7 @@ export default async function Page() {
         savedCountRes,
         followsCountRes,
         advertiserRes,
+        impactRes,
     ] = await Promise.all([
         supabase.from("user_roles").select("role").eq("user_id", user.id),
         supabase.from("profiles").select("full_name, display_name, bio, phone").eq("id", user.id).maybeSingle(),
@@ -209,10 +212,22 @@ export default async function Page() {
         supabase.from("saved_content").select("id", { count: "exact", head: true }).eq("user_id", user.id),
         supabase.from("content_follows").select("user_id", { count: "exact", head: true }).eq("user_id", user.id),
         // Advertiser stats: own campaigns via advertisers.user_id (RLS allows).
+        // Phase 3: select the beacon counters so Reach/Clicks cards show real
+        // impression/click sums instead of campaign counts.
         supabase
             .from("advertisers")
-            .select("id, ad_campaigns(id, name, status, agreed_price, currency)")
+            .select("id, ad_campaigns(id, name, status, agreed_price, currency, impressions_count, clicks_count)")
             .eq("user_id", user.id),
+        // Phase 3 — contributor impact: view/share totals over own published
+        // items (the "your story got 2k reads" dopamine the counts-only
+        // dashboard lacked). Capped at 5000 rows; beyond that the number is
+        // a lower bound and still directionally right.
+        supabase
+            .from("content_items")
+            .select("view_count, share_count")
+            .eq("author_id", user.id)
+            .eq("status", "published")
+            .limit(5000),
     ]);
 
     const roles = (rolesRes.data ?? []).map((row: { role?: string }) => row.role).filter(Boolean) as string[];
@@ -227,6 +242,14 @@ export default async function Page() {
     const draftTotal = draftCountRes.count ?? 0;
     const savedTotal = savedCountRes.count ?? 0;
     const followedTotal = followsCountRes.count ?? 0;
+    // Phase 3 — contributor impact totals (views + shares over own items).
+    const impactRows = ((impactRes.data ?? []) as { view_count?: number | string | null; share_count?: number | string | null }[]);
+    const num = (v: number | string | null | undefined) => {
+        const n = typeof v === "string" ? Number(v) : (v ?? 0);
+        return Number.isFinite(n) ? n : 0;
+    };
+    const totalViews = impactRows.reduce((s, r) => s + num(r.view_count), 0);
+    const totalShares = impactRows.reduce((s, r) => s + num(r.share_count), 0);
 
     const advertisers = ((advertiserRes.data ?? []) as unknown as { id: string; ad_campaigns: CampaignRow | CampaignRow[] | null }[]).flatMap(
         (a) => {
@@ -235,11 +258,17 @@ export default async function Page() {
         },
     );
     const activeCampaigns = advertisers.filter((c) => c.status === "active");
-    const pendingCampaigns = advertisers.filter((c) => c.status === "pending");
     const totalSpend = advertisers.reduce((sum, c) => {
         const n = typeof c.agreed_price === "string" ? Number(c.agreed_price) : (c.agreed_price ?? 0);
         return sum + (Number.isFinite(n) ? n : 0);
     }, 0);
+    // Phase 3 — real beacon sums (were campaign counts wearing metric labels).
+    const numCount = (v: number | string | null | undefined) => {
+        const n = typeof v === "string" ? Number(v) : (v ?? 0);
+        return Number.isFinite(n) ? n : 0;
+    };
+    const totalImpressions = advertisers.reduce((s, c) => s + numCount(c.impressions_count), 0);
+    const totalClicks = advertisers.reduce((s, c) => s + numCount(c.clicks_count), 0);
 
     const profileInitial = {
         displayName: profile?.display_name ?? "",
@@ -337,8 +366,8 @@ export default async function Page() {
 
                 <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <DashboardCard label={t.statCampaigns} value={String(activeCampaigns.length)} hint={t.hintActiveMonth} />
-                    <DashboardCard label={t.statReach} value={String(pendingCampaigns.length)} hint={t.hintImpressions} />
-                    <DashboardCard label={t.statClicks} value={String(advertisers.length)} hint={t.hintEngagement} />
+                    <DashboardCard label={t.statReach} value={totalImpressions.toLocaleString(locale === "fr" ? "fr-FR" : "en-GB")} hint={t.hintImpressions} />
+                    <DashboardCard label={t.statClicks} value={totalClicks.toLocaleString(locale === "fr" ? "fr-FR" : "en-GB")} hint={t.hintEngagement} />
                     <DashboardCard label={t.statSpend} value={formatXaf(totalSpend, t)} hint={t.hintBudget} />
                 </section>
 
@@ -413,11 +442,15 @@ export default async function Page() {
                         hint={t.hintLiveStories}
                     />
                     <DashboardCard
-                        label={t.statDrafts}
-                        value={String(draftTotal)}
-                        hint={t.hintInProgress}
+                        label={t.statViews}
+                        value={totalViews.toLocaleString(locale === "fr" ? "fr-FR" : "en-GB")}
+                        hint={t.hintViews}
                     />
-                    <DashboardCard label={t.statProfile} value={t.member} hint={t.hintContributor} />
+                    <DashboardCard
+                        label={t.statShares}
+                        value={totalShares.toLocaleString(locale === "fr" ? "fr-FR" : "en-GB")}
+                        hint={t.hintShares}
+                    />
                 </section>
 
                 <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">

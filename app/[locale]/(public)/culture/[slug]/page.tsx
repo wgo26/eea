@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { CalendarDays, Clock, Landmark, MapPin, Tag, User } from "lucide-react";
 
 import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
+import { RecordRecentView } from "@/components/system/record-recent-view";
+import { PrintHeader } from "@/components/system/print-header";
 import { ArticleActionRow } from "@/components/system/article-actions";
 import { FeedbackWidget } from "@/components/system/feedback-widget";
 import { AddToCalendar } from "@/components/events/add-to-calendar";
@@ -11,10 +13,11 @@ import { ReminderButton } from "@/components/events/reminder-button";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 import { SITE } from "@/lib/constants";
-import { getDictionary, resolveLocale } from "@/lib/i18n";
+import { formatDate, getDictionary, resolveLocale } from "@/lib/i18n";
 import { getCultureBySlug, getCultureArticles } from "@/lib/queries/culture";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { sanitizeBodyHtml } from "@/lib/security/html";
+import { articleJsonLd, breadcrumbJsonLd, renderJsonLd } from "@/lib/seo/jsonld";
 
 type Props = {
     params: Promise<{ locale: string; slug: string }>;
@@ -33,7 +36,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const { slug, locale: raw } = await params;
     const locale = resolveLocale(raw);
     const article = await getCultureBySlug(slug, locale);
-    if (!article) return { title: "Culture Story" };
+    if (!article) return { title: locale === "fr" ? "Histoire culture introuvable" : "Culture story not found" };
     return {
         title: article.title,
         description: article.excerpt ?? undefined,
@@ -55,6 +58,21 @@ export default async function CultureDetailPage({ params }: Props) {
     const bodyHtml = sanitizeBodyHtml(article.body);
 
     const shareUrl = `${SITE.url}${localePath(locale, `/culture/${article.slug}`)}`;
+    // Phase 3 — Article + breadcrumb structured data (rich results).
+    const jsonLd = renderJsonLd([
+        articleJsonLd({
+            headline: article.title,
+            description: article.excerpt,
+            image: article.imageUrl,
+            datePublished: article.publishedAt,
+            authorName: article.authorName,
+            url: shareUrl,
+        }),
+        breadcrumbJsonLd([
+            { name: dict.nav.culture, url: `${SITE.url}${localePath(locale, "/culture")}` },
+            { name: article.title, url: shareUrl },
+        ]),
+    ]);
 
     const { articles: related } = await getCultureArticles({
         category: undefined,
@@ -67,11 +85,32 @@ export default async function CultureDetailPage({ params }: Props) {
         .slice(0, 3);
 
     return (
+        <>
+        {/* Phase 3 — device-local reading history. */}
+        <RecordRecentView
+            view={{
+                id: article.id,
+                href: localePath(locale, `/culture/${article.slug}`),
+                title: article.title,
+                imageUrl: article.imageUrl,
+            }}
+        />
+        <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: jsonLd }}
+        />
         <div className="mx-auto w-full max-w-4xl px-4 py-8 md:px-6 lg:px-8">
             <ContentBreadcrumb
                 locale={locale}
                 homeLabel={dict.nav.home}
                 trail={[{ label: dict.nav.culture, path: "/culture" }, { label: article.title }]}
+            />
+
+            {/* Phase 3 — print attribution header (paper only). */}
+            <PrintHeader
+                title={article.title}
+                dateLine={article.publishedAt ? formatDate(article.publishedAt, locale) : null}
+                url={shareUrl}
             />
 
             {/* Article header */}
@@ -82,7 +121,7 @@ export default async function CultureDetailPage({ params }: Props) {
                             {article.category}
                         </span>
                     ) : null}
-                    <h1 className="mt-3 text-3xl font-extrabold tracking-tight md:text-5xl">
+                    <h1 className="font-display mt-3 text-3xl font-extrabold tracking-tight md:text-5xl">
                         {article.title}
                     </h1>
                     {article.excerpt ? (
@@ -106,7 +145,7 @@ export default async function CultureDetailPage({ params }: Props) {
                         {article.publishedAt ? (
                             <span className="inline-flex items-center gap-1.5">
                                 <CalendarDays className="h-4 w-4" aria-hidden />
-                                {new Date(article.publishedAt).toLocaleDateString()}
+                                {new Date(article.publishedAt).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-GB")}
                             </span>
                         ) : null}
                         {article.viewCount ? (
@@ -147,7 +186,7 @@ export default async function CultureDetailPage({ params }: Props) {
                                             {dict.culture.eventDate}
                                         </span>
                                         <span className="mt-0.5 block text-sm font-semibold">
-                                            {new Date(article.eventDate).toLocaleDateString(undefined, {
+                                            {new Date(article.eventDate).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-GB", {
                                                 weekday: "long",
                                                 year: "numeric",
                                                 month: "long",
@@ -308,7 +347,7 @@ export default async function CultureDetailPage({ params }: Props) {
                                         {item.title}
                                     </h3>
                                     {item.category ? (
-                                        <span className="mt-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                        <span className="mt-1 block text-xs font-bold uppercase tracking-widest text-muted-foreground">
                                             {item.category}
                                         </span>
                                     ) : null}
@@ -319,5 +358,6 @@ export default async function CultureDetailPage({ params }: Props) {
                 </section>
             ) : null}
         </div>
+        </>
     );
 }

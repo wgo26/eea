@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarDays, Clock, Landmark, MapPin, Tag, User } from "lucide-react";
+import { CalendarDays, Clock, Landmark, MapPin, Tag, User } from "lucide-react";
 
 import { ShareButtons } from "@/components/share-buttons";
+import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
 import { SmartImage } from "@/components/media/smart-image";
+import { breadcrumbJsonLd, eventJsonLd, renderJsonLd } from "@/lib/seo/jsonld";
 import { SITE } from "@/lib/constants";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
@@ -25,7 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const { id, locale: rawLocale } = await params;
     const locale = resolveLocale(rawLocale);
     const event = await getEventById(id, locale);
-    if (!event) return { title: "Event" };
+    if (!event) return { title: locale === "fr" ? "Événement introuvable" : "Event not found" };
     return {
         title: event.title,
         description: event.excerpt ?? undefined,
@@ -46,17 +47,42 @@ export default async function EventDetailPage({ params }: Props) {
     const bodyHtml = sanitizeBodyHtml(event.body);
 
     const shareUrl = `${SITE.url}${localePath(locale, `/culture/events/${event.slug}`)}`;
+    // Phase 3 — Event + breadcrumb structured data (rich results).
+    const jsonLd = renderJsonLd([
+        eventJsonLd({
+            name: event.title,
+            description: event.excerpt,
+            image: event.imageUrl,
+            url: shareUrl,
+            startDate: event.eventDate,
+            endDate: event.eventTime,
+            venue: event.venue,
+            locationName: event.location,
+            organizerName: event.organizer,
+        }),
+        breadcrumbJsonLd([
+            { name: dict.nav.culture, url: `${SITE.url}${localePath(locale, "/culture")}` },
+            { name: dict.culture.events, url: `${SITE.url}${localePath(locale, "/culture/events")}` },
+            { name: event.title, url: shareUrl },
+        ]),
+    ]);
 
     return (
+        <>
+        <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: jsonLd }}
+        />
         <div className="mx-auto w-full max-w-4xl px-4 py-8 md:px-6 lg:px-8">
-            {/* Back link */}
-            <Link
-                href={localePath(locale, "/culture/events")}
-                className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
-            >
-                <ArrowLeft className="h-4 w-4" aria-hidden />
-                {dict.culture.events}
-            </Link>
+            <ContentBreadcrumb
+                locale={locale}
+                homeLabel={dict.nav.home}
+                trail={[
+                    { label: dict.nav.culture, path: "/culture" },
+                    { label: dict.culture.events, path: "/culture/events" },
+                    { label: event.title },
+                ]}
+            />
 
             <article>
                 {/* Event header */}
@@ -66,7 +92,7 @@ export default async function EventDetailPage({ params }: Props) {
                             {event.category}
                         </span>
                     ) : null}
-                    <h1 className="mt-3 text-3xl font-extrabold tracking-tight md:text-5xl">
+                    <h1 className="font-display mt-3 text-3xl font-extrabold tracking-tight md:text-5xl">
                         {event.title}
                     </h1>
                     {event.excerpt ? (
@@ -84,7 +110,7 @@ export default async function EventDetailPage({ params }: Props) {
                         {event.publishedAt ? (
                             <span className="inline-flex items-center gap-1.5">
                                 <CalendarDays className="h-4 w-4" aria-hidden />
-                                {new Date(event.publishedAt).toLocaleDateString()}
+                                {new Date(event.publishedAt).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-GB")}
                             </span>
                         ) : null}
                     </div>
@@ -121,7 +147,7 @@ export default async function EventDetailPage({ params }: Props) {
                                         {dict.culture.eventDate}
                                     </span>
                                     <span className="mt-0.5 block text-sm font-semibold">
-                                        {new Date(event.eventDate).toLocaleDateString(undefined, {
+                                        {new Date(event.eventDate).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-GB", {
                                             weekday: "long",
                                             year: "numeric",
                                             month: "long",
@@ -217,5 +243,6 @@ export default async function EventDetailPage({ params }: Props) {
                 </div>
             </article>
         </div>
+        </>
     );
 }

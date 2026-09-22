@@ -46,11 +46,24 @@ Until step 3 is done, Sentry is inert; errors go to stdout (see §5).
 
 ## 3. Uptime monitoring
 
-`/api/health` (liveness: process is up) and `/api/ready` (readiness: pings
-Supabase and R2, returns 200 only when both answer) exist. **Something must
-call them** — recommended: a free-tier monitor (UptimeRobot, BetterStack) with
-the check URL `https://<domain>/api/ready` at a 60 s interval, and an alert to
-the ops webhook/email on any non-200.
+`/api/health` (liveness: process is up, dependency-free — stays green during a
+DB outage by design) and `/api/ready` (readiness: pings Supabase and R2,
+returns 200 only when both answer) exist. **Something must call them** —
+recommended: a free-tier monitor (UptimeRobot, BetterStack) with TWO checks:
+
+1. Anonymous readiness: `https://<domain>/api/ready` at 60 s interval, alert
+   on any non-200. Public body is `{status, timestamp, correlationId}` only.
+2. Authenticated freshness: `https://<domain>/api/ready?fresh=1` with header
+   `Authorization: Bearer <READY_PROBE_SECRET>` at 5 min interval, alert on
+   non-200 or `status: degraded`. `READY_PROBE_SECRET` is DEDICATED (Phase 0:
+   no fallback to `CRON_SECRET`). `?fresh=1` bypasses the 15 s probe cache and
+   is authenticated-only so anonymous callers cannot force unbounded
+   DB/storage load.
+
+Pair both with the GitHub `scheduled-jobs.yml` watchdog (fails when no
+scheduled run succeeded in 3 h — covers the */15 notify worker). The
+`db-maintenance` cron returns 500 when schema verification finds missing
+objects — wire that 500 to the same alert channel.
 
 ## 4. Nightly ops digest (webhook)
 

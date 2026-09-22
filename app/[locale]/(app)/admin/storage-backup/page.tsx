@@ -71,11 +71,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
       <div className="grid gap-2 md:grid-cols-2">
         <section className="rounded-lg border border-border bg-card px-3 py-2.5">
           <h3 className="text-xs font-medium">{t.manualBackup}</h3>
-          <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{t.manualBackupBody}</p>
+          <p className="mt-0.5 text-xs leading-tight text-muted-foreground">{t.manualBackupBody}</p>
         </section>
         <section className="rounded-lg border border-border bg-card px-3 py-2.5">
           <h3 className="text-xs font-medium">{t.verification}</h3>
-          <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{t.verificationBody}</p>
+          <p className="mt-0.5 text-xs leading-tight text-muted-foreground">{t.verificationBody}</p>
         </section>
       </div>
 
@@ -90,7 +90,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
               <div key={p.provider} className="rounded-lg border border-border bg-card px-3 py-2.5">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-xs font-medium">{providerLabels[p.provider] ?? p.provider}</span>
-                  <span className="text-[11px] text-muted-foreground">{t.files.replace('{count}', String(p.count))} · {formatBytes(p.bytes)}</span>
+                  <span className="text-xs text-muted-foreground">{t.files.replace('{count}', String(p.count))} · {formatBytes(p.bytes)}</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                   <div
@@ -142,7 +142,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
                     <div className="min-w-0">
                       <div className="text-xs font-medium truncate">{r.storageKey ?? r.id}</div>
                       {r.publicUrl && (
-                        <a href={r.publicUrl} target="_blank" rel="noreferrer" className="block text-[11px] text-primary hover:underline truncate">
+                        <a href={r.publicUrl} target="_blank" rel="noreferrer" className="block text-xs text-primary hover:underline truncate">
                           {r.publicUrl}
                         </a>
                       )}

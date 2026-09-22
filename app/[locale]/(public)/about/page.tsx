@@ -283,7 +283,7 @@ function StatBlock({ value, label, accent }: { value: string; label: string; acc
             >
                 {value}
             </p>
-            <p className="mt-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground md:text-xs">
+            <p className="mt-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 {label}
             </p>
         </div>

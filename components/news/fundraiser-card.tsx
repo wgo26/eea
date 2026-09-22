@@ -3,7 +3,7 @@ import { ExternalLink, HeartHandshake, MapPin, Phone, Share2 } from "lucide-reac
 
 import { cn } from "@/lib/utils";
 import { countdownLabel, formatMoney, formatMoneyCompact, whatsappHref } from "@/lib/format";
-import { verificationBadgeInfo } from "@/lib/verification";
+import { TrustBadge } from "@/components/system/trust-badge";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { FundraiserData } from "@/lib/queries/fundraisers";
 import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
@@ -29,7 +29,6 @@ export function FundraiserCard({
     shareUrl,
     className,
 }: FundraiserCardProps) {
-    const badge = verificationBadgeInfo(campaign.verification ?? null, dict);
     const countdown = countdownLabel(campaign.deadlineAt, dict);
     const goalReached = campaign.percent >= 100;
 
@@ -55,18 +54,9 @@ export function FundraiserCard({
                         aria-hidden
                     />
                     <span className="absolute left-3 top-3 flex flex-wrap items-center gap-2">
-                        {badge ? (
-                            <span
-                                className={cn(
-                                    "rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm",
-                                    badge.className,
-                                )}
-                            >
-                                {badge.label}
-                            </span>
-                        ) : null}
+                        <TrustBadge verification={campaign.verification} dict={dict} locale={locale} link={false} />
                     </span>
-                    <span className="absolute bottom-3 right-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-extrabold text-white backdrop-blur">
+                    <span className="absolute bottom-3 right-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-extrabold text-white backdrop-blur">
                         {campaign.percent}% {dict.fundraisers.funded}
                     </span>
                 </div>
@@ -192,7 +182,7 @@ export function FundraiserCard({
                 </div>
 
                 {campaign.verificationNotes ? (
-                    <p className="mt-3 rounded-xl bg-muted/60 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
+                    <p className="mt-3 rounded-xl bg-muted/60 p-2.5 text-xs leading-relaxed text-muted-foreground">
                         {campaign.verificationNotes}
                     </p>
                 ) : null}

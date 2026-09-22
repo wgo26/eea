@@ -58,7 +58,7 @@ export default async function Page() {
         description={t.description}
         actions={
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 hidden text-[11px] font-medium uppercase tracking-wide text-muted-foreground xl:inline">{t.quickActions}</span>
+            <span className="mr-1 hidden text-xs font-medium uppercase tracking-wide text-muted-foreground xl:inline">{t.quickActions}</span>
             <Link href={contentHref({})} className={quickActionCls}>{t.qaCreateContent}</Link>
             <Link href={localePath(locale, '/admin/users')} className={quickActionCls}>{t.qaInviteUser}</Link>
             <Link href={localePath(locale, '/admin/ads')} className={quickActionCls}>{t.qaNewAd}</Link>

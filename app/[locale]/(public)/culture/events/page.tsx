@@ -1,21 +1,24 @@
 import type { Metadata } from "next";
-import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
-import { CalendarDays, Clock, Landmark, MapPin } from "lucide-react";
+import { CalendarDays } from "lucide-react";
+import { buildAlternates, localePath } from "@/lib/i18n/urls";
 
-import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 import { EventsCalendar } from "@/components/events/events-calendar";
 import { EventsViewToggle } from "@/components/events/events-view-toggle";
+import { EventCard } from "@/components/culture/event-card";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getUpcomingEvents } from "@/lib/queries/culture";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
     const { locale: rawLocale } = await params;
     const locale = resolveLocale(rawLocale);
+    const dict = getDictionary(locale);
     return {
-        title: "Events",
+        title: dict.culture.upcomingEvents,
         description:
-        "Community event calendar — what's on, where and when across Africa.",
+            locale === "fr"
+                ? "Agenda communautaire — sorties, lieux et dates en Afrique."
+                : "Community event calendar — what's on, where and when across Africa.",
         alternates: buildAlternates(locale, "/culture/events"),
     };
 }
@@ -129,70 +132,7 @@ export default async function EventsPage({
                 >
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {filtered.map((event) => (
-                        <Link
-                            key={event.id}
-                            href={event.href}
-                            className="group flex flex-col overflow-hidden rounded-2xl border bg-card transition-shadow hover:shadow-md"
-                        >
-                            {event.imageUrl ? (
-                                <div className="relative aspect-[16/9] w-full overflow-hidden bg-muted">
-                                    <SmartImage
-                                        src={event.imageUrl}
-                                        alt={event.title}
-                                        sizes={CARD_SIZES}
-                                        className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                                    />
-                                </div>
-                            ) : (
-                                <div className="aspect-[16/9] bg-muted flex items-center justify-center">
-                                    <CalendarDays className="h-10 w-10 text-muted-foreground/30" aria-hidden />
-                                </div>
-                            )}
-                            <div className="flex flex-1 flex-col p-4">
-                                {/* Date strip */}
-                                {event.eventDate ? (
-                                    <div className="mb-2 flex items-center gap-2 text-xs font-bold text-primary">
-                                        <CalendarDays className="h-3.5 w-3.5" aria-hidden />
-                                        <time dateTime={event.eventDate}>
-                                            {new Date(event.eventDate).toLocaleDateString(undefined, {
-                                                weekday: "short",
-                                                month: "short",
-                                                day: "numeric",
-                                                year: "numeric",
-                                            })}
-                                        </time>
-                                    </div>
-                                ) : null}
-                                <h2 className="line-clamp-2 text-base font-bold leading-snug tracking-tight group-hover:underline">
-                                    {event.title}
-                                </h2>
-                                {event.excerpt ? (
-                                    <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">
-                                        {event.excerpt}
-                                    </p>
-                                ) : null}
-                                <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 text-xs text-muted-foreground">
-                                    {event.eventTime ? (
-                                        <span className="inline-flex items-center gap-1">
-                                            <Clock className="h-3 w-3" aria-hidden />
-                                            {event.eventTime}
-                                        </span>
-                                    ) : null}
-                                    {event.venue ? (
-                                        <span className="inline-flex items-center gap-1">
-                                            <Landmark className="h-3 w-3" aria-hidden />
-                                            {event.venue}
-                                        </span>
-                                    ) : null}
-                                    {event.location ? (
-                                        <span className="inline-flex items-center gap-1">
-                                            <MapPin className="h-3 w-3" aria-hidden />
-                                            {event.location}
-                                        </span>
-                                    ) : null}
-                                </div>
-                            </div>
-                        </Link>
+                        <EventCard key={event.id} event={event} dict={dict} locale={locale} />
                     ))}
                 </div>
                 </EventsViewToggle>

@@ -52,7 +52,7 @@ export function CommandPaletteButton({ locale, chrome }: { locale: Locale; chrom
             >
                 <Search className="h-4 w-4" aria-hidden />
                 <span className="hidden max-w-32 truncate xl:inline">{dict.command.openLabel}</span>
-                <kbd className="hidden rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-semibold sm:inline">
+                <kbd className="hidden rounded border border-border bg-background px-1.5 py-0.5 text-xs font-semibold sm:inline">
                     ⌘K
                 </kbd>
             </button>

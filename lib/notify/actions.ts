@@ -276,6 +276,10 @@ export async function subscribeDigest(_prev: ActionResult, formData: FormData): 
       typeof formData.get('whatsapp') === 'string' ? (formData.get('whatsapp') as string).trim().slice(0, 32) : null,
     );
     const locale = cleanLocale(formData.get('locale'));
+    // Phase 3 — diaspora opt-in: readers abroad get the same daily brief;
+    // the flag is persisted for packaging (memory-oriented subject framing
+    // is a follow-up) and surfaced in the admin subscriber list.
+    const diasporaMode = formData.get('diaspora_mode') === 'on';
     if (!email && !whatsapp) return { ok: false, error: 'invalid' };
 
     const supabase = createAdminClient();
@@ -285,7 +289,7 @@ export async function subscribeDigest(_prev: ActionResult, formData: FormData): 
       if (row?.id) {
         const { error } = await supabase
           .from('digest_subscribers')
-          .update({ phone: whatsapp, whatsapp, locale, is_active: true })
+          .update({ phone: whatsapp, whatsapp, locale, diaspora_mode: diasporaMode, is_active: true })
           .eq('id', row.id);
         if (error) return { ok: false, error: error.message };
         return { ok: true };
@@ -296,10 +300,11 @@ export async function subscribeDigest(_prev: ActionResult, formData: FormData): 
       phone: whatsapp,
       whatsapp,
       locale,
+      diaspora_mode: diasporaMode,
       is_active: true,
     });
     if (error) return { ok: false, error: error.message };
-    logger.info('notify-digest', 'subscriber added', { hasEmail: !!email, hasWhatsapp: !!whatsapp, locale });
+    logger.info('notify-digest', 'subscriber added', { hasEmail: !!email, hasWhatsapp: !!whatsapp, locale, diasporaMode });
     return { ok: true };
   } catch (e) {
     return fail(e);

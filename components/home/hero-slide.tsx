@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { type Dictionary, type Locale } from "@/lib/i18n";
-import { verificationBadgeInfo } from "@/lib/verification";
+import { TrustBadge } from "@/components/system/trust-badge";
 import type { StoryCardData } from "@/lib/queries/home";
 import { SmartImage } from "@/components/media/smart-image";
 
@@ -23,11 +23,10 @@ type HeroSlideProps = {
 export function HeroSlide({
     story,
     dict,
+    locale,
     headingLevel: Heading = "h2",
     priority = false,
 }: HeroSlideProps) {
-    const badge = verificationBadgeInfo(story.verification ?? null, dict);
-
     return (
         <Link
             href={story.href}
@@ -51,21 +50,17 @@ export function HeroSlide({
             {/* Bottom-anchored scrim only — the upper two-thirds of the photo stay clear. */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" aria-hidden />
             <div className="relative min-w-0 p-5 sm:p-6 md:p-8">
-                <span className="inline-flex w-fit items-center rounded-full bg-primary px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.18em] text-primary-foreground shadow-sm">
+                <span className="inline-flex w-fit items-center rounded-full bg-primary px-3 py-1 text-xs font-extrabold uppercase tracking-[0.18em] text-primary-foreground shadow-sm">
                     {dict.hero.featured}
                 </span>
                 <Heading className="mt-2.5 line-clamp-2 max-w-3xl break-words text-xl font-extrabold leading-tight tracking-tight text-white sm:text-2xl md:text-4xl">
                     {story.title}
                 </Heading>
-                {badge ?? story.category ? (
+                {story.verification ?? story.category ? (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {badge ? (
-                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${badge.className}`}>
-                                {badge.label}
-                            </span>
-                        ) : null}
-                        {!badge && story.category ? (
-                            <span className="rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white backdrop-blur">
+                        <TrustBadge verification={story.verification} dict={dict} locale={locale} link={false} />
+                        {!story.verification && story.category ? (
+                            <span className="rounded-full bg-black/40 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-white backdrop-blur">
                                 {story.category}
                             </span>
                         ) : null}

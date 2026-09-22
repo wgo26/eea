@@ -1,4 +1,4 @@
-import { appStringsEn } from './en-app'
+﻿import { appStringsEn } from './en-app'
 import { chromeEn } from './chrome-en'
 
 export const en = {
@@ -14,11 +14,18 @@ export const en = {
   header: chromeEn.header,
   theme: chromeEn.theme,
   language: chromeEn.language,
+  readerToolbar: chromeEn.readerToolbar,
   badges: {
     verified: 'Verified',
     community: 'Community submission',
     official: 'Official source',
     developing: 'Developing',
+    // Trust-layer tooltips + the explainer page every badge links to.
+    hintVerified: 'Checked against primary sources by Eagle Eye editors.',
+    hintCommunity: 'Sent in by a community member; basic checks passed, full verification pending.',
+    hintOfficial: 'Published from an official statement or document.',
+    hintDeveloping: 'This story is still unfolding and is updated as reports come in.',
+    aboutLink: 'What do these mean?',
   },
   hero: {
     featured: 'Featured story',
@@ -63,6 +70,12 @@ export const en = {
     exploreTitle: 'Explore Eagle Eye Africa',
     trending: 'Trending now',
     trendingHint: 'Latest across the community.',
+    digestCtaTitle: 'Get the daily digest',
+    digestCtaBody: 'One short message with the day’s verified stories — by email or WhatsApp, in English or French.',
+    digestCtaButton: 'Subscribe free',
+    degradedTitle: 'Some sections couldn’t load',
+    degradedBody:
+      'Our stories are still available in each section — please try a section page or refresh in a minute.',
     heroRailEmpty: 'More stories on the way — publish at least 6 photo, news or culture stories to fill this rail.',
   },
   photoStories: {
@@ -161,6 +174,18 @@ export const en = {
     timeline: 'The Eagle Eye Timeline',
     timelineHint: 'How this story unfolded, entry by entry.',
     timelineFull: 'Read the full timeline',
+    timelineCount: '{count} updates',
+    timelineEmpty: 'No timeline updates yet — check back as this story develops.',
+    timelineUpdatedLabel: 'Updated {date}',
+    // Eye on the Street micro-format (Differentiator #8): one photo, one
+    // place, one observation in 50–100 words, with a Pidgin/Camfranglais
+    // share line for WhatsApp-first distribution.
+    streetEyebrow: 'Eye on the Street',
+    streetSpottedIn: 'Spotted in {place}',
+    // Offline reading (low-bandwidth audience): Cache API save per article.
+    saveOffline: 'Save offline',
+    savedOffline: 'Saved — read it offline',
+    offlineUnavailable: 'Offline saving needs a browser with cache storage.',
     // Feed chrome
     thisWeek: 'This week',
     reporters: 'contributors',
@@ -303,6 +328,15 @@ export const en = {
     browseTypes: 'Browse by type',
     postedBy: 'Posted by',
     contactOrg: 'Contact',
+    revealContact: 'Reveal contact',
+    hideContact: 'Hide contact',
+    contactPhone: 'Phone',
+    contactEmail: 'Email',
+    contactRateLimited: 'Too many requests. Please try again in a few minutes.',
+    contactUnavailable: 'Unable to retrieve contact details.',
+    contactLoading: 'Loading…',
+    contactSafetyHint: 'Only contact about this notice. Never send money in advance — meet in a public place when you can.',
+    expiredContactNotice: 'This notice has expired — contact details are no longer available.',
     printNotice: 'Print',
     shareWhatsapp: 'Share on WhatsApp',
     resultsCount: '{count} notices',
@@ -360,6 +394,7 @@ export const en = {
     categoryHousehold: 'Household',
     categoryBusiness: 'Business Equipment',
     categoryOther: 'Other',
+    listingDetails: 'Listing details',
     priceLabel: 'Price',
     free: 'Free',
     negotiable: 'Negotiable',
@@ -380,6 +415,13 @@ export const en = {
     contactUnavailable: 'Unable to retrieve contact details.',
     contactLoading: 'Loading…',
     soldContactNotice: 'This item is sold — contact details are no longer available.',
+    watchPrice: 'Watch price',
+    watchingPrice: 'Watching price',
+    priceWatchers: 'watching',
+    priceWatchSignIn: 'Sign in to watch this price.',
+    priceWatchRateLimited: 'Too many requests. Please try again in a few minutes.',
+    priceWatchUnavailable: 'Unable to save your watch.',
+    replyExpectation: 'Sellers usually reply within 2 days — never send money before seeing the item.',
     shareListing: 'Share',
     reportListing: 'Report',
     markAsSold: 'Mark as sold',
@@ -548,17 +590,38 @@ export const en = {
     consentLink: 'community guidelines',
     withdraw: 'Withdraw',
     withdrawConfirm: 'Withdraw this submission? Editors will stop reviewing it. This cannot be undone.',
+    resubmit: 'Resubmit',
+    resubmitConfirm: 'Send this submission back to the editors? It returns to the review queue as pending.',
     deletePolicy:
       'Submissions under review can be withdrawn here but not deleted. Rejected items can be resubmitted; published items need staff takedown. Polls and fundraisers are managed by editors — ask support for changes.',
     submit: 'Submit for review',
     submitting: 'Submitting…',
     successTitle: 'Submission received',
     successBody:
-      'Thank you! Your submission is now in our editorial queue. We will review it and publish it if it meets our guidelines. You will be credited if it is published.',
+      'Thank you! Your submission is now in our editorial queue. Editors review every submission — most are checked within 2 working days. We will publish it if it meets our guidelines and credit you. Urgent safety information (road closures, missing persons, alerts): contact the organization or authorities directly first, then post here.',
+    reviewSla: 'Most submissions are reviewed within 2 working days.',
     errorGeneric: 'Something went wrong. Please try again.',
     errorRequired: 'Please fill in all required fields.',
     errorRateLimited: 'Too many submissions from your network right now. Please try again in a few minutes.',
     errorCaptcha: 'Please complete the human-verification step and try again.',
+    // Draft autosave: the form restores unsent fields after a dropped connection.
+    draftRestored: 'Your unsent draft was restored.',
+    draftDiscard: 'Discard draft',
+    // Phase 3 — guest upload disclosure: uploads need a free account, links don't.
+    signInToUpload: 'Want to upload files directly? Sign in for free — or paste image, video, audio or document links below, no account needed.',
+    // Per-file upload retry (flaky connections fail single files, not the form).
+    retryUpload: 'Retry failed uploads',
+    uploadFailedCount: '{count} upload(s) failed — your text is safe. Retry just those files.',
+    // Moderation timeline: Submitted → In review → Published.
+    timelineSubmitted: 'Submitted',
+    timelineSubmittedBody: 'Received and queued for the editors.',
+    timelineInReview: 'In review',
+    timelineInReviewBody: 'An editor is checking facts and sources.',
+    timelinePublished: 'Published',
+    timelinePublishedBody: 'Live on the site and credited to you.',
+    timelineRejected: 'Needs work',
+    timelineRejectedBody: 'Editors asked for changes — you can resubmit.',
+    timelineTrackTitle: 'Where is my submission?',
   },
   advertise: {
     title: 'Advertise with Eagle Eye Africa',
@@ -573,7 +636,8 @@ export const en = {
       'Tens of thousands of monthly readers across Cameroon and the wider region, on mobile and forwarded on WhatsApp every day.',
     pricingTitle: 'Pricing',
     pricingBody:
-      'Campaigns start from a flat weekly rate with no long-term commitment. Tell us your placement and budget and we will send a quote.',
+      'Campaigns start from a flat weekly rate with no long-term commitment. Tell us your placement and budget and we will send a quote — we reply to every inquiry within 1 business day.',
+    inquirySla: 'We reply to every inquiry within 1 business day.',
     inquiryTitle: 'Start an inquiry',
     fields: {
       company: 'Company / Organisation',
@@ -608,7 +672,7 @@ export const en = {
     submitting: 'Sending…',
     successTitle: 'Inquiry received',
     successBody:
-      'Thanks for your interest! Our advertising team will review your inquiry and get back to you with availability and a quote.',
+      'Thanks for your interest! Our advertising team reviews every inquiry and replies within 1 business day with availability and a quote. Pending inquiries are triaged daily — no message goes into a black hole.',
     errorGeneric: 'Something went wrong. Please try again.',
     errorRateLimited: 'Too many inquiries from your network right now. Please try again later.',
     errorDuplicate: 'We already have a pending inquiry with this email — our team will reply; no need to resend.',
@@ -625,6 +689,23 @@ export const en = {
     policiesTitle: 'Policies & legal',
     languageNote: 'You are reading the {lang} version. Content may be available in other languages.',
     comingSoon: 'This section is being finalised — check back shortly.',
+    verificationTitle: 'How verification works',
+    verificationIntro:
+      'Not every story carries the same certainty, so we say so on the story itself. Every badge links here.',
+    verificationVerifiedTitle: 'Verified',
+    verificationVerifiedBody:
+      'An Eagle Eye editor checked the core facts against primary sources — documents, officials, or direct witnesses — before publication.',
+    verificationCommunityTitle: 'Community submission',
+    verificationCommunityBody:
+      'Sent in by a community member. Basic checks (identity, plausibility, duplicates) passed; full editorial verification is still pending.',
+    verificationOfficialTitle: 'Official source',
+    verificationOfficialBody:
+      'Republished from an official statement or document. We show the source so you can judge it yourself.',
+    verificationDevelopingTitle: 'Developing',
+    verificationDevelopingBody:
+      'The story is still unfolding. Timestamps on the live timeline show what we learned and when; expect updates and corrections.',
+    verificationFooter:
+      'Spotted an error? Every article carries a correction form — telling us makes the record better.',
     contactTitle: 'Contact us',
     back: 'Back to About',
     heroKicker: 'The eye that never blinks',
@@ -866,6 +947,11 @@ export const en = {
     enter: 'Reading mode',
     exit: 'Exit reading mode',
   },
+  liteMode: {
+    enable: 'Lite mode',
+    enabled: 'Lite mode on',
+    hint: 'Lower-quality images for slow connections. Saved on this device.',
+  },
   follow: {
     follow: 'Follow',
     following: 'Following',
@@ -874,6 +960,21 @@ export const en = {
     followed: 'You are now following this contributor.',
     unfollowed: 'Unfollowed.',
     error: 'Could not update the follow. Please try again.',
+    followPlace: 'Follow this place',
+    followingPlace: 'Following place',
+    followedPlace: 'You will see more from this place.',
+    unfollowedPlace: 'Place unfollowed.',
+    placeFollowers: '{count} following',
+    followCategory: 'Follow this topic',
+    followingCategory: 'Following topic',
+    followedCategory: 'You will see more on this topic.',
+    unfollowedCategory: 'Topic unfollowed.',
+    signInTopics: 'Sign in to follow places and topics.',
+    manageTitle: 'Places & topics you follow',
+    manageEmpty: 'You are not following any place or topic yet.',
+    recentTitle: 'Recently viewed',
+    recentEmpty: 'Nothing here yet — stories you open will appear on this device.',
+    clearRecent: 'Clear history',
   },
   ratings: {
     title: 'Rate this listing',
@@ -889,9 +990,17 @@ export const en = {
     listView: 'List view',
     mapView: 'Map view',
     hubsCount: '{count} places',
+    storiesOnMap: '{count} stories on the map',
     noMapped: 'No mapped places yet.',
     openHub: 'Open place hub',
     tilesCredit: 'Map data © OpenStreetMap contributors',
+    heading: 'Explore the map',
+    description: 'Discover stories, notices, events and listings across the region.',
+    filters: 'Filters',
+    allTypes: 'All types',
+    locationFilter: 'Location',
+    legend: 'Legend',
+    cluster: 'Cluster',
   },
   status: {
     title: 'System status',
@@ -1067,6 +1176,40 @@ export const en = {
     emptyBody:
       'Nothing has been published for this place yet. Check back soon or explore other places.',
     browseOtherPlaces: 'Browse other places',
+    yourPlace: 'Your place',
+    selectPlace: 'Select your place',
+    searchPlaces: 'Search places…',
+    noPlacesFound: 'No places found.',
+    clearPlace: 'Clear place',
+    nearYou: 'Near you',
+    nearYouTitle: 'Latest from {place}',
+    placePromptTitle: 'Where is home?',
+    placePromptBody: 'Pick your place once — the homepage will lead with news, notices, listings and events near you.',
+    placePromptLater: 'Not now',
+    // Community Memory (Differentiator #10): year-by-year archive per place.
+    memoryTitle: 'Community memory',
+    memoryHint: 'Every year of coverage for this place, newest first.',
+    memoryEmpty: 'No archived coverage yet.',
+    // Then & Now (Differentiator #11): same place, years apart.
+    thenNowTitle: 'Then & Now',
+    thenNowHint: 'Same place, years apart — drag to compare.',
+    thenLabel: 'Then',
+    nowLabel: 'Now',
+    onTheMapTitle: 'On the map',
+  },
+  street: {
+    title: 'Eye on the Street',
+    description: 'One photograph. One location. One observation in 50–100 words — the community as it happens.',
+    empty: 'No street observations yet — check back soon.',
+    readStory: 'Open observation',
+  },
+  offline: {
+    title: 'Offline reading',
+    body: 'You appear to be offline. Saved articles below remain readable without a connection.',
+    retry: 'Try again',
+    savedTitle: 'Saved for offline',
+    savedEmpty: 'Nothing saved yet — open any story and tap “Save offline”.',
+    openSaved: 'Open saved articles',
   },
   digest: {
     title: 'Daily digest',
@@ -1084,6 +1227,8 @@ export const en = {
     locale: 'Language',
     localeEn: 'English',
     localeFr: 'Français',
+    diasporaMode: 'I live outside Cameroon (diaspora)',
+    diasporaHint: 'Same daily brief — framed for readers following home from abroad.',
     submit: 'Subscribe',
     submitting: 'Subscribing…',
     successTitle: 'You are subscribed.',

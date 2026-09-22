@@ -20,12 +20,17 @@ function getClient() {
 /**
  * B2 is the backup mirror described in Section 14 — it is never written to
  * as part of an interactive upload. This is called by the nightly
- * R2→B2 mirroring job (lib/storage/backup.ts), not by uploadMedia().
+ * R2→B2 mirroring job (lib/storage/backup.ts) and the pg_dump cron, not by uploadMedia().
  */
-export async function uploadToB2(storageKey: string, buffer: Buffer, mimeType: string): Promise<void> {
+export async function uploadToB2(
+  bucket: string,
+  storageKey: string,
+  buffer: Buffer,
+  mimeType: string,
+): Promise<void> {
   await getClient().send(
     new PutObjectCommand({
-      Bucket: storageConfig.b2.bucket,
+      Bucket: bucket,
       Key: storageKey,
       Body: buffer,
       ContentType: mimeType,

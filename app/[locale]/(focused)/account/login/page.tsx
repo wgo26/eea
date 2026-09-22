@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
-import { getDictionary } from "@/lib/i18n";
-import { getRequestLocale } from "@/lib/i18n/server";
+import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { localePath, safeNextPath } from "@/lib/i18n/urls";
 import { LoginForm } from "./login-form";
 import { enabledOAuthProviders } from "@/lib/auth/oauth";
 
-type Props = { searchParams: Promise<{ next?: string | string[] }> };
+type Props = {
+    params: Promise<{ locale: string }>;
+    searchParams: Promise<{ next?: string | string[] }>;
+};
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = await getRequestLocale();
+export async function generateMetadata({ params }: { params: Props["params"] }): Promise<Metadata> {
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     return {
         title: getDictionary(locale).auth.login.title,
         robots: { index: false, follow: false },
@@ -19,9 +22,12 @@ export async function generateMetadata(): Promise<Metadata> {
  * Focused login screen (checklist items 2/3/4/6): minimal chrome, a back
  * path from the shell, localized copy, and a validated `next` that is
  * forwarded to /auth/landing (which honors it after role resolution).
+ *
+ * Phase 1: locale comes from params (static-compatible), not headers().
  */
-export default async function LoginPage({ searchParams }: Props) {
-    const locale = await getRequestLocale();
+export default async function LoginPage({ params, searchParams }: Props) {
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
     const { next: rawNext } = await searchParams;
     const nextParam = Array.isArray(rawNext) ? rawNext[0] : rawNext;

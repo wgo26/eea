@@ -98,7 +98,7 @@ export function MediaBadge({ kind, className }: { kind: 'video' | 'audio'; class
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur',
+        'inline-flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-xs font-bold text-white backdrop-blur',
         className,
       )}
     >

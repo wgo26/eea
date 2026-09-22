@@ -37,16 +37,21 @@ function revalidateLocalized(path: string) {
 
 /**
  * Phase 4.1 (audit §4.1) — on-demand invalidation of the public content cache.
- * The hot news reads and the homepage dataset are cached under the `news` /
- * `home` tags (lib/queries/news.ts, lib/queries/home.ts); every editorial
- * mutation that changes public content calls this so changes land without
- * waiting for the 5-minute ISR window. Uses the two-argument revalidateTag
+ * Every cached public read (news/home/listings/notices/stories/culture — see
+ * lib/cache/tags.ts) is invalidated here so editorial mutations land without
+ * waiting for the 5-minute ISR window. Phase 1 closed the gap where only
+ * news/home/locations were invalidated and listings/notices/stories/culture
+ * relied on the ISR backstop. Uses the two-argument revalidateTag
  * form (single-arg is deprecated in Next 16); profile 'max' serves the cached
  * render while the fresh one regenerates (stale-while-revalidate).
  */
 function revalidatePublicContentCache() {
     revalidateTag(CACHE_TAGS.news, 'max')
     revalidateTag(CACHE_TAGS.home, 'max')
+    revalidateTag(CACHE_TAGS.listings, 'max')
+    revalidateTag(CACHE_TAGS.notices, 'max')
+    revalidateTag(CACHE_TAGS.stories, 'max')
+    revalidateTag(CACHE_TAGS.culture, 'max')
     // Publishing changes location content lists + counts.
     revalidateTag(CACHE_TAGS.locations, 'max')
 }
@@ -270,6 +275,8 @@ async function upsertTranslations(
     body?: string
     seoDescription?: string | null
     byline?: string | null
+    shareText?: string | null
+    voiceType?: 'formal' | 'pidgin' | 'camfranglais' | null
   }[],
 ): Promise<void> {
   for (const t of translations) {
@@ -287,6 +294,9 @@ async function upsertTranslations(
     }
     if (t.seoDescription !== undefined) payload.seo_description = t.seoDescription?.trim() || null
     if (t.byline !== undefined) payload.byline = t.byline?.trim() || null
+    // Phase 4 — WhatsApp share line + voice register (undefined = keep).
+    if (t.shareText !== undefined) payload.share_text = t.shareText?.trim().slice(0, 280) || null
+    if (t.voiceType !== undefined) payload.voice_type = t.voiceType ?? null
     const { error } = await supabase.from('content_translations').upsert(
       payload as InsertOf<'content_translations'>,
       { onConflict: 'content_item_id,locale,voice' },
@@ -611,7 +621,7 @@ export async function saveContentItem(contentItemId: string, draft: ContentDraft
   }
 }
 
-const CONTENT_TYPES = ['photo_story', 'news', 'listing', 'notice', 'culture'] as const
+const CONTENT_TYPES = ['photo_story', 'news', 'listing', 'notice', 'culture', 'micro_story'] as const
 
 /**
  * Admin direct-publish (Phase 2): create a content item without a submission.
@@ -944,6 +954,17 @@ export async function bulkRejectSubmissions(ids: string[], reason: string): Prom
   let failed = 0
   for (const id of ids) {
     const result = await rejectSubmission(id, reason)
+    if (!result.ok) failed += 1
+  }
+  return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} submission(s) failed.` } : { ok: true }
+}
+
+/** Phase 3 — bulk clarify: same question to a selection, per-item failures counted. */
+export async function bulkRequestClarification(ids: string[], question: string): Promise<ActionResult> {
+  if (!question.trim()) return { ok: false, error: 'A question is required when requesting clarification.' }
+  let failed = 0
+  for (const id of ids) {
+    const result = await requestClarification(id, question)
     if (!result.ok) failed += 1
   }
   return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} submission(s) failed.` } : { ok: true }
@@ -2745,6 +2766,38 @@ export async function resolveCorrection(
   }
 }
 
+/**
+ * Bulk trust & safety: resolve/dismiss over a selection of content
+ * corrections. Same sequential per-item pattern as the moderation bulk actions.
+ */
+export async function bulkResolveCorrections(
+  ids: string[],
+  status: 'investigating' | 'resolved' | 'dismissed',
+): Promise<ActionResult> {
+  let failed = 0
+  for (const id of ids) {
+    const result = await resolveCorrection(id, status)
+    if (!result.ok) failed += 1
+  }
+  return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} correction(s) failed.` } : { ok: true }
+}
+
+export async function bulkDeleteCorrections(ids: string[]): Promise<ActionResult> {
+  try {
+    const { supabase } = await assertAdmin()
+    let failed = 0
+    for (const id of ids) {
+      const { error } = await supabase.from('corrections').delete().eq('id', id)
+      if (error) failed += 1
+    }
+    if (failed > 0) return { ok: false, error: `${failed} of ${ids.length} correction(s) failed.` }
+    revalidateLocalized('/admin/trust-safety')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Legal policies                                                      */
 /* ------------------------------------------------------------------ */
@@ -3218,9 +3271,28 @@ export async function updateListing(
     if (input.contactEmail !== undefined) patch.contact_email = input.contactEmail?.trim() || null
     if (input.whatsappNumber !== undefined) patch.whatsapp_number = input.whatsappNumber?.trim() || null
     if (Object.keys(patch).length === 0) return { ok: false, error: 'Nothing to update.' }
+    // Phase 3 — price-drop detection: read the current price first so a drop
+    // notifies price_watches watchers via the existing listing.update event.
+    let oldPrice: number | null = null
+    if (input.price !== undefined) {
+      const { data: before } = await supabase.from('listings').select('price').eq('content_item_id', contentItemId).maybeSingle()
+      const p = (before as { price?: number | string | null } | null)?.price
+      oldPrice = typeof p === 'string' ? Number(p) : (p ?? null)
+    }
     const { error } = await supabase.from('listings').update(patch as UpdateOf<'listings'>).eq('content_item_id', contentItemId)
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'listing:update', entityType: 'listing', entityId: contentItemId })
+    if (input.price !== undefined && input.price != null && oldPrice != null && input.price < oldPrice) {
+      try {
+        const { data: watchers } = await supabase.from('price_watches').select('user_id').eq('content_item_id', contentItemId).limit(500)
+        const { enqueueUser, listingNotifyTarget } = await import('@/lib/notify/queue')
+        const target = await listingNotifyTarget(supabase, contentItemId)
+        const ids = ((watchers ?? []) as { user_id: string }[]).map((w) => w.user_id)
+        for (const uid of ids) {
+          await enqueueUser('listing.update', uid, { title: target.title, status: `price dropped to ${input.price} ${input.currency ?? ''}`.trim() }, '/buy-sell')
+        }
+      } catch { /* best-effort: the price edit itself already succeeded */ }
+    }
     revalidatePublicContentCache()
     revalidateLocalized('/admin/listings')
     revalidateLocalized('/admin/content')

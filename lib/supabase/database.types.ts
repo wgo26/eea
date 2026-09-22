@@ -899,6 +899,7 @@ export type Database = {
             updated_at: string;
             import_source: string | null;
             import_source_id: string | null;
+            legacy_path: string | null;
             };
             Insert: {
             id?: string;
@@ -922,6 +923,7 @@ export type Database = {
             updated_at?: string;
             import_source?: string | null;
             import_source_id?: string | null;
+            legacy_path?: string | null;
             };
             Update: {
             id?: string | null;
@@ -945,6 +947,7 @@ export type Database = {
             updated_at?: string | null;
             import_source?: string | null;
             import_source_id?: string | null;
+            legacy_path?: string | null;
             };
             Relationships: [
                 {
@@ -1063,6 +1066,8 @@ export type Database = {
             updated_at: string;
             byline: string | null;
             search_vector: string | null;
+            share_text: string | null;
+            voice_type: string | null;
             };
             Insert: {
             id?: string;
@@ -1080,6 +1085,8 @@ export type Database = {
             updated_at?: string;
             byline?: string | null;
             search_vector?: string | null;
+            share_text?: string | null;
+            voice_type?: string | null;
             };
             Update: {
             id?: string | null;
@@ -1097,6 +1104,8 @@ export type Database = {
             updated_at?: string | null;
             byline?: string | null;
             search_vector?: string | null;
+            share_text?: string | null;
+            voice_type?: string | null;
             };
             Relationships: [
                 {
@@ -1330,6 +1339,36 @@ export type Database = {
                     referencedColumns: ["id"],
                 },
             ];
+        }
+        db_dumps: {
+            Row: {
+            id: string;
+            filename: string;
+            sha256: string;
+            size_bytes: number;
+            created_at: string;
+            correlation_id: string | null;
+            expires_at: string;
+            };
+            Insert: {
+            id?: string;
+            filename: string;
+            sha256: string;
+            size_bytes: number;
+            created_at?: string;
+            correlation_id?: string | null;
+            expires_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            filename?: string | null;
+            sha256?: string | null;
+            size_bytes?: number | null;
+            created_at?: string | null;
+            correlation_id?: string | null;
+            expires_at?: string | null;
+            };
+            Relationships: [];
         }
         digest_issues: {
             Row: {
@@ -1589,6 +1628,24 @@ export type Database = {
                     referencedColumns: ["id"],
                 },
             ];
+        }
+        legacy_redirects: {
+            Row: {
+            from_path: string;
+            to_path: string;
+            created_at: string;
+            };
+            Insert: {
+            from_path: string;
+            to_path: string;
+            created_at?: string;
+            };
+            Update: {
+            from_path?: string | null;
+            to_path?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [];
         }
         listing_conversation_messages: {
             Row: {
@@ -2266,6 +2323,73 @@ export type Database = {
                 },
             ];
         }
+        photo_pairs: {
+            Row: {
+            id: string;
+            location_id: string;
+            then_image_id: string;
+            now_image_id: string;
+            then_caption: string | null;
+            now_caption: string | null;
+            locale: string;
+            is_published: boolean;
+            sort_order: number;
+            created_by: string | null;
+            created_at: string;
+            updated_at: string;
+            };
+            Insert: {
+            id?: string;
+            location_id: string;
+            then_image_id: string;
+            now_image_id: string;
+            then_caption?: string | null;
+            now_caption?: string | null;
+            locale?: string;
+            is_published?: boolean;
+            sort_order?: number;
+            created_by?: string | null;
+            created_at?: string;
+            updated_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            location_id?: string | null;
+            then_image_id?: string | null;
+            now_image_id?: string | null;
+            then_caption?: string | null;
+            now_caption?: string | null;
+            locale?: string | null;
+            is_published?: boolean | null;
+            sort_order?: number | null;
+            created_by?: string | null;
+            created_at?: string | null;
+            updated_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_photo_pairs_location_id_fkey",
+                    columns: ["location_id"],
+                    isOneToOne: false,
+                    referencedRelation: "locations",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_photo_pairs_then_image_id_fkey",
+                    columns: ["then_image_id"],
+                    isOneToOne: false,
+                    referencedRelation: "media_assets",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_photo_pairs_now_image_id_fkey",
+                    columns: ["now_image_id"],
+                    isOneToOne: false,
+                    referencedRelation: "media_assets",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
         policy_acceptances: {
             Row: {
             id: string;
@@ -2454,6 +2578,39 @@ export type Database = {
                 },
             ];
         }
+        price_watches: {
+            Row: {
+            user_id: string;
+            content_item_id: string;
+            created_at: string;
+            };
+            Insert: {
+            user_id: string;
+            content_item_id: string;
+            created_at?: string;
+            };
+            Update: {
+            user_id?: string | null;
+            content_item_id?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_price_watches_user_id_fkey",
+                    columns: ["user_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_price_watches_content_item_id_fkey",
+                    columns: ["content_item_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_items",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
         profiles: {
             Row: {
             id: string;
@@ -2628,6 +2785,38 @@ export type Database = {
                     columns: ["assigned_to"],
                     isOneToOne: false,
                     referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        saved_articles: {
+            Row: {
+            id: string;
+            user_id: string;
+            content_item_id: string;
+            locale: string;
+            saved_at: string;
+            };
+            Insert: {
+            id?: string;
+            user_id: string;
+            content_item_id: string;
+            locale?: string;
+            saved_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            user_id?: string | null;
+            content_item_id?: string | null;
+            locale?: string | null;
+            saved_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_saved_articles_content_item_id_fkey",
+                    columns: ["content_item_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_items",
                     referencedColumns: ["id"],
                 },
             ];
@@ -2956,6 +3145,85 @@ export type Database = {
                 },
             ];
         }
+        timeline_entries: {
+            Row: {
+            id: string;
+            content_item_id: string;
+            timestamp: string;
+            title: string;
+            body: string;
+            locale: string;
+            is_published: boolean;
+            sort_order: number;
+            created_by: string | null;
+            created_at: string;
+            updated_at: string;
+            };
+            Insert: {
+            id?: string;
+            content_item_id: string;
+            timestamp?: string;
+            title: string;
+            body: string;
+            locale?: string;
+            is_published?: boolean;
+            sort_order?: number;
+            created_by?: string | null;
+            created_at?: string;
+            updated_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            content_item_id?: string | null;
+            timestamp?: string | null;
+            title?: string | null;
+            body?: string | null;
+            locale?: string | null;
+            is_published?: boolean | null;
+            sort_order?: number | null;
+            created_by?: string | null;
+            created_at?: string | null;
+            updated_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_timeline_entries_content_item_id_fkey",
+                    columns: ["content_item_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_items",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        user_place_preferences: {
+            Row: {
+            user_id: string;
+            place_slug: string;
+            locale: string;
+            updated_at: string;
+            };
+            Insert: {
+            user_id: string;
+            place_slug: string;
+            locale?: string;
+            updated_at?: string;
+            };
+            Update: {
+            user_id?: string | null;
+            place_slug?: string | null;
+            locale?: string | null;
+            updated_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_user_place_preferences_place_slug_fkey",
+                    columns: ["place_slug"],
+                    isOneToOne: false,
+                    referencedRelation: "locations",
+                    referencedColumns: ["slug"],
+                },
+            ];
+        }
         user_roles: {
             Row: {
             user_id: string;
@@ -3081,6 +3349,13 @@ export type Database = {
             Args: Record<string, never>;
             Returns: number;
         }
+        has_role: {
+            Args: {
+                user_id: string;
+                required_role: string;
+            };
+            Returns: boolean;
+        }
         immutable_unaccent: {
             Args: {
                 value: string;
@@ -3091,8 +3366,8 @@ export type Database = {
             Args: {
                 p_campaign_id: string;
                 p_event_type: string;
-                p_session_hash?: string;
-                p_metadata?: Json;
+                p_session_hash?: string | null;
+                p_metadata?: Json | null;
             };
             Returns: undefined;
         }
@@ -3112,7 +3387,7 @@ export type Database = {
             Args: {
                 p_job_name: string;
                 p_owner: string;
-                p_result?: Json;
+                p_result?: Json | null;
             };
             Returns: undefined;
         }
@@ -3120,11 +3395,11 @@ export type Database = {
             Args: {
                 p_q: string;
                 p_locale?: string;
-                p_types?: string[];
-                p_location?: string;
-                p_category?: string;
-                p_from?: string;
-                p_to?: string;
+                p_types?: string[] | null;
+                p_location?: string | null;
+                p_category?: string | null;
+                p_from?: string | null;
+                p_to?: string | null;
                 p_limit?: number;
             };
             Returns: {

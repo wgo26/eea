@@ -131,7 +131,7 @@ export async function mirrorPendingMediaToBackup(
       const fetched = await fetchSource(supabase, row)
       const sourceHash = sha256Hex(fetched.buffer)
 
-      await uploadToB2(row.storage_key, fetched.buffer, fetched.mimeType || row.mime_type || 'application/octet-stream')
+      await uploadToB2(storageConfig.b2.bucket, row.storage_key, fetched.buffer, fetched.mimeType || row.mime_type || 'application/octet-stream')
 
       // Integrity gate: read back from B2 and compare hashes before marking done.
       const echoed = await downloadFromB2(row.storage_key)

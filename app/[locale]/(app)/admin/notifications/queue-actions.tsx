@@ -21,7 +21,7 @@ function formatSummary(copy: Copy, s: Summary): string {
 }
 
 /** Queue action bar: test send, manual worker run, retry failures. */
-export function NotificationQueueActions({ copy }: { copy: Copy }) {
+export function NotificationQueueActions({ copy, common }: { copy: Copy; common: Dictionary['admin']['common'] }) {
   const { run, loading } = useAdminMutation();
   const { addToast } = useToast();
   const router = useRouter();
@@ -96,7 +96,7 @@ export function NotificationQueueActions({ copy }: { copy: Copy }) {
         title={copy.retryAllConfirmTitle}
         description={copy.retryAllConfirmBody}
         confirmLabel={copy.retryFailed}
-        cancelLabel={copy.retryFailed === '' ? 'Cancel' : undefined ?? 'Cancel'}
+                cancelLabel={common.cancel}
         loading={loading}
         onConfirm={() => {
           setRetryAllOpen(false);
@@ -178,7 +178,7 @@ export function OutboxRowActions({ row, copy }: { row: OutboxRow; copy: Copy }) 
           {copy.copyText}
         </button>
       )}
-      {done ? <span className="text-[11px] font-medium text-emerald-600">{done}</span> : null}
+      {done ? <span className="text-xs font-medium text-emerald-600">{done}</span> : null}
     </span>
   );
 }

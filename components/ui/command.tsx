@@ -68,17 +68,31 @@ function CommandDialog({
 
 function CommandInput({
   className,
+  onValueChange,
+  ref,
+  placeholder,
+  value,
   ...props
-}: React.ComponentProps<typeof CommandPrimitive.Input>) {
+}: React.ComponentProps<typeof CommandPrimitive.Input> & {
+  onValueChange?: (value: string) => void;
+  ref?: React.Ref<HTMLInputElement>;
+  placeholder?: string;
+  value?: string;
+}) {
   return (
     <div data-slot="command-input-wrapper" className="p-1 pb-0">
       <InputGroup className="h-8! rounded-lg! border-input/30 bg-input/30 shadow-none! *:data-[slot=input-group-addon]:pl-2!">
-        <CommandPrimitive.Input
+        <input
+          type="text"
           data-slot="command-input"
           className={cn(
-            "w-full text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+            "w-full text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50 bg-transparent",
             className
           )}
+          ref={ref}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onValueChange?.(e.target.value)}
           {...props}
         />
         <InputGroupAddon>

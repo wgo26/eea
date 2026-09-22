@@ -87,7 +87,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                         className="group block rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
                     >
                         <div className="mb-4 flex items-center justify-between">
-                            <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+                            <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                                 <MapPin className="h-3 w-3" aria-hidden />
                                 {dict.locations.featuredPlace}
                             </span>
@@ -207,7 +207,7 @@ function StatBlock({
                 {icon}
             </div>
             <div className="text-2xl font-black tabular-nums">{value}</div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
+            <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
         </div>
     );
 }

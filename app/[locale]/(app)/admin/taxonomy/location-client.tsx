@@ -459,7 +459,7 @@ export function LocationRedirectsButton({ copy, common }: { copy: Copy; common: 
                       <div className="text-xs text-muted-foreground">
                         {copy.targetLocation}: <span className="font-medium text-foreground">{r.location_name}</span> ({r.location_slug})
                       </div>
-                      <div className="text-[11px] text-muted-foreground/70">
+                      <div className="text-xs text-muted-foreground/70">
                         {copy.createdAt}: {new Date(r.created_at).toLocaleDateString()}
                       </div>
                     </div>

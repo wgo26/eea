@@ -170,7 +170,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
                 <div className="text-xs whitespace-nowrap">
                   <span className="font-medium">{r.creativeType}</span>
                   {r.creativeType !== 'sponsored' ? (
-                    <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                    <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs font-bold ${
                       r.creativeStatus === 'approved' ? 'bg-emerald-500/15 text-emerald-600' : r.creativeStatus === 'rejected' ? 'bg-destructive/10 text-destructive' : 'bg-amber-500/15 text-amber-600'
                     }`}>
                       {r.creativeStatus}

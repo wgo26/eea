@@ -1,5 +1,26 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildCsp, originOf, parseHostList, cspFromEnv } from "./csp";
+
+const __here = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Reads the source of an exported template-literal string (e.g. the inline
+ * pre-paint bootstrap scripts) and returns its sha256 as a base64 digest. The
+ * scripts are read from disk rather than imported because locale-init.ts
+ * carries `import "server-only"`, which would throw under a non-production
+ * runtime. Mirrors scripts/tmp-hash.mjs (now superseded by this gate).
+ */
+function sha256OfExport(sourceFile: string, exportName: string): string | null {
+    const src = readFileSync(sourceFile, "utf8");
+    const re = new RegExp(`export const ${exportName} = \`([\\s\\S]*?)\`;?`);
+    const match = src.match(re);
+    if (!match) return null;
+    return createHash("sha256").update(match[1], "utf8").digest("base64");
+}
 
 /** Pulls one directive's value out of a serialized policy. */
 function directive(csp: string, name: string): string | undefined {
@@ -179,6 +200,29 @@ describe("buildCsp — host allowlisting", () => {
     const connect = directive(first, "connect-src")!.split(" ");
     expect(new Set(connect).size).toBe(connect.length);
   });
+});
+
+describe("buildCsp — hash-pinned bootstrap scripts", () => {
+    // Phase 1, audit A13: Next.js 16 inlines unhashable RSC flight JSON on every
+    // static page (sha256 changes per build), and Turnstile is loaded inline,
+    // so `'unsafe-inline'` cannot be removed without breaking hydration or
+    // forcing dynamic rendering of every page (defeating ISR). The two
+    // *developer-authored* bootstrap scripts are pinned instead — a drift in
+    // either signals an unintended change to the pre-paint payload.
+    const themeSrc = join(__here, "../../lib/theme.ts");
+    const localeSrc = join(__here, "../../lib/i18n/locale-init.ts");
+
+    it("theme-init bootstrap script hash matches the pinned value", () => {
+        const hash = sha256OfExport(themeSrc, "themeInitScript");
+        expect(hash).not.toBeNull();
+        expect(hash).toBe("98d5gLooYySALC2j91N+UCYbhX3zM6o+KHBLc9L6kR0=");
+    });
+
+    it("locale-init bootstrap script hash matches the pinned value", () => {
+        const hash = sha256OfExport(localeSrc, "localeInitScript");
+        expect(hash).not.toBeNull();
+        expect(hash).toBe("10eVgOxrOqT1jh//Btcg/JyFBjHkUih0SNqr1Rh1T8Q=");
+    });
 });
 
 describe("cspFromEnv", () => {

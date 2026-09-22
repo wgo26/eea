@@ -27,9 +27,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShareButtons } from "@/components/share-buttons";
+import { ReaderToolbar } from "@/components/system/reader-toolbar";
+import { RecordRecentView } from "@/components/system/record-recent-view";
+import { PrintHeader } from "@/components/system/print-header";
 import { SITE } from "@/lib/constants";
 import { formatDate, getDictionary, resolveLocale } from "@/lib/i18n";
-import { verificationBadgeInfo } from "@/lib/verification";
+import { TrustBadge } from "@/components/system/trust-badge";
+import { breadcrumbJsonLd, imageGalleryJsonLd, renderJsonLd } from "@/lib/seo/jsonld";
 import {
     generateStaticSlugs,
     getAdjacentPhotoStories,
@@ -60,7 +64,7 @@ export async function generateMetadata({
     const { slug, locale: raw } = await params;
     const locale = resolveLocale(raw);
     const story = await getPhotoStoryBySlug(slug, locale);
-    if (!story) return { title: "Photo story not found" };
+    if (!story) return { title: locale === "fr" ? "Reportage introuvable" : "Photo story not found" };
     return {
         title: story.title,
         description: story.excerpt ?? undefined,
@@ -88,10 +92,40 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
         getAdjacentPhotoStories(story.id, story.publishedAt ?? new Date().toISOString(), locale),
         getAdForSlot("photo-story-rail"),
     ]);
-    const badge = verificationBadgeInfo(story.verification ?? null, dict);
     const shareUrl = `${SITE.url}${localePath(locale, `/photo-stories/${story.slug}`)}`;
+    // Phase 3 — ImageGallery + breadcrumb structured data (rich results).
+    const jsonLd = renderJsonLd([
+        imageGalleryJsonLd({
+            headline: story.title,
+            description: story.excerpt,
+            image: story.imageUrl,
+            datePublished: story.publishedAt,
+            authorName: story.credit,
+            url: shareUrl,
+            photos: story.photos.map((p) => ({ url: p.url, caption: p.caption })),
+            locationName: story.location,
+        }),
+        breadcrumbJsonLd([
+            { name: dict.nav.photoStories, url: `${SITE.url}${localePath(locale, "/photo-stories")}` },
+            { name: story.title, url: shareUrl },
+        ]),
+    ]);
 
     return (
+        <>
+        {/* Phase 3 — device-local reading history. */}
+        <RecordRecentView
+            view={{
+                id: story.id,
+                href: localePath(locale, `/photo-stories/${story.slug}`),
+                title: story.title,
+                imageUrl: story.imageUrl,
+            }}
+        />
+        <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: jsonLd }}
+        />
         <article className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
             <ContentBreadcrumb
                 locale={locale}
@@ -99,19 +133,20 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                 trail={[{ label: dict.nav.photoStories, path: "/photo-stories" }, { label: story.title }]}
             />
 
+            {/* Phase 3 — print attribution header (paper only). */}
+            <PrintHeader
+                title={story.title}
+                dateLine={story.publishedAt ? formatDate(story.publishedAt, locale) : null}
+                url={shareUrl}
+            />
+
             {/* Editorial header */}
             <header className="mt-4 max-w-4xl">
                 <div className="flex flex-wrap items-center gap-2">
                     {story.category ? <Badge>{story.category}</Badge> : null}
-                    {badge ? (
-                        <span
-                            className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${badge.className}`}
-                        >
-                            {badge.label}
-                        </span>
-                    ) : null}
+                    <TrustBadge verification={story.verification} dict={dict} locale={locale} />
                 </div>
-                <h1 className="mt-3 text-3xl font-extrabold leading-tight tracking-tight md:text-4xl lg:text-5xl">
+                <h1 className="font-display mt-3 text-3xl font-extrabold leading-tight tracking-tight md:text-4xl lg:text-5xl">
                     {story.title}
                 </h1>
                 {story.excerpt ? (
@@ -152,6 +187,19 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                 </div>
             </header>
 
+            {/* Phase 3 — reader toolbar: text size, lite mode, offline save, WhatsApp. */}
+            <ReaderToolbar
+                path={localePath(locale, `/photo-stories/${story.slug}`)}
+                shareUrl={shareUrl}
+                title={story.title}
+                shareText={story.shareText}
+                saveLabel={dict.news.saveOffline}
+                savedLabel={dict.news.savedOffline}
+                offlineUnavailableLabel={dict.news.offlineUnavailable}
+                whatsappLabel={dict.news.shareWhatsapp}
+                dict={dict}
+            />
+
             {/* Essay gallery with lightbox (spec §3.2) */}
             <section className="mt-8" aria-label={dict.photoStories.gallery}>
                 <GalleryGrid photos={story.photos} storyTitle={story.title} dict={dict} />
@@ -182,7 +230,7 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                                 href={adjacent.prev.href}
                                 className="group rounded-2xl border p-4 transition-colors hover:bg-muted"
                             >
-                                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+                                <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-muted-foreground">
                                     <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
                                     {dict.photoStories.prevEssay}
                                 </span>
@@ -198,7 +246,7 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                                 href={adjacent.next.href}
                                 className="group rounded-2xl border p-4 text-right transition-colors hover:bg-muted"
                             >
-                                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+                                <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-muted-foreground">
                                     {dict.photoStories.nextEssay}
                                     <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                                 </span>
@@ -357,5 +405,6 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                 </aside>
             </div>
         </article>
+        </>
     );
 }

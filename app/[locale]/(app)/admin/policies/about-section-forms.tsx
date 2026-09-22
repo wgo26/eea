@@ -189,7 +189,7 @@ function SectionCard({
           {section.label} · {editLocale.toUpperCase()}
         </h3>
         {hasOverride ? (
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
             {copy.current}
           </span>
         ) : null}
@@ -205,7 +205,7 @@ function SectionCard({
             {section.body ? <p className="mt-1">{section.body}</p> : null}
             {section.cta ? <p className="mt-1 font-medium">[{section.cta}]</p> : null}
           </div>
-          <p className="text-[11px] text-muted-foreground">{copy.overrideHint}</p>
+          <p className="text-xs text-muted-foreground">{copy.overrideHint}</p>
         </div>
 
         <div className="space-y-3">

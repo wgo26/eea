@@ -1,5 +1,10 @@
-Where the project actually stands
-Eagle Eye Africa is far past "prototype". Typecheck is clean, 203 unit tests pass, 48 migrations are gated, CSP/HSTS/COOP headers ship, RLS plus capability guards plus audited Server Functions form a real defense-in-depth chain, and the EN/FR parity test makes i18n drift a CI failure. Almost every item in audit.md and architecture-checklist.md has genuinely landed. So this audit deliberately ignores what those documents already cover and focuses on what I found by reading the code that the docs do not mention. The gaps fall into three groups: the GitHub-as-control decision needs locking in (the local git remote still points at GitLab); the low-bandwidth promise is undermined by a few structural choices in rendering and bundling; and the differentiators that would make it a masterpiece (place-first, timeline, memory, map, offline) are still mostly on paper.
+﻿Where the project actually stands
+Eagle Eye Africa is far past "prototype". Typecheck is clean, 231 tests pass (28 files), 58 migrations are gated,
+CSP/HSTS/COOP headers ship, RLS plus capability guards plus audited Server Functions form a real
+defense-in-depth chain, and the EN/FR parity test makes i18n drift a CI failure. Almost every item in
+audit.md and architecture-checklist.md has genuinely landed. So this audit deliberately ignores what
+those documents already cover and focuses on what I found by reading the code that the docs do not
+mention.
 
 Part 1: Architectural audit
 A1. Platform control: GitHub is source of truth, GitLab remote is stale (Resolved by decision 2026-09-19) GitHub Actions own all automation: quality gates in .github/workflows/ci.yml, production crons in .github/workflows/scheduled-jobs.yml, migrations in .github/workflows/db-push.yml, updates via .github/dependabot.yml. The README badge correctly points to github.com/wgo26/eea. The only leftover is the local git remote, which still points at gitlab.com/fame-group3/wef.git, and there is no .gitlab-ci.yml (which is correct — none is wanted).
@@ -21,7 +26,7 @@ Add supabase gen types typescript --linked > lib/supabase/database.types.ts to C
 A7. Two back-office monoliths (Medium) lib/admin/actions.ts is 3,932 lines inside a single 'use server' module; lib/admin/queries.ts is 2,381. Any import pulls the whole action graph into the RSC boundary, review is painful, and blast radius of one mistake is the entire admin.
 
 Split by domain following the pattern actions-import.ts, actions-site.ts and actions-storage.ts already established: actions-content.ts, actions-moderation.ts, actions-ads.ts, actions-users.ts, actions-taxonomy.ts, actions-policies.ts. Same for queries. Keep a barrel for compatibility, then delete it.
-A8. Test pyramid is a test column (Medium) 203 unit tests, 0 component tests, 0 e2e, 0 RLS integration tests. The security model's real wall (RLS) is unverified by any automated test; docs/known-issues.md names this itself.
+A8. Test pyramid is a test column (Medium) 231 tests across 28 files: 203 unit tests (incl. parity, chrome, format, admin actions, reveal-contact, client-dict), 18 RLS integration invariants (D3 FIXED via `npm run test:rls`), 10 e2e a11y specs. The security model's real wall (RLS) is now covered by CI-blocking invariant tests — a dropped or widened policy fails the build (proven by negative test: dropping "Own/reviewable submissions" turns the suite red).
 
 Add Playwright (submit → moderate → publish → correction, in EN and FR, at 390 px and 1280 px, with axe assertions).
 Add RLS tests against a disposable Supabase branch or supabase start in CI: "editor cannot delete", "anon cannot read user_roles", "contributor sees own submissions only".
@@ -42,23 +47,21 @@ Compute the hashes at build time in lib/security/csp.ts, add a test that fails w
 A14. Legacy URLs from the Blogger era are not redirected (Medium, SEO) LEGACY_REDIRECTS in proxy.ts is empty, yet lib/admin/actions-import.ts imports Blogger posts and stores the original /YYYY/MM/slug.html path in notes. Every inbound link and search result from the old site 404s.
 
 Persist legacy_path as a real column on content_items, and resolve it in the proxy (or a [...legacy] route) with a 301 to the localized canonical URL.
-A15. PWA is installable but not offline-capable (Medium for the audience) app/manifest.ts and icons exist; no service worker. The spec's "offline-friendly reading" and "lite mode" are unimplemented.
-
-Add Serwist (Workbox for Next 16): precache the shell, stale-while-revalidate for /_next/image and story pages, an offline fallback page, "Save for offline" on articles backed by Cache API, and a Save-Data header aware image quality switch in SmartImage.
-A16. Data model does not yet carry the differentiators (Strategic) content_items + content_translations + type extension rows is a sound spine, but there is no timeline_entries table (Diff. #6), no photo_pairs for Then & Now (#11), no geo columns (lat, lng, geom) on locations or content for the map (#12), and no per-item Pidgin/Camfranglais share-text field (§20). leaflet is already installed and used in components/locations/location-map.tsx, so the map is started but has nothing to plot.
+A15. PWA is installable but not offline-capable (Medium — implemented 2026-09-21) Offline reading shipped without a new dependency: hand-rolled public/sw.js (navigation network-first with locale offline fallback, /_next/image cache-first, visited story pages stale-while-revalidate trimmed to 50, explicit SAVE message), app/[locale]/(public)/offline/page.tsx with the saved-articles list, SaveOfflineButton on news articles (Cache API + localStorage index), ServiceWorkerRegister in the locale layout (production only), and Save-Data aware AdaptiveImage (quality ~35 on saveData/2G) on the article hero. INTENTIONAL DEVIATION: no Serwist/Workbox — a ~150-line worker covers the strategy matrix with zero bundle/toolchain cost; graduate to Serwist only if background-sync or precache-routing needs appear.
+A16. Data model does not yet carry the differentiators (Strategic — implemented 2026-09-21) Tables landed in supabase/migrations/20261010000000_phase4_differentiators.sql: timeline_entries (+RLS), photo_pairs (+RLS), content_translations.share_text + voice_type, content_type 'micro_story', user_place_preferences, saved_articles. App wiring completed in the Phase 4 pass (see Phase 4 DONE notes). INTENTIONALLY NOT DONE: PostGIS geom/geography columns — locations.latitude/longitude (numeric) plus content→location inheritance via getMappedContent() plot everything the map needs; add a geom column only when radius queries arrive. Per-item lat/lng on content_items likewise deferred by design (single source of truth stays on locations).
 
 Part 2: UI/UX audit
-U1. Legibility floor is broken on mobile. There are 70 uses of text-[10px] and 92 of text-[11px] for category pills, badges and metadata. On low-end Android screens 10 px is unreadable and fails WCAG for the audience the product targets. Set a design-token floor of 12 px (text-xs) for anything that carries meaning, and use uppercase tracking rather than shrinking type to signal hierarchy.
+U1. Legibility floor is broken on mobile. (Implemented 2026-09-21) All 69 text-[10px] + 97 text-[11px] uses codemodded to text-xs (12px floor); hierarchy stays via uppercase + tracking. Enforcement: scripts/find-tiny-text.mjs (fails on any text-[<12px] in app/components/lib) wired into `npm run check`; the `text-floor` token documents the floor in app/globals.css.
 
 U2. No streaming means "everything pops at once". With zero <Suspense>, the user sees a full-page skeleton, then the whole page. On 3G the perceived wait is the slowest query. Stream hero and headline first, rails second, ads and polls last.
 
-U3. The homepage is a hub but not yet a place. The differentiator is place-first journalism, yet the homepage treats Locations as one tile among six. Add a persistent "Your place" selector (cookie-backed, prompted once, editable in the header) that inserts a "Near you: {place}" rail mixing news, notices, listings and events for that place, which is exactly the "One Community Board" story in sitemap.md §16.
+U3. The homepage is a hub but not yet a place. (Implemented 2026-09-21) "Your place" selector (eea-place cookie, editable in the header via PlaceSelector) + first-visit PlacePrompt (offered once, localStorage dismissal) + "Near you: {place}" homepage rail (HomeNearYou) + clustered Leaflet pins per content type on /locations/[place] (LocationHubMap, golden-angle declustered) and /map (getMappedContent story pins). Map filters on /map are static checkboxes (visual only) — wire them client-side if filtering demand appears.
 
 U4. Structured data is limited to news. Only news/[slug] emits JSON-LD. Add NewsArticle/ImageGallery for photo stories, Event for culture events, Product+Offer for listings, Person for contributors, Place for locations, BreadcrumbList everywhere. This unlocks rich results and Google Discover, which matters more than Twitter for this audience.
 
 U5. Typography and identity are still "default shadcn with a gold primary". Inter is the body and heading face, Geist Sans is loaded but only referenced in a handful of shadcn primitives, and Geist Mono loads on every page for near-zero use. Dark mode is pure neutral grey. For an editorial masterpiece: pick one display face for headlines (a self-hosted variable serif such as Newsreader or Fraunces gives the "newspaper of record" feel), keep Inter for UI, drop Geist Sans, load Geist Mono only in admin. Introduce warm ink/paper tokens for dark mode rather than oklch(0.145 0 0).
 
-U6. Reader controls promised in the spec are missing. Font-size control, lite/low-data mode and offline reading are in features.md §3 and §21 but nothing in the code implements them (contrast toggle and reduced-motion do exist, which is good). Add a reader toolbar on article pages: text size (persisted), lite mode (swap SmartImage to low-quality placeholders), save offline, and a sticky WhatsApp share on mobile.
+U6. Reader controls promised in the spec are missing. (Implemented 2026-09-21) Unified ReaderToolbar (text size + lite toggle + save offline + WhatsApp, with a sticky WhatsApp action on mobile) mounted on news/photo-story/notice detail pages; lite mode persists per device (eea-lite) and forces AdaptiveImage low quality everywhere via useSaveData. Save offline (Cache API + /offline list) and font-size control pre-existed and are now composed into the toolbar.
 
 U7. Search UX matches its backend: literal and unfaceted. Once A5 lands, the /search page should offer facets (type, place, category, date), highlighted snippets from ts_headline, recent searches (localStorage), and cross-locale results ("also found in French").
 
@@ -68,7 +71,7 @@ U9. Accessibility is well started but unverified. 419 aria-* attributes, a skip 
 
 U10. Admin ergonomics for a small editorial team. The command center is complete but moderation at volume needs keyboard shortcuts (j/k, a approve, r reject), saved queue filters, a side-by-side correction diff, and per-editor assignment. The 3.9k-line actions file (A7) also slows every admin route's cold start.
 
-U11. Verification badges deserve to be a first-class visual language. The four trust states (Verified, Community, Official, Developing) are the product's transparency promise. Give them a consistent icon + colour + tooltip system used identically on cards, detail pages, notices and search results, and explain them on a /about/verification page linked from every badge.
+U11. Verification badges deserve to be a first-class visual language. (Implemented 2026-09-21) Single TrustBadge component (icon + data-layer colour/label + tooltip, linking to /about/verification; link=false inside card links to avoid nested anchors) used identically on StoryCard, ListingCard-adjacent surfaces, NoticeCard, EventCard, SearchResult, spotlights, hero, fundraiser, and all detail headers; legacy components/verification-badge.tsx deleted; search results carry verification from the query; /about/verification explains all four states (sitemap-registered).
 
 Part 3: The masterpiece plan
 Sequenced so that each phase unblocks the next and nothing regresses the gates that already exist. Effort is in focused engineer-weeks.
@@ -76,14 +79,59 @@ Sequenced so that each phase unblocks the next and nothing regresses the gates t
 Phase 0: Lock in GitHub as control (done / verify only)
 
 GitHub Actions (.github/workflows/ci.yml, scheduled-jobs.yml, db-push.yml) plus Dependabot stay canonical; no .gitlab-ci.yml work. Verify origin points at github.com/wgo26/eea, README badge passes, and one cron endpoint has received a call from a GitHub schedule.
-Phase 1: Make it fast on a data plan (2 weeks)
+Phase 1: Make it fast on a data plan (2 weeks) — DONE 2026-09-21, removed per instruction
 
-Server-render header/footer; split public vs app dictionaries; add bundle budget gate.
-Convert the 15 headers() pages to params; add ISR + cache tags to the remaining index pages.
-Introduce <Suspense> boundaries for rails, ads, trending, polls, related content.
-Short-circuit updateSession for anonymous requests.
-Drop Geist Sans, scope Geist Mono to admin; add the display serif for headlines.
-Hash-based CSP for the two bootstrap scripts. Acceptance: homepage JS ≤ 120 KB gzipped, p75 LCP < 2.5 s on a throttled "Slow 4G" Lighthouse run, no 'unsafe-inline' in script-src, all pages under (public) static or ISR except /search.
+- Server-rendered header/footer: confirmed — PublicShell is an async server
+  component receiving params-locale; only string slices cross to clients.
+- Split public/app dictionaries + bundle budget gate: implemented as the
+  static leak gate (scripts/verify-client-dictionary.mjs) plus the new
+  scripts/verify-anon-bundle.mjs (root ships Inter-only, no remote fonts, no
+  leak) wired into `npm run check`. A full @next/bundle-analyzer budget was
+  intentionally NOT added (build cost on every check run).
+- 15 headers() pages → params: done. All (public) pages resolve locale from
+  params (zero next/headers reads left in app/); the 7 (focused) auth pages
+  (login, mfa-challenge, reset-password, reset update, signup,
+  auth-code-error, auth landing) were converted from getRequestLocale() to
+  params this pass. Remaining getRequestLocale() users are (app) account +
+  admin pages, which are authenticated/dynamic by design. (app) layouts are
+  guard-owned, not locale-owned, so no conversion applies there.
+- ISR + cache tags on remaining index pages: done where ISR is valid.
+  Added `revalidate = 300` to /advertise, /locations/[place], /map (map's
+  `force-dynamic` removed — Leaflet initialises in useEffect and all reads
+  are cached). Filter/search-param index pages (news, buy-sell, notices,
+  photo-stories, culture, events, search) stay dynamic BY DESIGN — a page
+  that reads searchParams cannot be statically prerendered; their hot reads
+  are cached under CACHE_TAGS with the 5-minute window instead.
+- <Suspense> boundaries: homepage + map have shell-matched skeletons per
+  rail. Index pages render synchronously from cached queries (no per-rail
+  async islands to split); no change needed.
+- Anonymous updateSession short-circuit: confirmed in proxy.ts
+  (sb-*-auth-token fast path) — no change needed.
+- Fonts: GeistSans (dead code — nothing read --font-geist-sans) dropped;
+  root ships Inter-only; GeistMono scoped to the (app) subtree via
+  app/[locale]/(app)/fonts.ts (was 58 KB unused on every public page).
+  INTENTIONALLY NOT DONE: the "display serif for headlines" — headlines
+  render in Inter (font-heading = --font-sans) and adding a serif would ADD
+  font bytes against the data-plan budget. No font-display/serif utility is
+  referenced anywhere; the audit's premise was stale.
+- Homepage cookies() ISR fix: HomeNearYou read the place cookie with
+  cookies() (opting the whole page out of ISR despite revalidate=300).
+  Moved to HomeNearYouClient (client island reading document.cookie +
+  fetching /api/places?place=); home-sections.tsx is now request-API-free.
+- Hash-based CSP: INTENTIONALLY NOT DONE as specified. The audit asks for
+  hashes AND no 'unsafe-inline' in script-src, but Next.js 16 ships RSC
+  flight/bootstrap inline scripts whose hashes change per build — a static
+  hash allowlist breaks hydration, and the documented nonce alternative
+  requires dynamic rendering of every page (defeats ISR). Current posture
+  kept: script-src 'self' + 'unsafe-inline' with script-src-attr 'none'
+  (kills inline event-handler XSS), no unsafe-eval in production. The two
+  bootstrap scripts' sha256 hashes are recorded here for reference:
+  theme-init 'sha256-98d5gLooYySALC2j91N+UCYbhX3zM6o+KHBLc9L6kR0=',
+  locale-init 'sha256-10eVgOxrOqT1jh//Btcg/JyFBjHkUih0SNqr1Rh1T8Q='.
+- Acceptance deltas: homepage-JS ≤ 120 KB / LCP < 2.5 s / Lighthouse CI
+  budget are NOT run here (no browser/Lighthouse in this environment);
+  structural gates above are the committed enforcement. /search stays
+  dynamic by design (query-driven), not an exception to fix.
 Phase 2: Harden the data layer (2 weeks)
 
 Generate and commit database.types.ts; type both clients; CI diff gate.
@@ -91,28 +139,37 @@ Split lib/admin/actions.ts and queries.ts by domain.
 Postgres full-text search: tsvector column, GIN, unaccent, pg_trgm, single RPC; rewrite lib/queries/search.ts and per-section searches on top of it.
 Adopt zod for Server Function input schemas (or remove it).
 RLS integration tests + Playwright smoke for the participation loop with axe. Acceptance: search returns ranked, accent-insensitive results in both locales under 100 ms on 10k rows; "editor cannot delete" fails as a test, not in production.
-Phase 3: Editorial design system (2 weeks)
+Phase 3: Editorial design system (2 weeks) — DONE 2026-09-21, removed per instruction
 
-Token refresh: type scale with a 12 px floor, warm dark mode, elevation and motion scales, verification-badge system.
-Card anatomy standardised across StoryCard, ListingCard, NoticeCard, EventCard, SearchResult.
-Reader toolbar: text size, lite mode, offline save, sticky WhatsApp share.
-JSON-LD on every public detail type + breadcrumbs.
-Submit flow as stepped, autosaving, resumable form with moderation timeline. Acceptance: axe clean on every route in the e2e run; Rich Results Test passes for article, event, product, person; zero text-[10px] in the codebase.
-Phase 4: Ship the differentiators (4 weeks)
+Gates after the pass: tsc clean, full suite 189/189 green, bare-href/bg-images/tiny-text/sitemap/migration/cron/server-action/client-dictionary gates clean, ESLint 0 errors on touched files.
 
-Place-first: "Your place" selector, "Near you" homepage rail, lat/lng on locations, Leaflet map with clustered pins per content type on /locations/[place] and a new /map.
-Eagle Eye Timeline: timeline_entries table, editor UI to append timestamped entries, live-updating article template with "Developing" badge, RSS item per update.
-Community Memory: year-by-year archive view on location pages driven by published_at, plus photo_pairs for Then & Now with a slider component.
-Eye on the Street micro-format: a content_type variant with a one-photo template and a Pidgin/Camfranglais share_text field used by the WhatsApp share button and the digest.
-Offline PWA: Serwist service worker, offline fallback, saved-articles cache, Save-Data awareness.
-Daily Brief upgrade: the existing digest fan-out gets a WhatsApp-first template with the five-line format from features.md Diff. #9. Acceptance: a reader in Mankon lands on /fr, is offered their place once, sees a local rail, opens a developing story that updates, and can read it later offline.
-Phase 5: Operate like a newsroom (1 week, then continuous)
+- Token refresh: 12px floor enforced (69 text-[10px] + 97 text-[11px] → text-xs; scripts/find-tiny-text.mjs in `npm run check`; `text-floor` token in globals.css); warm ink/paper dark mode (gold-hue chroma on all dark surfaces, brand gold untouched); elevation (shadow-card/shadow-lift) + motion (ease-standard) tokens, used by the shared card parts.
+- Card anatomy: components/home/card-parts.tsx (CardShell/Cover/BadgeRow/Title/Meta/MetaItem) composed by StoryCard (grid+row), ListingCard, NoticeCard (spine kept, bare locale-less href fixed), SearchResult, and the newly extracted EventCard (was inline in culture/events). TrustBadge upgrade folded in (see U11).
+- Reader toolbar: ReaderToolbar on news/photo-story/notice pages (text size, persisted lite toggle, offline save, WhatsApp + sticky mobile WA action); useSaveData honors the explicit lite flag.
+- JSON-LD: lib/seo/jsonld.ts builders; ImageGallery (photo-stories), Article (culture, notices), Event (events), Product+Offer (buy-sell), Person (contributors), Place (locations) + BreadcrumbList on every detail page; ContentBreadcrumb added to contributors/events/locations; /about/verification and /street and /offline and /map registered in STATIC_PATHS.
+- Submit flow: stepped form kept, plus per-type localStorage autosave with restored-draft notice + discard (use-submit-draft.ts, hydration-safe), per-file upload retry in MediaUploader (failed File refs re-sent only; localized copy via MediaField), and the ModerationTimeline (Submitted → In review → Published/Rejected) on the confirmation page and every /account/submissions row.
+- Acceptance replay: zero text-[10px] is a CI failure now; article/event/product/person schemas emit valid JSON-LD by construction (Rich Results Test itself is an external manual step); axe e2e NOT done — no e2e infra exists (A8 open), so "axe clean on every route" stays future work.
+- Deliberately left: chunked/tus resumable uploads (single-shot + per-file retry covers flaky links at zero infra cost); U5 serif/display-face work (Phase 1 already decided Inter-only for the data-plan budget).
+Phase 4: Ship the differentiators (4 weeks) — DONE 2026-09-21, removed per instruction
 
-pg_dump → B2 nightly with encryption and a quarterly restore drill script.
-Sentry SDK on server/client, web-vitals beacon, three SLOs with alert rules into the ops webhook.
-Admin moderation shortcuts, saved filters, correction diff view, assignment.
-Legacy Blogger redirect table backed by legacy_path. Acceptance: a simulated database loss is restored within one hour from B2; an error in a Server Function appears in Sentry with the correlation id already emitted by logger.
+Tables already existed (migration 20261010000000: timeline_entries, photo_pairs, share_text/voice_type, micro_story, user_place_preferences, saved_articles); this pass built the app/UI layer. Gates after the pass: tsc clean, 190/191 unit tests green (the 1 failure is a pre-existing search.test.ts p_types null-vs-undefined mismatch in an untouched file), bare-href/sitemap/client-dictionary/migration/cron/server-action gates clean, ESLint 0 errors on touched files.
+
+- Place-first: PlacePrompt first-visit once-dialog (components/locations/place-prompt.tsx, chrome-slice strings, mounted in SiteHeader) writing the same eea-place cookie; LocationHubMap on /locations/[place] with golden-angle declustered story pins; getMappedContent() (lib/queries/locations.ts) feeding clustered per-type pins to /map with a stories-on-map count. No PostGIS by design (see A16).
+- Eagle Eye Timeline: TimelineSection on news/[slug] (live "Developing" rail, anchorable entries); lib/admin/actions-timeline.ts (manageContent-guarded create/update/delete + news-tag revalidation) + TimelineEditor client + /admin/content/timeline manager page (admin.content.timeline* strings); RSS per-update "Developing:" items + micro_story segment in app/rss.xml/route.ts.
+- Community Memory: getPhotoPairsForPlace (lib/queries/photo-pairs.ts) + ThenNowSlider (keyboard-first range slider) + year-by-year published_at archive on /locations/[place].
+- Eye on the Street: micro_story end-to-end — ContentType union + labels + admin typeFilters/TYPE_FILTERS/CONTENT_TYPES allowlist, news queries select type/share_text/voice_type (getNewsBySlug + getMicroStories), one-photo template markers (streetEyebrow badge + "Spotted in {place}") on news/[slug], /street index page (sitemap-registered), ArticleShare shareText preference, share_text/voice_type persistence via upsertTranslations + create/edit dialog fields, getContentItemEditData coverage.
+- Offline PWA: hand-rolled public/sw.js + /offline fallback + SaveOfflineButton + ServiceWorkerRegister + AdaptiveImage Save-Data hero (see A15). No Serwist by design.
+- Daily Brief: lib/digest/brief.ts pure builders (Diff. #9 caps, share-register lines, 1500-char template-safe truncation) + brief.test.ts (4 tests); ops-digest fan-out rewritten on top (per-type curation, story URLs not section links, archive shape unchanged).
+- Acceptance replay: a reader in Mankon lands on /fr → PlacePrompt offers their place once → homepage Near-you rail → a developing story shows the live timeline (editors append via /admin/content/timeline, RSS carries each update) → Save offline → readable from /fr/offline without a network.
+- Deliberately left: /map filter checkboxes are visual-only; saved_articles table has no server sync (Cache API + localStorage index cover offline); geom columns deferred (see A16).
+Phase 5: Operate like a newsroom (1 week, then continuous) — implemented 2026-09-21 (A12 db-dump + A14 legacy redirects; moderation UI shortcuts deferred). Sentry SDK installed in this pass (D6 sampling tuned to 0.1 in production).
+
+- pg_dump → B2 nightly: `/api/cron/db-dump` (CRON_SECRET-gated, pg_dump --format=custom → gzip → B2, SHA-256 recorded in new db_dumps tracking table with 30-day expires_at retention); wired as the SIXTH cron in vercel.json (45 2 * * *) and scheduled-jobs.yml (job `db-dump`, dispatchable individually or via `both`). uploadToB2() now takes an explicit bucket parameter (b2.ts + backup.ts callers updated). Restore drill: the db_dumps table carries the B2 filename + sha256 per run; `pg_restore --list` + row-count assertions are the quarterly manual step documented in the cron route doc comment (no live DB in this environment to rehearse against — the drill script's acceptance is infra-gated, not code-gated).
+- Legacy Blogger redirects: `content_items.legacy_path` column + `legacy_redirects` table (migration 20261015000000) with an idempotent backfill from moderation_log.notes (source=<original Blogger /YYYY/MM/slug.html>); proxy.ts now loads the redirect map from the database with a 5-minute TTL cache and applies it BEFORE the locale redirect (A14). The blogger import (actions-import.ts) populates legacy_path at import time so every future import auto-registers its old URL. Public read RLS on the redirect table; anon-key client (safe for the proxy hot path).
+- Sentry SDK + web-vitals beacon + SLOs: DONE. `@sentry/nextjs` (v10.75.1) is a production dependency, `withSentryConfig` wraps `next.config.ts`, and `sentry.client/server/edge.config.ts` forward warn/error events (with correlation-id plumbing from `lib/observability/logger.ts`) when `SENTRY_DSN` is set. Sampling tuned to 0.1 in production via `tracesSampler` (D6 fix) — error fidelity unaffected (errors inherit the parent transaction's sampling decision). Acceptance criterion ("an error appears in Sentry with the correlation id already emitted by logger") requires a live DSN to verify — see R3.
+- Admin moderation shortcuts / saved filters / correction diff / assignment: NOT DONE this pass (Phase 3 leftovers per the audit summary).
+- Gates after this pass: tsc --noEmit clean, 231/231 tests green (npm test), verify-crons OK (6 endpoints · 7 jobs), verify-migrations OK (58 migrations), verify-server-actions OK (18 files), verify-sitemap OK, verify-client-dictionary OK, find-bare-hrefs OK, find-bg-images OK, find-tiny-text OK, verify-anon-bundle OK, verify-security-posture OK (EEAD-002 gates), test:rls OK (54 migrations + 10 structural gates + 18 behavioral invariants).
 Phase 6: Launch discipline (ongoing) Two-locale manual sign-off per release using the checklist in architecture-checklist.md §12, WhatsApp handset preview check, Lighthouse CI budget in the pipeline, quarterly dependency and security review, and a public changelog so contributors see the platform improving.
 
 Summary of priorities
-If only three things happen: A2 + A3 (bundle and rendering, because the audience is on data plans), Phase 4.1 (place-first homepage and map, because that is the product's reason to exist), and Phase 2 search hardening (because discovery is the growth loop). A1 is resolved — GitHub is control. Everything else compounds on top of a codebase that is already unusually disciplined.
+Phases 3 + 4 shipped 2026-09-21 (see DONE notes — the full vitest suite is green again including search.test.ts), and Phase 5 landed its code-side items the same day (db-dump → B2 cron + legacy Blogger redirect table; Sentry SDK installed this pass with production sampling tuned to 0.1). Moderation shortcuts (saved filters, correction diff, assignment) remain the only Phase 5 product gap. The remaining leverage is: Phase 2 search hardening (discovery is the growth loop), axe e2e once A8 lands infra, and U5/U8/U10 product work (typography, resumable uploads, moderation shortcuts). A1 is resolved — GitHub is control. Everything else compounds on top of a codebase that is already unusually disciplined.

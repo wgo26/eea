@@ -13,6 +13,14 @@ export default defineConfig({
     },
     test: {
         environment: "node",
-        include: ["lib/**/*.test.ts", "scripts/**/*.test.mjs"],
+        // Phase 2: integration RLS regression net (tests/integration) runs in
+        // the same unit gate — suites self-skip without a live backend, so CI
+        // with dummy keys stays green while staging/prod runs prove the policies.
+        include: [
+            "lib/**/*.test.ts",
+            "scripts/**/*.test.mjs",
+            "tests/unit/**/*.test.ts",
+            "tests/integration/**/*.test.ts",
+        ],
     },
 });

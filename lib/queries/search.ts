@@ -14,6 +14,8 @@ export type SearchResultItem = {
     location: string | null;
     publishedAt: string | null;
     href: string;
+    /** Trust-layer verification for the shared badge (null = no badge). */
+    verification?: string | null;
     hasVideo?: boolean;
     hasAudio?: boolean;
     /** ts_headline snippet around the match (`<mark>` included) — for future highlighted-result UI. */
@@ -114,6 +116,7 @@ type RawSearchRow = {
     id: string;
     type: string;
     slug: string | null;
+    verification: string | null;
     published_at: string | null;
     location?: { name: string | null } | { name: string | null }[] | null;
     translations?:
@@ -124,7 +127,7 @@ type RawSearchRow = {
         | null;
 };
 
-const SEARCH_SELECT = `id, type, slug, published_at,
+const SEARCH_SELECT = `id, type, slug, verification, published_at,
     location:locations(name),
     translations:content_translations(locale, title, excerpt),
     media:media_assets(public_url, is_cover, kind, mime_type)`;
@@ -166,7 +169,7 @@ export async function searchContentIds(
         createAdminClient().rpc("search_content", {
             p_q: phrase,
             p_locale: locale,
-            p_types: types ?? undefined,
+                        p_types: types ?? null,
             p_limit: limit,
         }),
     );
@@ -207,7 +210,7 @@ export async function getSearchResults(options: {
         createAdminClient().rpc("search_content", {
             p_q: phrase,
             p_locale: options.locale,
-            p_types: options.type ? [options.type] : undefined,
+                        p_types: options.type ? [options.type] : null,
             p_limit: limit,
         }),
     );
@@ -256,6 +259,7 @@ export async function getSearchResults(options: {
                 imageUrl,
                 location: location?.name ?? null,
                 publishedAt: row.published_at,
+                verification: row.verification ?? null,
                 href: detailHref(row.type, row.slug, row.id),
                 hasVideo: media.some((m) => m.kind === 'video' || (m.mime_type ?? '').startsWith('video/')),
                 hasAudio: media.some((m) => m.kind === 'audio' || (m.mime_type ?? '').startsWith('audio/')),

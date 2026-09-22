@@ -19,6 +19,7 @@ const RATE_LIMITS = {
     dataRequest: { max: 5, windowMs: 60 * 60_000 },
     revealContact: { max: 10, windowMs: 10 * 60_000 },
     report: { max: 10, windowMs: 60 * 60_000 },
+    watch: { max: 20, windowMs: 60 * 60_000 },
 } satisfies Record<string, RateLimitOptions>;
 
 /**
@@ -463,7 +464,9 @@ export async function submitTakedownReport(
 /**
  * Privacy / data request — access, deletion or contact follow-up. Stored in
  * `data_requests` with the requester's email so logged-out visitors can use
- * it (the "Own data requests" RLS policy permits email-scoped rows).
+ * it. Writes go through the service-role client; reads are owner + staff only
+ * (migration 20260921120000 closed the anonymous `requester_email` SELECT
+ * branch — see scripts/verify-security-posture.mjs).
  */
 export async function submitDataRequest(
     _prev: SubmitState,
@@ -760,3 +763,234 @@ export async function revealSellerContact(listingId: string): Promise<RevealCont
     }
 }
 
+export type RevealNoticeContactResult =
+    | {
+          ok: true;
+          contact: {
+              phone: string | null;
+              email: string | null;
+          };
+      }
+    | {
+          ok: false;
+          error: "rate_limited" | "not_found" | "db";
+      };
+
+/**
+ * Phase 0 — gated notice-contact reveal (parity with listings).
+ *
+ * Notices expose only `hasContact` in SSR HTML (`lib/queries/notices.ts`
+ * `toNoticeData`); column-level REVOKEs (migration 20260921120000) block
+ * direct PostgREST reads of `notices.contact_phone/contact_email` for
+ * anon/authenticated. Values leave the server only through this
+ * rate-limited action, and only for live, unexpired notices. Every attempt
+ * is audit-logged best-effort (`contact_reveal` on moderation_log).
+ */
+export async function revealNoticeContact(noticeId: string): Promise<RevealNoticeContactResult> {
+    if (!noticeId || typeof noticeId !== "string") {
+        return { ok: false, error: "not_found" };
+    }
+    const identifier = noticeId.replace(/[,()%\\]/g, " ").trim().slice(0, 80);
+    if (!identifier) {
+        return { ok: false, error: "not_found" };
+    }
+
+    const limited = await checkRateLimit("public:reveal_notice_contact", {
+        ...RATE_LIMITS.revealContact,
+        policy: "fail-closed",
+    });
+    if (!limited.ok) {
+        return { ok: false, error: "rate_limited" };
+    }
+
+    try {
+        const supabase = createAdminClient();
+        const { data: item, error: itemError } = await supabase
+            .from("content_items")
+            .select("id, slug, status, is_archived, notices!inner(expiry_date, contact_phone, contact_email)")
+            .eq("type", "notice")
+            .eq("status", "published")
+            .eq("is_archived", false)
+            .or(`id.eq.${identifier},slug.eq.${identifier}`)
+            .limit(1)
+            .maybeSingle();
+
+        if (itemError || !item) {
+            return { ok: false, error: "not_found" };
+        }
+
+        const row = item as {
+            id: string;
+            notices?: unknown;
+        };
+        const notice = (Array.isArray(row.notices) ? row.notices[0] : row.notices) as {
+            expiry_date?: string | null;
+            contact_phone?: string | null;
+            contact_email?: string | null;
+        } | null;
+        if (!notice) {
+            return { ok: false, error: "not_found" };
+        }
+        if (notice.expiry_date && new Date(notice.expiry_date).getTime() <= Date.now()) {
+            return { ok: false, error: "not_found" };
+        }
+        const phone = notice.contact_phone?.trim() || null;
+        const email = notice.contact_email?.trim() || null;
+        if (!phone && !email) {
+            return { ok: false, error: "not_found" };
+        }
+
+        try {
+            await supabase.from("moderation_log").insert({
+                content_item_id: row.id,
+                action: "contact_reveal",
+                notes: "notice contact revealed via rate-limited action",
+            });
+        } catch (logErr) {
+            logger.warn("revealNoticeContact", "audit log insert failed", {
+                error: logErr instanceof Error ? logErr.message : String(logErr),
+            });
+        }
+
+        return { ok: true, contact: { phone, email } };
+    } catch (err) {
+        logger.error("revealNoticeContact", "lookup exception", { error: err instanceof Error ? err.message : String(err) });
+        return { ok: false, error: "db" };
+    }
+}
+
+/**
+ * Saves a draft submission for an authenticated user. (P1-6)
+ * Upserts a single pending draft per user per submission type.
+ */
+export async function saveStoryDraft(
+    _prev: SubmitState,
+    formData: FormData,
+): Promise<SubmitState> {
+    const submissionType = str(formData.get("submissionType"));
+    if (!SUBMISSION_TYPES.includes(submissionType as (typeof SUBMISSION_TYPES)[number])) {
+        return { ok: false, error: "invalid_type" };
+    }
+
+    try {
+        const { user } = await getSessionUser();
+        if (!user) {
+            return { ok: false, error: "auth" };
+        }
+
+        const payload: Record<string, string> = {};
+        for (const field of PAYLOAD_FIELDS) {
+            const value = str(formData.get(field));
+            if (value) payload[field] = value;
+        }
+
+        if (Object.keys(payload).length === 0) {
+            return { ok: true }; // Nothing to save
+        }
+
+        const supabase = createAdminClient();
+
+        // Check if an existing draft exists for this user and type
+        const { data: existingDraft } = await supabase
+            .from("submissions")
+            .select("id")
+            .eq("submitted_by", user.id)
+            .eq("submission_type", submissionType)
+            .eq("status", "draft")
+            .limit(1)
+            .maybeSingle();
+
+        if (existingDraft) {
+            const { error: updateError } = await supabase
+                .from("submissions")
+                .update({ payload })
+                .eq("id", existingDraft.id);
+            
+            if (updateError) {
+                logger.error("saveStoryDraft", "update failed", { error: updateError.message });
+                return { ok: false, error: "db" };
+            }
+        } else {
+            const { error: insertError } = await supabase.from("submissions").insert({
+                submission_type: submissionType,
+                submitted_by: user.id,
+                payload,
+                status: "draft",
+            });
+            if (insertError) {
+                logger.error("saveStoryDraft", "insert failed", { error: insertError.message });
+                return { ok: false, error: "db" };
+            }
+        }
+
+        return { ok: true };
+    } catch (err) {
+        logger.error("saveStoryDraft", "exception", { error: err instanceof Error ? err.message : String(err) });
+        return { ok: false, error: "db" };
+    }
+}
+
+export type PriceWatchState = { watching: boolean; watchers: number };
+
+/**
+ * Phase 3 — price-drop alerts for marketplace savers.
+ * Toggle a watch on a live listing; staff price drops (updateListing) notify
+ * all watchers via the existing `listing.update` outbox event. Watching
+ * requires sign-in (watch rows are keyed by user id).
+ */
+export async function getPriceWatchState(listingId: string): Promise<PriceWatchState> {
+    try {
+        const { user } = await getSessionUser();
+        const supabase = createAdminClient();
+        const { count } = await supabase
+            .from("price_watches")
+            .select("user_id", { count: "exact", head: true })
+            .eq("content_item_id", listingId);
+        if (!user) return { watching: false, watchers: count ?? 0 };
+        const { data } = await supabase
+            .from("price_watches")
+            .select("content_item_id")
+            .eq("user_id", user.id)
+            .eq("content_item_id", listingId)
+            .limit(1);
+        return { watching: ((data as unknown[])?.length ?? 0) > 0, watchers: count ?? 0 };
+    } catch {
+        return { watching: false, watchers: 0 };
+    }
+}
+
+export async function togglePriceWatch(
+    listingId: string,
+): Promise<{ ok: true; watching: boolean } | { ok: false; error: string }> {
+    if (!listingId || typeof listingId !== "string") return { ok: false, error: "not_found" };
+    const identifier = listingId.trim().slice(0, 80);
+    if (!identifier) return { ok: false, error: "not_found" };
+    const limited = await checkRateLimit("public:price_watch", {
+        ...RATE_LIMITS.watch,
+        policy: "fail-closed",
+    });
+    if (!limited.ok) return { ok: false, error: "rate_limited" };
+    try {
+        const { user } = await getSessionUser();
+        if (!user) return { ok: false, error: "auth" };
+        const supabase = createAdminClient();
+        const { data: existing } = await supabase
+            .from("price_watches")
+            .select("content_item_id")
+            .eq("user_id", user.id)
+            .eq("content_item_id", identifier)
+            .limit(1);
+        const isWatching = ((existing as unknown[])?.length ?? 0) > 0;
+        const { error } = isWatching
+            ? await supabase.from("price_watches").delete().eq("user_id", user.id).eq("content_item_id", identifier)
+            : await supabase.from("price_watches").insert({ user_id: user.id, content_item_id: identifier });
+        if (error) {
+            logger.error("priceWatch", "toggle failed", { error: error.message });
+            return { ok: false, error: "db" };
+        }
+        return { ok: true, watching: !isWatching };
+    } catch (err) {
+        logger.error("priceWatch", "exception", { error: err instanceof Error ? err.message : String(err) });
+        return { ok: false, error: "db" };
+    }
+}

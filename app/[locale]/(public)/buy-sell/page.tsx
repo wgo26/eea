@@ -23,6 +23,10 @@ import {
     getFeaturedListing,
     getListings,
 } from "@/lib/queries/buy-sell";
+import { getLocationsByContentType } from "@/lib/queries/locations";
+import { FacetFilter } from "@/components/shared/facet-filter";
+import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
+import { LocationProvider } from "@/hooks/use-location-context";
 
 export async function generateMetadata({
     params,
@@ -118,9 +122,10 @@ export default async function BuySellPage({
     );
     const isFiltered = Boolean(search || category || location || sort !== "newest");
 
-    const [featured, list] = await Promise.all([
+    const [featured, list, locations] = await Promise.all([
         getFeaturedListing(locale),
         getListings({ search, category, location, sort, locale, page }),
+        getLocationsByContentType("listing"),
     ]);
     const { listings: allListings, pageCount, total } = list;
     const listings =
@@ -135,7 +140,16 @@ export default async function BuySellPage({
                 .filter((p) => p >= 1 && p <= pageCount)
                 .sort((a, b) => a - b);
 
-    return (
+     return (
+        <LocationProvider
+            locations={locations}
+            activeLocation={location ?? null}
+            locationHref={(slug) =>
+                slug
+                    ? hrefL({ search, category, sort, location: slug })
+                    : hrefL({ search, category, sort })
+            }
+        >
         <div className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
             {/* Page header */}
             <header className="mb-8">
@@ -157,37 +171,45 @@ export default async function BuySellPage({
                 </p>
             </header>
 
-            {/* Category chips */}
-            <nav
-                aria-label={dict.buySell.categories}
-                className="mb-8 flex flex-wrap items-center gap-1.5"
-            >
-                <Link
-                    href={hrefL({ search, location, sort })}
-                    aria-current={!category ? "page" : undefined}
-                    className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
-                        !category
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground hover:bg-accent"
-                    }`}
-                >
-                    {dict.buySell.allCategories}
-                </Link>
-                {CATEGORY_SLUGS.map(({ slug, key }) => (
-                    <Link
-                        key={slug}
-                        href={hrefL({ search, location, sort, category: slug })}
-                        aria-current={category === slug ? "page" : undefined}
-                        className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
-                            category === slug
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted text-muted-foreground hover:bg-accent"
-                        }`}
-                    >
-                        {dict.buySell[key]}
-                    </Link>
-                ))}
-            </nav>
+            <FacetFilter
+                locale={locale}
+                labels={{
+                    filterLabel: dict.nav.filters,
+                    clearFilters: dict.buySell.clearFilters,
+                }}
+                groups={[
+                    {
+                        key: "category",
+                        label: dict.buySell.categories,
+                        activeKey: category ?? null,
+                        allLabel: dict.buySell.allCategories,
+                        hrefFor: (k) =>
+                            k ? hrefL({ search, location, sort, category: k }) : hrefL({ search, location, sort }),
+                        facets: CATEGORY_SLUGS.map((c) => ({
+                            key: c.slug,
+                            label: dict.buySell[c.key],
+                        })),
+                    },
+                    ...(locations.length > 0
+                        ? [
+                              {
+                                  key: "location",
+                                  label: dict.buySell.locations,
+                                  activeKey: location ?? null,
+                                  allLabel: dict.buySell.allLocations,
+                                  hrefFor: (k: string) =>
+                                      k
+                                          ? hrefL({ search, category, sort, location: k })
+                                          : hrefL({ search, category, sort }),
+                                  facets: locations.map((loc) => ({
+                                      key: loc.slug,
+                                      label: loc.name,
+                                  })),
+                              },
+                          ]
+                        : []),
+                ]}
+            />
 
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
                 {/* Main column */}
@@ -289,21 +311,16 @@ export default async function BuySellPage({
 
                     {/* Listings grid */}
                     {listings.length === 0 ? (
-                        <Card>
-                            <CardContent className="flex flex-col items-start gap-3 py-10 text-center sm:items-center">
-                                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                                    <ShoppingBag className="h-6 w-6" aria-hidden />
-                                </span>
-                                <p className="max-w-md text-sm text-muted-foreground">
-                                    {isFiltered ? dict.buySell.empty : dict.buySell.comingSoon}
-                                </p>
-                                {!isFiltered ? (
-                                    <Button render={<Link href={localePath(locale, "/buy-sell/post")} />}>
-                                        {dict.buySell.postListingCtaButton}
-                                    </Button>
-                                ) : null}
-                            </CardContent>
-                        </Card>
+                        <EmptyStateWithCTA
+                            icon={ShoppingBag}
+                            title={dict.buySell.empty}
+                            body={isFiltered ? dict.buySell.empty : dict.buySell.comingSoon}
+                            isFiltered={isFiltered}
+                            ctaLabel={dict.buySell.postListingCtaButton}
+                            ctaHref={localePath(locale, "/buy-sell/post")}
+                            clearHref={localePath(locale, "/buy-sell")}
+                            clearLabel={dict.buySell.clearFilters}
+                        />
                     ) : (
                         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                             {listings.map((listing) => (
@@ -330,7 +347,7 @@ export default async function BuySellPage({
                                                 {formatPrice(listing.price, listing.currency)}
                                             </span>
                                         ) : (
-                                            <span className="absolute bottom-2 left-2 inline-flex items-center rounded-full bg-primary px-2.5 py-1 text-[10px] font-bold text-primary-foreground">
+                                            <span className="absolute bottom-2 left-2 inline-flex items-center rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground">
                                                 {dict.buySell.free}
                                             </span>
                                         )}
@@ -401,41 +418,27 @@ export default async function BuySellPage({
                                 {dict.buySell.searchLabel}
                             </CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <form
-                                action={localePath(locale, "/buy-sell")}
-                                method="GET"
-                                role="search"
-                                className="space-y-2"
-                            >
-                                {category ? <input type="hidden" name="category" value={category} /> : null}
-                                {sort !== "newest" ? <input type="hidden" name="sort" value={sort} /> : null}
-                                <Input
-                                    type="search"
-                                    name="q"
-                                    defaultValue={search ?? ""}
-                                    placeholder={dict.buySell.searchPlaceholder}
-                                    aria-label={dict.buySell.searchLabel}
-                                />
-                                <Input
-                                    type="search"
-                                    name="location"
-                                    defaultValue={location ?? ""}
-                                    placeholder={dict.buySell.fieldLocationPlaceholder}
-                                    aria-label={dict.buySell.locations}
-                                />
-                                {location ? (
-                                    <Link
-                                        href={hrefL({ search, category, sort })}
-                                        className="inline-block text-xs font-semibold text-muted-foreground underline-offset-4 hover:underline"
-                                    >
-                                        {dict.buySell.allLocations}
-                                    </Link>
-                                ) : null}
-                                <Button type="submit" className="w-full">
-                                    <Search data-icon="inline-start" aria-hidden />
-                                    {dict.nav.search}
-                                </Button>
+                         <CardContent>
+                             <form
+                                 action={localePath(locale, "/buy-sell")}
+                                 method="GET"
+                                 role="search"
+                                 className="space-y-2"
+                             >
+                                 {category ? <input type="hidden" name="category" value={category} /> : null}
+                                 {location ? <input type="hidden" name="location" value={location} /> : null}
+                                 {sort !== "newest" ? <input type="hidden" name="sort" value={sort} /> : null}
+                                 <Input
+                                     type="search"
+                                     name="q"
+                                     defaultValue={search ?? ""}
+                                     placeholder={dict.buySell.searchPlaceholder}
+                                     aria-label={dict.buySell.searchLabel}
+                                 />
+                                 <Button type="submit" className="w-full">
+                                     <Search data-icon="inline-start" aria-hidden />
+                                     {dict.nav.search}
+                                 </Button>
                             </form>
                         </CardContent>
                     </Card>
@@ -472,5 +475,6 @@ export default async function BuySellPage({
                 </aside>
             </div>
         </div>
+        </LocationProvider>
     );
 }

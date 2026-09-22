@@ -33,6 +33,7 @@ const TYPE_FILTERS = [
   { key: 'listing', dictKey: 'listings' },
   { key: 'notice', dictKey: 'notices' },
   { key: 'culture', dictKey: 'culture' },
+  { key: 'micro_story', dictKey: 'microStory' },
 ] as const
 
 export default async function Page({
@@ -50,7 +51,7 @@ export default async function Page({
 
   const params = await searchParams
   const status = params.status || 'all'
-  const type = (params.type as 'all' | 'photo_story' | 'news' | 'listing' | 'notice' | 'culture') || 'all'
+  const type = (params.type as 'all' | 'photo_story' | 'news' | 'listing' | 'notice' | 'culture' | 'micro_story') || 'all'
   const activeTab = params.tab || 'content'
   const search = params.q || undefined
   const PAGE_SIZE = 20

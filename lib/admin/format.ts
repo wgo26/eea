@@ -67,11 +67,11 @@ export function formatBytes(bytes: number | null | undefined): string {
   return `${value.toFixed(value < 10 ? 1 : 0)} ${units[i]}`
 }
 
-export function formatPrice(amount: number | null | undefined, currency: string | null | undefined): string {
+export function formatPrice(amount: number | null | undefined, currency: string | null | undefined, locale: Locale = 'en'): string {
   if (amount == null) return '—'
   const cur = currency ?? 'XAF'
   try {
-    return new Intl.NumberFormat(localeTag.en, { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(amount)
+    return new Intl.NumberFormat(localeTag[locale], { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(amount)
   } catch {
     return `${amount.toLocaleString()} ${cur}`
   }

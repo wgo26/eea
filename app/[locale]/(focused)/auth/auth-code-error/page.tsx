@@ -1,21 +1,27 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
-import { getDictionary } from "@/lib/i18n";
-import { getRequestLocale } from "@/lib/i18n/server";
+import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { localePath } from "@/lib/i18n/urls";
 
-export async function generateMetadata(): Promise<Metadata> {
-    const locale = await getRequestLocale();
+type Props = { params: Promise<{ locale: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     return {
         title: getDictionary(locale).auth.codeError.title,
         robots: { index: false, follow: false },
     };
 }
 
-/** Localized dead-end-free error screen for expired/invalid auth links. */
-export default async function Page() {
-    const locale = await getRequestLocale();
+/**
+ * Localized dead-end-free error screen for expired/invalid auth links.
+ * Phase 1: locale comes from params (static-compatible), not headers().
+ */
+export default async function Page({ params }: Props) {
+    const { locale: raw } = await params;
+    const locale = resolveLocale(raw);
     const dict = getDictionary(locale);
 
     return (

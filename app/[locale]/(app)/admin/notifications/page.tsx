@@ -25,7 +25,7 @@ function StatusPill({ status }: { status: string }) {
           ? 'bg-muted text-muted-foreground'
           : 'bg-amber-500/15 text-amber-600'
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold ${tone}`}>
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${tone}`}>
       {status}
     </span>
   )
@@ -77,7 +77,7 @@ export default async function Page() {
         <div className="mt-4 border-t border-border pt-4">
           <h3 className="text-sm font-medium">{t.testHeading}</h3>
           <p className="mb-2 mt-0.5 text-xs text-muted-foreground">{t.testBody}</p>
-          <NotificationQueueActions copy={t} />
+                  <NotificationQueueActions copy={t} common={dict.admin.common} />
         </div>
       </section>
 
@@ -91,8 +91,8 @@ export default async function Page() {
             rows={queue}
             rowKey={(r) => r.id}
             columns={[
-              { key: 'event', header: t.colEvent, render: (r) => <div className="min-w-[140px] max-w-[240px]"><div className="font-mono text-xs truncate">{r.event}</div><div className="max-w-64 truncate text-xs text-muted-foreground">{r.title}</div>{r.error ? <div className="max-w-64 truncate text-[11px] text-destructive">{r.error}</div> : null}</div> },
-              { key: 'audience', header: t.colAudience, render: (r) => <span className="text-xs whitespace-nowrap">{r.audience === 'staff' ? t.staff : t.user}{r.recipientEmail ? <span className="block max-w-40 truncate text-[11px] text-muted-foreground">{r.recipientEmail}</span> : null}</span>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell' },
+              { key: 'event', header: t.colEvent, render: (r) => <div className="min-w-[140px] max-w-[240px]"><div className="font-mono text-xs truncate">{r.event}</div><div className="max-w-64 truncate text-xs text-muted-foreground">{r.title}</div>{r.error ? <div className="max-w-64 truncate text-xs text-destructive">{r.error}</div> : null}</div> },
+              { key: 'audience', header: t.colAudience, render: (r) => <span className="text-xs whitespace-nowrap">{r.audience === 'staff' ? t.staff : t.user}{r.recipientEmail ? <span className="block max-w-40 truncate text-xs text-muted-foreground">{r.recipientEmail}</span> : null}</span>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell' },
               { key: 'status', header: t.colStatus, render: (r) => <StatusPill status={r.status} />, className: 'whitespace-nowrap' },
               { key: 'channels', header: t.colChannels, render: (r) => <span className="text-xs text-muted-foreground whitespace-nowrap">{r.channels.length > 0 ? r.channels.join(' · ') : '—'}</span>, headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell whitespace-nowrap' },
               { key: 'when', header: t.colWhen, render: (r) => <span className="text-xs text-muted-foreground whitespace-nowrap">{r.createdAt ? formatRelative(r.createdAt, locale) : '—'}</span>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
@@ -111,7 +111,7 @@ export default async function Page() {
             rows={subscribers}
             rowKey={(r) => r.id}
             columns={[
-              { key: 'contact', header: t.colContact, render: (r) => <span className="text-xs">{r.whatsapp ?? r.phone ?? r.email ?? '—'}</span> },
+              { key: 'contact', header: t.colContact, render: (r) => <span className="text-xs">{r.whatsapp ?? r.phone ?? r.email ?? '—'}{r.diasporaMode ? <span className="ml-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">Diaspora</span> : null}</span> },
               { key: 'locale', header: t.colLocale, render: (r) => <span className="text-xs text-muted-foreground">{r.locale ?? '—'}</span> },
               { key: 'active', header: t.colActive, render: (r) => <SubscriberToggle id={r.id} isActive={r.isActive} />, className: 'text-right' },
             ]}

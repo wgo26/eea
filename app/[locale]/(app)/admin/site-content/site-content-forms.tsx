@@ -188,7 +188,7 @@ function AdvertiseSectionCard({
           {section.label} · {editLocale.toUpperCase()}
         </h3>
         {hasOverride ? (
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
             {copy.current}
           </span>
         ) : null}
@@ -203,7 +203,7 @@ function AdvertiseSectionCard({
             {section.heading ? <p className="font-semibold text-foreground">{section.heading}</p> : null}
             {section.body ? <p className="mt-1">{section.body}</p> : null}
           </div>
-          <p className="text-[11px] text-muted-foreground">{copy.overrideHint}</p>
+          <p className="text-xs text-muted-foreground">{copy.overrideHint}</p>
         </div>
 
         <div className="space-y-3">
@@ -325,7 +325,7 @@ export function SiteBrandingForm({
             <span className="flex items-center justify-between">
               {copy.logoLabel}
               {settings.site_logo_url ? null : (
-                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium">
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
                   {copy.notSet}
                 </span>
               )}
@@ -337,7 +337,7 @@ export function SiteBrandingForm({
               placeholder={copy.urlPlaceholder}
               className={input}
             />
-            <span className="text-[11px]">{copy.logoHint}</span>
+            <span className="text-xs">{copy.logoHint}</span>
           </label>
 
           <label className="inline-flex cursor-pointer items-center justify-center rounded-md border px-4 py-2 text-xs font-medium transition-colors hover:bg-accent">
@@ -359,17 +359,17 @@ export function SiteBrandingForm({
             <div className="flex items-center gap-3 rounded-md bg-muted/40 p-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={logo} alt={copy.logoPreview} className="h-10 max-w-40 rounded object-contain" />
-              <span className="text-[11px] text-muted-foreground">{copy.logoCurrent}</span>
+              <span className="text-xs text-muted-foreground">{copy.logoCurrent}</span>
               <button
                 type="button"
                 onClick={() => setLogo('')}
-                className="ml-auto text-[11px] text-destructive hover:underline"
+                className="ml-auto text-xs text-destructive hover:underline"
               >
                 {copy.notSet}
               </button>
             </div>
           ) : (
-            <p className="rounded-md bg-muted/40 p-3 text-[11px] text-muted-foreground">{copy.noLogo}</p>
+            <p className="rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">{copy.noLogo}</p>
           )}
         </div>
 
@@ -384,7 +384,7 @@ export function SiteBrandingForm({
               maxLength={120}
               className={input}
             />
-            <span className="text-[11px]">{copy.siteNameHint}</span>
+            <span className="text-xs">{copy.siteNameHint}</span>
           </label>
           <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
             <span>{copy.siteNameFrLabel}</span>
@@ -396,7 +396,7 @@ export function SiteBrandingForm({
               maxLength={120}
               className={input}
             />
-            <span className="text-[11px]">{copy.siteNameFrHint}</span>
+            <span className="text-xs">{copy.siteNameFrHint}</span>
           </label>
           <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
             <span>{copy.siteTaglineLabel}</span>
@@ -407,7 +407,7 @@ export function SiteBrandingForm({
               maxLength={120}
               className={input}
             />
-            <span className="text-[11px]">{copy.siteTaglineHint}</span>
+            <span className="text-xs">{copy.siteTaglineHint}</span>
           </label>
           <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
             <span>{copy.siteTaglineFrLabel}</span>
@@ -418,7 +418,7 @@ export function SiteBrandingForm({
               maxLength={120}
               className={input}
             />
-            <span className="text-[11px]">{copy.siteTaglineFrHint}</span>
+            <span className="text-xs">{copy.siteTaglineFrHint}</span>
           </label>
         </div>
       </div>
@@ -557,7 +557,7 @@ export function SiteLinksForm({
           <span className="flex items-center justify-between">
             {copy.facebookLabel}
             {settings.social_facebook_url ? null : (
-              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium">
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
                 {copy.notSet}
               </span>
             )}
@@ -569,14 +569,14 @@ export function SiteLinksForm({
             placeholder={copy.urlPlaceholder}
             className={input}
           />
-          <span className="text-[11px]">{copy.urlHint}</span>
+          <span className="text-xs">{copy.urlHint}</span>
         </label>
 
         <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
           <span className="flex items-center justify-between">
             {copy.youtubeLabel}
             {settings.social_youtube_url ? null : (
-              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium">
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
                 {copy.notSet}
               </span>
             )}
@@ -588,7 +588,7 @@ export function SiteLinksForm({
             placeholder={copy.urlPlaceholder}
             className={input}
           />
-          <span className="text-[11px]">{copy.urlHint}</span>
+          <span className="text-xs">{copy.urlHint}</span>
         </label>
       </div>
 
@@ -680,7 +680,7 @@ export function SiteLinksForm({
           placeholder={copy.urlPlaceholder}
           className={input}
         />
-        <span className="text-[11px]">{copy.announcementHint}</span>
+        <span className="text-xs">{copy.announcementHint}</span>
       </label>
 
       <div className="mt-4 flex justify-end">

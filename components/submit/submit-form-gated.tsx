@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { SubmitForm, type SubmitType, type SubmitInitial } from '@/components/submit/submit-form'
+import { TYPE_TO_DB } from '@/components/submit/submit-form'
 import type { Dictionary } from '@/lib/i18n'
 
 /**
@@ -40,5 +41,21 @@ export async function SubmitFormGated({ type, dict }: { type: SubmitType; dict: 
             locationText: locationName,
         };
     }
-    return <SubmitForm type={type} dict={dict} canUpload={!!user} initial={initial} />;
+
+    let initialDraft: Record<string, string> | undefined;
+    if (user) {
+        const { data: draft } = await supabase
+            .from('submissions')
+            .select('payload')
+            .eq('submitted_by', user.id)
+            .eq('submission_type', TYPE_TO_DB[type] ?? type)
+            .eq('status', 'draft')
+            .limit(1)
+            .maybeSingle();
+        if (draft && draft.payload) {
+            initialDraft = draft.payload as Record<string, string>;
+        }
+    }
+
+    return <SubmitForm type={type} dict={dict} canUpload={!!user} initial={initial} initialDraft={initialDraft} />;
 }

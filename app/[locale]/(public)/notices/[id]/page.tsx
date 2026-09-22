@@ -18,19 +18,26 @@ import { ReportButton } from "@/components/system/report-dialog";
 import { TextSizeControl } from "@/components/system/text-size-control";
 import { FeedbackWidget } from "@/components/system/feedback-widget";
 import { SectionHeader } from "@/components/home/section-header";
+import { RevealNoticeContact } from "@/components/notices/reveal-contact";
 import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { SupportingMedia } from "@/components/media/supporting-media";
-import { VerificationBadge } from "@/components/verification-badge";
+import { TrustBadge } from "@/components/system/trust-badge";
+import { FundraisingSection } from "@/components/news/fundraising-section";
+import { getFundraisers, getFundraiserStats } from "@/lib/queries/fundraisers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShareButtons } from "@/components/share-buttons";
+import { ReaderToolbar } from "@/components/system/reader-toolbar";
+import { RecordRecentView } from "@/components/system/record-recent-view";
+import { PrintHeader } from "@/components/system/print-header";
 import { SITE } from "@/lib/constants";
 import { formatDate, getDictionary, resolveLocale } from "@/lib/i18n";
-import { verificationBadgeInfo } from "@/lib/verification";
+
 import { getNoticeById, getNotices, NOTICE_TYPE_LABELS } from "@/lib/queries/notices";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { sanitizeBodyHtml } from "@/lib/security/html";
+import { articleJsonLd, breadcrumbJsonLd, renderJsonLd } from "@/lib/seo/jsonld";
 
 type NoticePageProps = { params: Promise<{ locale: string; id: string }> };
 
@@ -50,7 +57,7 @@ export async function generateMetadata({
     const { id, locale: raw } = await params;
     const locale = resolveLocale(raw);
     const notice = await getNoticeById(id, locale);
-    if (!notice) return { title: "Notice not found" };
+    if (!notice) return { title: locale === "fr" ? "Avis introuvable" : "Notice not found" };
     return {
         title: notice.title,
         description: notice.excerpt ?? undefined,
@@ -87,19 +94,64 @@ export default async function NoticePage({ params }: NoticePageProps) {
         ).notices.filter((n) => n.id !== notice.id).slice(0, 4)
         : [];
 
-    const badge = verificationBadgeInfo(notice.verification ?? null, dict);
+    // Phase 3 — community fundraising beside urgent notices (fundraisers are
+    // the natural extension of the town-square notice board: road repair,
+    // medical emergencies). Shared component with the news page; empty state
+    // is a quiet CTA, never a dead end.
+    const [fundraisers, fundraiserStats] = await Promise.all([
+        getFundraisers({ locale, limit: 3, onlyActive: true }),
+        getFundraiserStats(),
+    ]);
+
     const shareUrl = `${SITE.url}${localePath(locale, `/notices/${id}`)}`;
 
     const isExpired = notice.expiresAt
         ? new Date(notice.expiresAt) < new Date()
         : false;
 
+    // Phase 3 — Article + breadcrumb structured data (rich results).
+    const jsonLd = renderJsonLd([
+        articleJsonLd({
+            headline: notice.title,
+            description: notice.excerpt,
+            image: notice.imageUrl,
+            datePublished: notice.publishedAt,
+            url: shareUrl,
+        }),
+        breadcrumbJsonLd([
+            { name: dict.nav.notices, url: `${SITE.url}${localePath(locale, "/notices")}` },
+            { name: notice.title, url: shareUrl },
+        ]),
+    ]);
+
     return (
+        <>
+        {/* Phase 3 — device-local reading history. */}
+        <RecordRecentView
+            view={{
+                id: notice.id,
+                href: localePath(locale, `/notices/${id}`),
+                title: notice.title,
+                imageUrl: notice.imageUrl,
+            }}
+        />
+        <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: jsonLd }}
+        />
         <article className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
             <ContentBreadcrumb
                 locale={locale}
                 homeLabel={dict.nav.home}
                 trail={[{ label: dict.nav.notices, path: "/notices" }, { label: notice.title }]}
+            />
+
+            {/* Phase 3 — print attribution header (paper only; expiry matters on walls). */}
+            <PrintHeader
+                title={notice.title}
+                dateLine={notice.publishedAt ? formatDate(notice.publishedAt, locale) : null}
+                url={shareUrl}
+                extra={notice.expiresAt ? `${dict.notices.expires} ${formatDate(notice.expiresAt, locale)}` : null}
             />
 
             <header className="mt-4 max-w-4xl">
@@ -109,17 +161,17 @@ export default async function NoticePage({ params }: NoticePageProps) {
                             {NOTICE_TYPE_LABELS[notice.noticeType] ?? notice.noticeType}
                         </Badge>
                     ) : null}
-                    {notice.isOfficial ? (
-                        <VerificationBadge status="official_source" />
-                    ) : notice.verification ? (
-                        <VerificationBadge status={notice.verification as "verified" | "community_submission" | "official_source" | "developing"} />
-                    ) : null}
+                    <TrustBadge
+                        verification={notice.isOfficial ? "official_source" : notice.verification}
+                        dict={dict}
+                        locale={locale}
+                    />
                     {isExpired ? (
                         <Badge variant="destructive">{dict.notices.expired}</Badge>
                     ) : null}
                 </div>
 
-                <h1 className="mt-3 text-3xl font-extrabold leading-tight tracking-tight md:text-4xl lg:text-5xl">
+                <h1 className="font-display mt-3 text-3xl font-extrabold leading-tight tracking-tight md:text-4xl lg:text-5xl">
                     {notice.title}
                 </h1>
 
@@ -157,6 +209,18 @@ export default async function NoticePage({ params }: NoticePageProps) {
                 </div>
             </header>
 
+            {/* Phase 3 — reader toolbar: text size, lite mode, offline save, WhatsApp. */}
+            <ReaderToolbar
+                path={localePath(locale, `/notices/${notice.id}`)}
+                shareUrl={shareUrl}
+                title={notice.title}
+                saveLabel={dict.news.saveOffline}
+                savedLabel={dict.news.savedOffline}
+                offlineUnavailableLabel={dict.news.offlineUnavailable}
+                whatsappLabel={dict.news.shareWhatsapp}
+                dict={dict}
+            />
+
             {notice.imageUrl ? (
                 <div className="relative mt-8 h-64 w-full overflow-hidden rounded-2xl bg-muted md:h-96">
                     <SmartImage
@@ -193,6 +257,15 @@ export default async function NoticePage({ params }: NoticePageProps) {
                 <FeedbackWidget contentItemId={notice.id} copy={dict.feedback} />
             </div>
 
+            <div className="mt-10">
+                <FundraisingSection
+                    campaigns={fundraisers}
+                    dict={dict}
+                    locale={locale}
+                    stats={fundraiserStats}
+                />
+            </div>
+
             <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div>
                     {related.length > 0 ? (
@@ -219,18 +292,22 @@ export default async function NoticePage({ params }: NoticePageProps) {
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
                                                         {item.noticeType ? (
-                                                            <Badge variant="secondary" className="text-[10px]">
+                                                            <Badge variant="secondary" className="text-xs">
                                                                 {NOTICE_TYPE_LABELS[item.noticeType] ?? item.noticeType}
                                                             </Badge>
                                                         ) : null}
-                                                        {item.isOfficial ? (
-                                                            <VerificationBadge status="official_source" />
-                                                        ) : null}
+                                                        {/* Related row: inside the card link, so no nested link. */}
+                                                        <TrustBadge
+                                                            verification={item.isOfficial ? "official_source" : item.verification}
+                                                            dict={dict}
+                                                            locale={locale}
+                                                            link={false}
+                                                        />
                                                     </div>
                                                     <h3 className="text-sm font-semibold leading-snug group-hover:underline line-clamp-2">
                                                         {item.title}
                                                     </h3>
-                                                    <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                                                    <span className="mt-0.5 block text-xs text-muted-foreground">
                                                         {item.location ?? ""}
                                                         {item.location && item.publishedAt ? " · " : ""}
                                                         {item.publishedAt ? formatDate(item.publishedAt, locale) : ""}
@@ -333,18 +410,18 @@ export default async function NoticePage({ params }: NoticePageProps) {
                                         </dd>
                                     </div>
                                 ) : null}
-                                {badge ? (
+                                {(notice.isOfficial || notice.verification) ? (
                                     <div className="flex items-start justify-between gap-3">
                                         <dt className="inline-flex items-center gap-1.5 text-muted-foreground">
                                             <Shield className="h-4 w-4" aria-hidden />
                                             {dict.home.verifiedNotice}
                                         </dt>
                                         <dd>
-                                            <span
-                                                className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${badge.className}`}
-                                            >
-                                                {badge.label}
-                                            </span>
+                                            <TrustBadge
+                                                verification={notice.isOfficial ? "official_source" : notice.verification}
+                                                dict={dict}
+                                                locale={locale}
+                                            />
                                         </dd>
                                     </div>
                                 ) : null}
@@ -361,14 +438,25 @@ export default async function NoticePage({ params }: NoticePageProps) {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                {notice.organizationName ? (
-                                    <p className="text-sm font-medium">{notice.organizationName}</p>
-                                ) : null}
-                                {notice.hasContact ? (
-                                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                                        {dict.notices.contactViaOrganization ?? dict.notices.contact}
-                                    </p>
-                                ) : null}
+                                {/* Phase 0 — gated reveal: phone/email never in SSR HTML. */}
+                                <RevealNoticeContact
+                                    noticeId={notice.id}
+                                    organizationName={notice.organizationName}
+                                    hasContact={notice.hasContact}
+                                    isExpired={isExpired}
+                                    labels={{
+                                        reveal: dict.notices.revealContact,
+                                        hide: dict.notices.hideContact,
+                                        phone: dict.notices.contactPhone,
+                                        email: dict.notices.contactEmail,
+                                        contactViaOrganization: dict.notices.contactViaOrganization ?? dict.notices.contact,
+                                        rateLimited: dict.notices.contactRateLimited,
+                                        unavailable: dict.notices.contactUnavailable,
+                                        loading: dict.notices.contactLoading,
+                                        expiredNotice: dict.notices.expiredContactNotice,
+                                        safetyHint: dict.notices.contactSafetyHint,
+                                    }}
+                                />
                             </CardContent>
                         </Card>
                     ) : null}
@@ -396,5 +484,6 @@ export default async function NoticePage({ params }: NoticePageProps) {
                 </aside>
             </div>
         </article>
+        </>
     );
 }

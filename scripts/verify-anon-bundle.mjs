@@ -95,6 +95,28 @@ try {
     fail("verify-client-dictionary.mjs reported leaks (see output above)");
 }
 
+// --- 4. Phase 0 — service-role secret must never reach the client bundle ---
+// Static scan over client-reachable sources: components/ must not reference
+// the service-role key or admin client. Server route handlers (route.ts),
+// server actions ('use server') and lib/supabase/admin.ts itself are
+// server-only by construction and are excluded — the gate targets the client
+// bundle (components/ + "use client" files).
+// NOTE: no `|| true` shell operator here — the script runs under PowerShell
+// on Windows dev hosts where that is a syntax error. `git grep` exits 1 on
+// "no matches" (the clean state); execSync throws, we treat empty stdout as
+// clean. A repo-wide fallback covers worktrees where `git grep` scoping
+// misbehaves.
+console.log("\n[service-role bundle gate]");
+{
+    const { grepHits } = await import("./lib/grep-hits.mjs");
+    const hits = grepHits("SUPABASE_SERVICE_ROLE_KEY|createAdminClient|service_role", ["components"]);
+    if (hits) {
+        fail(`service-role reference in client components/:\n${hits}`);
+    } else {
+        ok("no service-role references in components/");
+    }
+}
+
 console.log("");
 if (failures > 0) {
     console.log(`RESULT: ${failures} budget violation(s) — anonymous bundle would exceed the Phase 1 budget.`);

@@ -16,6 +16,12 @@ export const chromeFr = {
     advertise: 'Annoncer',
     locations: 'Lieux',
     contributors: 'Contributeurs',
+    main: 'Principal',
+    digest: 'Résumé du jour',
+    filters: 'Filtres',
+  },
+  readerToolbar: {
+    label: 'Outils de lecture',
   },
   header: {
     searchPlaceholder: 'Rechercher histoires, avis, annonces…',
@@ -39,7 +45,7 @@ export const chromeFr = {
     body: "La page que vous cherchez n'existe pas ou a peut-être été déplacée.",
     home: "Retour à l'accueil",
   },
-  footer: {
+footer: {
     aboutTitle: 'Eagle Eye Africa',
     aboutText:
       'Une plateforme médiatique africaine centrée sur la communauté, combinant journalisme local, narration visuelle, information communautaire, petites annonces et culture — un enregistrement numérique de ce qui se passe autour des gens.',
@@ -47,12 +53,24 @@ export const chromeFr = {
     community: 'Communauté',
     legal: 'Légal',
     followUs: 'Suivez-nous',
-    terms: 'Conditions d’utilisation',
+    terms: 'Conditions d\'utilisation',
     privacy: 'Politique de confidentialité',
     guidelines: 'Règles de la communauté',
-    copyright: 'Droit d’auteur & retrait',
+    copyright: 'Droit d\'auteur & retrait',
     contact: 'Contact',
     rights: 'Tous droits réservés.',
-    madeIn: 'Fait pour les communautés d’Afrique.',
+    madeIn: 'Fait pour les communautés d\'Afrique.',
+  },
+  locations: {
+    yourPlace: 'Votre lieu',
+    selectPlace: 'Choisir votre lieu',
+    searchPlaces: 'Rechercher des lieux...',
+    noPlacesFound: 'Aucun lieu trouvé.',
+    clearPlace: 'Effacer le lieu',
+    nearYou: 'Près de chez vous',
+    nearYouTitle: 'Dernières actualités de {place}',
+    placePromptTitle: 'Où habitez-vous ?',
+    placePromptBody: 'Choisissez votre lieu une fois — la page d’accueil mettra en avant les actualités, avis, annonces et événements près de chez vous.',
+    placePromptLater: 'Pas maintenant',
   },
 }

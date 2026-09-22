@@ -3,7 +3,7 @@ import { getListingDetail } from '@/lib/queries/buy-sell'
 import { previewImageUrl } from '@/lib/media/attachments'
 import { articleOgImage, OG_WIDTH, OG_HEIGHT } from '@/lib/seo/og-image'
 
-export const alt = 'Buy & sell listing'
+export const alt = 'Eagle Eye Africa'
 export const size = { width: OG_WIDTH, height: OG_HEIGHT }
 export const contentType = 'image/png'
 
