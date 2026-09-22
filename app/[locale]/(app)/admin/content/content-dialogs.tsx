@@ -1,47 +1,71 @@
-'use client'
+"use client";
 /* eslint-disable react-hooks/set-state-in-effect -- edit dialog fetches on open by design */
 
-import { useEffect, useRef, useState } from 'react'
-import { createContentItem, deleteContentItem, saveContentItem, getContentItemEditData as fetchEditDataAction, getContentHistoryData, searchAuthors } from '@/lib/admin/actions'
-import { useContentTranslator, TranslateButtons } from '@/components/admin/translate-buttons'
-import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
-import { useToast } from '@/components/admin/toast'
-import { PublishReadiness, buildReadinessChecks } from '@/components/admin/publish-readiness'
-import { formatRelative } from '@/lib/admin/format'
+import { useEffect, useRef, useState } from "react";
+import {
+  createContentItem,
+  deleteContentItem,
+  saveContentItem,
+  getContentItemEditData as fetchEditDataAction,
+  getContentHistoryData,
+  searchAuthors,
+} from "@/lib/admin/actions";
+import {
+  useContentTranslator,
+  TranslateButtons,
+} from "@/components/admin/translate-buttons";
+import {
+  ConfirmDialog,
+  useAdminMutation,
+} from "@/components/admin/confirm-dialog";
+import { useToast } from "@/components/admin/toast";
+import {
+  PublishReadiness,
+  buildReadinessChecks,
+} from "@/components/admin/publish-readiness";
+import { formatRelative } from "@/lib/admin/format";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { MediaUploader, CONTENT_MEDIA_ACCEPTS } from '@/components/admin/media-uploader'
-import type { UploadedPhoto } from '@/components/admin/media-uploader'
-import { ui, Field } from '@/lib/admin/ui-constants'
-import type { Dictionary } from '@/lib/i18n'
-import type { ContentRow } from '@/lib/admin/queries'
+} from "@/components/ui/dialog";
+import {
+  MediaUploader,
+  CONTENT_MEDIA_ACCEPTS,
+} from "@/components/admin/media-uploader";
+import type { UploadedPhoto } from "@/components/admin/media-uploader";
+import { ui, Field } from "@/lib/admin/ui-constants";
+import type { Dictionary } from "@/lib/i18n";
+import type { ContentRow } from "@/lib/admin/queries";
 
-type Copy = Dictionary['admin']['content']
-type CommonCopy = Dictionary['admin']['common']
-type TypeFilters = Dictionary['admin']['typeFilters']
-type Option = { id: string; name: string; slug?: string }
+type Copy = Dictionary["admin"]["content"];
+type CommonCopy = Dictionary["admin"]["common"];
+type TypeFilters = Dictionary["admin"]["typeFilters"];
+type Option = { id: string; name: string; slug?: string };
 
 // Phase 4 — 'micro_story' is the Eye on the Street one-photo format
 // (Differentiator #8); it shares the news detail template + categories.
-const CONTENT_TYPES = ['photo_story', 'news', 'listing', 'notice', 'culture', 'micro_story'] as const
+const CONTENT_TYPES = [
+  "photo_story",
+  "news",
+  "listing",
+  "notice",
+  "culture",
+  "micro_story",
+] as const;
 
 // Use shared ui constants instead of duplicated string literals
-const inputCls = ui.input
-const btnPrimary = ui.btnPrimary
-const btnGhost = ui.btnSecondary
-const btnDanger = ui.btnDanger
+const inputCls = ui.input;
+const btnPrimary = ui.btnPrimary;
+const btnGhost = ui.btnSecondary;
+const btnDanger = ui.btnDanger;
 
 // Wrapper so the edit dialog can fetch via a client-callable server action.
 async function fetchEditData(contentItemId: string) {
-  return fetchEditDataAction(contentItemId)
+  return fetchEditDataAction(contentItemId);
 }
-
-
 
 export function ContentCreateDialog({
   copy,
@@ -50,193 +74,215 @@ export function ContentCreateDialog({
   locations,
   categoriesByType,
 }: {
-  copy: Copy
-  common: CommonCopy
-  typeFilters: TypeFilters
-  locations: Option[]
-  categoriesByType: Record<string, Option[]>
+  copy: Copy;
+  common: CommonCopy;
+  typeFilters: TypeFilters;
+  locations: Option[];
+  categoriesByType: Record<string, Option[]>;
 }) {
-  const { run, loading } = useAdminMutation()
-  const { addToast } = useToast()
-  const [open, setOpen] = useState(false)
+  const { run, loading } = useAdminMutation();
+  const { addToast } = useToast();
+  const [open, setOpen] = useState(false);
 
-  const [type, setType] = useState<(typeof CONTENT_TYPES)[number]>('news')
-  const [publish, setPublish] = useState<'now' | 'schedule' | 'draft'>('now')
-  const [scheduledFor, setScheduledFor] = useState('')
-  const [expiresAt, setExpiresAt] = useState('')
+  const [type, setType] = useState<(typeof CONTENT_TYPES)[number]>("news");
+  const [publish, setPublish] = useState<"now" | "schedule" | "draft">("now");
+  const [scheduledFor, setScheduledFor] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
 
-  const [enTitle, setEnTitle] = useState('')
-  const [frTitle, setFrTitle] = useState('')
-  const [enExcerpt, setEnExcerpt] = useState('')
-  const [frExcerpt, setFrExcerpt] = useState('')
-  const [enBody, setEnBody] = useState('')
-  const [frBody, setFrBody] = useState('')
-  const [newPhotos, setNewPhotos] = useState<UploadedPhoto[]>([])
-  const [credit, setCredit] = useState('')
-  const [verification, setVerification] = useState('community_submission')
-  const [locationId, setLocationId] = useState('')
-  const [categoryId, setCategoryId] = useState('')
+  const [enTitle, setEnTitle] = useState("");
+  const [frTitle, setFrTitle] = useState("");
+  const [enExcerpt, setEnExcerpt] = useState("");
+  const [frExcerpt, setFrExcerpt] = useState("");
+  const [enBody, setEnBody] = useState("");
+  const [frBody, setFrBody] = useState("");
+  const [newPhotos, setNewPhotos] = useState<UploadedPhoto[]>([]);
+  const [credit, setCredit] = useState("");
+  const [verification, setVerification] = useState("community_submission");
+  const [locationId, setLocationId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
 
   // Advanced / parity fields (same model as the edit drawer)
-  const [slugInput, setSlugInput] = useState('')
-  const [tagsInput, setTagsInput] = useState('')
-  const [byline, setByline] = useState('')
+  const [slugInput, setSlugInput] = useState("");
+  const [tagsInput, setTagsInput] = useState("");
+  const [byline, setByline] = useState("");
   // Phase 4 — WhatsApp share line (one field, written to both locale rows)
   // + voice register for Eye on the Street / Daily Brief distribution.
-  const [shareText, setShareText] = useState('')
-  const [voiceType, setVoiceType] = useState('')
-  const [enSeoDescription, setEnSeoDescription] = useState('')
-  const [frSeoDescription, setFrSeoDescription] = useState('')
-  const [videosInput, setVideosInput] = useState('')
-  const [audiosInput, setAudiosInput] = useState('')
-  const [documentsInput, setDocumentsInput] = useState('')
-  const [authorId, setAuthorId] = useState<string | null>(null)
-  const [authorName, setAuthorName] = useState('')
-  const [authorQuery, setAuthorQuery] = useState('')
-  const [authorResults, setAuthorResults] = useState<{ id: string; name: string }[]>([])
-  const [authorSearching, setAuthorSearching] = useState(false)
-  const authorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [shareText, setShareText] = useState("");
+  const [voiceType, setVoiceType] = useState("");
+  const [enSeoDescription, setEnSeoDescription] = useState("");
+  const [frSeoDescription, setFrSeoDescription] = useState("");
+  const [videosInput, setVideosInput] = useState("");
+  const [audiosInput, setAudiosInput] = useState("");
+  const [documentsInput, setDocumentsInput] = useState("");
+  const [authorId, setAuthorId] = useState<string | null>(null);
+  const [authorName, setAuthorName] = useState("");
+  const [authorQuery, setAuthorQuery] = useState("");
+  const [authorResults, setAuthorResults] = useState<
+    { id: string; name: string }[]
+  >([]);
+  const [authorSearching, setAuthorSearching] = useState(false);
+  const authorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Type-specific
-  const [price, setPrice] = useState('')
-  const [currency, setCurrency] = useState('XAF')
-  const [sellerName, setSellerName] = useState('')
-  const [contactPhone, setContactPhone] = useState('')
-  const [contactEmail, setContactEmail] = useState('')
-  const [whatsappNumber, setWhatsappNumber] = useState('')
-  const [noticeType, setNoticeType] = useState('other')
-  const [organization, setOrganization] = useState('')
-  const [noticeDate, setNoticeDate] = useState('')
-  const [noticeExpiry, setNoticeExpiry] = useState('')
-  const [isOfficial, setIsOfficial] = useState(false)
-  const [eventStartsAt, setEventStartsAt] = useState('')
-  const [eventEndsAt, setEventEndsAt] = useState('')
-  const [venueName, setVenueName] = useState('')
-  const [ticketUrl, setTicketUrl] = useState('')
-  const [organizerName, setOrganizerName] = useState('')
-  const [organizerPhone, setOrganizerPhone] = useState('')
-  const [organizerEmail, setOrganizerEmail] = useState('')
+  const [price, setPrice] = useState("");
+  const [currency, setCurrency] = useState("XAF");
+  const [sellerName, setSellerName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [noticeType, setNoticeType] = useState("other");
+  const [organization, setOrganization] = useState("");
+  const [noticeDate, setNoticeDate] = useState("");
+  const [noticeExpiry, setNoticeExpiry] = useState("");
+  const [isOfficial, setIsOfficial] = useState(false);
+  const [eventStartsAt, setEventStartsAt] = useState("");
+  const [eventEndsAt, setEventEndsAt] = useState("");
+  const [venueName, setVenueName] = useState("");
+  const [ticketUrl, setTicketUrl] = useState("");
+  const [organizerName, setOrganizerName] = useState("");
+  const [organizerPhone, setOrganizerPhone] = useState("");
+  const [organizerEmail, setOrganizerEmail] = useState("");
 
-  const categories = categoriesByType[type] ?? []
+  const categories = categoriesByType[type] ?? [];
 
   const { translate, translating } = useContentTranslator({
     copy,
     read: () => ({
-      en: { title: enTitle, excerpt: enExcerpt, body: enBody, seoDescription: enSeoDescription },
-      fr: { title: frTitle, excerpt: frExcerpt, body: frBody, seoDescription: frSeoDescription },
+      en: {
+        title: enTitle,
+        excerpt: enExcerpt,
+        body: enBody,
+        seoDescription: enSeoDescription,
+      },
+      fr: {
+        title: frTitle,
+        excerpt: frExcerpt,
+        body: frBody,
+        seoDescription: frSeoDescription,
+      },
     }),
     write: (locale, f) => {
-      if (locale === 'fr') {
-        setFrTitle(f.title); setFrExcerpt(f.excerpt); setFrBody(f.body); setFrSeoDescription(f.seoDescription)
+      if (locale === "fr") {
+        setFrTitle(f.title);
+        setFrExcerpt(f.excerpt);
+        setFrBody(f.body);
+        setFrSeoDescription(f.seoDescription);
       } else {
-        setEnTitle(f.title); setEnExcerpt(f.excerpt); setEnBody(f.body); setEnSeoDescription(f.seoDescription)
+        setEnTitle(f.title);
+        setEnExcerpt(f.excerpt);
+        setEnBody(f.body);
+        setEnSeoDescription(f.seoDescription);
       }
     },
-  })
+  });
 
   function reset() {
-    setType('news')
-    setPublish('now')
-    setScheduledFor('')
-    setExpiresAt('')
-    setEnTitle('')
-    setFrTitle('')
-    setEnExcerpt('')
-    setFrExcerpt('')
-    setEnBody('')
-    setFrBody('')
-    setNewPhotos([])
-    setCredit('')
-    setVerification('community_submission')
-    setLocationId('')
-    setCategoryId('')
-    setPrice('')
-    setSellerName('')
-    setContactPhone('')
-    setContactEmail('')
-    setWhatsappNumber('')
-    setNoticeType('other')
-    setOrganization('')
-    setNoticeDate('')
-    setNoticeExpiry('')
-    setIsOfficial(false)
-    setEventStartsAt('')
-    setEventEndsAt('')
-    setVenueName('')
-    setTicketUrl('')
-    setOrganizerName('')
-    setOrganizerPhone('')
-    setOrganizerEmail('')
-    setSlugInput('')
-    setTagsInput('')
-    setByline('')
-    setShareText('')
-    setVoiceType('')
-    setEnSeoDescription('')
-    setFrSeoDescription('')
-    setVideosInput('')
-    setAudiosInput('')
-    setDocumentsInput('')
-    setAuthorId(null)
-    setAuthorName('')
-    setAuthorQuery('')
-    setAuthorResults([])
+    setType("news");
+    setPublish("now");
+    setScheduledFor("");
+    setExpiresAt("");
+    setEnTitle("");
+    setFrTitle("");
+    setEnExcerpt("");
+    setFrExcerpt("");
+    setEnBody("");
+    setFrBody("");
+    setNewPhotos([]);
+    setCredit("");
+    setVerification("community_submission");
+    setLocationId("");
+    setCategoryId("");
+    setPrice("");
+    setSellerName("");
+    setContactPhone("");
+    setContactEmail("");
+    setWhatsappNumber("");
+    setNoticeType("other");
+    setOrganization("");
+    setNoticeDate("");
+    setNoticeExpiry("");
+    setIsOfficial(false);
+    setEventStartsAt("");
+    setEventEndsAt("");
+    setVenueName("");
+    setTicketUrl("");
+    setOrganizerName("");
+    setOrganizerPhone("");
+    setOrganizerEmail("");
+    setSlugInput("");
+    setTagsInput("");
+    setByline("");
+    setShareText("");
+    setVoiceType("");
+    setEnSeoDescription("");
+    setFrSeoDescription("");
+    setVideosInput("");
+    setAudiosInput("");
+    setDocumentsInput("");
+    setAuthorId(null);
+    setAuthorName("");
+    setAuthorQuery("");
+    setAuthorResults([]);
   }
 
   // Author search (profile author picker — same model as the edit drawer).
   useEffect(() => {
-    if (!open) return
+    if (!open) return;
     if (!authorQuery.trim()) {
-      setAuthorResults([])
-      setAuthorSearching(false)
-      return
+      setAuthorResults([]);
+      setAuthorSearching(false);
+      return;
     }
-    setAuthorSearching(true)
-    if (authorTimer.current) clearTimeout(authorTimer.current)
+    setAuthorSearching(true);
+    if (authorTimer.current) clearTimeout(authorTimer.current);
     authorTimer.current = setTimeout(async () => {
-      const res = await searchAuthors(authorQuery.trim())
-      setAuthorResults(res)
-      setAuthorSearching(false)
-    }, 250)
+      const res = await searchAuthors(authorQuery.trim());
+      setAuthorResults(res);
+      setAuthorSearching(false);
+    }, 250);
     return () => {
-      if (authorTimer.current) clearTimeout(authorTimer.current)
-    }
-  }, [authorQuery, open])
+      if (authorTimer.current) clearTimeout(authorTimer.current);
+    };
+  }, [authorQuery, open]);
 
   function pickAuthor(a: { id: string; name: string } | null) {
     if (a) {
-      setAuthorId(a.id)
-      setAuthorName(a.name)
+      setAuthorId(a.id);
+      setAuthorName(a.name);
     } else {
-      setAuthorId(null)
-      setAuthorName('')
+      setAuthorId(null);
+      setAuthorName("");
     }
-    setAuthorQuery('')
-    setAuthorResults([])
+    setAuthorQuery("");
+    setAuthorResults([]);
   }
 
-  function attachmentList(raw: string, kind: 'video' | 'audio' | 'document') {
+  function attachmentList(raw: string, kind: "video" | "audio" | "document") {
     return raw
-      .split('\n')
+      .split("\n")
       .map((line) => line.trim())
       .filter(Boolean)
       .map((line) => {
-        const [url, ...rest] = line.split(/\s+-\s+/)
-        return { url, kind, caption: rest.join(' - ') || undefined }
-      })
+        const [url, ...rest] = line.split(/\s+-\s+/);
+        return { url, kind, caption: rest.join(" - ") || undefined };
+      });
   }
 
   async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
-    if (publish === 'schedule' && !scheduledFor.trim()) {
-      addToast(copy.scheduledFor ?? 'Pick a date/time first.', 'error')
-      return
+    e.preventDefault();
+    if (publish === "schedule" && !scheduledFor.trim()) {
+      addToast(copy.scheduledFor ?? "Pick a date/time first.", "error");
+      return;
     }
-    if (type === 'listing' && price.trim() !== '' && Number.isNaN(Number(price))) {
-      addToast(copy.priceLabel ?? 'Enter a valid price.', 'error')
-      return
+    if (
+      type === "listing" &&
+      price.trim() !== "" &&
+      Number.isNaN(Number(price))
+    ) {
+      addToast(copy.priceLabel ?? "Enter a valid price.", "error");
+      return;
     }
-    const draft: Parameters<typeof createContentItem>[0]['draft'] = {
+    const draft: Parameters<typeof createContentItem>[0]["draft"] = {
       slugBase: enTitle.trim() || type,
       slug: slugInput.trim() || undefined,
       verification: (verification || null) as never,
@@ -245,41 +291,77 @@ export function ContentCreateDialog({
       authorId: authorId || null,
       photographerCredit: credit.trim() || null,
       translations: [
-        { locale: 'en', title: enTitle, excerpt: enExcerpt, body: enBody, seoDescription: enSeoDescription.trim() || null, byline: byline.trim() || null, shareText: shareText.trim().slice(0, 280) || undefined, voiceType: (voiceType || undefined) as 'formal' | 'pidgin' | 'camfranglais' | undefined },
-        { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody, seoDescription: frSeoDescription.trim() || null, byline: byline.trim() || null, shareText: shareText.trim().slice(0, 280) || undefined, voiceType: (voiceType || undefined) as 'formal' | 'pidgin' | 'camfranglais' | undefined },
+        {
+          locale: "en",
+          title: enTitle,
+          excerpt: enExcerpt,
+          body: enBody,
+          seoDescription: enSeoDescription.trim() || null,
+          byline: byline.trim() || null,
+          shareText: shareText.trim().slice(0, 280) || undefined,
+          voiceType: (voiceType || undefined) as
+            "formal" | "pidgin" | "camfranglais" | undefined,
+        },
+        {
+          locale: "fr",
+          title: frTitle,
+          excerpt: frExcerpt,
+          body: frBody,
+          seoDescription: frSeoDescription.trim() || null,
+          byline: byline.trim() || null,
+          shareText: shareText.trim().slice(0, 280) || undefined,
+          voiceType: (voiceType || undefined) as
+            "formal" | "pidgin" | "camfranglais" | undefined,
+        },
       ],
-      tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
+      tags: tagsInput
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean),
       // assetId/kind/mime passthrough lets syncPhotos link the already-stored
       // upload row instead of inserting a duplicate URL-only row (null
       // storage_key, which the DB rejects).
-      photos: newPhotos.map((p) => ({ url: p.url, alt: p.alt, caption: p.caption, credit: p.credit, assetId: p.assetId, kind: p.kind, mimeType: p.mimeType, durationSeconds: p.durationSeconds })),
+      photos: newPhotos.map((p) => ({
+        url: p.url,
+        alt: p.alt,
+        caption: p.caption,
+        credit: p.credit,
+        assetId: p.assetId,
+        kind: p.kind,
+        mimeType: p.mimeType,
+        durationSeconds: p.durationSeconds,
+      })),
       attachments: [
-        ...attachmentList(videosInput, 'video'),
-        ...attachmentList(audiosInput, 'audio'),
-        ...attachmentList(documentsInput, 'document'),
+        ...attachmentList(videosInput, "video"),
+        ...attachmentList(audiosInput, "audio"),
+        ...attachmentList(documentsInput, "document"),
       ],
-    }
-    if (type === 'listing') {
+    };
+    if (type === "listing") {
       draft.listing = {
         price: price ? Number(price) : null,
-        currency: currency || 'XAF',
+        currency: currency || "XAF",
         contactPhone: contactPhone.trim() || null,
         contactEmail: contactEmail.trim() || null,
         whatsappNumber: whatsappNumber.trim() || null,
         sellerName: sellerName.trim() || null,
-      }
+      };
     }
-    if (type === 'notice') {
+    if (type === "notice") {
       draft.notice = {
         noticeType,
         organizationName: organization.trim() || null,
         contactPhone: contactPhone.trim() || null,
-        isOfficial: verification === 'official_source' || isOfficial,
+        isOfficial: verification === "official_source" || isOfficial,
         noticeDate: noticeDate ? new Date(noticeDate).toISOString() : null,
-        expiryDate: noticeExpiry ? new Date(noticeExpiry).toISOString() : expiresAt ? new Date(expiresAt).toISOString() : null,
-      }
+        expiryDate: noticeExpiry
+          ? new Date(noticeExpiry).toISOString()
+          : expiresAt
+            ? new Date(expiresAt).toISOString()
+            : null,
+      };
     }
-    if (type === 'culture') {
+    if (type === "culture") {
       draft.event = {
         startsAt: eventStartsAt ? new Date(eventStartsAt).toISOString() : null,
         endsAt: eventEndsAt ? new Date(eventEndsAt).toISOString() : null,
@@ -288,42 +370,68 @@ export function ContentCreateDialog({
         organizerName: organizerName.trim() || null,
         organizerPhone: organizerPhone.trim() || null,
         organizerEmail: organizerEmail.trim() || null,
-      }
+      };
     }
 
     const toast =
-      publish === 'now' ? copy.toastPublished : publish === 'schedule' ? copy.toastScheduled : copy.toastCreated ?? copy.toastPublished
+      publish === "now"
+        ? copy.toastPublished
+        : publish === "schedule"
+          ? copy.toastScheduled
+          : (copy.toastCreated ?? copy.toastPublished);
     const ok = await run(
       () =>
         createContentItem({
           type,
           draft,
           publish,
-          scheduledFor: publish === 'schedule' ? new Date(scheduledFor).toISOString() : undefined,
+          scheduledFor:
+            publish === "schedule"
+              ? new Date(scheduledFor).toISOString()
+              : undefined,
           expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
         }),
       toast,
-    )
+    );
     if (ok) {
-      reset()
-      setOpen(false)
+      reset();
+      setOpen(false);
     }
   }
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={btnPrimary}>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={btnPrimary}
+      >
         {copy.newContent}
       </button>
-      <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); setOpen(v) }}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          if (!v) reset();
+          setOpen(v);
+        }}
+      >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{copy.newContentTitle}</DialogTitle>
-            <p className="text-sm text-muted-foreground">{copy.newContentBody}</p>
+            <p className="text-sm text-muted-foreground">
+              {copy.newContentBody}
+            </p>
           </DialogHeader>
           <form onSubmit={handleCreate} className="grid gap-3">
             <Field label={copy.type}>
-              <select value={type} onChange={(e) => { setType(e.target.value as never); setCategoryId('') }} className={inputCls}>
+              <select
+                value={type}
+                onChange={(e) => {
+                  setType(e.target.value as never);
+                  setCategoryId("");
+                }}
+                className={inputCls}
+              >
                 {CONTENT_TYPES.map((ct) => (
                   <option key={ct} value={ct}>
                     {typeFilters[ct as keyof TypeFilters] ?? ct}
@@ -333,26 +441,62 @@ export function ContentCreateDialog({
             </Field>
 
             <Field label={copy.enTitle}>
-              <input value={enTitle} onChange={(e) => setEnTitle(e.target.value)} className={inputCls} required />
+              <input
+                value={enTitle}
+                onChange={(e) => setEnTitle(e.target.value)}
+                className={inputCls}
+                required
+              />
             </Field>
-            <Field label={copy.frTitle} hint={publish !== 'draft' ? copy.bilingualHint : undefined}>
-              <input value={frTitle} onChange={(e) => setFrTitle(e.target.value)} className={inputCls} />
+            <Field
+              label={copy.frTitle}
+              hint={publish !== "draft" ? copy.bilingualHint : undefined}
+            >
+              <input
+                value={frTitle}
+                onChange={(e) => setFrTitle(e.target.value)}
+                className={inputCls}
+              />
             </Field>
-            <TranslateButtons copy={copy} translate={translate} translating={translating} />
+            <TranslateButtons
+              copy={copy}
+              translate={translate}
+              translating={translating}
+            />
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label={copy.enExcerpt}>
-                <textarea value={enExcerpt} onChange={(e) => setEnExcerpt(e.target.value)} rows={2} className={inputCls} />
+                <textarea
+                  value={enExcerpt}
+                  onChange={(e) => setEnExcerpt(e.target.value)}
+                  rows={2}
+                  className={inputCls}
+                />
               </Field>
               <Field label={copy.frExcerpt}>
-                <textarea value={frExcerpt} onChange={(e) => setFrExcerpt(e.target.value)} rows={2} className={inputCls} />
+                <textarea
+                  value={frExcerpt}
+                  onChange={(e) => setFrExcerpt(e.target.value)}
+                  rows={2}
+                  className={inputCls}
+                />
               </Field>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label={copy.enBody}>
-                <textarea value={enBody} onChange={(e) => setEnBody(e.target.value)} rows={4} className={inputCls} />
+                <textarea
+                  value={enBody}
+                  onChange={(e) => setEnBody(e.target.value)}
+                  rows={4}
+                  className={inputCls}
+                />
               </Field>
               <Field label={copy.frBody}>
-                <textarea value={frBody} onChange={(e) => setFrBody(e.target.value)} rows={4} className={inputCls} />
+                <textarea
+                  value={frBody}
+                  onChange={(e) => setFrBody(e.target.value)}
+                  rows={4}
+                  className={inputCls}
+                />
               </Field>
             </div>
             <MediaUploader
@@ -380,7 +524,7 @@ export function ContentCreateDialog({
                 browseFiles: common.browseFiles,
                 dropHere: common.dropHere,
                 or: common.orPasteUrl,
-                urlPlaceholder: 'https://…',
+                urlPlaceholder: "https://…",
                 addUrl: common.addUrl,
                 existing: copy.photosExisting,
                 altLabel: common.altLabel,
@@ -397,20 +541,38 @@ export function ContentCreateDialog({
             />
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label={copy.photographerCredit}>
-                <input value={credit} onChange={(e) => setCredit(e.target.value)} className={inputCls} />
+                <input
+                  value={credit}
+                  onChange={(e) => setCredit(e.target.value)}
+                  className={inputCls}
+                />
               </Field>
               <Field label={copy.verificationLabel}>
-                <select value={verification} onChange={(e) => setVerification(e.target.value)} className={inputCls}>
+                <select
+                  value={verification}
+                  onChange={(e) => setVerification(e.target.value)}
+                  className={inputCls}
+                >
                   <option value="verified">{copy.verificationVerified}</option>
-                  <option value="community_submission">{copy.verificationCommunity}</option>
-                  <option value="official_source">{copy.verificationOfficial}</option>
-                  <option value="developing">{copy.verificationDeveloping}</option>
+                  <option value="community_submission">
+                    {copy.verificationCommunity}
+                  </option>
+                  <option value="official_source">
+                    {copy.verificationOfficial}
+                  </option>
+                  <option value="developing">
+                    {copy.verificationDeveloping}
+                  </option>
                 </select>
               </Field>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label={copy.locationLabel}>
-                <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className={inputCls}>
+                <select
+                  value={locationId}
+                  onChange={(e) => setLocationId(e.target.value)}
+                  className={inputCls}
+                >
                   <option value="">—</option>
                   {locations.map((l) => (
                     <option key={l.id} value={l.id}>
@@ -420,7 +582,11 @@ export function ContentCreateDialog({
                 </select>
               </Field>
               <Field label={copy.categoryLabel}>
-                <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputCls}>
+                <select
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  className={inputCls}
+                >
                   <option value="">—</option>
                   {categories.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -437,17 +603,35 @@ export function ContentCreateDialog({
               </summary>
               <div className="grid gap-3 p-3 pt-0">
                 <Field label={copy.slugLabel} hint={copy.slugHint}>
-                  <input value={slugInput} onChange={(e) => setSlugInput(e.target.value)} className={inputCls} placeholder="my-story-slug" />
+                  <input
+                    value={slugInput}
+                    onChange={(e) => setSlugInput(e.target.value)}
+                    className={inputCls}
+                    placeholder="my-story-slug"
+                  />
                 </Field>
                 <Field label={copy.bylineLabel} hint={copy.bylineHint}>
-                  <input value={byline} onChange={(e) => setByline(e.target.value)} className={inputCls} />
+                  <input
+                    value={byline}
+                    onChange={(e) => setByline(e.target.value)}
+                    className={inputCls}
+                  />
                 </Field>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label={copy.shareTextLabel} hint={copy.shareTextHint}>
-                    <input value={shareText} onChange={(e) => setShareText(e.target.value)} maxLength={280} className={inputCls} />
+                    <input
+                      value={shareText}
+                      onChange={(e) => setShareText(e.target.value)}
+                      maxLength={280}
+                      className={inputCls}
+                    />
                   </Field>
                   <Field label={copy.voiceLabel}>
-                    <select value={voiceType} onChange={(e) => setVoiceType(e.target.value)} className={inputCls}>
+                    <select
+                      value={voiceType}
+                      onChange={(e) => setVoiceType(e.target.value)}
+                      className={inputCls}
+                    >
                       <option value="">—</option>
                       <option value="formal">formal</option>
                       <option value="pidgin">pidgin</option>
@@ -457,27 +641,57 @@ export function ContentCreateDialog({
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label={copy.enSeoDescription} hint={copy.seoHint}>
-                    <textarea value={enSeoDescription} onChange={(e) => setEnSeoDescription(e.target.value)} rows={2} className={inputCls} />
+                    <textarea
+                      value={enSeoDescription}
+                      onChange={(e) => setEnSeoDescription(e.target.value)}
+                      rows={2}
+                      className={inputCls}
+                    />
                   </Field>
                   <Field label={copy.frSeoDescription} hint={copy.seoHint}>
-                    <textarea value={frSeoDescription} onChange={(e) => setFrSeoDescription(e.target.value)} rows={2} className={inputCls} />
+                    <textarea
+                      value={frSeoDescription}
+                      onChange={(e) => setFrSeoDescription(e.target.value)}
+                      rows={2}
+                      className={inputCls}
+                    />
                   </Field>
                 </div>
                 <Field label={copy.tagsLabel} hint={copy.tagsHint}>
-                  <input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} className={inputCls} />
+                  <input
+                    value={tagsInput}
+                    onChange={(e) => setTagsInput(e.target.value)}
+                    className={inputCls}
+                  />
                 </Field>
                 <Field label={copy.authorLabel} hint={copy.authorHint}>
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 py-2">
-                      <span className="text-sm">{authorName || copy.authorNone}</span>
+                      <span className="text-sm">
+                        {authorName || copy.authorNone}
+                      </span>
                       {authorId && (
-                        <button type="button" onClick={() => pickAuthor(null)} className="text-xs text-muted-foreground hover:text-foreground" title={copy.authorClear}>
+                        <button
+                          type="button"
+                          onClick={() => pickAuthor(null)}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                          title={copy.authorClear}
+                        >
                           {copy.authorClear}
                         </button>
                       )}
                     </div>
-                    <input value={authorQuery} onChange={(e) => setAuthorQuery(e.target.value)} placeholder={copy.authorSearchHint} className={inputCls} />
-                    {authorSearching && <p className="text-xs text-muted-foreground">{common.working}</p>}
+                    <input
+                      value={authorQuery}
+                      onChange={(e) => setAuthorQuery(e.target.value)}
+                      placeholder={copy.authorSearchHint}
+                      className={inputCls}
+                    />
+                    {authorSearching && (
+                      <p className="text-xs text-muted-foreground">
+                        {common.working}
+                      </p>
+                    )}
                     {authorResults.length > 0 && (
                       <div className="max-h-28 space-y-0.5 overflow-y-auto rounded-md border border-border bg-background p-1">
                         {authorResults.map((a) => (
@@ -488,7 +702,9 @@ export function ContentCreateDialog({
                             className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs hover:bg-muted"
                           >
                             <span>{a.name}</span>
-                            {a.id === authorId && <span className="text-xs text-primary">✓</span>}
+                            {a.id === authorId && (
+                              <span className="text-xs text-primary">✓</span>
+                            )}
                           </button>
                         ))}
                       </div>
@@ -497,146 +713,348 @@ export function ContentCreateDialog({
                 </Field>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Field label={copy.videoUrls} hint={copy.videoUrlsHint}>
-                    <textarea value={videosInput} onChange={(e) => setVideosInput(e.target.value)} rows={2} className={inputCls} placeholder="https://…" />
+                    <textarea
+                      value={videosInput}
+                      onChange={(e) => setVideosInput(e.target.value)}
+                      rows={2}
+                      className={inputCls}
+                      placeholder="https://…"
+                    />
                   </Field>
                   <Field label={copy.audioUrls} hint={copy.audioUrlsHint}>
-                    <textarea value={audiosInput} onChange={(e) => setAudiosInput(e.target.value)} rows={2} className={inputCls} placeholder="https://…" />
+                    <textarea
+                      value={audiosInput}
+                      onChange={(e) => setAudiosInput(e.target.value)}
+                      rows={2}
+                      className={inputCls}
+                      placeholder="https://…"
+                    />
                   </Field>
                   <Field label={copy.documentUrls} hint={copy.documentUrlsHint}>
-                    <textarea value={documentsInput} onChange={(e) => setDocumentsInput(e.target.value)} rows={2} className={inputCls} placeholder="https://…" />
+                    <textarea
+                      value={documentsInput}
+                      onChange={(e) => setDocumentsInput(e.target.value)}
+                      rows={2}
+                      className={inputCls}
+                      placeholder="https://…"
+                    />
                   </Field>
                 </div>
               </div>
             </details>
 
-            {type === 'listing' && (
-              <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
-                <Field label={copy.priceLabel}>
-                  <input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label={copy.currencyLabel}>
-                  <input value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={3} className={inputCls} />
-                </Field>
-                <Field label={copy.sellerName}>
-                  <input value={sellerName} onChange={(e) => setSellerName(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label={copy.contactPhone}>
-                  <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label={copy.contactEmail}>
-                  <input value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label={copy.whatsappNumber}>
-                  <input value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)} className={inputCls} />
-                </Field>
-              </div>
+            {type === "listing" && (
+              <details
+                className="rounded-md border border-border bg-muted/30 p-3 open:bg-muted/50"
+                open
+              >
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
+                  {copy.listingDetails}
+                </summary>
+                <div className="grid gap-3 pt-3 sm:grid-cols-2">
+                  <Field label={copy.priceLabel}>
+                    <input
+                      type="number"
+                      min="0"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label={copy.currencyLabel}>
+                    <input
+                      value={currency}
+                      onChange={(e) => setCurrency(e.target.value)}
+                      maxLength={3}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label={copy.sellerName}>
+                    <input
+                      value={sellerName}
+                      onChange={(e) => setSellerName(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label={copy.contactPhone}>
+                    <input
+                      value={contactPhone}
+                      onChange={(e) => setContactPhone(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label={copy.contactEmail}>
+                    <input
+                      value={contactEmail}
+                      onChange={(e) => setContactEmail(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label={copy.whatsappNumber}>
+                    <input
+                      value={whatsappNumber}
+                      onChange={(e) => setWhatsappNumber(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                </div>
+              </details>
             )}
 
-            {type === 'notice' && (
-              <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
-                <Field label={copy.noticeTypeLabel}>
-                  <select value={noticeType} onChange={(e) => setNoticeType(e.target.value)} className={inputCls}>
-                    {Object.entries(copy.noticeTypes).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label={copy.organization}>
-                  <input value={organization} onChange={(e) => setOrganization(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label={copy.noticeDate}>
-                  <input type="date" value={noticeDate} onChange={(e) => setNoticeDate(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label={copy.expiryDate}>
-                  <input type="date" value={noticeExpiry} onChange={(e) => setNoticeExpiry(e.target.value)} className={inputCls} />
-                </Field>
-                <label className="flex items-center gap-2 text-sm pt-5">
-                  <input type="checkbox" checked={isOfficial} onChange={(e) => setIsOfficial(e.target.checked)} />
-                  {copy.isOfficial}
-                </label>
-              </div>
+            {type === "notice" && (
+              <details
+                className="rounded-md border border-border bg-muted/30 p-3 open:bg-muted/50"
+                open
+              >
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
+                  {copy.noticeDetails}
+                </summary>
+                <div className="grid gap-3 pt-3 sm:grid-cols-2">
+                  <Field label={copy.noticeTypeLabel}>
+                    <select
+                      value={noticeType}
+                      onChange={(e) => setNoticeType(e.target.value)}
+                      className={inputCls}
+                    >
+                      {Object.entries(copy.noticeTypes).map(
+                        ([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </Field>
+                  <Field label={copy.organization}>
+                    <input
+                      value={organization}
+                      onChange={(e) => setOrganization(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label={copy.noticeDate}>
+                    <input
+                      type="date"
+                      value={noticeDate}
+                      onChange={(e) => setNoticeDate(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label={copy.expiryDate}>
+                    <input
+                      type="date"
+                      value={noticeExpiry}
+                      onChange={(e) => setNoticeExpiry(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <label className="flex items-center gap-2 text-sm pt-5">
+                    <input
+                      type="checkbox"
+                      checked={isOfficial}
+                      onChange={(e) => setIsOfficial(e.target.checked)}
+                    />
+                    {copy.isOfficial}
+                  </label>
+                </div>
+              </details>
             )}
 
-            {type === 'culture' && (
-              <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
-                <Field label={copy.eventStartsAt}>
-                  <input type="datetime-local" value={eventStartsAt} onChange={(e) => setEventStartsAt(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label={copy.eventEndsAt}>
-                  <input type="datetime-local" value={eventEndsAt} onChange={(e) => setEventEndsAt(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label={copy.venueName}>
-                  <input value={venueName} onChange={(e) => setVenueName(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label={copy.ticketUrl}>
-                  <input value={ticketUrl} onChange={(e) => setTicketUrl(e.target.value)} className={inputCls} placeholder="https://" />
-                </Field>
-                <Field label={copy.organizerName}>
-                  <input value={organizerName} onChange={(e) => setOrganizerName(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label={copy.organizerPhone}>
-                  <input value={organizerPhone} onChange={(e) => setOrganizerPhone(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label={copy.organizerEmail} hint={undefined}>
-                  <input value={organizerEmail} onChange={(e) => setOrganizerEmail(e.target.value)} className={inputCls} placeholder="name@example.com" />
-                </Field>
-              </div>
+            {type === "culture" && (
+              <details
+                className="rounded-md border border-border bg-muted/30 p-3 open:bg-muted/50"
+                open
+              >
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
+                  {copy.eventDetails}
+                </summary>
+                <div className="grid gap-3 pt-3 sm:grid-cols-2">
+                  <Field label={copy.eventStartsAt}>
+                    <input
+                      type="datetime-local"
+                      value={eventStartsAt}
+                      onChange={(e) => setEventStartsAt(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label={copy.eventEndsAt}>
+                    <input
+                      type="datetime-local"
+                      value={eventEndsAt}
+                      onChange={(e) => setEventEndsAt(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label={copy.venueName}>
+                    <input
+                      value={venueName}
+                      onChange={(e) => setVenueName(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label={copy.ticketUrl}>
+                    <input
+                      value={ticketUrl}
+                      onChange={(e) => setTicketUrl(e.target.value)}
+                      className={inputCls}
+                      placeholder="https://"
+                    />
+                  </Field>
+                  <Field label={copy.organizerName}>
+                    <input
+                      value={organizerName}
+                      onChange={(e) => setOrganizerName(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label={copy.organizerPhone}>
+                    <input
+                      value={organizerPhone}
+                      onChange={(e) => setOrganizerPhone(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label={copy.organizerEmail} hint={undefined}>
+                    <input
+                      value={organizerEmail}
+                      onChange={(e) => setOrganizerEmail(e.target.value)}
+                      className={inputCls}
+                      placeholder="name@example.com"
+                    />
+                  </Field>
+                </div>
+              </details>
             )}
 
             <div className="grid gap-3 rounded-md border border-border bg-background p-3">
               <div className="flex flex-wrap gap-2">
-                {(['now', 'schedule', 'draft'] as const).map((mode) => (
+                {(["now", "schedule", "draft"] as const).map((mode) => (
                   <button
                     key={mode}
                     type="button"
                     onClick={() => setPublish(mode)}
                     className={`inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium border transition-colors ${
-                      publish === mode ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:text-foreground'
+                      publish === mode
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "border-border text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    {mode === 'now' ? copy.publishNow : mode === 'schedule' ? copy.publishSchedule : copy.publishDraft}
+                    {mode === "now"
+                      ? copy.publishNow
+                      : mode === "schedule"
+                        ? copy.publishSchedule
+                        : copy.publishDraft}
                   </button>
                 ))}
               </div>
-              {publish === 'schedule' && (
+              {publish === "schedule" && (
                 <Field label={copy.scheduledFor}>
-                  <input type="datetime-local" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} required className={inputCls} />
+                  <input
+                    type="datetime-local"
+                    value={scheduledFor}
+                    onChange={(e) => setScheduledFor(e.target.value)}
+                    required
+                    className={inputCls}
+                  />
                 </Field>
               )}
               <Field label={`${copy.expiresAt} (${copy.optional})`}>
-                <input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} className={inputCls} />
-              </Field>
-             </div>
-
-              {(publish === 'now' || publish === 'schedule') && (
-                <PublishReadiness
-                  copy={copy}
-                  checks={buildReadinessChecks(
-                    type,
-                    enTitle,
-                    frTitle,
-                    locationId,
-                    categoryId,
-                    Boolean(newPhotos.find((p) => p.isCover)?.url),
-                    frExcerpt ?? '',
-                    copy,
-                  )}
+                <input
+                  type="date"
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                  className={inputCls}
                 />
-              )}
+              </Field>
+            </div>
 
-             <DialogFooter>
-               <button type="button" onClick={() => { reset(); setOpen(false) }} className={btnGhost} disabled={loading}>
-                 {common.cancel}
-               </button>
-               <button type="submit" className={btnPrimary} disabled={loading || !enTitle.trim() || (publish === 'now' || publish === 'schedule' ? buildReadinessChecks(type, enTitle, frTitle, locationId, categoryId, Boolean(newPhotos.find((p) => p.isCover)?.url), frExcerpt ?? '', copy).some((c) => !c.passed) : false)}>
-                 {loading ? common.working : publish === 'now' ? copy.createPublish : publish === 'schedule' ? copy.createSchedule : copy.createDraft}
-               </button>
-             </DialogFooter>
-           </form>
+            {(publish === "now" || publish === "schedule") && (
+              <PublishReadiness
+                row={
+                  {
+                    id: "",
+                    type,
+                    status: "draft",
+                    isArchived: false,
+                    isFeatured: false,
+                    publishedAt: null,
+                    scheduledFor: null,
+                    expiresAt: null,
+                    createdAt: null,
+                    updatedAt: null,
+                    title: enTitle,
+                    excerpt: enExcerpt ?? null,
+                    missingLocale: false,
+                    locationName: null,
+                    categoryName: null,
+                    coverUrl: newPhotos.find((p) => p.isCover)?.url ?? null,
+                    authorId: null,
+                    authorName: null,
+                    submittedBy: null,
+                    slug: null,
+                    verification: null,
+                  } as ContentRow
+                }
+                copy={copy}
+                checks={buildReadinessChecks(
+                  type,
+                  enTitle,
+                  frTitle,
+                  locationId,
+                  categoryId,
+                  Boolean(newPhotos.find((p) => p.isCover)?.url),
+                  frExcerpt ?? "",
+                  copy,
+                )}
+              />
+            )}
+
+            <DialogFooter>
+              <button
+                type="button"
+                onClick={() => {
+                  reset();
+                  setOpen(false);
+                }}
+                className={btnGhost}
+                disabled={loading}
+              >
+                {common.cancel}
+              </button>
+              <button
+                type="submit"
+                className={btnPrimary}
+                disabled={
+                  loading ||
+                  !enTitle.trim() ||
+                  (publish === "now" || publish === "schedule"
+                    ? buildReadinessChecks(
+                        type,
+                        enTitle,
+                        frTitle,
+                        locationId,
+                        categoryId,
+                        Boolean(newPhotos.find((p) => p.isCover)?.url),
+                        frExcerpt ?? "",
+                        copy,
+                      ).some((c) => !c.passed)
+                    : false)
+                }
+              >
+                {loading
+                  ? common.working
+                  : publish === "now"
+                    ? copy.createPublish
+                    : publish === "schedule"
+                      ? copy.createSchedule
+                      : copy.createDraft}
+              </button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }
 
 export function ContentEditTrigger({
@@ -647,35 +1065,37 @@ export function ContentEditTrigger({
   categoriesByType,
   autoOpen = false,
 }: {
-  content: ContentRow
-  copy: Copy
-  common: CommonCopy
-  locations: Option[]
-  categoriesByType: Record<string, Option[]>
+  content: ContentRow;
+  copy: Copy;
+  common: CommonCopy;
+  locations: Option[];
+  categoriesByType: Record<string, Option[]>;
   /** Deep-link: pass `autoOpen` to open the dialog on page load (the content
    *  page derives it from the `edit` query param). */
-  autoOpen?: boolean
+  autoOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(autoOpen)
-  const [data, setData] = useState<Awaited<ReturnType<typeof fetchEditData>> | null>(null)
-  const [fetching, setFetching] = useState(false)
+  const [open, setOpen] = useState(autoOpen);
+  const [data, setData] = useState<Awaited<
+    ReturnType<typeof fetchEditData>
+  > | null>(null);
+  const [fetching, setFetching] = useState(false);
 
   // Data fetch on dialog open — mirrors moderation review pattern.
   useEffect(() => {
-    if (!open) return
-    let cancelled = false
-    setFetching(true)
+    if (!open) return;
+    let cancelled = false;
+    setFetching(true);
     fetchEditData(content.id)
       .then((d) => {
-        if (!cancelled) setData(d)
+        if (!cancelled) setData(d);
       })
       .finally(() => {
-        if (!cancelled) setFetching(false)
-      })
+        if (!cancelled) setFetching(false);
+      });
     return () => {
-      cancelled = true
-    }
-  }, [open, content.id])
+      cancelled = true;
+    };
+  }, [open, content.id]);
 
   return (
     <>
@@ -704,7 +1124,7 @@ export function ContentEditTrigger({
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }
 
 function ContentEditForm({
@@ -715,152 +1135,217 @@ function ContentEditForm({
   categories,
   onDone,
 }: {
-  data: NonNullable<Awaited<ReturnType<typeof fetchEditData>>>
-  copy: Copy
-  common: CommonCopy
-  locations: Option[]
-  categories: Option[]
-  onDone: () => void
+  data: NonNullable<Awaited<ReturnType<typeof fetchEditData>>>;
+  copy: Copy;
+  common: CommonCopy;
+  locations: Option[];
+  categories: Option[];
+  onDone: () => void;
 }) {
-  const { run, loading } = useAdminMutation()
-  const { addToast } = useToast()
+  const { run, loading } = useAdminMutation();
+  const { addToast } = useToast();
 
-  const [enTitle, setEnTitle] = useState(data.enTitle ?? '')
-  const [frTitle, setFrTitle] = useState(data.frTitle ?? '')
-  const [enExcerpt, setEnExcerpt] = useState(data.enExcerpt ?? '')
-  const [frExcerpt, setFrExcerpt] = useState(data.frExcerpt ?? '')
-  const [enBody, setEnBody] = useState(data.enBody ?? '')
-  const [frBody, setFrBody] = useState(data.frBody ?? '')
-  const [keepIds, setKeepIds] = useState<string[]>(data.photos.map((p) => p.id))
-  const [newPhotos, setNewPhotos] = useState<UploadedPhoto[]>([])
-  const [credit, setCredit] = useState('')
-  const [verification, setVerification] = useState(data.verification ?? 'community_submission')
-  const [locationId, setLocationId] = useState(data.locationId ?? '')
-  const [categoryId, setCategoryId] = useState(data.categoryId ?? '')
+  const [enTitle, setEnTitle] = useState(data.enTitle ?? "");
+  const [frTitle, setFrTitle] = useState(data.frTitle ?? "");
+  const [enExcerpt, setEnExcerpt] = useState(data.enExcerpt ?? "");
+  const [frExcerpt, setFrExcerpt] = useState(data.frExcerpt ?? "");
+  const [enBody, setEnBody] = useState(data.enBody ?? "");
+  const [frBody, setFrBody] = useState(data.frBody ?? "");
+  const [keepIds, setKeepIds] = useState<string[]>(
+    data.photos.map((p) => p.id),
+  );
+  const [newPhotos, setNewPhotos] = useState<UploadedPhoto[]>([]);
+  const [credit, setCredit] = useState("");
+  const [verification, setVerification] = useState(
+    data.verification ?? "community_submission",
+  );
+  const [locationId, setLocationId] = useState(data.locationId ?? "");
+  const [categoryId, setCategoryId] = useState(data.categoryId ?? "");
 
   // Permalink + editorial extras the import already carries (slug, publish
   // date, byline, per-post SEO description, tags).
-  const [slugInput, setSlugInput] = useState(data.slug ?? '')
-  const [publishedAtInput, setPublishedAtInput] = useState(data.publishedAt ? data.publishedAt.slice(0, 16) : '')
-  const [expiresAtInput, setExpiresAtInput] = useState(data.expiresAt ? data.expiresAt.slice(0, 10) : '')
-  const [byline, setByline] = useState(data.byline ?? '')
+  const [slugInput, setSlugInput] = useState(data.slug ?? "");
+  const [publishedAtInput, setPublishedAtInput] = useState(
+    data.publishedAt ? data.publishedAt.slice(0, 16) : "",
+  );
+  const [expiresAtInput, setExpiresAtInput] = useState(
+    data.expiresAt ? data.expiresAt.slice(0, 10) : "",
+  );
+  const [byline, setByline] = useState(data.byline ?? "");
   // Phase 4 — share line edits write to both locale rows (undefined = keep
   // stored when untouched: the drawer tracks dirtiness via value change).
-  const [shareText, setShareText] = useState(data.shareText ?? '')
-  const [voiceType, setVoiceType] = useState(data.voiceType ?? '')
-  const [enSeoDescription, setEnSeoDescription] = useState(data.enSeoDescription ?? '')
-  const [frSeoDescription, setFrSeoDescription] = useState(data.frSeoDescription ?? '')
-  const [tagsInput, setTagsInput] = useState(data.tags.map((t) => t.name).filter(Boolean).join(', '))
+  const [shareText, setShareText] = useState(data.shareText ?? "");
+  const [voiceType, setVoiceType] = useState(data.voiceType ?? "");
+  const [enSeoDescription, setEnSeoDescription] = useState(
+    data.enSeoDescription ?? "",
+  );
+  const [frSeoDescription, setFrSeoDescription] = useState(
+    data.frSeoDescription ?? "",
+  );
+  const [tagsInput, setTagsInput] = useState(
+    data.tags
+      .map((t) => t.name)
+      .filter(Boolean)
+      .join(", "),
+  );
 
   // Supporting media links (same model as the create dialog: one URL per
   // line, optional " - caption" suffix). Existing media stays managed via
   // the uploader grid above (keepIds); these fields only add new links.
-  const [videosInput, setVideosInput] = useState('')
-  const [audiosInput, setAudiosInput] = useState('')
-  const [documentsInput, setDocumentsInput] = useState('')
+  const [videosInput, setVideosInput] = useState("");
+  const [audiosInput, setAudiosInput] = useState("");
+  const [documentsInput, setDocumentsInput] = useState("");
 
   // Author picker: profile author (uuid) + search-as-you-type results.
-  const [authorId, setAuthorId] = useState<string | null>(data.authorId ?? null)
-  const [authorName, setAuthorName] = useState<string>(data.authorName ?? '')
-  const [authorQuery, setAuthorQuery] = useState('')
-  const [authorResults, setAuthorResults] = useState<{ id: string; name: string }[]>([])
-  const [authorSearching, setAuthorSearching] = useState(false)
-  const [authorOpen, setAuthorOpen] = useState(false)
-  const authorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [authorId, setAuthorId] = useState<string | null>(
+    data.authorId ?? null,
+  );
+  const [authorName, setAuthorName] = useState<string>(data.authorName ?? "");
+  const [authorQuery, setAuthorQuery] = useState("");
+  const [authorResults, setAuthorResults] = useState<
+    { id: string; name: string }[]
+  >([]);
+  const [authorSearching, setAuthorSearching] = useState(false);
+  const [authorOpen, setAuthorOpen] = useState(false);
+  const authorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (authorTimer.current) clearTimeout(authorTimer.current)
+    if (authorTimer.current) clearTimeout(authorTimer.current);
     if (!authorQuery.trim()) {
-      setAuthorResults([])
-      setAuthorSearching(false)
-      return
+      setAuthorResults([]);
+      setAuthorSearching(false);
+      return;
     }
-    setAuthorSearching(true)
+    setAuthorSearching(true);
     authorTimer.current = setTimeout(async () => {
-      const res = await searchAuthors(authorQuery.trim())
-      setAuthorResults(res)
-      setAuthorSearching(false)
-    }, 250)
+      const res = await searchAuthors(authorQuery.trim());
+      setAuthorResults(res);
+      setAuthorSearching(false);
+    }, 250);
     return () => {
-      if (authorTimer.current) clearTimeout(authorTimer.current)
-    }
-  }, [authorQuery])
+      if (authorTimer.current) clearTimeout(authorTimer.current);
+    };
+  }, [authorQuery]);
 
   function pickAuthor(a: { id: string; name: string } | null) {
     if (a) {
-      setAuthorId(a.id)
-      setAuthorName(a.name)
+      setAuthorId(a.id);
+      setAuthorName(a.name);
     } else {
-      setAuthorId(null)
-      setAuthorName('')
+      setAuthorId(null);
+      setAuthorName("");
     }
-    setAuthorQuery('')
-    setAuthorResults([])
-    setAuthorOpen(false)
+    setAuthorQuery("");
+    setAuthorResults([]);
+    setAuthorOpen(false);
   }
 
-  const isListing = data.type === 'listing'
-  const isNotice = data.type === 'notice'
-  const isCulture = data.type === 'culture'
+  const isListing = data.type === "listing";
+  const isNotice = data.type === "notice";
+  const isCulture = data.type === "culture";
 
-  const [price, setPrice] = useState(data.listing?.price != null ? String(data.listing.price) : '')
-  const [currency, setCurrency] = useState(data.listing?.currency ?? 'XAF')
-  const [sellerName, setSellerName] = useState(data.listing?.sellerName ?? '')
-  const [contactPhone, setContactPhone] = useState(data.listing?.contactPhone ?? '')
-  const [contactEmail, setContactEmail] = useState(data.listing?.contactEmail ?? '')
-  const [whatsappNumber, setWhatsappNumber] = useState(data.listing?.whatsappNumber ?? '')
-  const [noticeType, setNoticeType] = useState(data.notice?.noticeType ?? 'other')
-  const [organization, setOrganization] = useState(data.notice?.organizationName ?? '')
-  const [noticeDate, setNoticeDate] = useState(data.notice?.noticeDate ? data.notice.noticeDate.slice(0, 10) : '')
-  const [noticeExpiry, setNoticeExpiry] = useState(data.notice?.expiryDate ? data.notice.expiryDate.slice(0, 10) : '')
-  const [isOfficial, setIsOfficial] = useState(!!data.notice?.isOfficial)
+  const [price, setPrice] = useState(
+    data.listing?.price != null ? String(data.listing.price) : "",
+  );
+  const [currency, setCurrency] = useState(data.listing?.currency ?? "XAF");
+  const [sellerName, setSellerName] = useState(data.listing?.sellerName ?? "");
+  const [contactPhone, setContactPhone] = useState(
+    data.listing?.contactPhone ?? "",
+  );
+  const [contactEmail, setContactEmail] = useState(
+    data.listing?.contactEmail ?? "",
+  );
+  const [whatsappNumber, setWhatsappNumber] = useState(
+    data.listing?.whatsappNumber ?? "",
+  );
+  const [noticeType, setNoticeType] = useState(
+    data.notice?.noticeType ?? "other",
+  );
+  const [organization, setOrganization] = useState(
+    data.notice?.organizationName ?? "",
+  );
+  const [noticeDate, setNoticeDate] = useState(
+    data.notice?.noticeDate ? data.notice.noticeDate.slice(0, 10) : "",
+  );
+  const [noticeExpiry, setNoticeExpiry] = useState(
+    data.notice?.expiryDate ? data.notice.expiryDate.slice(0, 10) : "",
+  );
+  const [isOfficial, setIsOfficial] = useState(!!data.notice?.isOfficial);
 
-  const [eventStartsAt, setEventStartsAt] = useState(data.event?.startsAt ? data.event.startsAt.slice(0, 16) : '')
-  const [eventEndsAt, setEventEndsAt] = useState(data.event?.endsAt ? data.event.endsAt.slice(0, 16) : '')
-  const [venueName, setVenueName] = useState(data.event?.venueName ?? '')
-  const [ticketUrl, setTicketUrl] = useState(data.event?.ticketUrl ?? '')
-  const [organizerName, setOrganizerName] = useState(data.event?.organizerName ?? '')
-  const [organizerPhone, setOrganizerPhone] = useState(data.event?.organizerPhone ?? '')
-  const [organizerEmail, setOrganizerEmail] = useState(data.event?.organizerEmail ?? '')
+  const [eventStartsAt, setEventStartsAt] = useState(
+    data.event?.startsAt ? data.event.startsAt.slice(0, 16) : "",
+  );
+  const [eventEndsAt, setEventEndsAt] = useState(
+    data.event?.endsAt ? data.event.endsAt.slice(0, 16) : "",
+  );
+  const [venueName, setVenueName] = useState(data.event?.venueName ?? "");
+  const [ticketUrl, setTicketUrl] = useState(data.event?.ticketUrl ?? "");
+  const [organizerName, setOrganizerName] = useState(
+    data.event?.organizerName ?? "",
+  );
+  const [organizerPhone, setOrganizerPhone] = useState(
+    data.event?.organizerPhone ?? "",
+  );
+  const [organizerEmail, setOrganizerEmail] = useState(
+    data.event?.organizerEmail ?? "",
+  );
 
   const { translate, translating } = useContentTranslator({
     copy,
     read: () => ({
-      en: { title: enTitle, excerpt: enExcerpt, body: enBody, seoDescription: enSeoDescription },
-      fr: { title: frTitle, excerpt: frExcerpt, body: frBody, seoDescription: frSeoDescription },
+      en: {
+        title: enTitle,
+        excerpt: enExcerpt,
+        body: enBody,
+        seoDescription: enSeoDescription,
+      },
+      fr: {
+        title: frTitle,
+        excerpt: frExcerpt,
+        body: frBody,
+        seoDescription: frSeoDescription,
+      },
     }),
     write: (locale, f) => {
-      if (locale === 'fr') {
-        setFrTitle(f.title); setFrExcerpt(f.excerpt); setFrBody(f.body); setFrSeoDescription(f.seoDescription)
+      if (locale === "fr") {
+        setFrTitle(f.title);
+        setFrExcerpt(f.excerpt);
+        setFrBody(f.body);
+        setFrSeoDescription(f.seoDescription);
       } else {
-        setEnTitle(f.title); setEnExcerpt(f.excerpt); setEnBody(f.body); setEnSeoDescription(f.seoDescription)
+        setEnTitle(f.title);
+        setEnExcerpt(f.excerpt);
+        setEnBody(f.body);
+        setEnSeoDescription(f.seoDescription);
       }
     },
-  })
+  });
 
-  function attachmentList(raw: string, kind: 'video' | 'audio' | 'document') {
+  function attachmentList(raw: string, kind: "video" | "audio" | "document") {
     return raw
-      .split('\n')
+      .split("\n")
       .map((line) => line.trim())
       .filter(Boolean)
       .map((line) => {
-        const [url, ...rest] = line.split(/\s+-\s+/)
-        return { url, kind, caption: rest.join(' - ') || undefined }
-      })
+        const [url, ...rest] = line.split(/\s+-\s+/);
+        return { url, kind, caption: rest.join(" - ") || undefined };
+      });
   }
 
   async function handleSave(e: React.FormEvent) {
-    e.preventDefault()
-    if (isListing && price.trim() !== '' && Number.isNaN(Number(price))) {
-      addToast(copy.priceLabel ?? 'Enter a valid price.', 'error')
-      return
+    e.preventDefault();
+    if (isListing && price.trim() !== "" && Number.isNaN(Number(price))) {
+      addToast(copy.priceLabel ?? "Enter a valid price.", "error");
+      return;
     }
     const draft: Parameters<typeof saveContentItem>[1] = {
       slugBase: enTitle.trim() || data.slug || data.type,
       // Permalink: empty input falls back to the stored slug (never cleared).
       slug: slugInput.trim() || data.slug || undefined,
       // Publish date: empty input leaves the stored value untouched.
-      publishedAt: publishedAtInput ? new Date(publishedAtInput).toISOString() : undefined,
+      publishedAt: publishedAtInput
+        ? new Date(publishedAtInput).toISOString()
+        : undefined,
       // Expiry: empty input clears a previously set expiry.
       expiresAt: expiresAtInput ? new Date(expiresAtInput).toISOString() : null,
       verification: (verification || null) as never,
@@ -873,37 +1358,81 @@ function ContentEditForm({
       // editor touched them (undefined = keep stored, so opening the drawer
       // never wipes an existing share line).
       translations: [
-        { locale: 'en', title: enTitle, excerpt: enExcerpt, body: enBody, seoDescription: enSeoDescription, byline, shareText: shareText !== (data.shareText ?? '') ? (shareText.trim().slice(0, 280) || null) : undefined, voiceType: voiceType !== (data.voiceType ?? '') ? ((voiceType || null) as 'formal' | 'pidgin' | 'camfranglais' | null) : undefined },
-        { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody, seoDescription: frSeoDescription, byline, shareText: shareText !== (data.shareText ?? '') ? (shareText.trim().slice(0, 280) || null) : undefined, voiceType: voiceType !== (data.voiceType ?? '') ? ((voiceType || null) as 'formal' | 'pidgin' | 'camfranglais' | null) : undefined },
+        {
+          locale: "en",
+          title: enTitle,
+          excerpt: enExcerpt,
+          body: enBody,
+          seoDescription: enSeoDescription,
+          byline,
+          shareText:
+            shareText !== (data.shareText ?? "")
+              ? shareText.trim().slice(0, 280) || null
+              : undefined,
+          voiceType:
+            voiceType !== (data.voiceType ?? "")
+              ? ((voiceType || null) as
+                  "formal" | "pidgin" | "camfranglais" | null)
+              : undefined,
+        },
+        {
+          locale: "fr",
+          title: frTitle,
+          excerpt: frExcerpt,
+          body: frBody,
+          seoDescription: frSeoDescription,
+          byline,
+          shareText:
+            shareText !== (data.shareText ?? "")
+              ? shareText.trim().slice(0, 280) || null
+              : undefined,
+          voiceType:
+            voiceType !== (data.voiceType ?? "")
+              ? ((voiceType || null) as
+                  "formal" | "pidgin" | "camfranglais" | null)
+              : undefined,
+        },
       ],
-      tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
-      photos: newPhotos.map((p) => ({ url: p.url, alt: p.alt, caption: p.caption, credit: p.credit, assetId: p.assetId, kind: p.kind, mimeType: p.mimeType, durationSeconds: p.durationSeconds })),
+      tags: tagsInput
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean),
+      photos: newPhotos.map((p) => ({
+        url: p.url,
+        alt: p.alt,
+        caption: p.caption,
+        credit: p.credit,
+        assetId: p.assetId,
+        kind: p.kind,
+        mimeType: p.mimeType,
+        durationSeconds: p.durationSeconds,
+      })),
       keepPhotoIds: keepIds,
       attachments: [
-        ...attachmentList(videosInput, 'video'),
-        ...attachmentList(audiosInput, 'audio'),
-        ...attachmentList(documentsInput, 'document'),
+        ...attachmentList(videosInput, "video"),
+        ...attachmentList(audiosInput, "audio"),
+        ...attachmentList(documentsInput, "document"),
       ],
-    }
+    };
     if (isListing) {
       draft.listing = {
         price: price ? Number(price) : null,
-        currency: currency || 'XAF',
+        currency: currency || "XAF",
         contactPhone: contactPhone.trim() || null,
         contactEmail: contactEmail.trim() || null,
         whatsappNumber: whatsappNumber.trim() || null,
         sellerName: sellerName.trim() || null,
-      }
+      };
     }
     if (isNotice) {
       draft.notice = {
         noticeType,
         organizationName: organization.trim() || null,
         contactPhone: contactPhone.trim() || null,
-        isOfficial: verification === 'official_source' || isOfficial,
+        isOfficial: verification === "official_source" || isOfficial,
         noticeDate: noticeDate ? new Date(noticeDate).toISOString() : null,
         expiryDate: noticeExpiry ? new Date(noticeExpiry).toISOString() : null,
-      }
+      };
     }
     if (isCulture) {
       draft.event = {
@@ -914,36 +1443,72 @@ function ContentEditForm({
         organizerName: organizerName.trim() || null,
         organizerPhone: organizerPhone.trim() || null,
         organizerEmail: organizerEmail.trim() || null,
-      }
+      };
     }
 
-    const ok = await run(() => saveContentItem(data.id, draft), copy.toastUpdated ?? 'Saved.')
-    if (ok) onDone()
+    const ok = await run(
+      () => saveContentItem(data.id, draft),
+      copy.toastUpdated ?? "Saved.",
+    );
+    if (ok) onDone();
   }
 
   return (
     <form onSubmit={handleSave} className="grid gap-3">
       <Field label={copy.enTitle}>
-        <input value={enTitle} onChange={(e) => setEnTitle(e.target.value)} className={inputCls} required />
+        <input
+          value={enTitle}
+          onChange={(e) => setEnTitle(e.target.value)}
+          className={inputCls}
+          required
+        />
       </Field>
       <Field label={copy.frTitle} hint={copy.bilingualHint}>
-        <input value={frTitle} onChange={(e) => setFrTitle(e.target.value)} className={inputCls} />
+        <input
+          value={frTitle}
+          onChange={(e) => setFrTitle(e.target.value)}
+          className={inputCls}
+        />
       </Field>
-      <TranslateButtons copy={copy} translate={translate} translating={translating} />
+      <TranslateButtons
+        copy={copy}
+        translate={translate}
+        translating={translating}
+      />
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={copy.enExcerpt}>
-          <textarea value={enExcerpt} onChange={(e) => setEnExcerpt(e.target.value)} rows={2} className={inputCls} />
+          <textarea
+            value={enExcerpt}
+            onChange={(e) => setEnExcerpt(e.target.value)}
+            rows={2}
+            className={inputCls}
+          />
         </Field>
         <Field label={copy.frExcerpt}>
-          <textarea value={frExcerpt} onChange={(e) => setFrExcerpt(e.target.value)} rows={2} className={inputCls} />
+          <textarea
+            value={frExcerpt}
+            onChange={(e) => setFrExcerpt(e.target.value)}
+            rows={2}
+            className={inputCls}
+          />
         </Field>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={copy.enBody}>
-          <textarea value={enBody} onChange={(e) => setEnBody(e.target.value)} rows={8} className={inputCls} />
+          <textarea
+            value={enBody}
+            onChange={(e) => setEnBody(e.target.value)}
+            rows={8}
+            className={inputCls}
+          />
         </Field>
         <Field label={copy.frBody}>
-          <textarea value={frBody} onChange={(e) => setFrBody(e.target.value)} rows={8} className={inputCls} />
+          <textarea
+            value={frBody}
+            onChange={(e) => setFrBody(e.target.value)}
+            rows={8}
+            className={inputCls}
+          />
         </Field>
       </div>
 
@@ -951,24 +1516,51 @@ function ContentEditForm({
           editorial fields the Blogger import already carries. */}
       <div className="grid gap-3 sm:grid-cols-3">
         <Field label={copy.slugLabel} hint={copy.slugHint}>
-          <input value={slugInput} onChange={(e) => setSlugInput(e.target.value)} className={inputCls} />
+          <input
+            value={slugInput}
+            onChange={(e) => setSlugInput(e.target.value)}
+            className={inputCls}
+          />
         </Field>
         <Field label={copy.publishedAtLabel} hint={copy.publishedAtHint}>
-          <input type="datetime-local" value={publishedAtInput} onChange={(e) => setPublishedAtInput(e.target.value)} className={inputCls} />
+          <input
+            type="datetime-local"
+            value={publishedAtInput}
+            onChange={(e) => setPublishedAtInput(e.target.value)}
+            className={inputCls}
+          />
         </Field>
         <Field label={`${copy.expiresAt} (${copy.optional})`}>
-          <input type="date" value={expiresAtInput} onChange={(e) => setExpiresAtInput(e.target.value)} className={inputCls} />
+          <input
+            type="date"
+            value={expiresAtInput}
+            onChange={(e) => setExpiresAtInput(e.target.value)}
+            className={inputCls}
+          />
         </Field>
       </div>
       <Field label={copy.bylineLabel} hint={copy.bylineHint}>
-        <input value={byline} onChange={(e) => setByline(e.target.value)} className={inputCls} />
+        <input
+          value={byline}
+          onChange={(e) => setByline(e.target.value)}
+          className={inputCls}
+        />
       </Field>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={copy.shareTextLabel} hint={copy.shareTextHint}>
-          <input value={shareText} onChange={(e) => setShareText(e.target.value)} maxLength={280} className={inputCls} />
+          <input
+            value={shareText}
+            onChange={(e) => setShareText(e.target.value)}
+            maxLength={280}
+            className={inputCls}
+          />
         </Field>
         <Field label={copy.voiceLabel}>
-          <select value={voiceType} onChange={(e) => setVoiceType(e.target.value)} className={inputCls}>
+          <select
+            value={voiceType}
+            onChange={(e) => setVoiceType(e.target.value)}
+            className={inputCls}
+          >
             <option value="">—</option>
             <option value="formal">formal</option>
             <option value="pidgin">pidgin</option>
@@ -978,61 +1570,112 @@ function ContentEditForm({
       </div>
       <Field label={copy.authorLabel} hint={copy.authorHint}>
         <div className="relative">
-          <div className={inputCls + " flex items-center justify-between gap-2"}>
-            <span className={authorName ? "text-foreground" : "text-muted-foreground"}>
+          <div
+            className={inputCls + " flex items-center justify-between gap-2"}
+          >
+            <span
+              className={
+                authorName ? "text-foreground" : "text-muted-foreground"
+              }
+            >
               {authorName || copy.authorNone}
             </span>
             {authorId && (
-              <button type="button" onClick={() => pickAuthor(null)} className="text-xs text-muted-foreground hover:text-foreground" title={copy.authorClear}>
+              <button
+                type="button"
+                onClick={() => pickAuthor(null)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+                title={copy.authorClear}
+              >
                 {copy.authorClear}
               </button>
             )}
           </div>
           <input
             value={authorQuery}
-            onChange={(e) => { setAuthorQuery(e.target.value); setAuthorOpen(true) }}
+            onChange={(e) => {
+              setAuthorQuery(e.target.value);
+              setAuthorOpen(true);
+            }}
             onFocus={() => setAuthorOpen(true)}
             placeholder={copy.authorSearchHint}
             className={inputCls + " mt-2"}
           />
-          {authorOpen && (authorQuery.trim() || authorResults.length > 0 || authorSearching) && (
-            <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-auto rounded-md border border-border bg-background shadow-lg">
-              {authorSearching && <div className="px-3 py-2 text-xs text-muted-foreground">{common.working}</div>}
-              {!authorSearching && authorResults.length === 0 && authorQuery.trim() && (
-                <div className="px-3 py-2 text-xs text-muted-foreground">{common.noResults}</div>
-              )}
-              {authorResults.map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => pickAuthor(a)}
-                  className="flex w-full items-center justify-between px-3 py-2 text-sm hover:bg-muted"
-                >
-                  <span>{a.name}</span>
-                  {a.id === authorId && <span className="text-xs text-primary">✓</span>}
-                </button>
-              ))}
-            </div>
-          )}
+          {authorOpen &&
+            (authorQuery.trim() ||
+              authorResults.length > 0 ||
+              authorSearching) && (
+              <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-auto rounded-md border border-border bg-background shadow-lg">
+                {authorSearching && (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">
+                    {common.working}
+                  </div>
+                )}
+                {!authorSearching &&
+                  authorResults.length === 0 &&
+                  authorQuery.trim() && (
+                    <div className="px-3 py-2 text-xs text-muted-foreground">
+                      {common.noResults}
+                    </div>
+                  )}
+                {authorResults.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => pickAuthor(a)}
+                    className="flex w-full items-center justify-between px-3 py-2 text-sm hover:bg-muted"
+                  >
+                    <span>{a.name}</span>
+                    {a.id === authorId && (
+                      <span className="text-xs text-primary">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
         </div>
       </Field>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={copy.enSeoDescription} hint={copy.seoHint}>
-          <textarea value={enSeoDescription} onChange={(e) => setEnSeoDescription(e.target.value)} rows={2} className={inputCls} />
+          <textarea
+            value={enSeoDescription}
+            onChange={(e) => setEnSeoDescription(e.target.value)}
+            rows={2}
+            className={inputCls}
+          />
         </Field>
         <Field label={copy.frSeoDescription}>
-          <textarea value={frSeoDescription} onChange={(e) => setFrSeoDescription(e.target.value)} rows={2} className={inputCls} />
+          <textarea
+            value={frSeoDescription}
+            onChange={(e) => setFrSeoDescription(e.target.value)}
+            rows={2}
+            className={inputCls}
+          />
         </Field>
       </div>
       <Field label={copy.tagsLabel} hint={copy.tagsHint}>
-        <input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} className={inputCls} />
+        <input
+          value={tagsInput}
+          onChange={(e) => setTagsInput(e.target.value)}
+          className={inputCls}
+        />
       </Field>
 
       <MediaUploader
-        existingPhotos={data.photos.map((p) => ({ id: p.id, url: p.url, alt: p.alt, caption: p.caption, credit: p.credit, isCover: false }))}
+        existingPhotos={data.photos.map((p) => ({
+          id: p.id,
+          url: p.url,
+          alt: p.alt,
+          caption: p.caption,
+          credit: p.credit,
+          isCover: false,
+        }))}
         keepIds={keepIds}
         newPhotos={newPhotos}
-        onChange={({ keepIds: ki, newPhotos: np }) => { setKeepIds(ki); setNewPhotos(np) }}
+        onChange={({ keepIds: ki, newPhotos: np }) => {
+          setKeepIds(ki);
+          setNewPhotos(np);
+        }}
         contentItemId={data.id}
         destination="public_photo"
         acceptedTypes={CONTENT_MEDIA_ACCEPTS}
@@ -1055,7 +1698,7 @@ function ContentEditForm({
           browseFiles: common.browseFiles,
           dropHere: common.dropHere,
           or: common.orPasteUrl,
-          urlPlaceholder: 'https://…',
+          urlPlaceholder: "https://…",
           addUrl: common.addUrl,
           existing: copy.photosExisting,
           altLabel: common.altLabel,
@@ -1072,12 +1715,22 @@ function ContentEditForm({
       />
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={copy.photographerCredit}>
-          <input value={credit} onChange={(e) => setCredit(e.target.value)} className={inputCls} />
+          <input
+            value={credit}
+            onChange={(e) => setCredit(e.target.value)}
+            className={inputCls}
+          />
         </Field>
         <Field label={copy.verificationLabel}>
-          <select value={verification} onChange={(e) => setVerification(e.target.value)} className={inputCls}>
+          <select
+            value={verification}
+            onChange={(e) => setVerification(e.target.value)}
+            className={inputCls}
+          >
             <option value="verified">{copy.verificationVerified}</option>
-            <option value="community_submission">{copy.verificationCommunity}</option>
+            <option value="community_submission">
+              {copy.verificationCommunity}
+            </option>
             <option value="official_source">{copy.verificationOfficial}</option>
             <option value="developing">{copy.verificationDeveloping}</option>
           </select>
@@ -1087,18 +1740,40 @@ function ContentEditForm({
           media stays managed in the uploader grid above; these only add links. */}
       <div className="grid gap-3 sm:grid-cols-3">
         <Field label={copy.videoUrls} hint={copy.videoUrlsHint}>
-          <textarea value={videosInput} onChange={(e) => setVideosInput(e.target.value)} rows={2} className={inputCls} placeholder="https://…" />
+          <textarea
+            value={videosInput}
+            onChange={(e) => setVideosInput(e.target.value)}
+            rows={2}
+            className={inputCls}
+            placeholder="https://…"
+          />
         </Field>
         <Field label={copy.audioUrls} hint={copy.audioUrlsHint}>
-          <textarea value={audiosInput} onChange={(e) => setAudiosInput(e.target.value)} rows={2} className={inputCls} placeholder="https://…" />
+          <textarea
+            value={audiosInput}
+            onChange={(e) => setAudiosInput(e.target.value)}
+            rows={2}
+            className={inputCls}
+            placeholder="https://…"
+          />
         </Field>
         <Field label={copy.documentUrls} hint={copy.documentUrlsHint}>
-          <textarea value={documentsInput} onChange={(e) => setDocumentsInput(e.target.value)} rows={2} className={inputCls} placeholder="https://…" />
+          <textarea
+            value={documentsInput}
+            onChange={(e) => setDocumentsInput(e.target.value)}
+            rows={2}
+            className={inputCls}
+            placeholder="https://…"
+          />
         </Field>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={copy.locationLabel}>
-          <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className={inputCls}>
+          <select
+            value={locationId}
+            onChange={(e) => setLocationId(e.target.value)}
+            className={inputCls}
+          >
             <option value="">—</option>
             {locations.map((l) => (
               <option key={l.id} value={l.id}>
@@ -1108,7 +1783,11 @@ function ContentEditForm({
           </select>
         </Field>
         <Field label={copy.categoryLabel}>
-          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputCls}>
+          <select
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            className={inputCls}
+          >
             <option value="">—</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
@@ -1120,106 +1799,205 @@ function ContentEditForm({
       </div>
 
       {isListing && (
-        <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
-          <Field label={copy.priceLabel}>
-            <input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
-          </Field>
-          <Field label={copy.currencyLabel}>
-            <input value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={3} className={inputCls} />
-          </Field>
-          <Field label={copy.sellerName}>
-            <input value={sellerName} onChange={(e) => setSellerName(e.target.value)} className={inputCls} />
-          </Field>
-          <Field label={copy.contactPhone}>
-            <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} className={inputCls} />
-          </Field>
-          <Field label={copy.contactEmail}>
-            <input value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} className={inputCls} />
-          </Field>
-          <Field label={copy.whatsappNumber}>
-            <input value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)} className={inputCls} />
-          </Field>
-        </div>
+        <details
+          className="rounded-md border border-border bg-muted/30 p-3 open:bg-muted/50"
+          open
+        >
+          <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
+            {copy.listingDetails}
+          </summary>
+          <div className="grid gap-3 pt-3 sm:grid-cols-2">
+            <Field label={copy.priceLabel}>
+              <input
+                type="number"
+                min="0"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+            <Field label={copy.currencyLabel}>
+              <input
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                maxLength={3}
+                className={inputCls}
+              />
+            </Field>
+            <Field label={copy.sellerName}>
+              <input
+                value={sellerName}
+                onChange={(e) => setSellerName(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+            <Field label={copy.contactPhone}>
+              <input
+                value={contactPhone}
+                onChange={(e) => setContactPhone(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+            <Field label={copy.contactEmail}>
+              <input
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+            <Field label={copy.whatsappNumber}>
+              <input
+                value={whatsappNumber}
+                onChange={(e) => setWhatsappNumber(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+          </div>
+        </details>
       )}
 
       {isNotice && (
-        <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
-          <Field label={copy.noticeTypeLabel}>
-            <select value={noticeType} onChange={(e) => setNoticeType(e.target.value)} className={inputCls}>
-              {Object.entries(copy.noticeTypes).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label={copy.organization}>
-            <input value={organization} onChange={(e) => setOrganization(e.target.value)} className={inputCls} />
-          </Field>
-          <Field label={copy.noticeDate}>
-            <input type="date" value={noticeDate} onChange={(e) => setNoticeDate(e.target.value)} className={inputCls} />
-          </Field>
-          <Field label={copy.expiryDate}>
-            <input type="date" value={noticeExpiry} onChange={(e) => setNoticeExpiry(e.target.value)} className={inputCls} />
-          </Field>
-          <label className="flex items-center gap-2 text-sm pt-5">
-            <input type="checkbox" checked={isOfficial} onChange={(e) => setIsOfficial(e.target.checked)} />
-            {copy.isOfficial}
-          </label>
-        </div>
+        <details
+          className="rounded-md border border-border bg-muted/30 p-3 open:bg-muted/50"
+          open
+        >
+          <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
+            {copy.noticeDetails}
+          </summary>
+          <div className="grid gap-3 pt-3 sm:grid-cols-2">
+            <Field label={copy.noticeTypeLabel}>
+              <select
+                value={noticeType}
+                onChange={(e) => setNoticeType(e.target.value)}
+                className={inputCls}
+              >
+                {Object.entries(copy.noticeTypes).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label={copy.organization}>
+              <input
+                value={organization}
+                onChange={(e) => setOrganization(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+            <Field label={copy.noticeDate}>
+              <input
+                type="date"
+                value={noticeDate}
+                onChange={(e) => setNoticeDate(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+            <Field label={copy.expiryDate}>
+              <input
+                type="date"
+                value={noticeExpiry}
+                onChange={(e) => setNoticeExpiry(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+            <label className="flex items-center gap-2 text-sm pt-5">
+              <input
+                type="checkbox"
+                checked={isOfficial}
+                onChange={(e) => setIsOfficial(e.target.checked)}
+              />
+              {copy.isOfficial}
+            </label>
+          </div>
+        </details>
       )}
 
       {isCulture && (
-        <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
-          <Field label={copy.eventStartsAt}>
-            <input type="datetime-local" value={eventStartsAt} onChange={(e) => setEventStartsAt(e.target.value)} className={inputCls} />
-          </Field>
-          <Field label={copy.eventEndsAt}>
-            <input type="datetime-local" value={eventEndsAt} onChange={(e) => setEventEndsAt(e.target.value)} className={inputCls} />
-          </Field>
-          <Field label={copy.venueName}>
-            <input value={venueName} onChange={(e) => setVenueName(e.target.value)} className={inputCls} />
-          </Field>
-          <Field label={copy.ticketUrl}>
-            <input value={ticketUrl} onChange={(e) => setTicketUrl(e.target.value)} className={inputCls} placeholder="https://" />
-          </Field>
-          <Field label={copy.organizerName}>
-            <input value={organizerName} onChange={(e) => setOrganizerName(e.target.value)} className={inputCls} />
-          </Field>
-          <Field label={copy.organizerPhone}>
-            <input value={organizerPhone} onChange={(e) => setOrganizerPhone(e.target.value)} className={inputCls} />
-          </Field>
-          <Field label={copy.organizerEmail}>
-            <input value={organizerEmail} onChange={(e) => setOrganizerEmail(e.target.value)} className={inputCls} />
-          </Field>
-        </div>
-      )}
-
-      {data.status !== 'draft' && (
-        <PublishReadiness
-          copy={copy}
-          checks={buildReadinessChecks(
-            data.type,
-            enTitle,
-            frTitle,
-            locationId,
-            categoryId,
-            Boolean(newPhotos.find((p) => p.isCover)?.url ?? data.photos.find((p) => p.url === data.coverUrl)?.url),
-            frExcerpt ?? '',
-            copy,
-          )}
-        />
+        <details
+          className="rounded-md border border-border bg-muted/30 p-3 open:bg-muted/50"
+          open
+        >
+          <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
+            {copy.eventDetails}
+          </summary>
+          <div className="grid gap-3 pt-3 sm:grid-cols-2">
+            <Field label={copy.eventStartsAt}>
+              <input
+                type="datetime-local"
+                value={eventStartsAt}
+                onChange={(e) => setEventStartsAt(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+            <Field label={copy.eventEndsAt}>
+              <input
+                type="datetime-local"
+                value={eventEndsAt}
+                onChange={(e) => setEventEndsAt(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+            <Field label={copy.venueName}>
+              <input
+                value={venueName}
+                onChange={(e) => setVenueName(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+            <Field label={copy.ticketUrl}>
+              <input
+                value={ticketUrl}
+                onChange={(e) => setTicketUrl(e.target.value)}
+                className={inputCls}
+                placeholder="https://"
+              />
+            </Field>
+            <Field label={copy.organizerName}>
+              <input
+                value={organizerName}
+                onChange={(e) => setOrganizerName(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+            <Field label={copy.organizerPhone}>
+              <input
+                value={organizerPhone}
+                onChange={(e) => setOrganizerPhone(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+            <Field label={copy.organizerEmail}>
+              <input
+                value={organizerEmail}
+                onChange={(e) => setOrganizerEmail(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+          </div>
+        </details>
       )}
 
       <DialogFooter>
-        <button type="button" onClick={onDone} className={btnGhost} disabled={loading}>
+        <button
+          type="button"
+          onClick={onDone}
+          className={btnGhost}
+          disabled={loading}
+        >
           {common.cancel}
         </button>
-        <button type="submit" className={btnPrimary} disabled={loading || !enTitle.trim()}>
+        <button
+          type="submit"
+          className={btnPrimary}
+          disabled={loading || !enTitle.trim()}
+        >
           {loading ? common.working : copy.save}
         </button>
       </DialogFooter>
       <ContentHistory contentItemId={data.id} copy={copy} />
     </form>
-  )
+  );
 }
 
 /**
@@ -1228,42 +2006,66 @@ function ContentEditForm({
  * Read-only audit — translations carry no snapshots, so there is nothing
  * to revert to; the empty state says so by omission (historyEmpty).
  */
-function ContentHistory({ contentItemId, copy }: { contentItemId: string; copy: Copy }) {
-  const [entries, setEntries] = useState<{ id: string; action: string; actorName: string | null; createdAt: string | null; notes: string | null }[] | null>(null)
+function ContentHistory({
+  contentItemId,
+  copy,
+}: {
+  contentItemId: string;
+  copy: Copy;
+}) {
+  const [entries, setEntries] = useState<
+    | {
+        id: string;
+        action: string;
+        actorName: string | null;
+        createdAt: string | null;
+        notes: string | null;
+      }[]
+    | null
+  >(null);
 
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
     getContentHistoryData(contentItemId).then((rows) => {
-      if (!cancelled) setEntries(rows)
-    })
+      if (!cancelled) setEntries(rows);
+    });
     return () => {
-      cancelled = true
-    }
-  }, [contentItemId])
+      cancelled = true;
+    };
+  }, [contentItemId]);
 
-  if (entries === null) return null
+  if (entries === null) return null;
 
   return (
     <details className="rounded-md border border-border bg-muted/30 px-3 py-2">
       <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
-        {copy.historyTitle}{entries.length > 0 ? ` · ${entries.length}` : ''}
+        {copy.historyTitle}
+        {entries.length > 0 ? ` · ${entries.length}` : ""}
       </summary>
       {entries.length === 0 ? (
-        <p className="mt-1.5 text-xs text-muted-foreground">{copy.historyEmpty}</p>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          {copy.historyEmpty}
+        </p>
       ) : (
-      <ul className="mt-2 space-y-1.5">
-        {entries.map((e) => (
-          <li key={e.id} className="text-xs text-muted-foreground">
-            <span className="font-medium text-foreground/80">{e.action.replace(/[:_]/g, ' ')}</span>
-            {e.actorName ? <span> · {e.actorName}</span> : null}
-            {e.createdAt ? <span> · {formatRelative(e.createdAt)}</span> : null}
-            {e.notes ? <span className="block truncate">{e.notes}</span> : null}
-          </li>
-        ))}
-      </ul>
+        <ul className="mt-2 space-y-1.5">
+          {entries.map((e) => (
+            <li key={e.id} className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground/80">
+                {e.action.replace(/[:_]/g, " ")}
+              </span>
+              {e.actorName ? <span> · {e.actorName}</span> : null}
+              {e.createdAt ? (
+                <span> · {formatRelative(e.createdAt)}</span>
+              ) : null}
+              {e.notes ? (
+                <span className="block truncate">{e.notes}</span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
       )}
     </details>
-  )
+  );
 }
 
 export function ContentDeleteButton({
@@ -1271,27 +2073,39 @@ export function ContentDeleteButton({
   copy,
   common,
 }: {
-  content: ContentRow
-  copy: Copy
-  common: CommonCopy
+  content: ContentRow;
+  copy: Copy;
+  common: CommonCopy;
 }) {
-  const { run, loading } = useAdminMutation()
-  const [open, setOpen] = useState(false)
+  const { run, loading } = useAdminMutation();
+  const [open, setOpen] = useState(false);
 
   async function handleDelete() {
-    const ok = await run(() => deleteContentItem(content.id), copy.toastDeleted ?? 'Deleted.')
-    if (ok) setOpen(false)
+    const ok = await run(
+      () => deleteContentItem(content.id),
+      copy.toastDeleted ?? "Deleted.",
+    );
+    if (ok) setOpen(false);
   }
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} disabled={loading} className={btnDanger} title={copy.deleteHint}>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={loading}
+        className={btnDanger}
+        title={copy.deleteHint}
+      >
         {copy.delete}
       </button>
       <ConfirmDialog
         open={open}
         onOpenChange={setOpen}
-        title={copy.deleteConfirmTitle.replace('{title}', content.title ?? content.slug ?? content.id.slice(0, 8))}
+        title={copy.deleteConfirmTitle.replace(
+          "{title}",
+          content.title ?? content.slug ?? content.id.slice(0, 8),
+        )}
         description={copy.deleteConfirmBody}
         confirmLabel={copy.delete}
         cancelLabel={common.cancel}
@@ -1299,5 +2113,5 @@ export function ContentDeleteButton({
         onConfirm={handleDelete}
       />
     </>
-  )
+  );
 }

@@ -38,7 +38,6 @@ type ContentCopy = {
   colPublished: string
   colAuthor: string
   colUpdated: string
-  colUpdatedShort?: string
   untitled: string
   unpublish: string
   unpublishConfirmTitle: string
@@ -52,17 +51,6 @@ type ContentCopy = {
   toastDeleted: string
   toastPublished: string
   toastRestored: string
-  toastScheduled: string
-  toastUnscheduled: string
-  scheduleTitle: string
-  scheduleBody: string
-  scheduleConfirm: string
-  scheduleTime: string
-  scheduleInvalid: string
-  bulkSchedule: string
-  bulkUnschedule: string
-  bulkScheduleConfirmTitle: string
-  bulkScheduleConfirmBody: string
 }
 
 type Props = {
@@ -75,7 +63,6 @@ type Props = {
 export function ContentBulkActions({ rows, canDelete, copy, common }: Props) {
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [scheduledFor, setScheduledFor] = useState('')
 
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id))
 
@@ -127,14 +114,6 @@ export function ContentBulkActions({ rows, canDelete, copy, common }: Props) {
 
   const handleBulkUnpublish = async (keys: string[]) => {
     const results = await Promise.all(keys.map((id) => updateContentStatus(id, 'draft')))
-    const failed = results.filter((r) => !r.ok)
-    return failed.length > 0
-      ? { ok: false as const, error: `${failed.length} item(s) failed` }
-      : { ok: true as const }
-  }
-
-  const handleBulkSchedule = (scheduledFor: string) => async (keys: string[]) => {
-    const results = await Promise.all(keys.map((id) => updateContentStatus(id, 'scheduled', scheduledFor)))
     const failed = results.filter((r) => !r.ok)
     return failed.length > 0
       ? { ok: false as const, error: `${failed.length} item(s) failed` }
@@ -187,19 +166,11 @@ export function ContentBulkActions({ rows, canDelete, copy, common }: Props) {
           actions={[
             { label: common.bulkPublish, action: handleBulkPublish, successToast: common.bulkUpdated },
             { label: common.bulkUnpublish, action: handleBulkUnpublish, successToast: copy.toastUnpublished, confirmTitle: copy.unpublishConfirmTitle, confirmBody: copy.unpublishConfirmBody, confirmLabel: copy.unpublish, undoAction: handleBulkPublish, undoToast: copy.toastPublished },
-            { label: copy.bulkSchedule, action: handleBulkSchedule(scheduledFor), successToast: copy.toastScheduled, confirmTitle: copy.bulkScheduleConfirmTitle, confirmBody: copy.bulkScheduleConfirmBody, confirmLabel: copy.scheduleConfirm, children: (
-              <div className="mt-3">
-                <label className="block text-sm font-medium mb-1">{copy.scheduleTime}</label>
-                <input type="datetime-local" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} className="w-full" required />
-                {!scheduledFor && <p className="text-sm text-destructive mt-1">{copy.scheduleInvalid}</p>}
-              </div>
-            ) },
-            { label: copy.bulkUnschedule, action: handleBulkPublish, successToast: copy.toastUnscheduled },
             { label: common.bulkArchive, action: handleBulkArchive, successToast: copy.toastArchived, tone: 'danger', confirmTitle: copy.archiveConfirmTitle, confirmBody: copy.archiveConfirmBody, undoAction: handleBulkUnarchive, undoToast: copy.toastRestored },
             ...(canDelete ? [{ label: common.bulkDelete, action: handleBulkDelete, successToast: copy.toastDeleted, tone: 'danger' as const, confirmTitle: copy.deleteConfirmTitle, confirmBody: copy.deleteConfirmBody }] : []),
           ]}
-         />
-       )}
+        />
+      )}
 
       <DataTable
         rows={rows}
@@ -241,7 +212,6 @@ export function ContentTable({
 }) {
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [scheduledForTable, setScheduledForTable] = useState('')
 
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id))
 
@@ -293,14 +263,6 @@ export function ContentTable({
 
   const handleBulkUnpublish = async (keys: string[]) => {
     const results = await Promise.all(keys.map((id) => updateContentStatus(id, 'draft')))
-    const failed = results.filter((r) => !r.ok)
-    return failed.length > 0
-      ? { ok: false as const, error: `${failed.length} item(s) failed` }
-      : { ok: true as const }
-  }
-
-  const handleBulkSchedule = (scheduledFor: string) => async (keys: string[]) => {
-    const results = await Promise.all(keys.map((id) => updateContentStatus(id, 'scheduled', scheduledFor)))
     const failed = results.filter((r) => !r.ok)
     return failed.length > 0
       ? { ok: false as const, error: `${failed.length} item(s) failed` }
@@ -393,19 +355,11 @@ export function ContentTable({
           actions={[
             { label: common.bulkPublish, action: handleBulkPublish, successToast: common.bulkUpdated },
             { label: common.bulkUnpublish, action: handleBulkUnpublish, successToast: copy.toastUnpublished, confirmTitle: copy.unpublishConfirmTitle, confirmBody: copy.unpublishConfirmBody, confirmLabel: copy.unpublish, undoAction: handleBulkPublish, undoToast: copy.toastPublished },
-            { label: copy.bulkSchedule, action: handleBulkSchedule(scheduledForTable), successToast: copy.toastScheduled, confirmTitle: copy.bulkScheduleConfirmTitle, confirmBody: copy.bulkScheduleConfirmBody, confirmLabel: copy.scheduleConfirm, children: (
-              <div className="mt-3">
-                <label className="block text-sm font-medium mb-1">{copy.scheduleTime}</label>
-                <input type="datetime-local" value={scheduledForTable} onChange={(e) => setScheduledForTable(e.target.value)} className="w-full" required />
-                {!scheduledForTable && <p className="text-sm text-destructive mt-1">{copy.scheduleInvalid}</p>}
-              </div>
-            ) },
-            { label: copy.bulkUnschedule, action: handleBulkPublish, successToast: copy.toastUnscheduled },
             { label: common.bulkArchive, action: handleBulkArchive, successToast: copy.toastArchived, tone: 'danger', confirmTitle: copy.archiveConfirmTitle, confirmBody: copy.archiveConfirmBody, undoAction: handleBulkUnarchive, undoToast: copy.toastRestored },
             ...(canDelete ? [{ label: common.bulkDelete, action: handleBulkDelete, successToast: copy.toastDeleted, tone: 'danger' as const, confirmTitle: copy.deleteConfirmTitle, confirmBody: copy.deleteConfirmBody }] : []),
           ]}
-         />
-       )}
+        />
+      )}
       <DataTable
         rows={rows}
         rowKey={(r) => r.id}
@@ -415,8 +369,6 @@ export function ContentTable({
         onToggleRow={toggleRow}
         onToggleAll={toggleAll}
         allSelected={allSelected}
-        virtualized
-        rowHeight={56}
       />
       {!canDelete ? (
         <p className="text-xs text-muted-foreground">{copy.deleteHint}</p>

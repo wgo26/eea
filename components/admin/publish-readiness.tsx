@@ -2,6 +2,7 @@
 
 import { Check, X } from 'lucide-react'
 import type { Dictionary } from '@/lib/i18n'
+import type { ContentRow } from '@/lib/admin/queries'
 
 type Copy = Dictionary['admin']['content']
 
@@ -12,6 +13,7 @@ export type ReadinessCheck = {
 };
 
 type Props = {
+    row: ContentRow;
     copy: Copy;
     checks: ReadinessCheck[];
 };

@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { PublicShell } from '@/components/shells/public-shell'
-import { AnalyticsBeacon } from '@/components/system/analytics-beacon'
 import { resolveLocale } from '@/lib/i18n'
 
 /**
@@ -21,14 +20,5 @@ export default async function PublicGroupLayout({
     params: Promise<{ locale: string }>
 }) {
     const { locale: raw } = await params
-    const locale = resolveLocale(raw)
-    return (
-        <>
-            {/* W13 — aggregate-only page-view beacon (client island, fires
-                once per pathname change; no cookie/header reads here so the
-                layout stays ISR-safe). */}
-            <AnalyticsBeacon locale={locale} />
-            <PublicShell locale={locale}>{children}</PublicShell>
-        </>
-    )
+    return <PublicShell locale={resolveLocale(raw)}>{children}</PublicShell>
 }

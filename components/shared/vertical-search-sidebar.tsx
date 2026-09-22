@@ -3,7 +3,6 @@ import { Search, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { localePath } from "@/lib/i18n/urls";
 import type { Locale } from "@/lib/i18n";
 import type { LocationFacet } from "@/lib/queries/locations";
 
@@ -58,7 +57,7 @@ export function VerticalSearchSidebar({
                 </CardHeader>
                 <CardContent>
                     <form
-                         action={localePath(locale, actionPath)}
+                        action={`/${locale}${actionPath}`}
                         method="GET"
                         role="search"
                         className="space-y-2"

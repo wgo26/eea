@@ -2691,33 +2691,6 @@ export type Database = {
                 },
             ];
         }
-        analytics_daily: {
-            Row: {
-            day: string;
-            surface: string;
-            locale: string;
-            place: string;
-            count: number;
-            updated_at: string;
-            };
-            Insert: {
-            day?: string;
-            surface: string;
-            locale?: string;
-            place?: string;
-            count?: number;
-            updated_at?: string;
-            };
-            Update: {
-            day?: string;
-            surface?: string;
-            locale?: string;
-            place?: string;
-            count?: number;
-            updated_at?: string;
-            };
-            Relationships: [];
-        }
         rate_limit_hits: {
             Row: {
             key: string;
@@ -2733,6 +2706,33 @@ export type Database = {
             key?: string | null;
             window_start?: string | null;
             count?: number | null;
+            };
+            Relationships: [];
+        }
+        analytics_daily: {
+            Row: {
+                day: string;
+                surface: string;
+                locale: string;
+                place: string;
+                count: number;
+                updated_at: string;
+            };
+            Insert: {
+                day?: string;
+                surface: string;
+                locale?: string;
+                place?: string;
+                count?: number;
+                updated_at?: string;
+            };
+            Update: {
+                day?: string;
+                surface?: string;
+                locale?: string;
+                place?: string;
+                count?: number;
+                updated_at?: string;
             };
             Relationships: [];
         }
@@ -3358,15 +3358,6 @@ export type Database = {
             };
             Returns: undefined;
         }
-        analytics_bump: {
-            Args: {
-                p_surface: string;
-                p_locale?: string;
-                p_place?: string;
-                p_delta?: number;
-            };
-            Returns: undefined;
-        }
         check_rate_limit: {
             Args: {
                 p_key: string;
@@ -3465,6 +3456,15 @@ export type Database = {
                 p_lease_seconds?: number;
             };
             Returns: boolean;
+        }
+        analytics_bump: {
+            Args: {
+                p_surface: string;
+                p_locale?: string;
+                p_place?: string;
+                p_delta?: number;
+            };
+            Returns: undefined;
         }
         };
     };

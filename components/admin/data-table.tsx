@@ -1,5 +1,4 @@
 import { cn } from '@/lib/utils'
-import { useVirtualizer } from './virtualizer'
 
 export type SortDirection = 'asc' | 'desc' | null
 
@@ -31,8 +30,6 @@ type DataTableProps<T> = {
   emptyMessage?: string
   /** Empty state node — when provided, replaces the default dashed box */
   emptyState?: React.ReactNode
-  /** Caption for screen-reader context (rendered as <caption>) */
-  caption?: string
   onRowClick?: (row: T) => void
   getRowClassName?: (row: T) => string | undefined
   /** Row selection support */
@@ -44,10 +41,6 @@ type DataTableProps<T> = {
   allSelected?: boolean
   /** Sticky selection column width */
   selectWidth?: string
-  /** Enable virtual scrolling for large row sets */
-  virtualized?: boolean
-  /** Estimated row height for virtualization (default 48) */
-  rowHeight?: number
 }
 
 const SORT_ICON: Record<string, string> = {
@@ -59,9 +52,8 @@ export function DataTable<T>({
   columns,
   rows,
   rowKey,
-   emptyMessage = 'No items found.',
+  emptyMessage = 'No items found.',
   emptyState,
-  caption,
   onRowClick,
   getRowClassName,
   selectable,
@@ -70,15 +62,7 @@ export function DataTable<T>({
   onToggleAll,
   allSelected,
   selectWidth = 'w-10',
-  virtualized = false,
-  rowHeight = 48,
 }: DataTableProps<T>) {
-  const [virtualState, setRef] = useVirtualizer({
-    total: rows.length,
-    itemHeight: rowHeight,
-    enabled: virtualized,
-  })
-
   if (rows.length === 0) {
     if (emptyState) return <>{emptyState}</>
     return (
@@ -102,21 +86,15 @@ export function DataTable<T>({
       ]
     : columns
 
-  // Only virtualize when the content actually overflows the container height.
-  // For small datasets, render all rows normally (avoids clipping off-screen rows).
-  const shouldVirtualize = virtualized && rows.length > 30
-
   return (
     <div className="rounded-lg border border-border overflow-hidden max-w-full bg-card">
-      <div className={cn("overflow-x-auto max-w-full", shouldVirtualize && "h-[400px]")} ref={shouldVirtualize ? setRef : undefined}>
-        <table className={cn("w-full min-w-0 text-sm border-collapse", shouldVirtualize && "table-fixed")}>
-          {caption ? <caption className="sr-only">{caption}</caption> : null}
+      <div className="overflow-x-auto max-w-full">
+        <table className="w-full min-w-0 text-sm border-collapse">
           <thead>
             <tr className="bg-muted/50 border-b border-border">
               {effectiveColumns.map((col) => (
                 <th
                   key={col.key}
-                  scope="col"
                   className={cn(
                     'px-3 py-2.5 md:px-4 md:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap align-middle',
                     col.key === '__select' && 'sticky left-0 z-10 bg-muted shadow-[1px_0_0_0_var(--border)]',
@@ -152,111 +130,56 @@ export function DataTable<T>({
               ))}
             </tr>
           </thead>
-          <tbody className={cn("divide-y divide-border", shouldVirtualize && "relative")}>
-            {shouldVirtualize ? (
-              <>
-                <tr style={{ height: virtualState.offset }}>
-                  <td colSpan={effectiveColumns.length} aria-hidden="true" />
-                </tr>
-                  {virtualState.virtualRows.map((vr) => {
-                  const row = rows[vr.index]
-                  const key = rowKey(row)
-                  const isSelected = selectedKeys?.has(key) ?? false
-                  return (
-                    <tr
-                      key={key}
-                      style={{ position: 'absolute', top: vr.start, height: vr.size, width: '100%' }}
+          <tbody className="divide-y divide-border">
+            {rows.map((row) => {
+              const key = rowKey(row)
+              const isSelected = selectedKeys?.has(key) ?? false
+              return (
+                <tr
+                  key={key}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  className={cn(
+                    'bg-card transition-colors',
+                    onRowClick && 'cursor-pointer hover:bg-muted/50',
+                    isSelected && 'bg-primary/5',
+                    getRowClassName?.(row),
+                  )}
+                >
+                  {effectiveColumns.map((col) => (
+                    <td
+                      key={col.key}
                       className={cn(
-                        'bg-card transition-colors',
-                        onRowClick && 'cursor-pointer hover:bg-muted/50',
-                        isSelected && 'bg-primary/5',
-                        getRowClassName?.(row),
+                        'px-3 py-2.5 md:px-4 md:py-3 align-middle',
+                        col.key === '__select' && 'sticky left-0 z-10 shadow-[1px_0_0_0_var(--border)]',
+                        col.stickyRight && 'sticky right-0 z-10 shadow-[-1px_0_0_0_var(--border)]',
+                        // Sticky cells need an opaque background so columns
+                        // scrolling underneath don't show through.
+                        (col.key === '__select' || col.stickyRight) && 'bg-card',
+                        col.className,
                       )}
-                      onClick={onRowClick ? () => onRowClick(row) : undefined}
                     >
-                      {effectiveColumns.map((col) => (
-                        <td
-                          key={col.key}
-                          className={cn(
-                            'px-3 py-2.5 md:px-4 md:py-3 align-middle',
-                            col.key === '__select' && 'sticky left-0 z-10 shadow-[1px_0_0_0_var(--border)]',
-                            col.stickyRight && 'sticky right-0 z-10 shadow-[-1px_0_0_0_var(--border)]',
-                            (col.key === '__select' || col.stickyRight) && 'bg-card',
-                            col.className,
-                          )}
-                        >
-                          {col.key === '__select' && selectable ? (
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => onToggleRow?.(key)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="h-4 w-4 rounded border-border"
-                              aria-label={`Select row ${key}`}
-                            />
-                          ) : (
-                            col.render(row)
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  )
-                })}
-                <tr style={{ height: virtualState.totalHeight - virtualState.offset - (virtualState.virtualRows.at(-1)?.start ?? 0) }}>
-                  <td colSpan={effectiveColumns.length} aria-hidden="true" />
+                      {col.key === '__select' && selectable ? (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => onToggleRow?.(key)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-4 w-4 rounded border-border"
+                          aria-label={`Select row ${key}`}
+                        />
+                      ) : (
+                        col.render(row)
+                      )}
+                    </td>
+                  ))}
                 </tr>
-              </>
-            ) : (
-              rows.map((row) => {
-                const key = rowKey(row)
-                const isSelected = selectedKeys?.has(key) ?? false
-                return (
-                  <tr
-                    key={key}
-                    onClick={onRowClick ? () => onRowClick(row) : undefined}
-                    className={cn(
-                      'bg-card transition-colors',
-                      onRowClick && 'cursor-pointer hover:bg-muted/50',
-                      isSelected && 'bg-primary/5',
-                      getRowClassName?.(row),
-                    )}
-                  >
-                    {effectiveColumns.map((col) => (
-                      <td
-                        key={col.key}
-                        className={cn(
-                          'px-3 py-2.5 md:px-4 md:py-3 align-middle',
-                          col.key === '__select' && 'sticky left-0 z-10 shadow-[1px_0_0_0_var(--border)]',
-                          col.stickyRight && 'sticky right-0 z-10 shadow-[-1px_0_0_0_var(--border)]',
-                          // Sticky cells need an opaque background so columns
-                          // scrolling underneath don't show through.
-                          (col.key === '__select' || col.stickyRight) && 'bg-card',
-                          col.className,
-                        )}
-                      >
-                        {col.key === '__select' && selectable ? (
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => onToggleRow?.(key)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="h-4 w-4 rounded border-border"
-                            aria-label={`Select row ${key}`}
-                          />
-                        ) : (
-                          col.render(row)
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                )
-              })
-            )}
+              )
+            })}
           </tbody>
         </table>
       </div>
     </div>
-      )
+  )
 }
 
 export function TableSkeleton({ rows = 5, columns = 4 }: { rows?: number; columns?: number }) {

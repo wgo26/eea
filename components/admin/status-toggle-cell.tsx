@@ -47,10 +47,10 @@ export function StatusToggleCell({ row, copy, typeLabels }: StatusToggleCellProp
           onClick={handleToggle}
           disabled={loading}
           aria-label={isPublished ? copy.unpublish : copy.publish}
-          title={isPublished ? copy.unpublish : copy.publish}
           className="rounded p-0.5 text-xs font-bold text-muted-foreground opacity-60 transition-opacity hover:opacity-100 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+          title={isPublished ? copy.unpublish : copy.publish}
         >
-          {loading ? '…' : isPublished ? '●' : '○'}
+          {loading ? '…' : isPublished ? '□' : '□'}
         </button>
       ) : null}
     </div>
