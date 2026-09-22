@@ -156,17 +156,8 @@ function NotificationsIcon() {
   )
 }
 
-function InsightsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M3 3v18h18" /><path d="M7 16v-5" /><path d="M12 16V8" /><path d="M17 16v-3" />
-    </svg>
-  )
-}
-
 const ADMIN_NAV_SPECS: AdminNavItemSpec[] = [
   { key: 'dashboard', path: '/admin/dashboard', capability: 'viewDashboard', icon: DashboardIcon },
-  { key: 'insights', path: '/admin/insights', capability: 'viewDashboard', icon: InsightsIcon },
   { key: 'moderation', path: '/admin/moderation', capability: 'moderate', icon: ModerationIcon },
   { key: 'trustSafety', path: '/admin/trust-safety', capability: 'moderate', icon: TrustSafetyIcon },
   { key: 'content', path: '/admin/content', capability: 'manageContent', icon: ContentIcon },
