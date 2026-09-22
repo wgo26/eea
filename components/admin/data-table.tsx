@@ -102,10 +102,14 @@ export function DataTable<T>({
       ]
     : columns
 
+  // Only virtualize when the content actually overflows the container height.
+  // For small datasets, render all rows normally (avoids clipping off-screen rows).
+  const shouldVirtualize = virtualized && rows.length > 30
+
   return (
     <div className="rounded-lg border border-border overflow-hidden max-w-full bg-card">
-      <div className={cn("overflow-x-auto max-w-full", virtualized && "h-[400px]")} ref={virtualized ? setRef : undefined}>
-        <table className={cn("w-full min-w-0 text-sm border-collapse", virtualized && "table-fixed")}>
+      <div className={cn("overflow-x-auto max-w-full", shouldVirtualize && "h-[400px]")} ref={shouldVirtualize ? setRef : undefined}>
+        <table className={cn("w-full min-w-0 text-sm border-collapse", shouldVirtualize && "table-fixed")}>
           {caption ? <caption className="sr-only">{caption}</caption> : null}
           <thead>
             <tr className="bg-muted/50 border-b border-border">
@@ -148,8 +152,8 @@ export function DataTable<T>({
               ))}
             </tr>
           </thead>
-          <tbody className={cn("divide-y divide-border", virtualized && "relative")}>
-            {virtualized ? (
+          <tbody className={cn("divide-y divide-border", shouldVirtualize && "relative")}>
+            {shouldVirtualize ? (
               <>
                 <tr style={{ height: virtualState.offset }}>
                   <td colSpan={effectiveColumns.length} aria-hidden="true" />
