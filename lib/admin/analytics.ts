@@ -106,3 +106,51 @@ export async function getInsights(): Promise<Insights> {
     )
     const deltaPct =
       viewsPrior7d > 0 ? Math.round(((views7d - viewsPrior7d) / viewsPrior7d) * 100) : null
+
+    // Breakdowns — pure groupings over the same row set.
+    const bySurface = group(rows.map((r) => ({ key: r.surface, count: r.count })))
+    const byLocale = group(rows.map((r) => ({ key: r.locale, count: r.count })))
+    const byPlace = group(
+      rows.filter((r) => r.place !== '').map((r) => ({ key: r.place, count: r.count })),
+      10,
+    )
+
+    // Funnel: beacon counter for the submit page + operational counts over
+    // the same 14-day window (counts only — never row data).
+    const submitPageViews = sum(rows.filter((r) => r.surface === 'submit'))
+    const funnelSince = `${utcDay(WINDOW_DAYS - 1)}T00:00:00Z`
+
+    const { count: submissionsReceived, error: subErr } = await db
+      .from('submissions')
+      .select('id', { count: 'exact', head: true })
+      .gte('submitted_at', funnelSince)
+    if (subErr) throw new Error(subErr.message)
+
+    const { count: published, error: pubErr } = await db
+      .from('content_items')
+      .select('id', { count: 'exact', head: true })
+      .gte('published_at', funnelSince)
+    if (pubErr) throw new Error(pubErr.message)
+
+    return {
+      daily,
+      views14d,
+      views7d,
+      viewsPrior7d,
+      deltaPct,
+      bySurface,
+      byLocale,
+      byPlace,
+      funnel: {
+        submitPageViews,
+        submissionsReceived: submissionsReceived ?? 0,
+        published: published ?? 0,
+      },
+    }
+  } catch (err) {
+    logger.error('admin/analytics', 'getInsights failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return EMPTY
+  }
+}
