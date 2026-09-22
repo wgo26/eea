@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
-import { Camera, Eye, Images, MapPin, Search } from "lucide-react";
+import { Camera, Eye, Images, MapPin } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
@@ -10,7 +10,6 @@ import { FeaturedSpotlight } from "@/components/photo-stories/featured-spotlight
 import { PhotoStoryCard } from "@/components/photo-stories/photo-story-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
     Pagination,
     PaginationContent,
@@ -24,6 +23,7 @@ import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
 import { FollowTopicButton } from "@/components/system/follow-topic-button";
 import { FacetFilter, type FilterGroup } from "@/components/shared/facet-filter";
 import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
+import { VerticalSearchSidebar } from "@/components/shared/vertical-search-sidebar";
 import { getLocationsByContentType } from "@/lib/queries/locations";
 import { LocationProvider } from "@/hooks/use-location-context";
 import {
@@ -226,7 +226,7 @@ export default async function PhotoStoriesPage({
                                     label: dict.photoStories.locations,
                                     activeKey: location ?? null,
                                     allLabel: "All",
-                                    hrefFor: (k) =>
+                                    hrefFor: (k: string) =>
                                         k ? hrefL({ search, category, location: k }) : hrefL({ search, category }),
                                     facets: locations.map((loc) => ({
                                         key: loc.slug,
@@ -327,42 +327,31 @@ export default async function PhotoStoriesPage({
 
                 {/* Sidebar */}
                 <aside className="space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-base">
-                                <Search className="h-4 w-4 text-muted-foreground" aria-hidden />
-                                {dict.photoStories.searchLabel}
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <form
-                                action={localePath(locale, "/photo-stories")}
-                                method="GET"
-                                role="search"
-                                className="space-y-2"
-                            >
-                                {category ? (
-                                    <input type="hidden" name="category" value={category} />
-                                ) : null}
-                                {location ? (
-                                    <input type="hidden" name="location" value={location} />
-                                ) : null}
-                                <Input
-                                    type="search"
-                                    name="q"
-                                    defaultValue={search ?? ""}
-                                    placeholder={dict.photoStories.searchPlaceholder}
-                                    aria-label={dict.photoStories.searchLabel}
-                                />
-                                <Button type="submit" className="w-full">
-                                    <Search data-icon="inline-start" aria-hidden />
-                                    {dict.nav.search}
-                                </Button>
-                            </form>
-                        </CardContent>
-                    </Card>
+                <VerticalSearchSidebar
+                    locale={locale}
+                    actionPath="/photo-stories"
+                    searchLabel={dict.nav.search}
+                    searchPlaceholder={dict.photoStories.searchPlaceholder}
+                    searchDefaultValue={search ?? ""}
+                    hiddenParams={[
+                        category ? { name: "category", value: category } : null,
+                        location ? { name: "location", value: location } : null,
+                    ].filter((p): p is { name: string; value: string } => p !== null)}
+                    locations={locations}
+                    locationLabel={dict.photoStories.locations}
+                    allLocationsLabel={dict.photoStories.allLocations}
+                    activeLocation={location ?? null}
+                    locationHref={(slug) =>
+                        slug
+                            ? hrefL({ search, category, location: slug })
+                            : hrefL({ search, category })
+                    }
+                    clearHref={localePath(locale, "/photo-stories")}
+                    clearLabel={dict.photoStories.clearFilters}
+                    isFiltered={isFiltered || page > 1}
+                />
 
-                    {mostViewed.length > 0 ? (
+                {mostViewed.length > 0 ? (
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2 text-base">
@@ -407,14 +396,6 @@ export default async function PhotoStoriesPage({
                                 </ol>
                             </CardContent>
                         </Card>
-                    ) : null}
-
-                    {isFiltered || page > 1 ? (
-                        <Link href={localePath(locale, "/photo-stories")}>
-                            <Button variant="outline" className="w-full">
-                                {dict.photoStories.clearFilters}
-                            </Button>
-                        </Link>
                     ) : null}
 
                     <AdSlot

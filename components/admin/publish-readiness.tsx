@@ -2,7 +2,6 @@
 
 import { Check, X } from 'lucide-react'
 import type { Dictionary } from '@/lib/i18n'
-import type { ContentRow } from '@/lib/admin/queries'
 
 type Copy = Dictionary['admin']['content']
 
@@ -13,7 +12,6 @@ export type ReadinessCheck = {
 };
 
 type Props = {
-    row: ContentRow;
     copy: Copy;
     checks: ReadinessCheck[];
 };
@@ -23,7 +21,7 @@ type Props = {
  * dialogs. Each check is a row with a pass/fail icon; the overall status drives
  * the "Publish" button disabled state and inline warning.
  */
-export function PublishReadiness({ row, copy: _copy, checks }: Props) {
+export function PublishReadiness({ copy: _copy, checks }: Props) {
     const passed = checks.every((c) => c.passed);
     const failedCount = checks.filter((c) => !c.passed).length;
 
@@ -66,7 +64,6 @@ export function buildReadinessChecks(
     hasCoverPhoto: boolean,
     excerpt: string,
     copy: Copy,
-    isEditMode: boolean = false,
 ): ReadinessCheck[] {
     return [
         {

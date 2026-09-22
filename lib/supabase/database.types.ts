@@ -2691,6 +2691,33 @@ export type Database = {
                 },
             ];
         }
+        analytics_daily: {
+            Row: {
+            day: string;
+            surface: string;
+            locale: string;
+            place: string;
+            count: number;
+            updated_at: string;
+            };
+            Insert: {
+            day?: string;
+            surface: string;
+            locale?: string;
+            place?: string;
+            count?: number;
+            updated_at?: string;
+            };
+            Update: {
+            day?: string;
+            surface?: string;
+            locale?: string;
+            place?: string;
+            count?: number;
+            updated_at?: string;
+            };
+            Relationships: [];
+        }
         rate_limit_hits: {
             Row: {
             key: string;
@@ -3328,6 +3355,15 @@ export type Database = {
                 p_location_id: string;
                 p_reassign_to: string;
                 p_actor_id: string;
+            };
+            Returns: undefined;
+        }
+        analytics_bump: {
+            Args: {
+                p_surface: string;
+                p_locale?: string;
+                p_place?: string;
+                p_delta?: number;
             };
             Returns: undefined;
         }

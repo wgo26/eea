@@ -33,7 +33,7 @@ import {
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
 import { getFundraisers, getFundraiserStats } from "@/lib/queries/fundraisers";
-import { FacetFilter, type FilterGroup } from "@/components/shared/facet-filter";
+import { FacetFilter } from "@/components/shared/facet-filter";
 import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
 import { getActivePolls } from "@/lib/queries/polls";
 import {

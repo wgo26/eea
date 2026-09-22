@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
-import { CalendarDays, Landmark, Music, Palette, Search, Video, Utensils } from "lucide-react";
+import { CalendarDays, Landmark, Music, Palette, Video, Utensils } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
 import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
     Pagination,
     PaginationContent,
@@ -23,8 +22,9 @@ import {
     getFeaturedCulture,
     getUpcomingEvents,
 } from "@/lib/queries/culture";
-import { FacetFilter, type FilterGroup } from "@/components/shared/facet-filter";
+import { FacetFilter } from "@/components/shared/facet-filter";
 import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
+import { VerticalSearchSidebar } from "@/components/shared/vertical-search-sidebar";
 
 export async function generateMetadata({
     params,
@@ -398,43 +398,22 @@ export default async function CulturePage({
 
                 {/* Sidebar */}
                 <aside className="space-y-6">
-                    {/* Search */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-base">
-                                <Search className="h-4 w-4 text-muted-foreground" aria-hidden />
-                                {dict.culture.searchLabel}
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <form
-                                action={localePath(locale, "/culture")}
-                                method="GET"
-                                role="search"
-                                className="space-y-2"
-                            >
-                                {category ? (
-                                    <input type="hidden" name="category" value={category} />
-                                ) : null}
-                                {location ? (
-                                    <input type="hidden" name="location" value={location} />
-                                ) : null}
-                                <Input
-                                    type="search"
-                                    name="q"
-                                    defaultValue={search ?? ""}
-                                    placeholder={dict.culture.searchPlaceholder}
-                                    aria-label={dict.culture.searchLabel}
-                                />
-                                <Button type="submit" className="w-full">
-                                    <Search data-icon="inline-start" aria-hidden />
-                                    {dict.nav.search}
-                                </Button>
-                            </form>
-                        </CardContent>
-                    </Card>
+                <VerticalSearchSidebar
+                    locale={locale}
+                    actionPath="/culture"
+                    searchLabel={dict.nav.search}
+                    searchPlaceholder={dict.culture.searchPlaceholder}
+                    searchDefaultValue={search ?? ""}
+                    hiddenParams={[
+                        category ? { name: "category", value: category } : null,
+                        location ? { name: "location", value: location } : null,
+                    ].filter((p): p is { name: string; value: string } => p !== null)}
+                    clearHref={localePath(locale, "/culture")}
+                    clearLabel={dict.culture.clearFilters}
+                    isFiltered={isFiltered || page > 1}
+                />
 
-                    {/* Upcoming Events */}
+                {/* Upcoming Events */}
                     {upcomingEvents.length > 0 ? (
                         <Card>
                             <CardHeader>
@@ -470,15 +449,6 @@ export default async function CulturePage({
                                 </ul>
                             </CardContent>
                         </Card>
-                    ) : null}
-
-                    {/* Clear filters */}
-                    {isFiltered || page > 1 ? (
-                        <Link href={localePath(locale, "/culture")}>
-                            <Button variant="outline" className="w-full">
-                                {dict.culture.clearFilters}
-                            </Button>
-                        </Link>
                     ) : null}
 
                     {/* Ad slot */}

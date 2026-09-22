@@ -9,6 +9,7 @@ import { Tabs } from '@/components/admin/tabs'
 import { Pager } from '@/components/admin/pager'
 import { FilterPills, SearchBar } from '@/components/admin/filter-pills'
 import { EmptyState } from '@/components/admin/empty-state'
+import { SavedViews } from '@/components/admin/saved-views'
 import { ContentTable } from './content-bulk-actions'
 import Link from 'next/link'
 import { ContentCreateDialog } from './content-dialogs'
@@ -125,13 +126,27 @@ export default async function Page({
               }))}
               active={status}
             />
-            <SearchBar
-              name="q"
-              defaultValue={search}
-              placeholder={tc.searchPlaceholder}
-              action={searchAction}
-              className="w-full sm:w-64"
-            />
+            <div className="flex items-center gap-2">
+              <SearchBar
+                name="q"
+                defaultValue={search}
+                placeholder={tc.searchPlaceholder}
+                action={searchAction}
+                className="w-full sm:w-64"
+              />
+              <SavedViews
+                locale={locale}
+                params={{ status, type, search }}
+                copy={{
+                  viewName: t.viewName,
+                  saveView: t.saveView,
+                  savedViews: t.savedViews,
+                  noSavedViews: t.noSavedViews,
+                  replaceView: t.replaceView,
+                  viewKeyConflict: t.viewKeyConflict,
+                }}
+              />
+            </div>
           </div>
 
           <FilterPills

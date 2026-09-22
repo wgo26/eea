@@ -509,19 +509,17 @@ export function ContentCreateDialog({
               </div>
             </details>
 
-             {type === 'listing' && (
-               <details className="rounded-md border border-border bg-muted/30 p-3 open:bg-muted/50" open>
-                 <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">{copy.listingDetails}</summary>
-               <div className="grid gap-3 pt-3 sm:grid-cols-2">
-                 <Field label={copy.priceLabel}>
-                   <input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
-                 </Field>
-                 <Field label={copy.currencyLabel}>
-                   <input value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={3} className={inputCls} />
-                 </Field>
-                 <Field label={copy.sellerName}>
-                   <input value={sellerName} onChange={(e) => setSellerName(e.target.value)} className={inputCls} />
-                 </Field>
+            {type === 'listing' && (
+              <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
+                <Field label={copy.priceLabel}>
+                  <input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
+                </Field>
+                <Field label={copy.currencyLabel}>
+                  <input value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={3} className={inputCls} />
+                </Field>
+                <Field label={copy.sellerName}>
+                  <input value={sellerName} onChange={(e) => setSellerName(e.target.value)} className={inputCls} />
+                </Field>
                 <Field label={copy.contactPhone}>
                   <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} className={inputCls} />
                 </Field>
@@ -532,13 +530,10 @@ export function ContentCreateDialog({
                   <input value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)} className={inputCls} />
                 </Field>
               </div>
-               </details>
             )}
 
             {type === 'notice' && (
-              <details className="rounded-md border border-border bg-muted/30 p-3 open:bg-muted/50" open>
-                <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">{copy.noticeDetails}</summary>
-              <div className="grid gap-3 pt-3 sm:grid-cols-2">
+              <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
                 <Field label={copy.noticeTypeLabel}>
                   <select value={noticeType} onChange={(e) => setNoticeType(e.target.value)} className={inputCls}>
                     {Object.entries(copy.noticeTypes).map(([value, label]) => (
@@ -559,14 +554,11 @@ export function ContentCreateDialog({
                   <input type="checkbox" checked={isOfficial} onChange={(e) => setIsOfficial(e.target.checked)} />
                   {copy.isOfficial}
                 </label>
-               </div>
-               </details>
+              </div>
             )}
 
             {type === 'culture' && (
-              <details className="rounded-md border border-border bg-muted/30 p-3 open:bg-muted/50" open>
-                <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">{copy.eventDetails}</summary>
-              <div className="grid gap-3 pt-3 sm:grid-cols-2">
+              <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
                 <Field label={copy.eventStartsAt}>
                   <input type="datetime-local" value={eventStartsAt} onChange={(e) => setEventStartsAt(e.target.value)} className={inputCls} />
                 </Field>
@@ -589,7 +581,6 @@ export function ContentCreateDialog({
                   <input value={organizerEmail} onChange={(e) => setOrganizerEmail(e.target.value)} className={inputCls} placeholder="name@example.com" />
                 </Field>
               </div>
-               </details>
             )}
 
             <div className="grid gap-3 rounded-md border border-border bg-background p-3">
@@ -617,22 +608,21 @@ export function ContentCreateDialog({
               </Field>
              </div>
 
-             {(publish === 'now' || publish === 'schedule') && (
-               <PublishReadiness
-                 row={{ id: '', type, status: 'draft', isArchived: false, isFeatured: false, publishedAt: null, scheduledFor: null, expiresAt: null, createdAt: null, updatedAt: null, title: enTitle, excerpt: enExcerpt ?? null, missingLocale: false, locationName: null, categoryName: null, coverUrl: newPhotos.find((p) => p.isCover)?.url ?? null, authorId: null, authorName: null, submittedBy: null, slug: null, verification: null } as ContentRow}
-                 copy={copy}
-                 checks={buildReadinessChecks(
-                   type,
-                   enTitle,
-                   frTitle,
-                   locationId,
-                   categoryId,
-                   Boolean(newPhotos.find((p) => p.isCover)?.url),
-                   frExcerpt ?? '',
-                   copy,
-                 )}
-               />
-             )}
+              {(publish === 'now' || publish === 'schedule') && (
+                <PublishReadiness
+                  copy={copy}
+                  checks={buildReadinessChecks(
+                    type,
+                    enTitle,
+                    frTitle,
+                    locationId,
+                    categoryId,
+                    Boolean(newPhotos.find((p) => p.isCover)?.url),
+                    frExcerpt ?? '',
+                    copy,
+                  )}
+                />
+              )}
 
              <DialogFooter>
                <button type="button" onClick={() => { reset(); setOpen(false) }} className={btnGhost} disabled={loading}>
@@ -1201,6 +1191,22 @@ function ContentEditForm({
             <input value={organizerEmail} onChange={(e) => setOrganizerEmail(e.target.value)} className={inputCls} />
           </Field>
         </div>
+      )}
+
+      {data.status !== 'draft' && (
+        <PublishReadiness
+          copy={copy}
+          checks={buildReadinessChecks(
+            data.type,
+            enTitle,
+            frTitle,
+            locationId,
+            categoryId,
+            Boolean(newPhotos.find((p) => p.isCover)?.url ?? data.photos.find((p) => p.url === data.coverUrl)?.url),
+            frExcerpt ?? '',
+            copy,
+          )}
+        />
       )}
 
       <DialogFooter>

@@ -27,7 +27,7 @@ import {
     NOTICE_TYPE_LABELS,
 } from "@/lib/queries/notices";
 import { getLocationsByContentType } from "@/lib/queries/locations";
-import { FacetFilter, type FilterGroup } from "@/components/shared/facet-filter";
+import { FacetFilter } from "@/components/shared/facet-filter";
 import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
 import { LocationProvider } from "@/hooks/use-location-context";
 

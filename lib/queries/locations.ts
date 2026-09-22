@@ -7,7 +7,6 @@ import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags"
 import { logger } from "@/lib/observability/logger";
 import { mapAttachments, previewImageUrl } from "@/lib/media/attachments";
 import type { Locale } from "@/lib/i18n";
-import type { Database } from "@/lib/supabase/database.types";
 
 export type LocationData = {
     id: string;
