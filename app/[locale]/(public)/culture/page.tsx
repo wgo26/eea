@@ -99,11 +99,20 @@ export default async function CulturePage({
     const isFiltered = Boolean(search || category || location);
     const browseMode = !isFiltered && page === 1;
 
-    const [featured, list, upcomingEvents] = await Promise.all([
-        getFeaturedCulture(locale),
-        getCultureArticles({ search, category, location, locale, page }),
-        getUpcomingEvents(locale, 5),
-    ]);
+    let featured: Awaited<ReturnType<typeof getFeaturedCulture>> = null;
+    let list = { articles: [] as any[], total: 0, pageCount: 1 };
+    let upcomingEvents: Awaited<ReturnType<typeof getUpcomingEvents>> = [];
+
+    try {
+        [featured, list, upcomingEvents] = await Promise.all([
+            getFeaturedCulture(locale),
+            getCultureArticles({ search, category, location, locale, page }),
+            getUpcomingEvents(locale, 5),
+        ]);
+    } catch (err) {
+        console.error("[culture] Data fetch failed:", err);
+    }
+
     const { articles: allArticles, total, pageCount } = list;
     const articles =
         browseMode && featured

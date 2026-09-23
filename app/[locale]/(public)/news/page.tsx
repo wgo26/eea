@@ -44,6 +44,7 @@ import {
     getNewsArticles,
     getNewsCategories,
     getNewsStats,
+    type NewsArticle,
 } from "@/lib/queries/news";
 import { getLocationsByContentType } from "@/lib/queries/locations";
 import { LocationProvider } from "@/hooks/use-location-context";
@@ -128,26 +129,47 @@ export default async function NewsPage({
     const isFiltered = Boolean(search || category || location);
     const browseMode = !isFiltered && page === 1;
 
-    const [list, categories, locations, stats, mostViewed] = await Promise.all([
-        getNewsArticles({ search, category, location, locale, page, sort }),
-        getNewsCategories(),
-         getLocationsByContentType("news"),
-        getNewsStats(),
-        getMostViewedNews(locale, 5),
-    ]);
+    let list = { articles: [] as any[], pageCount: 1 };
+    let categories: Awaited<ReturnType<typeof getNewsCategories>> = [];
+    let locations: Awaited<ReturnType<typeof getLocationsByContentType>> = [];
+    let stats = { articles: 0, places: 0, contributors: 0, thisWeek: 0 };
+    let mostViewed: Awaited<ReturnType<typeof getMostViewedNews>> = [];
+
+    try {
+        [list, categories, locations, stats, mostViewed] = await Promise.all([
+            getNewsArticles({ search, category, location, locale, page, sort }),
+            getNewsCategories(),
+            getLocationsByContentType("news"),
+            getNewsStats(),
+            getMostViewedNews(locale, 5),
+        ]);
+    } catch (err) {
+        console.error("[news] Data fetch failed:", err);
+    }
+
     const { articles, pageCount } = list;
 
     // Browse-only modules: the lead, the live rail, fundraising and polls all
     // belong to the front page of the section, not to a filtered result set.
-    const [featured, developing, fundraisers, fundraiserStats, polls] = browseMode
-        ? await Promise.all([
-              getFeaturedNews(locale),
-              getDevelopingNews(locale, 3),
-              getFundraisers({ locale, limit: 3, onlyActive: true }),
-              getFundraiserStats(),
-              getActivePolls(2),
-          ])
-        : [null, [], [], { active: 0, totalRaised: 0, totalGoal: 0, currency: "XAF", completed: 0 }, []];
+    let featured: Awaited<ReturnType<typeof getFeaturedNews>> = null;
+    let developing: Awaited<ReturnType<typeof getDevelopingNews>> = [];
+    let fundraisers: Awaited<ReturnType<typeof getFundraisers>> = [];
+    let fundraiserStats = { active: 0, totalRaised: 0, totalGoal: 0, currency: "XAF", completed: 0 };
+    let polls: Awaited<ReturnType<typeof getActivePolls>> = [];
+
+    if (browseMode) {
+        try {
+            [featured, developing, fundraisers, fundraiserStats, polls] = await Promise.all([
+                getFeaturedNews(locale),
+                getDevelopingNews(locale, 3),
+                getFundraisers({ locale, limit: 3, onlyActive: true }),
+                getFundraiserStats(),
+                getActivePolls(2),
+            ]);
+        } catch (err) {
+            console.error("[news] Browse-mode data fetch failed:", err);
+        }
+    }
 
     const nextUp = featured
         ? articles.filter((a) => a.id !== featured.id).slice(0, 3)

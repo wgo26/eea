@@ -35,6 +35,7 @@ type ContentCopy = {
   colTitle: string
   colType: string
   colStatus: string
+  colQuick?: string
   colPublished: string
   colAuthor: string
   colUpdated: string
@@ -308,7 +309,7 @@ export function ContentTable({
     { key: 'published', header: copy.colPublished, render: (r) => <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(r.publishedAt, locale)}</span>, headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell whitespace-nowrap' },
     { key: 'author', header: copy.colAuthor, render: (r) => <span className="text-xs text-muted-foreground truncate block max-w-[140px]">{r.authorName ?? '—'}</span>, headerClassName: 'hidden xl:table-cell', className: 'hidden xl:table-cell' },
     { key: 'updated', header: copy.colUpdated, render: (r) => <time className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(r.updatedAt ?? r.createdAt)}</time>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
-    { key: 'status_toggle', header: copy.colStatus, render: (r) => <StatusToggleCell row={r} copy={copy} typeLabels={typeLabels} />, className: 'whitespace-nowrap' },
+    { key: 'quick', header: copy.colQuick ?? '', render: (r) => <StatusToggleCell row={r} copy={copy} typeLabels={typeLabels} />, className: 'whitespace-nowrap' },
     {
       key: 'actions',
       header: '',

@@ -61,7 +61,10 @@ async function requestWithRetry(endpoint: string, key: string, body: unknown): P
       body: JSON.stringify(body),
     })
     if (res.status === 429 && attempt < 3) {
-      await new Promise((r) => setTimeout(r, 1500 * 4 * attempt))
+      // Exponential backoff: 1s → 2s (plus jitter so concurrent editors
+      // translating both directions don't retry in lockstep).
+      const delay = 1000 * 2 ** (attempt - 1) + Math.floor(Math.random() * 250)
+      await new Promise((r) => setTimeout(r, delay))
       continue
     }
     if (res.status === 456) throw new Error('Translation quota exceeded — try again next month.')

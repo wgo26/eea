@@ -14,6 +14,15 @@ import {
   useContentTranslator,
   TranslateButtons,
 } from "@/components/admin/translate-buttons";
+import { ContentAssistButtons } from "@/components/admin/content-assist-buttons";
+import { StoryBlocksEditor } from "@/components/admin/story-blocks-editor";
+import {
+  suggestExcerpt,
+  suggestSeoDescription,
+  suggestShareText,
+  suggestSlug,
+  suggestTags,
+} from "@/lib/admin/content-assist";
 import {
   ConfirmDialog,
   useAdminMutation,
@@ -463,6 +472,55 @@ export function ContentCreateDialog({
               translate={translate}
               translating={translating}
             />
+            {copy.translateHint ? (
+              <p className="text-xs text-muted-foreground">{copy.translateHint}</p>
+            ) : null}
+            <ContentAssistButtons
+              copy={copy}
+              onExcerpt={() => {
+                const s = suggestExcerpt(enBody || frBody);
+                if (!s) {
+                  addToast(copy.translateEmpty, "error");
+                  return;
+                }
+                if (!enExcerpt.trim()) setEnExcerpt(s);
+                if (!frExcerpt.trim()) setFrExcerpt(s);
+                addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
+              }}
+              onSeo={() => {
+                const s = suggestSeoDescription(enTitle || frTitle, enExcerpt || enBody);
+                if (!s) {
+                  addToast(copy.translateEmpty, "error");
+                  return;
+                }
+                if (!enSeoDescription.trim()) setEnSeoDescription(s);
+                if (!frSeoDescription.trim()) setFrSeoDescription(s);
+                addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
+              }}
+              onTags={() => {
+                const s = suggestTags(`${enTitle} ${frTitle}`, `${enBody} ${frBody}`, tagsInput.split(",").map((t) => t.trim()).filter(Boolean));
+                if (s.length === 0) {
+                  addToast(copy.translateEmpty, "error");
+                  return;
+                }
+                setTagsInput((prev) => [...prev.split(",").map((t) => t.trim()).filter(Boolean), ...s].join(", "));
+                addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
+              }}
+              onSlug={() => {
+                const s = suggestSlug(enTitle || frTitle);
+                setSlugInput(s);
+                addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
+              }}
+              onShare={() => {
+                const s = suggestShareText(enTitle || frTitle, enExcerpt || enBody);
+                if (!s) {
+                  addToast(copy.translateEmpty, "error");
+                  return;
+                }
+                setShareText(s);
+                addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
+              }}
+            />
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label={copy.enExcerpt}>
                 <textarea
@@ -499,6 +557,36 @@ export function ContentCreateDialog({
                 />
               </Field>
             </div>
+            <StoryBlocksEditor
+              copy={{
+                sectionTitle: copy.blocksTitle,
+                sectionHint: copy.blocksHint,
+                addBlock: copy.blocksAdd,
+                insertIntoBody: copy.blocksInsert,
+                inserted: copy.blocksInserted,
+                empty: copy.blocksEmpty,
+                headingLabel: copy.blocksHeading,
+                headingPlaceholder: copy.blocksHeadingPh,
+                bodyLabel: copy.blocksBody,
+                bodyPlaceholder: copy.blocksBodyPh,
+                imageLabel: copy.blocksImage,
+                imagePlaceholder: copy.blocksImagePh,
+                altLabel: copy.blocksAlt,
+                captionLabel: copy.blocksCaption,
+                layoutLabel: copy.blocksLayout,
+                layoutTop: copy.blocksLayoutTop,
+                layoutLeft: copy.blocksLayoutLeft,
+                layoutRight: copy.blocksLayoutRight,
+                moveUp: copy.blocksMoveUp,
+                moveDown: copy.blocksMoveDown,
+                removeBlock: copy.blocksRemove,
+                blockTitle: copy.blocksBlock,
+                pickFromPhotos: copy.blocksPickPhotos,
+              }}
+              photoUrls={newPhotos.map((p) => p.url).filter(Boolean)}
+              onInsert={(html) => setEnBody((prev) => (prev.trim() ? `${prev.trim()}\n\n${html}` : html))}
+              onToast={addToast}
+            />
             <MediaUploader
               newPhotos={newPhotos}
               keepIds={[]}
@@ -1475,6 +1563,55 @@ function ContentEditForm({
         translate={translate}
         translating={translating}
       />
+      {copy.translateHint ? (
+        <p className="text-xs text-muted-foreground">{copy.translateHint}</p>
+      ) : null}
+      <ContentAssistButtons
+        copy={copy}
+        onExcerpt={() => {
+          const s = suggestExcerpt(enBody || frBody);
+          if (!s) {
+            addToast(copy.translateEmpty, "error");
+            return;
+          }
+          if (!enExcerpt.trim()) setEnExcerpt(s);
+          if (!frExcerpt.trim()) setFrExcerpt(s);
+          addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
+        }}
+        onSeo={() => {
+          const s = suggestSeoDescription(enTitle || frTitle, enExcerpt || enBody);
+          if (!s) {
+            addToast(copy.translateEmpty, "error");
+            return;
+          }
+          if (!enSeoDescription.trim()) setEnSeoDescription(s);
+          if (!frSeoDescription.trim()) setFrSeoDescription(s);
+          addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
+        }}
+        onTags={() => {
+          const s = suggestTags(`${enTitle} ${frTitle}`, `${enBody} ${frBody}`, tagsInput.split(",").map((t) => t.trim()).filter(Boolean));
+          if (s.length === 0) {
+            addToast(copy.translateEmpty, "error");
+            return;
+          }
+          setTagsInput((prev) => [...prev.split(",").map((t) => t.trim()).filter(Boolean), ...s].join(", "));
+          addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
+        }}
+        onSlug={() => {
+          const s = suggestSlug(enTitle || frTitle);
+          setSlugInput(s);
+          addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
+        }}
+        onShare={() => {
+          const s = suggestShareText(enTitle || frTitle, enExcerpt || enBody);
+          if (!s) {
+            addToast(copy.translateEmpty, "error");
+            return;
+          }
+          setShareText(s);
+          addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
+        }}
+      />
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={copy.enExcerpt}>
           <textarea
@@ -1511,6 +1648,36 @@ function ContentEditForm({
           />
         </Field>
       </div>
+      <StoryBlocksEditor
+        copy={{
+          sectionTitle: copy.blocksTitle,
+          sectionHint: copy.blocksHint,
+          addBlock: copy.blocksAdd,
+          insertIntoBody: copy.blocksInsert,
+          inserted: copy.blocksInserted,
+          empty: copy.blocksEmpty,
+          headingLabel: copy.blocksHeading,
+          headingPlaceholder: copy.blocksHeadingPh,
+          bodyLabel: copy.blocksBody,
+          bodyPlaceholder: copy.blocksBodyPh,
+          imageLabel: copy.blocksImage,
+          imagePlaceholder: copy.blocksImagePh,
+          altLabel: copy.blocksAlt,
+          captionLabel: copy.blocksCaption,
+          layoutLabel: copy.blocksLayout,
+          layoutTop: copy.blocksLayoutTop,
+          layoutLeft: copy.blocksLayoutLeft,
+          layoutRight: copy.blocksLayoutRight,
+          moveUp: copy.blocksMoveUp,
+          moveDown: copy.blocksMoveDown,
+          removeBlock: copy.blocksRemove,
+          blockTitle: copy.blocksBlock,
+          pickFromPhotos: copy.blocksPickPhotos,
+        }}
+        photoUrls={[...data.photos.map((p) => p.url), ...newPhotos.map((p) => p.url)].filter(Boolean)}
+        onInsert={(html) => setEnBody((prev) => (prev.trim() ? `${prev.trim()}\n\n${html}` : html))}
+        onToast={addToast}
+      />
 
       {/* Permalink, publish date, expiry, byline, SEO description and tags — the
           editorial fields the Blogger import already carries. */}

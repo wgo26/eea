@@ -34,6 +34,7 @@ import {
     getPhotoStoryCategories,
     getPhotoStoriesStats,
     getPhotoStoryYears,
+    type PhotoStoryData,
 } from "@/lib/queries/photo-stories";
 
 export async function generateMetadata({
@@ -120,15 +121,28 @@ export default async function PhotoStoriesPage({
     const isFiltered = Boolean(search || category || location || year);
     const browseMode = !isFiltered && page === 1;
 
-    const [featured, list, categories, locations, stats, mostViewed, years] = await Promise.all([
-        getFeaturedPhotoStory(),
-        getPhotoStories({ search, category, location, locale, page, year }),
-        getPhotoStoryCategories(),
-        getLocationsByContentType("photo_story"),
-        getPhotoStoriesStats(),
-        getMostViewedPhotoStories(locale, 5),
-        getPhotoStoryYears(),
-    ]);
+    let featured: Awaited<ReturnType<typeof getFeaturedPhotoStory>> = null;
+    let list: { stories: PhotoStoryData[]; pageCount: number; total: number; page: number } = { stories: [], pageCount: 1, total: 0, page: 1 };
+    let categories: Awaited<ReturnType<typeof getPhotoStoryCategories>> = [];
+    let locations: Awaited<ReturnType<typeof getLocationsByContentType>> = [];
+    let stats = { stories: 0, photos: 0, places: 0 };
+    let mostViewed: Awaited<ReturnType<typeof getMostViewedPhotoStories>> = [];
+    let years: Awaited<ReturnType<typeof getPhotoStoryYears>> = [];
+
+    try {
+        [featured, list, categories, locations, stats, mostViewed, years] = await Promise.all([
+            getFeaturedPhotoStory(),
+            getPhotoStories({ search, category, location, locale, page, year }),
+            getPhotoStoryCategories(),
+            getLocationsByContentType("photo_story"),
+            getPhotoStoriesStats(),
+            getMostViewedPhotoStories(locale, 5),
+            getPhotoStoryYears(),
+        ]);
+    } catch (err) {
+        console.error("[photo-stories] Data fetch failed:", err);
+    }
+
     const { stories, pageCount } = list;
     const nextUp = featured ? stories.filter((s) => s.id !== featured.id).slice(0, 3) : [];
 

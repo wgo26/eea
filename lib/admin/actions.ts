@@ -27,7 +27,6 @@ export type { ContentDraftInput } from './content-validation'
 
 type ActionResult = { ok: true } | { ok: false; error: string }
 
-
 const LOCALES = ['en', 'fr'] as const;
 
 /** Revalidate a locale-free path in both locales (routes live under /[locale]). */
@@ -427,6 +426,7 @@ export async function approveSubmissionWithContent(input: {
           contact_phone: input.draft.listing?.contactPhone ?? null,
           contact_email: input.draft.listing?.contactEmail ?? null,
           whatsapp_number: input.draft.listing?.whatsappNumber ?? null,
+          seller_name: input.draft.listing?.sellerName?.trim() || null,
         })
         if (lErr) throw new Error(`Could not create the listing: ${lErr.message}`)
       }
@@ -660,7 +660,7 @@ export async function createContentItem(input: {
         verification: input.draft.verification ?? null,
         location_id: input.draft.locationId || null,
         category_id: input.draft.categoryId || null,
-        author_id: user.id,
+        author_id: input.draft.authorId || user.id, // dialog pick, else creator
         expires_at: input.expiresAt || null,
       })
       .select('id')
@@ -681,6 +681,7 @@ export async function createContentItem(input: {
           contact_phone: input.draft.listing?.contactPhone ?? null,
           contact_email: input.draft.listing?.contactEmail ?? null,
           whatsapp_number: input.draft.listing?.whatsappNumber ?? null,
+          seller_name: input.draft.listing?.sellerName?.trim() || null,
         })
         if (lErr) throw new Error(`Could not create the listing: ${lErr.message}`)
       }
@@ -1418,7 +1419,6 @@ export async function updateHomepageSlotWindow(
     return fail(e)
   }
 }
-
 
 export async function queueStorageVerification(mediaId?: string): Promise<ActionResult & { count?: number }> {
   try {

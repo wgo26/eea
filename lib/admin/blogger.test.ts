@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractImageUrls, makeExcerpt, normalizeBloggerBody, parseBloggerExport } from './blogger'
+import { capImportedImages, extractImageUrls, makeExcerpt, MAX_IMPORTED_IMAGES, normalizeBloggerBody, parseBloggerExport } from './blogger'
 
 const SAMPLE = `<?xml version='1.0' encoding='UTF-8' ?>
 <feed xmlns='http://www.w3.org/2005/Atom' xmlns:blogger='http://schemas.google.com/blogger/2008'>
@@ -174,5 +174,29 @@ describe('normalizeBloggerBody', () => {
   it('strips comments (Blogger jump breaks) and leaves plain text alone', () => {
     expect(normalizeBloggerBody('<div>a</div><!-- more --><div>b</div>')).toBe('<p>a</p><p>b</p>')
     expect(normalizeBloggerBody('Just text')).toBe('Just text')
+  })
+})
+
+describe('capImportedImages (Phase 5 weight discipline)', () => {
+  const img = (n: number) => `<img src="https://x/${n}.jpg" />`
+  const many = (n: number) => Array.from({ length: n }, (_, i) => img(i)).join('')
+
+  it('keeps the lead image eager and lazy-loads the rest', () => {
+    const out = normalizeBloggerBody(`<p>a</p>${img(0)}${img(1)}`)
+    expect(out).not.toMatch(/<img loading="lazy"[^>]*x\/0\.jpg/)
+    expect(out).toContain('loading="lazy"')
+    expect(out).toContain('decoding="async"')
+  })
+
+  it(`caps bodies at ${MAX_IMPORTED_IMAGES} images`, () => {
+    const out = capImportedImages(many(MAX_IMPORTED_IMAGES + 5))
+    expect(out.match(/<img\b/g)?.length).toBe(MAX_IMPORTED_IMAGES)
+  })
+
+  it('respects an author-set loading attribute and is idempotent', () => {
+    const tagged = '<img loading="eager" src="https://x/a.jpg" /><img src="https://x/b.jpg" />'
+    const once = capImportedImages(tagged)
+    expect(once).toContain('loading="eager"')
+    expect(capImportedImages(once)).toBe(once)
   })
 })

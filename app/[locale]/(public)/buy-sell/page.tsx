@@ -123,11 +123,20 @@ export default async function BuySellPage({
     );
     const isFiltered = Boolean(search || category || location || sort !== "newest");
 
-    const [featured, list, locations] = await Promise.all([
-        getFeaturedListing(locale),
-        getListings({ search, category, location, sort, locale, page }),
-        getLocationsByContentType("listing"),
-    ]);
+    let featured: Awaited<ReturnType<typeof getFeaturedListing>> = null;
+    let list = { listings: [] as any[], pageCount: 1, total: 0 };
+    let locations: Awaited<ReturnType<typeof getLocationsByContentType>> = [];
+
+    try {
+        [featured, list, locations] = await Promise.all([
+            getFeaturedListing(locale),
+            getListings({ search, category, location, sort, locale, page }),
+            getLocationsByContentType("listing"),
+        ]);
+    } catch (err) {
+        console.error("[buy-sell] Data fetch failed:", err);
+    }
+
     const { listings: allListings, pageCount, total } = list;
     const listings =
         !isFiltered && page === 1 && featured

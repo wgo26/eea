@@ -111,12 +111,22 @@ export default async function NoticesPage({
         { value: "expired" as const, label: dict.notices.statusExpired },
     ];
 
-    const [featured, list, types, locations] = await Promise.all([
-        getFeaturedNotice(locale),
-        getNotices({ search, noticeType, location, status, locale, page }),
-        getNoticeTypes(),
-         getLocationsByContentType("notice"),
-    ]);
+    let featured: Awaited<ReturnType<typeof getFeaturedNotice>> = null;
+    let list = { notices: [] as any[], pageCount: 1 };
+    let types: Awaited<ReturnType<typeof getNoticeTypes>> = [];
+    let locations: Awaited<ReturnType<typeof getLocationsByContentType>> = [];
+
+    try {
+        [featured, list, types, locations] = await Promise.all([
+            getFeaturedNotice(locale),
+            getNotices({ search, noticeType, location, status, locale, page }),
+            getNoticeTypes(),
+            getLocationsByContentType("notice"),
+        ]);
+    } catch (err) {
+        console.error("[notices] Data fetch failed:", err);
+    }
+
     const { notices: allNotices, pageCount } = list;
     const notices =
         browseMode && featured

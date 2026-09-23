@@ -198,10 +198,10 @@ Options, in order of preference:
 
 ## Supabase migrations
 
-Apply all 50 migrations from `supabase/migrations/` in filename order
-(`scripts/verify-migrations.mjs`, wired into `npm run check`, gates the build on
-filename format, duplicate timestamps, and empty files — it reports the count
-but does not enforce a specific number):
+Apply all migrations from `supabase/migrations/` in filename order
+(`scripts/verify-migrations.mjs`, wired into `npm run check`, reports the
+count — currently 57 — and gates the build on filename format, duplicate
+timestamps, and empty files):
 
 - Preferred: Supabase CLI — `supabase link --project-ref <ref>`, then
   `supabase db push` (records applied versions in `supabase_migrations`).
@@ -262,3 +262,44 @@ If hPanel does not expose a persistent Node.js server, custom environment variab
 the `npm run start` command, this plan cannot host the current application. Choose a
 Hostinger VPS or another Node.js SSR host before proceeding; do not convert this app to a
 static export without redesigning authentication, API routes, and server-side queries.
+
+## Runtime contract (Phase 5 — single vs multi instance)
+
+The Business plan runs **one Node.js instance**. The app is coded to survive a
+second instance, but three things degrade until shared state exists — so treat
+any scale-out as a project, not a toggle:
+
+- **Chunked-upload sessions** live on local disk (`os.tmpdir()/eea-uploads`,
+  swept nightly by the db-maintenance cron). A resumed upload landing on the
+  other instance restarts from zero. Fix before scaling: R2/Supabase-multipart
+  or DB-backed sessions.
+- **In-memory edge throttles** (`/api/uploads`, `/api/uploads/chunk`,
+  `/api/ads/event`) are per-process fast paths; the durable Postgres limiter
+  underneath holds across instances, so abuse is still bounded — just noisier.
+- **Ready-probe cache** (`PROBE_TTL_MS`) is per instance; monitors should
+  expect one probe burst per instance per TTL, not one globally.
+
+Verify on every deploy (hPanel → app logs or a shell):
+
+- [ ] `NODE_ENV=production` (crons fail closed; dev-only bypasses off).
+- [ ] `TRUSTED_PROXY_COUNT` equals the real proxy depth in front of the app
+  (default 1: Hostinger terminates TLS in front of Node). Wrong value either
+  trusts forged `X-Forwarded-For` hops (too high) or buckets all traffic as one
+  IP (0 with forwarded headers). See `lib/security/rate-limit.ts`.
+- [ ] `ALLOW_UNAUTH_CRON` is unset (local-drill opt-in only).
+- [ ] `CSP_REPORT_URI` set if violation reports are wanted (wired in
+  `lib/security/csp.ts`; blank = no reporting, still enforced).
+
+## Go-live demo-content decision
+
+`node scripts/teardown-demo.mjs` + `npm run verify:clean` removes seed demo
+rows (About/Legal pages are kept). Record the decision in
+`docs/disaster-recovery.md` §5 — REMOVED or KEPT, with date + operator. Never
+run teardown after real user data exists.
+
+## Disaster recovery
+
+Backups, retention, restore procedures and the quarterly drill log live in
+[`docs/disaster-recovery.md`](../docs/disaster-recovery.md). Read it before
+you need it: dump freshness (`verify-backup --mode=db`), media verify/drill,
+and the staging-first restore steps are all there.

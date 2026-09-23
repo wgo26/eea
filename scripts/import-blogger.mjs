@@ -370,7 +370,25 @@ function normalizeBloggerBody(html) {
         if (next === out) break;
         out = next;
     }
+    // Phase 5 weight discipline (mirror of capImportedImages in
+    // lib/admin/blogger.ts — keep the two in sync): cap <img> count, lazy-load
+    // past the lead image. Remote Blogger originals are never re-hosted.
+    out = capImportedImages(out);
     return out.trim();
+}
+
+// Mirror of capImportedImages in lib/admin/blogger.ts.
+const MAX_IMPORTED_IMAGES = 10;
+function capImportedImages(html, max = MAX_IMPORTED_IMAGES) {
+    let kept = 0;
+    return html.replace(/<img\b[^>]*>/gi, (tag) => {
+        kept += 1;
+        if (kept > max) return "";
+        if (kept > 1 && !/\bloading\s*=/i.test(tag)) {
+            return tag.replace(/<img\b/i, '<img loading="lazy" decoding="async"');
+        }
+        return tag;
+    });
 }
 
 // Mirror of lib/admin/tags.ts ensureTag — find-or-create a tag by label.
