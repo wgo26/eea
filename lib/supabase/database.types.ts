@@ -3251,6 +3251,27 @@ export type Database = {
                 },
             ];
         }
+        user_blocks: {
+            Row: {
+                id: string;
+                blocker_id: string;
+                blocked_id: string;
+                created_at: string;
+            };
+            Insert: {
+                id?: string;
+                blocker_id: string;
+                blocked_id: string;
+                created_at?: string;
+            };
+            Update: {
+                id?: string;
+                blocker_id?: string;
+                blocked_id?: string;
+                created_at?: string;
+            };
+            Relationships: [];
+        }
         user_roles: {
             Row: {
             user_id: string;
@@ -3363,6 +3384,13 @@ export type Database = {
                 p_key: string;
                 p_max: number;
                 p_window_seconds: number;
+            };
+            Returns: boolean;
+        }
+        is_blocked_between: {
+            Args: {
+                a: string;
+                b: string;
             };
             Returns: boolean;
         }

@@ -409,6 +409,7 @@ export const fr: typeof en = {
     contactUnavailable: 'Impossible de récupérer les coordonnées.',
     contactLoading: 'Chargement…',
     soldContactNotice: 'Article vendu — coordonnées indisponibles.',
+    safetyTip: 'Gardez les échanges et les paiements ici jusqu’à avoir vu ou vérifié l’article — ne versez jamais d’acompte à l’avance.',
     watchPrice: 'Suivre le prix',
     watchingPrice: 'Prix suivi',
     priceWatchers: 'abonnés',

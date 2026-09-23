@@ -415,6 +415,7 @@ export const en = {
     contactUnavailable: 'Unable to retrieve contact details.',
     contactLoading: 'Loading…',
     soldContactNotice: 'This item is sold — contact details are no longer available.',
+    safetyTip: 'Keep conversations and payments here until you have met or verified the item — never pay a deposit up front.',
     watchPrice: 'Watch price',
     watchingPrice: 'Watching price',
     priceWatchers: 'watching',

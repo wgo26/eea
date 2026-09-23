@@ -258,6 +258,7 @@ export default async function ListingPage({ params }: ListingPageProps) {
                                 unavailable: dict.buySell.contactUnavailable,
                                 loading: dict.buySell.contactLoading,
                                 soldNotice: dict.buySell.soldContactNotice,
+                                safetyTip: dict.buySell.safetyTip,
                             }}
                         />
                     </div>

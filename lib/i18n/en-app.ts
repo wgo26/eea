@@ -225,6 +225,12 @@ export const appStringsEn = {
       signIn: 'Sign in to message sellers.',
       sold: 'This listing is no longer active.',
       startConversation: 'Message seller',
+      expectation: 'Replies usually come within 2 days.',
+      block: 'Block',
+      unblock: 'Unblock',
+      blockConfirm: 'Block this person? They can no longer message you and this conversation leaves your inbox.',
+      blockedNotice: 'You blocked this person — they can no longer send you messages.',
+      blockError: 'Could not update this block. Please try again.',
     },
     dashboard: {
       staffKicker: 'Editorial workspace',

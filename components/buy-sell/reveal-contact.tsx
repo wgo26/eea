@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Eye, EyeOff, Loader2, Mail, MessageCircle, Phone } from "lucide-react";
+import { Eye, EyeOff, Loader2, Mail, MessageCircle, Phone, ShieldAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { whatsappHref } from "@/lib/format";
@@ -26,6 +26,7 @@ type RevealContactProps = {
         unavailable: string;
         loading: string;
         soldNotice: string;
+        safetyTip: string;
     };
 };
 
@@ -177,6 +178,10 @@ export function RevealContact({
                     ) : null}
                 </>
             )}
+            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span>{labels.safetyTip}</span>
+            </p>
         </div>
     );
 }

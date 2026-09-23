@@ -33,6 +33,8 @@ export type ThreadDetail = {
   contentItemId: string
   listingTitle: string
   otherName: string | null
+  otherUserId: string
+  blockedByMe: boolean
   messages: ThreadMessage[]
 }
 
@@ -71,6 +73,13 @@ export async function startConversation(
   const { sellerId } = await listingSeller(contentItemId)
   if (!sellerId) return { ok: false, error: 'Seller not found.' }
   if (sellerId === user.id) return { ok: false, error: 'This is your own listing.' }
+  // W14 safety: a block in either direction freezes new conversations. The
+  // error stays generic so the blocked party is never told who blocked whom.
+  const { data: blockedPair } = await supabase.rpc('is_blocked_between', {
+    a: user.id,
+    b: sellerId,
+  })
+  if (blockedPair === true) return { ok: false, error: 'Could not start the conversation.' }
   const { data: existing } = await supabase
     .from(CONVERSATIONS_TABLE)
     .select('id')
@@ -95,14 +104,27 @@ export async function getInbox(): Promise<ConversationSummary[]> {
   const { data } = await supabase
     .from(CONVERSATIONS_TABLE)
     .select(
-      `id, content_item_id, updated_at,
+      `id, content_item_id, buyer_id, seller_id, updated_at,
        content:content_items(translations:content_translations(title)),
        messages:listing_conversation_messages(body, created_at)`,
     )
     .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
     .order('updated_at', { ascending: false })
     .limit(50)
-  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+  // W14: the blocker stops seeing threads they blocked (the blocked party is
+  // not notified — hiding there too would itself reveal the block).
+  const { data: myBlocks } = await supabase
+    .from('user_blocks')
+    .select('blocked_id')
+    .eq('blocker_id', user.id)
+    .limit(500)
+  const hidden = new Set(((myBlocks ?? []) as { blocked_id: string }[]).map((b) => b.blocked_id))
+  return ((data ?? []) as unknown as Record<string, unknown>[])
+    .filter((row) => {
+      const other = (row.buyer_id === user.id ? row.seller_id : row.buyer_id) as string
+      return !hidden.has(other)
+    })
+    .map((row) => {
     const content = (Array.isArray(row.content) ? row.content[0] : row.content) as {
       translations?: { title?: string | null } | { title?: string | null }[] | null
     } | null
@@ -137,6 +159,12 @@ export async function getThread(conversationId: string): Promise<ThreadDetail | 
   if (!row) return null
   if (row.buyer_id !== user.id && row.seller_id !== user.id) return null
   const otherId = row.buyer_id === user.id ? (row.seller_id as string) : (row.buyer_id as string)
+  const { data: myBlock } = await supabase
+    .from('user_blocks')
+    .select('id')
+    .eq('blocker_id', user.id)
+    .eq('blocked_id', otherId)
+    .maybeSingle()
   const { data: profile } = await supabase
     .from('profiles')
     .select('display_name, full_name')
@@ -159,6 +187,8 @@ export async function getThread(conversationId: string): Promise<ThreadDetail | 
     contentItemId: row.content_item_id as string,
     listingTitle: list[0]?.title ?? 'Listing',
     otherName: p?.display_name ?? p?.full_name ?? null,
+    otherUserId: otherId,
+    blockedByMe: Boolean(myBlock),
     messages: ((msgs ?? []) as { id: string; sender_id: string; body: string; created_at: string }[]).map((m) => ({
       id: m.id,
       senderId: m.sender_id,
@@ -183,6 +213,11 @@ export async function sendMessage(conversationId: string, body: string): Promise
   if (!row || (row.buyer_id !== user.id && row.seller_id !== user.id)) {
     return { ok: false, error: 'Conversation not found.' }
   }
+  // W14: blocks in either direction freeze the channel (enforced before every
+  // insert, per the user_blocks migration); the message stays non-revealing.
+  const other = row.buyer_id === user.id ? row.seller_id : row.buyer_id
+  const { data: blockedPair } = await supabase.rpc('is_blocked_between', { a: user.id, b: other })
+  if (blockedPair === true) return { ok: false, error: 'Conversation not found.' }
   const { error } = await supabase.from(MESSAGES_TABLE).insert({
     conversation_id: conversationId,
     sender_id: user.id,
@@ -190,6 +225,56 @@ export async function sendMessage(conversationId: string, body: string): Promise
   })
   if (error) return { ok: false, error: error.message }
   await supabase.from(CONVERSATIONS_TABLE).update({ updated_at: new Date().toISOString() }).eq('id', conversationId)
+  revalidatePath('/account/messages', 'page')
+  return { ok: true }
+}
+
+/**
+ * W14 private safety controls. A block is unilateral: the row is RLS-scoped
+ * to the blocker, the blocked party gets no notification (start/send fail
+ * generically via `is_blocked_between`), and the thread leaves the blocker's
+ * inbox. Each action appends a moderation_log row (member insert policy from
+ * the user_blocks migration) so trust & safety can audit safety events — the
+ * audit is best-effort: a failed log must never keep a harassment victim from
+ * blocking.
+ */
+export async function blockUser(blockedId: string): Promise<ActionResult> {
+  const { supabase, user } = await getSessionUser()
+  if (!user) return { ok: false, error: 'Not authenticated.' }
+  if (!blockedId || blockedId === user.id) return { ok: false, error: 'Could not update this block.' }
+  const { error } = await supabase
+    .from('user_blocks')
+    .upsert(
+      { blocker_id: user.id, blocked_id: blockedId },
+      { onConflict: 'blocker_id,blocked_id', ignoreDuplicates: true },
+    )
+  if (error) return { ok: false, error: 'Could not update this block.' }
+  await supabase.from('moderation_log').insert({
+    action: 'user_block',
+    actor_id: user.id,
+    entity_type: 'user',
+    entity_id: blockedId,
+  })
+  revalidatePath('/account/messages', 'page')
+  return { ok: true }
+}
+
+export async function unblockUser(blockedId: string): Promise<ActionResult> {
+  const { supabase, user } = await getSessionUser()
+  if (!user) return { ok: false, error: 'Not authenticated.' }
+  if (!blockedId || blockedId === user.id) return { ok: false, error: 'Could not update this block.' }
+  const { error } = await supabase
+    .from('user_blocks')
+    .delete()
+    .eq('blocker_id', user.id)
+    .eq('blocked_id', blockedId)
+  if (error) return { ok: false, error: 'Could not update this block.' }
+  await supabase.from('moderation_log').insert({
+    action: 'user_unblock',
+    actor_id: user.id,
+    entity_type: 'user',
+    entity_id: blockedId,
+  })
   revalidatePath('/account/messages', 'page')
   return { ok: true }
 }

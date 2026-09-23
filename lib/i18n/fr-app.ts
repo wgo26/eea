@@ -224,6 +224,12 @@ export const appStringsFr = {
       signIn: 'Connectez-vous pour écrire aux vendeurs.',
       sold: 'Cette annonce n’est plus active.',
       startConversation: 'Écrire au vendeur',
+      expectation: 'Réponse généralement sous 2 jours.',
+      block: 'Bloquer',
+      unblock: 'Débloquer',
+      blockConfirm: 'Bloquer cette personne ? Elle ne pourra plus vous écrire et la conversation quittera votre boîte de réception.',
+      blockedNotice: 'Vous avez bloqué cette personne — elle ne peut plus vous écrire.',
+      blockError: 'Impossible de modifier ce blocage. Veuillez réessayer.',
     },
     dashboard: {
       staffKicker: 'Espace éditorial',
