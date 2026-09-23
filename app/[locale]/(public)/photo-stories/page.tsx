@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Camera, Eye, Images, MapPin } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
+import { PlaceRail } from "@/components/place/place-rail";
 import { SectionHeader } from "@/components/home/section-header";
 import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { FeaturedSpotlight } from "@/components/photo-stories/featured-spotlight";
@@ -205,6 +206,9 @@ export default async function PhotoStoriesPage({
                     />
                 </section>
             ) : null}
+
+            {/* W16 — place rail: the reader's chosen place, scoped to photo stories. */}
+            <PlaceRail locale={locale} dict={dict} kind="photo_story" sectionPath="/photo-stories" />
 
             {/* Category filter — unified FacetFilter */}
             {categories.length > 0 ? (

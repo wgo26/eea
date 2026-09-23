@@ -28,6 +28,7 @@ import {
 } from "@/lib/queries/notices";
 import { getLocationsByContentType } from "@/lib/queries/locations";
 import { FacetFilter } from "@/components/shared/facet-filter";
+import { PlaceRail } from "@/components/place/place-rail";
 import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
 import { LocationProvider } from "@/hooks/use-location-context";
 
@@ -219,6 +220,9 @@ export default async function NoticesPage({
                     </Link>
                 </section>
             ) : null}
+
+            {/* W16 — place rail: the reader's chosen place, scoped to notices. */}
+            <PlaceRail locale={locale} dict={dict} kind="notice" sectionPath="/notices" />
 
             {/* Notice type filter */}
             {types.length > 0 ? (

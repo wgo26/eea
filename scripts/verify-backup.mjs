@@ -1,14 +1,19 @@
 /**
  * Phase 3.2 — Backup integrity verification & restore drill (audit §5.1).
+ * Phase 5 — added `db` mode (pg_dump freshness from the `db_dumps` ledger).
  *
  * Usage:
- *   node scripts/verify-backup.mjs [--batch=50] [--mode=verify|drill] [--key=<storage_key>] [--out=./.tmp/restore]
+ *   node scripts/verify-backup.mjs [--batch=50] [--mode=verify|drill|db] [--key=<storage_key>] [--out=./.tmp/restore]
  *
  * - verify (default): checks the N oldest mirrored-but-unverified media_assets
  *   rows — downloads source (R2 / Supabase Storage) + B2 copy, compares SHA-256,
  *   prints a table. Exit 1 on any mismatch/error so CI can gate on it.
  * - drill: restores ONE B2 object to disk (--key required, or the oldest
  *   verified row) and confirms its hash matches media_assets.backup_sha256.
+ * - db: checks the `db_dumps` ledger — latest successful pg_dump must be
+ *   newer than 48 h (daily 02:45 cron + slack) and carry a sha256. Exit 1
+ *   when stale or absent, so an uptime monitor or CI step can alert on a
+ *   silently dead dump pipeline. Never downloads dump bodies.
  *
  * Env required: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
  * R2_ACCOUNT_ID/ACCESS/SECRET/BUCKET, B2_KEY_ID/APPLICATION_KEY/BACKUP_BUCKET/ENDPOINT,
@@ -82,7 +87,33 @@ async function fetchRows() {
   return data ?? [];
 }
 
-if (mode === 'drill') {
+if (mode === 'db') {
+  const { data, error } = await supabase
+    .from('db_dumps')
+    .select('filename, sha256, size_bytes, created_at, expires_at')
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) {
+    console.error(`db_dumps query failed: ${error.message}`);
+    process.exit(1);
+  }
+  const latest = (data ?? [])[0];
+  if (!latest) {
+    console.error('No pg_dump artifact on record — the 02:45 db-dump cron has never succeeded.');
+    process.exit(1);
+  }
+  const ageH = (Date.now() - new Date(latest.created_at).getTime()) / 3_600_000;
+  console.log(`latest: ${latest.filename}  size=${latest.size_bytes}  sha=${String(latest.sha256).slice(0, 16)}  created=${latest.created_at}  age=${ageH.toFixed(1)}h`);
+  if (!latest.sha256) {
+    console.error('MISSING sha256 on the latest dump row.');
+    process.exit(1);
+  }
+  if (ageH > 48) {
+    console.error(`STALE: latest dump is ${ageH.toFixed(1)}h old (limit 48h) — db-dump pipeline is silently dead.`);
+    process.exit(1);
+  }
+  console.log('OK: pg_dump pipeline fresh (< 48h) with recorded checksum.');
+} else if (mode === 'drill') {
   const rows = await fetchRows();
   const row = onlyKey ? rows[0] : rows[0];
   if (!row) {

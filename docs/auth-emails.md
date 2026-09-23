@@ -52,8 +52,15 @@ the Dashboard:
    without this.
 3. **Custom SMTP** (Project Settings → Auth / SMTP): Supabase's built-in mailer
    is rate-limited test mail. Configure a production sender (e.g. SendGrid,
-   Resend, SES) with SPF/DKIM before launch, or signup confirmations and
-   password resets will throttle or land in spam.
+   Resend, SES) with **SPF + DKIM + DMARC** before launch, or signup
+   confirmations and password resets will throttle or land in spam. Publish a
+   DMARC record even before enforcement (e.g. `v=DMARC1; p=none;
+   rua=mailto:postmaster@<domain>`), then move to `p=quarantine` once legit
+   mail authenticates — without DMARC, exact-domain spoofing of your
+   confirmations is trivially phishable. The app's own notify SMTP (`SMTP_*`
+   in `.env.example`, same host) inherits the same records — verify both
+   senders with a mailbox test before go-live (`deploy/hostinger-business.md`
+   requires SPF/DKIM/DMARC pass).
 
 Afterwards, send yourself a test signup + password reset (in both locales) and
 confirm the links land on `/auth/callback` and return to the right locale.

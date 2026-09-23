@@ -21,6 +21,7 @@ import {
 } from "@/components/home/home-sections";
 import { HomeDegradedNotice } from "@/components/home/home-degraded-notice";
 import { HomeNearYouClient } from "@/components/home/home-near-you-client";
+import { ContinueReadingRail } from "@/components/home/continue-reading-rail";
 
 type LocaleHomePageProps = { params: Promise<{ locale: string }> };
 
@@ -99,6 +100,11 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
             <Suspense fallback={<GridSkeleton cards={3} />}>
                 <HomeNearYouClient locale={locale} dict={dict} />
             </Suspense>
+
+            {/* W16 — "Continue reading": the device-local history (written by
+                RecordRecentView on detail pages) surfaced where the next
+                reading decision happens. Renders nothing for a first visit. */}
+            <ContinueReadingRail locale={locale} dict={dict} />
 
             <Suspense fallback={<AdSkeleton />}>
                 <HomeBannerAd locale={locale} dict={dict} />

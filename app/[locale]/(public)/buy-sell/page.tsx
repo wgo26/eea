@@ -25,6 +25,7 @@ import {
 } from "@/lib/queries/buy-sell";
 import { getLocationsByContentType } from "@/lib/queries/locations";
 import { FacetFilter } from "@/components/shared/facet-filter";
+import { PlaceRail } from "@/components/place/place-rail";
 import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
 import { LocationProvider } from "@/hooks/use-location-context";
 
@@ -170,6 +171,11 @@ export default async function BuySellPage({
                     {dict.buySell.intro}
                 </p>
             </header>
+
+            {/* W16 — place rail: the reader's chosen place, scoped to listings. */}
+            <div className="mt-8">
+                <PlaceRail locale={locale} dict={dict} kind="listing" sectionPath="/buy-sell" />
+            </div>
 
             <FacetFilter
                 locale={locale}

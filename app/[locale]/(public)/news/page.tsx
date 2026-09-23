@@ -34,6 +34,7 @@ import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
 import { getFundraisers, getFundraiserStats } from "@/lib/queries/fundraisers";
 import { FacetFilter } from "@/components/shared/facet-filter";
+import { PlaceRail } from "@/components/place/place-rail";
 import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
 import { getActivePolls } from "@/lib/queries/polls";
 import {
@@ -285,6 +286,9 @@ export default async function NewsPage({
                     </div>
                 </section>
             ) : null}
+
+            {/* W16 — place rail: the reader's chosen place, scoped to news. */}
+            <PlaceRail locale={locale} dict={dict} kind="news" sectionPath="/news" />
 
             {/* Unified facet filters — sticky under the site header on desktop, drawer on mobile */}
             {(categories.length > 0 || locations.length > 0) ? (

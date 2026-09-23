@@ -288,5 +288,31 @@ export function normalizeBloggerBody(html: string): string {
     out = next
   }
 
+  // Phase 5 — import-time weight discipline (low-bandwidth audience): Blogger
+  // originals keep their remote <img src> (no re-hosting), so bound the damage
+  // at ingestion — cap image count, lazy-load everything past the lead image.
+  // The sanitizer at the render boundary is the XSS layer, not this function.
+  out = capImportedImages(out)
+
   return out.trim()
+}
+
+/**
+ * Phase 5 — imported bodies can ship dozens of multi-MB remote JPEGs. Keep
+ * the first MAX_IMPORTED_IMAGES <img> elements, drop the rest, and mark every
+ * image past the lead `loading="lazy" decoding="async"` (unless the author
+ * already set loading). Idempotent.
+ */
+export const MAX_IMPORTED_IMAGES = 10
+
+export function capImportedImages(html: string, max = MAX_IMPORTED_IMAGES): string {
+  let kept = 0
+  return html.replace(/<img\b[^>]*>/gi, (tag) => {
+    kept += 1
+    if (kept > max) return ''
+    if (kept > 1 && !/\bloading\s*=/i.test(tag)) {
+      return tag.replace(/<img\b/i, '<img loading="lazy" decoding="async"')
+    }
+    return tag
+  })
 }

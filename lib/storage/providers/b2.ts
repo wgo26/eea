@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { storageConfig } from '../config'
 
 let client: S3Client | null = null
@@ -57,4 +57,15 @@ export async function headBackupObject(storageKey: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+/**
+ * Phase 5 — delete a backup object (retention enforcement for expired
+ * pg_dump artifacts). Never called from interactive paths — only the
+ * db-dump cron prunes rows past `db_dumps.expires_at`.
+ */
+export async function deleteFromB2(storageKey: string): Promise<void> {
+  await getClient().send(
+    new DeleteObjectCommand({ Bucket: storageConfig.b2.bucket, Key: storageKey })
+  )
 }

@@ -91,6 +91,37 @@ async function runDbDump(request: Request) {
       correlation_id: correlationId,
     });
 
+    // Phase 5 — retention enforcement (migration 20261015000001 sets
+    // expires_at = created + 30d): delete expired artifacts from B2 and
+    // their rows, bounded per run. Best-effort — never fails the dump.
+    let pruned = 0;
+    try {
+      const { data: expired } = await supabase
+        .from("db_dumps")
+        .select("filename")
+        .lt("expires_at", new Date().toISOString())
+        .limit(20);
+      const { deleteFromB2 } = await import("@/lib/storage/providers/b2");
+      for (const row of ((expired ?? []) as { filename: string }[])) {
+        try {
+          await deleteFromB2(`db-dumps/${row.filename}`);
+          await supabase.from("db_dumps").delete().eq("filename", row.filename);
+          pruned += 1;
+        } catch (pruneErr) {
+          logger.warn("cron/db-dump", "retention prune failed", {
+            correlationId,
+            filename: row.filename,
+            error: pruneErr instanceof Error ? pruneErr.message : String(pruneErr),
+          });
+        }
+      }
+    } catch (pruneErr) {
+      logger.warn("cron/db-dump", "retention prune lookup failed", {
+        correlationId,
+        error: pruneErr instanceof Error ? pruneErr.message : String(pruneErr),
+      });
+    }
+
     const durationMs = Date.now() - startedAt;
     logger.info("cron/db-dump", "dump completed", {
       correlationId,
@@ -108,6 +139,7 @@ async function runDbDump(request: Request) {
       filename: dumpName,
       sizeBytes: uploadSize,
       sha256: uploadHash,
+      prunedExpired: pruned,
     });
   } catch (err) {
     const durationMs = Date.now() - startedAt;
