@@ -113,6 +113,14 @@ jobs:
         if: env.NEXT_PUBLIC_SUPABASE_URL == '' || env.SUPABASE_SERVICE_ROLE_KEY == ''
         run: echo "Supabase URL/service key not set — generated-type drift check skipped."
 
+      # W17 — schema lint (plpgsql bodies, unused objects, RPC types) needs a DB
+      # connection, so it is enforced only where the secret exists. Without it
+      # scripts/verify-db-lint.mjs prints an explicit skip and exits 0.
+      - name: Supabase DB lint (requires SUPABASE_DB_URL, else skipped)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: npm run verify:db-lint
+
       # Phase 5.3 — the vitest suite includes lib/i18n/parity.test.ts, the
       # automated EN/FR edge-case matrix: dictionary key parity at every depth,
       # no empty/whitespace strings, equal array lengths, two-locale sitemap
