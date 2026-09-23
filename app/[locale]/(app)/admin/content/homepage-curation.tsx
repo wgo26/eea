@@ -4,15 +4,8 @@ import { useCallback, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import {
-  assignHomepageSlot,
-  toggleSlotActive,
-  createHomepageSlot,
-  deleteHomepageSlot,
-  reorderHomepageSlot,
-  updateHomepageSlotWindow,
-  searchContentForSlot,
-} from '@/lib/admin/actions'
+import { assignHomepageSlot, toggleSlotActive, createHomepageSlot, deleteHomepageSlot, reorderHomepageSlot, updateHomepageSlotWindow } from '@/lib/admin/actions/slots'
+import { searchContentForSlot } from '@/lib/admin/actions/content'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import {

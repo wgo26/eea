@@ -70,6 +70,27 @@ describe("Daily Brief (Differentiator #9)", () => {
         expect(fr.body).toContain("STOP");
     });
 
+    it("frames the diaspora variant as home-today without changing stories (W18)", () => {
+        const sections = groupBriefStories([story({ title: "News", type: "news", path: "/news/n" })]);
+        const opts = {
+            dateLabel: "2026-09-21",
+            siteUrl: "https://example.org",
+            digestPath: "/en/digest",
+        } as const;
+        const standard = buildDailyBrief(sections, { ...opts, locale: "en" });
+        const diaspora = buildDailyBrief(sections, { ...opts, locale: "en", framing: "diaspora" });
+        expect(standard.body).toContain("TODAY'S EAGLE EYE");
+        expect(diaspora.body).toContain("HOME, TODAY");
+        expect(diaspora.body).toContain("https://example.org/news/n");
+        const frDiaspora = buildDailyBrief(sections, {
+            ...opts,
+            locale: "fr",
+            digestPath: "/fr/digest",
+            framing: "diaspora",
+        });
+        expect(frDiaspora.body).toContain("LE PAYS");
+    });
+
     it("truncates to the template-safe cap", () => {
         const sections = groupBriefStories(
             Array.from({ length: 30 }, (_, i) =>

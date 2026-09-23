@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { queueStorageVerification } from '@/lib/admin/actions'
+import { queueStorageVerification } from '@/lib/admin/actions/storage'
 import type { Dictionary } from '@/lib/i18n'
 
 export function VerificationActions({ copy }: { copy: Dictionary['admin']['storage'] }) {

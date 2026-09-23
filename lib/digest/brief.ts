@@ -80,6 +80,16 @@ export type BriefCopy = {
     stopLine: string;
 };
 
+/**
+ * W18 — diaspora framing ("home, today"): same stories, memory-oriented
+ * heading for readers following home from abroad. Keyed off the
+ * subscriber's `diaspora_mode` flag at delivery, not the pitch experiment.
+ */
+const DIASPORA_HEADING: Record<"en" | "fr", string> = {
+    en: "EAGLE EYE — HOME, TODAY",
+    fr: "EAGLE EYE — LE PAYS, AUJOURD'HUI",
+};
+
 const COPY: Record<"en" | "fr", BriefCopy> = {
     en: {
         heading: "TODAY'S EAGLE EYE",
@@ -116,10 +126,11 @@ export const BRIEF_MAX_CHARS = 1500;
 
 export function buildDailyBrief(
     sections: BriefSections,
-    options: { locale: "en" | "fr"; dateLabel: string; siteUrl: string; digestPath: string },
+    options: { locale: "en" | "fr"; dateLabel: string; siteUrl: string; digestPath: string; framing?: "standard" | "diaspora" },
 ): { title: string; body: string } {
     const copy = COPY[options.locale];
-    const lines: string[] = [`*${copy.heading} — ${options.dateLabel}*`];
+    const heading = options.framing === "diaspora" ? DIASPORA_HEADING[options.locale] : copy.heading;
+    const lines: string[] = [`*${heading} — ${options.dateLabel}*`];
     for (const { key, emoji, labelKey } of SECTION_META) {
         const stories = sections[key];
         if (stories.length === 0) continue;

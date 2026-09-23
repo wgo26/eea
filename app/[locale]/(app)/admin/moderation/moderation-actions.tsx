@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { approveSubmission, deleteSubmission, rejectSubmission } from '@/lib/admin/actions'
+import { approveSubmission, deleteSubmission, rejectSubmission } from '@/lib/admin/actions/moderation'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { useToast } from '@/components/admin/toast'
 import type { Dictionary } from '@/lib/i18n'

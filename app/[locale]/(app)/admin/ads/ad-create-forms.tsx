@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createAdSlot, createAdvertiser, createAdCampaign } from '@/lib/admin/actions'
+import { createAdSlot, createAdvertiser, createAdCampaign } from '@/lib/admin/actions/ads'
 import { useToast } from '@/components/admin/toast'
 import { MediaUploader, type UploadedPhoto } from '@/components/admin/media-uploader'
 import type { Dictionary } from '@/lib/i18n'

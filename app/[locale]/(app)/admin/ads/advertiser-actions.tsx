@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { deleteAdvertiser, updateAdvertiser } from '@/lib/admin/actions'
+import { deleteAdvertiser, updateAdvertiser } from '@/lib/admin/actions/ads'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import {
   Dialog,

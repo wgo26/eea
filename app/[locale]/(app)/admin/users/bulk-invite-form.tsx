@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { bulkInviteUsers } from '@/lib/admin/actions'
+import { bulkInviteUsers } from '@/lib/admin/actions/users'
 import { useToast } from '@/components/admin/toast'
 import type { Dictionary } from '@/lib/i18n'
 

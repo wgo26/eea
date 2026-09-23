@@ -2,14 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  approveSubmissionWithContent,
-  rejectSubmission,
-  updateSubmissionNotes,
-  requestClarification,
-  reopenSubmission,
-} from '@/lib/admin/actions'
-import type { ContentDraftInput } from '@/lib/admin/actions'
+import { approveSubmissionWithContent, rejectSubmission, updateSubmissionNotes, requestClarification, reopenSubmission } from '@/lib/admin/actions/moderation'
+import type { ContentDraftInput } from '@/lib/admin/actions/content'
 import { useToast } from '@/components/admin/toast'
 import {
   Dialog,

@@ -180,6 +180,8 @@ export type DigestSubscriber = {
   whatsapp: string | null;
   locale: string | null;
   diasporaMode: boolean;
+  /** W18 (H6) — subscribe-form pitch variant attribution. */
+  pitchVariant: 'standard' | 'diaspora';
   isActive: boolean;
 };
 
@@ -187,7 +189,7 @@ export async function getDigestSubscribers(limit = 100): Promise<DigestSubscribe
   const supabase = createAdminClient();
   const { data } = await supabase
     .from('digest_subscribers')
-    .select('id, email, phone, whatsapp, locale, diaspora_mode, is_active')
+    .select('id, email, phone, whatsapp, locale, diaspora_mode, pitch_variant, is_active')
     .order('created_at', { ascending: false })
     .limit(limit);
   return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
@@ -197,6 +199,29 @@ export async function getDigestSubscribers(limit = 100): Promise<DigestSubscribe
     whatsapp: (row.whatsapp as string | null) ?? null,
     locale: (row.locale as string | null) ?? null,
     diasporaMode: Boolean(row.diaspora_mode),
+    pitchVariant: row.pitch_variant === 'diaspora' ? 'diaspora' : 'standard',
     isActive: Boolean(row.is_active),
   }));
+}
+
+/**
+ * W18 (H6) experiment readout — signups per pitch variant over the trailing
+ * window. Client-side bucketing keeps the subscriber table small, so the
+ * bucketing happens in code, not SQL.
+ */
+export async function getDigestPitchStats(days = 30): Promise<{ standard: number; diaspora: number; since: string }> {
+  const supabase = createAdminClient();
+  const since = new Date(Date.now() - days * 24 * 3600_000).toISOString();
+  const { data } = await supabase
+    .from('digest_subscribers')
+    .select('pitch_variant')
+    .gte('created_at', since)
+    .limit(5000);
+  let standard = 0;
+  let diaspora = 0;
+  for (const row of ((data ?? []) as { pitch_variant: string | null }[])) {
+    if (row.pitch_variant === 'diaspora') diaspora += 1;
+    else standard += 1;
+  }
+  return { standard, diaspora, since };
 }

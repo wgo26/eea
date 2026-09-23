@@ -175,3 +175,18 @@ export function previewImageUrl(
   }
   return null;
 }
+
+/**
+ * Resolve a display image URL with fallback chain:
+ * 1. Specific display image if provided
+ * 2. Site logo as fallback
+ * 3. Platform default image as last resort
+ */
+export function resolveDisplayImage(
+  displayImageUrl: string | null | undefined,
+  siteLogoUrl: string | null | undefined,
+): string {
+  if (displayImageUrl?.trim()) return displayImageUrl.trim();
+  if (siteLogoUrl?.trim()) return siteLogoUrl.trim();
+  return '/images/default-display.jpg';
+}

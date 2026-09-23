@@ -15,7 +15,7 @@
     "test": "vitest run",
     "test:rls": "node scripts/rls-harness.mjs && vitest run tests/integration",
     "test:e2e": "playwright test",
-    "check": "tsc --noEmit && eslint . && node scripts/find-bare-hrefs.mjs && node scripts/find-bg-images.mjs && node scripts/find-tiny-text.mjs && node scripts/verify-sitemap.mjs && node scripts/verify-migrations.mjs && node scripts/verify-crons.mjs && node scripts/verify-server-actions.mjs && node scripts/verify-anon-bundle.mjs && node scripts/verify-client-dictionary.mjs && node scripts/verify-unstable-cache.mjs && node scripts/verify-admin-lib-size.mjs",
+    "check": "tsc --noEmit && eslint . && node scripts/find-bare-hrefs.mjs && node scripts/find-bg-images.mjs && node scripts/find-tiny-text.mjs && node scripts/verify-sitemap.mjs && node scripts/verify-migrations.mjs && node scripts/verify-crons.mjs && node scripts/verify-server-actions.mjs && node scripts/verify-anon-bundle.mjs && node scripts/verify-client-dictionary.mjs && node scripts/verify-unstable-cache.mjs && node scripts/verify-db-lint.mjs && node scripts/verify-admin-lib-size.mjs",
     "types:db": "node scripts/generate-database-types.mjs",
     "verify:types": "node scripts/generate-database-types.mjs --check",
     "verify:posture": "node scripts/verify-security-posture.mjs",

@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { isRole } from '@/lib/auth/roles'
-import { AppRole, db, safe } from './shared'
+import { AppRole, db, hasDatabase, safe } from './shared'
 
 /* ------------------------------------------------------------------ */
 /* Users                                                              */
@@ -26,6 +26,7 @@ export type UserRow = {
 }
 
 export async function getUsers(options?: { search?: string; role?: AppRole | 'all'; status?: 'all' | 'active' | 'suspended' | 'banned'; limit?: number; page?: number }): Promise<{ rows: UserRow[]; total: number }> {
+  if (!hasDatabase()) return { rows: [], total: 0 }
   const search = options?.search?.trim()
   const role = options?.role ?? 'all'
   const limit = options?.limit ?? 50
@@ -100,6 +101,7 @@ export type UserDetail = {
  * mapping), recent submissions filed by the user, and content they authored.
  */
 export async function getUserDetail(userId: string): Promise<UserDetail | null> {
+  if (!hasDatabase()) return null
   const profileRes = await safe(
     db()
       .from('profiles')
@@ -237,6 +239,7 @@ export async function getAdSlots(options?: {
   limit?: number
   offset?: number
 }): Promise<{ rows: AdSlotRow[]; total: number }> {
+  if (!hasDatabase()) return { rows: [], total: 0 }
   const search = options?.search?.trim() ?? ''
   const limit = options?.limit ?? 20
   const offset = options?.offset ?? 0
@@ -350,6 +353,7 @@ export async function getAdvertisers(options?: {
   limit?: number
   offset?: number
 }): Promise<{ rows: AdvertiserRow[]; total: number }> {
+  if (!hasDatabase()) return { rows: [], total: 0 }
   const search = options?.search?.trim() ?? ''
   const limit = options?.limit ?? 20
   const offset = options?.offset ?? 0
@@ -396,6 +400,7 @@ export async function getPendingAdInquiries(options?: {
   limit?: number
   offset?: number
 }): Promise<{ rows: AdInquiryRow[]; total: number }> {
+  if (!hasDatabase()) return { rows: [], total: 0 }
   const search = options?.search?.trim() ?? ''
   const limit = options?.limit ?? 20
   const offset = options?.offset ?? 0
@@ -434,6 +439,7 @@ export async function getCampaigns(options?: {
   limit?: number
   offset?: number
 }): Promise<{ rows: AdCampaignRow[]; total: number }> {
+  if (!hasDatabase()) return { rows: [], total: 0 }
   const search = options?.search?.trim() ?? ''
   const status = options?.status ?? 'all'
   const limit = options?.limit ?? 20

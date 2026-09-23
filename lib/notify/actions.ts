@@ -280,6 +280,9 @@ export async function subscribeDigest(_prev: ActionResult, formData: FormData): 
     // the flag is persisted for packaging (memory-oriented subject framing
     // is a follow-up) and surfaced in the admin subscriber list.
     const diasporaMode = formData.get('diaspora_mode') === 'on';
+    // W18 (H6) — pitch-variant attribution for the subscribe-form experiment.
+    // Allow-listed to the two registry variants; anything else is standard.
+    const pitchVariant = formData.get('pitch_variant') === 'diaspora' ? 'diaspora' : 'standard';
     if (!email && !whatsapp) return { ok: false, error: 'invalid' };
 
     const supabase = createAdminClient();
@@ -289,7 +292,7 @@ export async function subscribeDigest(_prev: ActionResult, formData: FormData): 
       if (row?.id) {
         const { error } = await supabase
           .from('digest_subscribers')
-          .update({ phone: whatsapp, whatsapp, locale, diaspora_mode: diasporaMode, is_active: true })
+          .update({ phone: whatsapp, whatsapp, locale, diaspora_mode: diasporaMode, pitch_variant: pitchVariant, is_active: true })
           .eq('id', row.id);
         if (error) return { ok: false, error: error.message };
         return { ok: true };
@@ -301,6 +304,7 @@ export async function subscribeDigest(_prev: ActionResult, formData: FormData): 
       whatsapp,
       locale,
       diaspora_mode: diasporaMode,
+      pitch_variant: pitchVariant,
       is_active: true,
     });
     if (error) return { ok: false, error: error.message };

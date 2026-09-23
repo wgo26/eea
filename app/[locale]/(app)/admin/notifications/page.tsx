@@ -7,7 +7,7 @@ import { EmptyState } from '@/components/admin/empty-state'
 import { DataTable } from '@/components/admin/data-table'
 import { formatRelative } from '@/lib/admin/format'
 import { channelStatus } from '@/lib/notify/channels'
-import { getDigestSubscribers, getOutboxQueue, getOutboxStats } from '@/lib/notify/queries'
+import { getDigestPitchStats, getDigestSubscribers, getOutboxQueue, getOutboxStats } from '@/lib/notify/queries'
 import { NotificationQueueActions, OutboxRowActions, SubscriberToggle } from './queue-actions'
 
 export async function generateMetadata(): Promise<{ title: string }> {
@@ -37,10 +37,11 @@ export default async function Page() {
   const dict = getDictionary(locale)
   const t = dict.admin.notifications
 
-  const [outbox, stats, subscribers, channels] = await Promise.all([
+  const [outbox, stats, subscribers, pitchStats, channels] = await Promise.all([
     getOutboxQueue(),
     getOutboxStats(),
     getDigestSubscribers(),
+    getDigestPitchStats(),
     Promise.resolve(channelStatus()),
   ])
   const queue = outbox.rows
@@ -104,6 +105,9 @@ export default async function Page() {
 
       <section>
         <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.subscribersHeading}</h2>
+        <p className="mb-2 text-xs text-muted-foreground">
+          {t.pitchSplit.replace('{standard}', String(pitchStats.standard)).replace('{diaspora}', String(pitchStats.diaspora))}
+        </p>
         {subscribers.length === 0 ? (
           <EmptyState message={t.emptySubscribers} />
         ) : (
@@ -111,7 +115,7 @@ export default async function Page() {
             rows={subscribers}
             rowKey={(r) => r.id}
             columns={[
-              { key: 'contact', header: t.colContact, render: (r) => <span className="text-xs">{r.whatsapp ?? r.phone ?? r.email ?? '—'}{r.diasporaMode ? <span className="ml-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">Diaspora</span> : null}</span> },
+              { key: 'contact', header: t.colContact, render: (r) => <span className="text-xs">{r.whatsapp ?? r.phone ?? r.email ?? '—'}{r.diasporaMode ? <span className="ml-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">Diaspora</span> : null}{r.pitchVariant === 'diaspora' ? <span className="ml-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300" title={t.pitchDiaspora}>✨</span> : null}</span> },
               { key: 'locale', header: t.colLocale, render: (r) => <span className="text-xs text-muted-foreground">{r.locale ?? '—'}</span> },
               { key: 'active', header: t.colActive, render: (r) => <SubscriberToggle id={r.id} isActive={r.isActive} />, className: 'text-right' },
             ]}

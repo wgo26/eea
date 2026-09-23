@@ -503,6 +503,20 @@ below.*
 
 ## Changelog
 
+- 2026-09-23 — **W17 code health closed + P3 quarterly bets shipped/triaged.**
+  `lib/admin/actions.ts` (4,085 lines) split into 13 per-domain Server Action
+  modules (`lib/admin/actions/`, largest 604 lines) with all 35 client import
+  sites repointed — no file in `lib/admin` exceeds the 800-line cap, so the
+  size-gate allowlist is deleted. Same pass: `queries-barrel.test.ts` fixed
+  (real export names, `hasDatabase()` guards on all `people.ts` reads),
+  `verify-db-lint` chained into `npm run check`, R13 cache-contract pin
+  (`locations-cache.test.ts`). Bets: W18 diaspora digest experiment + framing
+  + measurement, W19 WhatsApp-is-the-channel decision
+  (`docs/low-barrier-channel.md`), W20 anonymous content reactions (comments
+  deferred on the demand gate), W21 share-voice measurement (push + directory
+  triaged with build orders), W22 public changelog + contributor badges.
+  Verified: `tsc` clean, `npm run check` green, full vitest suite green
+  (details in `docs/LASTEST.MD` P2/P3 rows).
 - 2026-09-14 — **Security posture lockdown (P0-3/P0-4/P0-5).** Closed the three remaining
   P0 security items from the audit, each verified against a **live production server**
   (`next start` + a real HTTP smoke check), not just unit tests.

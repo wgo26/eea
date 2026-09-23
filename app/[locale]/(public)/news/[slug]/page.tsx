@@ -24,6 +24,7 @@ import { StoryCard } from "@/components/home/story-card";
 import { MediaBadge } from "@/components/media/media-attachment";
 import { AdaptiveImage } from "@/components/media/adaptive-image";
 import { SaveOfflineButton } from "@/components/system/save-offline-button";
+import { ReactionBar } from "@/components/news/reaction-bar";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { ArticleShare } from "@/components/news/article-share";
 import { CorrectionForm } from "@/components/news/correction-form";
@@ -314,6 +315,8 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                         xLabel={dict.news.shareX}
                         emailLabel={dict.news.shareEmail}
                         shareText={article.shareText ?? undefined}
+                        voiceType={article.voiceType ?? undefined}
+                        locale={locale}
                     />
                 </div>
             </header>
@@ -324,6 +327,8 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                 shareUrl={shareUrl}
                 title={article.title}
                 shareText={article.shareText ?? undefined}
+                voiceType={article.voiceType ?? undefined}
+                locale={locale}
                 saveLabel={dict.news.saveOffline}
                 savedLabel={dict.news.savedOffline}
                 offlineUnavailableLabel={dict.news.offlineUnavailable}
@@ -519,6 +524,12 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                                 saveLabel={dict.news.saveOffline}
                                 savedLabel={dict.news.savedOffline}
                                 unavailableLabel={dict.news.offlineUnavailable}
+                            />
+                            {/* W20 — anonymous reactions (spec §16 first slice). */}
+                            <ReactionBar
+                                contentItemId={article.id}
+                                likeLabel={dict.news.reactLike}
+                                helpfulLabel={dict.news.reactHelpful}
                             />
                         </CardContent>
                     </Card>

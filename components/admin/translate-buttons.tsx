@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { translateContentFields } from '@/lib/admin/actions'
+import { translateContentFields } from '@/lib/admin/actions/content'
 import { useToast } from '@/components/admin/toast'
 
 /**

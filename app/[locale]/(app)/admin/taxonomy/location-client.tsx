@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createLocation, updateLocation, deleteLocation, getLocationRedirects, deleteLocationRedirect } from '@/lib/admin/actions'
+import { createLocation, updateLocation, deleteLocation, getLocationRedirects, deleteLocationRedirect } from '@/lib/admin/actions/taxonomy'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import { useToast } from '@/components/admin/toast'
 import {

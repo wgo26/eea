@@ -11,9 +11,14 @@ import { logger } from '@/lib/observability/logger'
  *   - accepts ONLY: surface (allow-listed), locale (en|fr), place (slug)
  *   - stores counters keyed by (UTC day, surface, locale, place) — no path,
  *     referrer, UA, IP or user id is persisted anywhere
- *   - fail-open rate limiting (a limiter outage must not eat analytics) but
- *     a strict validation boundary: anything outside the contract is a 400
- *     and is never written
+ *   - fail-open rate limiting (a limiter outage must never eat analytics) but
+ *   a strict validation boundary: anything outside the contract is a 400
+ *   and is never written
+ *
+ * W21 — the `share-*` surfaces are share taps keyed by voice register, not
+ * pages. They carry no content id: the voice is a property of the tap, so
+ * the aggregate contract holds and insights can rank formal vs pidgin vs
+ * camfranglais sharing with zero schema change.
  */
 const SURFACES = new Set([
   'home',
@@ -30,6 +35,9 @@ const SURFACES = new Set([
   'about',
   'auth',
   'other',
+  'share-formal',
+  'share-pidgin',
+  'share-camfranglais',
 ])
 const LOCALES = new Set(['en', 'fr'])
 const SLUG_RE = /^[a-z0-9-]{1,64}$/

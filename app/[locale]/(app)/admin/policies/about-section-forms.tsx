@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { saveAboutSection } from '@/lib/admin/actions'
+import { saveAboutSection } from '@/lib/admin/actions/policies'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { localePath } from '@/lib/i18n/urls'

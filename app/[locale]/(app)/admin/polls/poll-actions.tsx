@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createPoll, updatePoll, deletePoll, exportPollResults, activatePoll, closePoll } from '@/lib/admin/actions'
+import { createPoll, updatePoll, deletePoll, exportPollResults, activatePoll, closePoll } from '@/lib/admin/actions/polls'
 import { useAdminMutation, ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { useToast } from '@/components/admin/toast'
 import {

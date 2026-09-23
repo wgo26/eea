@@ -20,6 +20,8 @@
 
 export type StoryBlock = {
   id: string;
+  /** Section type for modular content building */
+  type: "text" | "image" | "video" | "gallery" | "cta" | "divider";
   heading: string;
   body: string;
   imageUrl: string;
@@ -27,6 +29,17 @@ export type StoryBlock = {
   imageCaption: string;
   /** Visual pairing: image above the text, or floated beside it. */
   layout: "image-top" | "image-left" | "image-right";
+  // Video section fields
+  videoUrl?: string;
+  videoThumbnail?: string;
+  videoCaption?: string;
+  // Gallery section fields
+  galleryImages?: Array<{ url: string; alt?: string; caption?: string }>;
+  // CTA section fields
+  ctaText?: string;
+  ctaLink?: string;
+  // Metadata - whether this section contributes to excerpt generation
+  isSummary?: boolean;
 };
 
 const EN_STOP = new Set(
@@ -154,50 +167,147 @@ function paragraphsOf(body: string): string {
 }
 
 /**
- * Story blocks → sanitizer-safe HTML. Only h2/figure/img/figcaption/p are
- * emitted (the exact `sanitizeBodyHtml` allowlist), so a paired text+image
- * section survives ingestion AND render, gains TOC anchors (h2) and never
- * smuggles interactivity. Layouts map to inline `style` values the sanitizer
- * keeps (float/max-width); the public `article-body` prose styles the rest.
+ * Story blocks → sanitizer-safe HTML. Each block type produces different
+ * HTML structures. Only h2/figure/img/figcaption/p are emitted (the exact
+ * `sanitizeBodyHtml` allowlist), so paired text+image sections survive
+ * ingestion AND render, gain TOC anchors (h2) and never smuggle interactivity.
  */
 export function serializeStoryBlocks(blocks: StoryBlock[]): string {
   const out: string[] = [];
   for (const b of blocks) {
     const heading = b.heading.trim();
     const body = b.body.trim();
-    const img = b.imageUrl.trim();
-    if (!heading && !body && !img) continue;
-    if (heading) out.push(`<h2>${escapeHtmlText(heading)}</h2>`);
-    if (img && /^https?:\/\//i.test(img)) {
-      const alt = escapeHtmlAttr(b.imageAlt.trim() || heading || "Story image");
-      const caption = b.imageCaption.trim();
-      const style =
-        b.layout === "image-left"
-          ? ` style="float: left; max-width: 45%; margin-right: 16px; margin-bottom: 12px;"`
-          : b.layout === "image-right"
-            ? ` style="float: right; max-width: 45%; margin-left: 16px; margin-bottom: 12px;"`
-            : "";
-      out.push(
-        `<figure${style}><img src="${escapeHtmlAttr(img)}" alt="${alt}" loading="lazy" />${
-          caption ? `<figcaption>${escapeHtmlText(caption)}</figcaption>` : ""
-        }</figure>`,
-      );
+
+    switch (b.type) {
+      case "text":
+        if (heading) out.push(`<h2>${escapeHtmlText(heading)}</h2>`);
+        if (body) out.push(paragraphsOf(body));
+        break;
+      case "image": {
+        const img = b.imageUrl.trim();
+        if (heading) out.push(`<h2>${escapeHtmlText(heading)}</h2>`);
+        if (img && /^https?:\/\//i.test(img)) {
+          const alt = escapeHtmlAttr(b.imageAlt.trim() || heading || "Story image");
+          const caption = b.imageCaption.trim();
+          const style =
+            b.layout === "image-left"
+              ? ` style="float: left; max-width: 45%; margin-right: 16px; margin-bottom: 12px;"`
+              : b.layout === "image-right"
+                ? ` style="float: right; max-width: 45%; margin-left: 16px; margin-bottom: 12px;"`
+                : "";
+          out.push(
+            `<figure${style}><img src="${escapeHtmlAttr(img)}" alt="${alt}" loading="lazy" />${
+              caption ? `<figcaption>${escapeHtmlText(caption)}</figcaption>` : ""
+            }</figure>`,
+          );
+        }
+        if (body) out.push(paragraphsOf(body));
+        if (b.layout !== "image-top" && img) out.push(`<div style="clear: both;"></div>`);
+        break;
+      }
+      case "video": {
+        if (heading) out.push(`<h2>${escapeHtmlText(heading)}</h2>`);
+        const videoUrl = b.videoUrl?.trim() ?? "";
+        if (videoUrl) {
+          const thumb = b.videoThumbnail || extractYouTubeThumbnail(videoUrl);
+          if (thumb) {
+            out.push(`<figure><img src="${escapeHtmlAttr(thumb)}" alt="${escapeHtmlAttr(b.videoCaption || heading || "Video thumbnail")}" loading="lazy" />${
+              b.videoCaption ? `<figcaption>${escapeHtmlText(b.videoCaption)}</figcaption>` : ""
+            }</figure>`);
+          }
+          out.push(`<div data-video-url="${escapeHtmlAttr(videoUrl)}" class="video-embed"></div>`);
+        }
+        if (body) out.push(paragraphsOf(body));
+        break;
+      }
+      case "gallery": {
+        if (heading) out.push(`<h2>${escapeHtmlText(heading)}</h2>`);
+        const images = b.galleryImages ?? [];
+        if (images.length > 0) {
+          out.push(`<div class="gallery-grid">`);
+          for (const img of images) {
+            if (img.url && /^https?:\/\//i.test(img.url)) {
+              out.push(`<figure><img src="${escapeHtmlAttr(img.url)}" alt="${escapeHtmlAttr(img.alt || "")}" loading="lazy" />${
+                img.caption ? `<figcaption>${escapeHtmlText(img.caption)}</figcaption>` : ""
+              }</figure>`);
+            }
+          }
+          out.push(`</div>`);
+        }
+        break;
+      }
+      case "cta": {
+        const ctaLink = b.ctaLink?.trim() ?? "";
+        const ctaText = b.ctaText?.trim() ?? "";
+        out.push(`<div class="content-cta">`);
+        if (heading) out.push(`<h2>${escapeHtmlText(heading)}</h2>`);
+        if (body) out.push(paragraphsOf(body));
+        if (ctaLink && ctaText) {
+          out.push(`<a href="${escapeHtmlAttr(ctaLink)}" class="cta-button">${escapeHtmlText(ctaText)}</a>`);
+        }
+        out.push(`</div>`);
+        break;
+      }
+      case "divider":
+        out.push(`<hr class="content-divider" />`);
+        break;
+      default: {
+        // Backward compatibility: treat unknown types as image blocks
+        const img = b.imageUrl.trim();
+        if (heading) out.push(`<h2>${escapeHtmlText(heading)}</h2>`);
+        if (img && /^https?:\/\//i.test(img)) {
+          const alt = escapeHtmlAttr(b.imageAlt.trim() || heading || "Story image");
+          const caption = b.imageCaption.trim();
+          out.push(
+            `<figure><img src="${escapeHtmlAttr(img)}" alt="${alt}" loading="lazy" />${
+              caption ? `<figcaption>${escapeHtmlText(caption)}</figcaption>` : ""
+            }</figure>`,
+          );
+        }
+        if (body) out.push(paragraphsOf(body));
+      }
     }
-    if (body) out.push(paragraphsOf(body));
-    if (b.layout !== "image-top" && img) out.push(`<div style="clear: both;"></div>`);
   }
-  return out.join("\n");
+    return out.join("\n");
+}
+
+/**
+ * Extract YouTube video ID from URL and return a thumbnail URL.
+ * Reuses the existing youtubeIdFromUrl logic from lib/media/attachments.ts
+ * but kept here for client-side use without importing server-only modules.
+ */
+export function extractYouTubeThumbnail(url: string): string | null {
+  const m = url.match(/(?:youtube\.com\/(?:watch\?[^#]*v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/i);
+  const id = m?.[1] ?? null;
+  return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : null;
+}
+
+export function suggestExcerptFromBlocks(blocks: StoryBlock[], maxChars = 280): string {
+  const eligible = blocks.filter(
+    (b) => b.isSummary !== false && (b.heading.trim() || b.body.trim()) && b.type !== "divider",
+  );
+  if (eligible.length === 0) return "";
+  if (eligible.length === 1) {
+    const only = eligible[0]!;
+    return suggestExcerpt([only.heading, only.body].filter(Boolean).join("\n\n"), maxChars);
+  }
+  const ranked = [...eligible].sort(
+    (a, b) => `${b.heading} ${b.body}`.length - `${a.heading} ${a.body}`.length,
+  );
+  return suggestExcerpt([ranked[0]!.heading, ranked[0]!.body].filter(Boolean).join("\n\n"), maxChars);
 }
 
 export function createStoryBlock(partial: Partial<StoryBlock> = {}): StoryBlock {
   return {
     id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    type: "image",
     heading: "",
     body: "",
     imageUrl: "",
     imageAlt: "",
     imageCaption: "",
     layout: "image-top",
+    isSummary: true,
     ...partial,
   };
 }

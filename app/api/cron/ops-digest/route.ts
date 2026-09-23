@@ -95,14 +95,14 @@ async function deliverPublicDigest(correlationId: string): Promise<{ emailed: nu
     const db = createAdminClient();
     const { data, error } = await db
       .from('digest_subscribers')
-      .select('email, phone, whatsapp, locale')
+      .select('email, phone, whatsapp, locale, diaspora_mode')
       .eq('is_active', true)
       .limit(500);
     if (error) {
       logger.error('cron/ops-digest', 'subscriber fetch failed', { correlationId, error: error.message });
       return out;
     }
-    const subs = (data ?? []) as { email: string | null; phone: string | null; whatsapp: string | null; locale: string | null }[];
+    const subs = (data ?? []) as { email: string | null; phone: string | null; whatsapp: string | null; locale: string | null; diaspora_mode: boolean | null }[];
     if (subs.length === 0) return out;
     const briefStories = await latestBriefStories();
     if (briefStories.length === 0) {
@@ -118,11 +118,15 @@ async function deliverPublicDigest(correlationId: string): Promise<{ emailed: nu
     const perLocale: Record<string, { emailed: number; whatsapped: number }> = {};
     for (const s of subs) {
       const fr = /^fr/i.test(s.locale ?? '');
+      // W18 — diaspora framing: same stories, "home, today" heading for
+      // readers following home from abroad. Timezone-aware send times are a
+      // recorded follow-up (the cron fires once nightly for everyone).
       const { title, body } = buildDailyBrief(sections, {
         locale: fr ? 'fr' : 'en',
         dateLabel,
         siteUrl: SITE.url,
         digestPath: fr ? '/fr/digest' : '/en/digest',
+        framing: s.diaspora_mode ? 'diaspora' : 'standard',
       });
       const url = `${SITE.url}/${fr ? 'fr' : 'en'}/digest`;
       const bucket = perLocale[fr ? 'fr' : 'en'] ?? { emailed: 0, whatsapped: 0 };

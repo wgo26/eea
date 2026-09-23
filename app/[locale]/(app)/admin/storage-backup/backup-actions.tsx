@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { triggerBackup } from '@/lib/admin/actions'
+import { triggerBackup } from '@/lib/admin/actions/storage'
 import type { Dictionary } from '@/lib/i18n'
 
 type Copy = Dictionary['admin']['storage']

@@ -22,9 +22,8 @@ const CAP = 800;
  * Lower the ceiling to the file's current size every time the split lands.
  */
 const ALLOWLIST = {
-    // Measured with this script's own counter (split(/\r?\n/) length), so adding
-    // even one line to the file fails the gate.
-    "lib/admin/actions.ts": 4086,
+    // W17 split landed: lib/admin/actions.ts is gone (per-domain modules in
+    // lib/admin/actions/, each under the cap), so no allowlist remains.
 };
 
 function walk(dir, out = []) {

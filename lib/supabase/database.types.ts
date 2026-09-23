@@ -553,6 +553,33 @@ export type Database = {
                 },
             ];
         }
+        analytics_daily: {
+            Row: {
+            day: string;
+            surface: string;
+            locale: string;
+            place: string;
+            count: number;
+            updated_at: string;
+            };
+            Insert: {
+            day?: string;
+            surface: string;
+            locale?: string;
+            place?: string;
+            count?: number;
+            updated_at?: string;
+            };
+            Update: {
+            day?: string | null;
+            surface?: string | null;
+            locale?: string | null;
+            place?: string | null;
+            count?: number | null;
+            updated_at?: string | null;
+            };
+            Relationships: [];
+        }
         backup_jobs: {
             Row: {
             job_name: string;
@@ -976,6 +1003,38 @@ export type Database = {
                     columns: ["author_id"],
                     isOneToOne: false,
                     referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        content_reactions: {
+            Row: {
+            id: string;
+            content_item_id: string;
+            kind: string;
+            reactor_token: string;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            content_item_id: string;
+            kind: string;
+            reactor_token: string;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            content_item_id?: string | null;
+            kind?: string | null;
+            reactor_token?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_content_reactions_content_item_id_fkey",
+                    columns: ["content_item_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_items",
                     referencedColumns: ["id"],
                 },
             ];
@@ -1414,6 +1473,7 @@ export type Database = {
             diaspora_mode: boolean;
             is_active: boolean;
             created_at: string;
+            pitch_variant: string;
             };
             Insert: {
             id?: string;
@@ -1425,6 +1485,7 @@ export type Database = {
             diaspora_mode?: boolean;
             is_active?: boolean;
             created_at?: string;
+            pitch_variant?: string;
             };
             Update: {
             id?: string | null;
@@ -1436,6 +1497,7 @@ export type Database = {
             diaspora_mode?: boolean | null;
             is_active?: boolean | null;
             created_at?: string | null;
+            pitch_variant?: string | null;
             };
             Relationships: [];
         }
@@ -2709,33 +2771,6 @@ export type Database = {
             };
             Relationships: [];
         }
-        analytics_daily: {
-            Row: {
-                day: string;
-                surface: string;
-                locale: string;
-                place: string;
-                count: number;
-                updated_at: string;
-            };
-            Insert: {
-                day?: string;
-                surface: string;
-                locale?: string;
-                place?: string;
-                count?: number;
-                updated_at?: string;
-            };
-            Update: {
-                day?: string;
-                surface?: string;
-                locale?: string;
-                place?: string;
-                count?: number;
-                updated_at?: string;
-            };
-            Relationships: [];
-        }
         reports: {
             Row: {
             id: string;
@@ -3222,6 +3257,27 @@ export type Database = {
                 },
             ];
         }
+        user_blocks: {
+            Row: {
+            id: string;
+            blocker_id: string;
+            blocked_id: string;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            blocker_id: string;
+            blocked_id: string;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            blocker_id?: string | null;
+            blocked_id?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [];
+        }
         user_place_preferences: {
             Row: {
             user_id: string;
@@ -3250,27 +3306,6 @@ export type Database = {
                     referencedColumns: ["slug"],
                 },
             ];
-        }
-        user_blocks: {
-            Row: {
-                id: string;
-                blocker_id: string;
-                blocked_id: string;
-                created_at: string;
-            };
-            Insert: {
-                id?: string;
-                blocker_id: string;
-                blocked_id: string;
-                created_at?: string;
-            };
-            Update: {
-                id?: string;
-                blocker_id?: string;
-                blocked_id?: string;
-                created_at?: string;
-            };
-            Relationships: [];
         }
         user_roles: {
             Row: {
@@ -3379,18 +3414,20 @@ export type Database = {
             };
             Returns: undefined;
         }
+        analytics_bump: {
+            Args: {
+                p_surface: string;
+                p_locale?: string;
+                p_place?: string;
+                p_delta?: number;
+            };
+            Returns: undefined;
+        }
         check_rate_limit: {
             Args: {
                 p_key: string;
                 p_max: number;
                 p_window_seconds: number;
-            };
-            Returns: boolean;
-        }
-        is_blocked_between: {
-            Args: {
-                a: string;
-                b: string;
             };
             Returns: boolean;
         }
@@ -3432,6 +3469,13 @@ export type Database = {
         }
         is_advertiser: {
             Args: Record<string, never>;
+            Returns: boolean;
+        }
+        is_blocked_between: {
+            Args: {
+                a: string;
+                b: string;
+            };
             Returns: boolean;
         }
         is_staff: {
@@ -3484,15 +3528,6 @@ export type Database = {
                 p_lease_seconds?: number;
             };
             Returns: boolean;
-        }
-        analytics_bump: {
-            Args: {
-                p_surface: string;
-                p_locale?: string;
-                p_place?: string;
-                p_delta?: number;
-            };
-            Returns: undefined;
         }
         };
     };

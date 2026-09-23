@@ -2,12 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import {
-  createPolicyVersion,
-  setCurrentPolicy,
-  updatePolicyContent,
-  deletePolicyVersion,
-} from '@/lib/admin/actions'
+import { createPolicyVersion, setCurrentPolicy, updatePolicyContent, deletePolicyVersion } from '@/lib/admin/actions/policies'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { StatusBadge } from '@/components/admin/status-badge'

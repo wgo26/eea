@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { deleteMediaAsset, queueStorageVerification } from '@/lib/admin/actions'
+import { deleteMediaAsset, queueStorageVerification } from '@/lib/admin/actions/storage'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import type { Dictionary } from '@/lib/i18n'

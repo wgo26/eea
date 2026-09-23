@@ -40,7 +40,7 @@ vi.mock('./auth', () => ({
   audit: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { saveAdvertiseSection, saveSiteSetting } from './actions'
+import { saveAdvertiseSection, saveSiteSetting } from './actions/policies'
 
 describe('Advertise override actions', () => {
   it('rejects unknown sections', async () => {

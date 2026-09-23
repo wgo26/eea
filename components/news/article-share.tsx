@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, Copy, Link2, Mail, MessageCircle, Send, Share2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { beaconShareTap, resolveShareVoice } from "@/lib/analytics/share-voice";
 
 /**
  * Rich share row for the article page: native share (mobile) + copy-link
@@ -27,6 +28,13 @@ export function ArticleShare({
      * instead of the formal title.
      */
     shareText,
+    /**
+     * W21 — voice register of the share line (formal/pidgin/camfranglais)
+     * for aggregate share-voice measurement. Optional: unknown renders as
+     * formal in the beacon.
+     */
+    voiceType,
+    locale,
 }: {
     url: string;
     title: string;
@@ -38,6 +46,8 @@ export function ArticleShare({
     xLabel: string;
     emailLabel: string;
     shareText?: string | null;
+    voiceType?: string | null;
+    locale?: string;
 }) {
     const [copied, setCopied] = useState(false);
     const encodedUrl = encodeURIComponent(url);
@@ -67,12 +77,20 @@ export function ArticleShare({
                     text: shareLine,
                     url,
                 });
+                // W21 — count completed native shares by voice register.
+                beaconShareTap(resolveShareVoice(shareText, voiceType), locale ?? "en");
                 return;
             } catch {
                 /* user dismissed — fall through to copy */
             }
         }
         copyLink();
+    }
+
+    function shareWhatsApp() {
+        // W21 — count WhatsApp share taps by voice register.
+        beaconShareTap(resolveShareVoice(shareText, voiceType), locale ?? "en");
+        open(`https://wa.me/?text=${encodedTitle}%20${encodedUrl}`);
     }
 
     const open = (target: string) => window.open(target, "_blank", "noopener,noreferrer");
@@ -90,7 +108,7 @@ export function ArticleShare({
             <Button
                 variant="outline"
                 size="sm"
-                onClick={() => open(`https://wa.me/?text=${encodedTitle}%20${encodedUrl}`)}
+                onClick={shareWhatsApp}
                 aria-label={whatsappLabel}
                 className="gap-1.5"
             >

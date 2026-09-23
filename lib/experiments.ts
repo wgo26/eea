@@ -15,6 +15,13 @@ import { useSyncExternalStore } from 'react'
 export const EXPERIMENTS = {
   /** Article action-row order: share-first (control) vs save-first. */
   'action-row-order': ['share-first', 'save-first'],
+  /**
+   * W18 (H6) — digest subscribe pitch: the standard intro (control) vs a
+   * diaspora-framed pitch ("home, today" — variant). Copy only; the submitted
+   * fields are identical apart from the `pitch_variant` attribution the form
+   * posts back for measurement (signups/day by variant, no PII).
+   */
+  'digest-diaspora-pitch': ['standard-pitch', 'diaspora-pitch'],
 } as const
 
 export type ExperimentName = keyof typeof EXPERIMENTS

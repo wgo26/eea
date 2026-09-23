@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Banknote, FileText } from 'lucide-react'
-import { markAdCampaignPaid, setAdCampaignInvoice, voidAdCampaignInvoice } from '@/lib/admin/actions'
+import { markAdCampaignPaid, setAdCampaignInvoice, voidAdCampaignInvoice } from '@/lib/admin/actions/ads'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import {
   Dialog,

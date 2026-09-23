@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { deleteUser, setUserRole, setUserStatus, updateContributorCuration } from '@/lib/admin/actions'
+import { deleteUser, setUserRole, setUserStatus, updateContributorCuration } from '@/lib/admin/actions/users'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { StatusBadge } from '@/components/admin/status-badge'

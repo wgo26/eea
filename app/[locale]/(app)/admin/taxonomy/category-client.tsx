@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createCategory, updateCategory, deleteCategory } from '@/lib/admin/actions'
+import { createCategory, updateCategory, deleteCategory } from '@/lib/admin/actions/taxonomy'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import {
   Dialog,

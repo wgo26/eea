@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createFundraiser, updateFundraiser, closeFundraiser, reopenFundraiser, deleteFundraiser } from '@/lib/admin/actions'
+import { createFundraiser, updateFundraiser, closeFundraiser, reopenFundraiser, deleteFundraiser } from '@/lib/admin/actions/fundraisers'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import { useToast } from '@/components/admin/toast'
 import {

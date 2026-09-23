@@ -13,6 +13,7 @@ import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 import { FollowButton } from "@/components/system/follow-button";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getContributorById } from "@/lib/queries/contributors";
+import { earnedBadges, type BadgeId } from "@/lib/contributors/badges";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { SITE } from "@/lib/constants";
 
@@ -56,6 +57,15 @@ export default async function ContributorProfilePage({ params }: Props) {
 
     const profileName = profile.displayName ?? dict.contributors.viewProfile;
     const profileUrl = `${SITE.url}${localePath(locale, `/contributors/${id}`)}`;
+    // W22 — contributor badges (reciprocity loop): computed from the public
+    // aggregates, no extra queries.
+    const badges = earnedBadges(profile.publishedCount, profile.photoCount);
+    const badgeCopy: Record<BadgeId, { label: string; hint: string }> = {
+        "first-story": { label: dict.contributors.badgeFirstStory, hint: dict.contributors.badgeFirstStoryHint },
+        voice: { label: dict.contributors.badgeVoice, hint: dict.contributors.badgeVoiceHint },
+        pillar: { label: dict.contributors.badgePillar, hint: dict.contributors.badgePillarHint },
+        "visual-eye": { label: dict.contributors.badgeVisualEye, hint: dict.contributors.badgeVisualEyeHint },
+    };
     // Phase 3 — Person + breadcrumb structured data (rich results).
     const jsonLd = renderJsonLd([
         personJsonLd({
@@ -151,6 +161,21 @@ export default async function ContributorProfilePage({ params }: Props) {
                     {profile.categories.map((cat) => (
                         <Badge key={cat} variant="secondary">
                             {cat}
+                        </Badge>
+                    ))}
+                </div>
+            ) : null}
+
+            {badges.length > 0 ? (
+                <div className="mt-4 flex flex-wrap items-center gap-1.5" aria-label={dict.contributors.badgesTitle}>
+                    {badges.map((b) => (
+                        <Badge
+                            key={b.id}
+                            variant="outline"
+                            title={badgeCopy[b.id].hint}
+                            className="border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+                        >
+                            🏅 {badgeCopy[b.id].label}
                         </Badge>
                     ))}
                 </div>

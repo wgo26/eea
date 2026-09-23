@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { updateContentStatus } from '@/lib/admin/actions'
+import { updateContentStatus } from '@/lib/admin/actions/content'
 import { useAdminMutation } from '@/components/admin/confirm-dialog'
 import { StatusBadge } from '@/components/admin/status-badge'
 import { localizeStatus } from '@/lib/admin/labels'

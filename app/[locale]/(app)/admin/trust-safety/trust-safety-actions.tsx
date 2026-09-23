@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { resolveReport, resolveCorrection, deleteReport } from '@/lib/admin/actions'
+import { resolveReport, resolveCorrection, deleteReport } from '@/lib/admin/actions/safety'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { localePath } from '@/lib/i18n/urls'

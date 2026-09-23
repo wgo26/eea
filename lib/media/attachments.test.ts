@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDuration, inferKindFromUrl, mapAttachments, parseMediaList, previewImageUrl, supportingMedia, videoThumbnailUrl, youtubeIdFromUrl } from './attachments';
+import { formatDuration, inferKindFromUrl, mapAttachments, parseMediaList, previewImageUrl, resolveDisplayImage, supportingMedia, videoThumbnailUrl, youtubeIdFromUrl } from './attachments';
 
 describe('media attachments', () => {
   it('infers video/audio from extensions', () => {
@@ -64,5 +64,12 @@ describe('media attachments', () => {
     // Audio/docs never become the preview image.
     expect(previewImageUrl(null, [{ url: 'https://x/a.mp3', kind: 'audio' as const }])).toBeNull();
     expect(previewImageUrl(null, null)).toBeNull();
+  });
+
+  it('resolves display images with the site-logo fallback chain', () => {
+    expect(resolveDisplayImage('https://x/display.jpg', 'https://x/logo.jpg')).toBe('https://x/display.jpg');
+    expect(resolveDisplayImage(null, 'https://x/logo.jpg')).toBe('https://x/logo.jpg');
+    expect(resolveDisplayImage('  ', 'https://x/logo.jpg')).toBe('https://x/logo.jpg');
+    expect(resolveDisplayImage(null, null)).toBe('/images/default-display.jpg');
   });
 });

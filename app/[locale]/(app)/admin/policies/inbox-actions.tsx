@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { resolveLegalReport, resolveDataRequest } from '@/lib/admin/actions'
+import { resolveLegalReport, resolveDataRequest } from '@/lib/admin/actions/policies'
 import { useToast } from '@/components/admin/toast'
 import { EmptyState } from '@/components/admin/empty-state'
 import { StatusBadge } from '@/components/admin/status-badge'

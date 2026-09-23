@@ -6,7 +6,7 @@ import {
   createCategory,
   deleteCategory,
   createLocation,
-} from './actions'
+} from './actions/taxonomy'
 
 vi.mock('./auth', () => ({
   assertCapability: vi.fn().mockResolvedValue({

@@ -41,7 +41,7 @@ vi.mock('@/lib/storage/providers/r2', () => ({
   deleteFromR2: mocks.deleteFromR2,
 }))
 
-import { deleteMediaAsset } from './actions'
+import { deleteMediaAsset } from './actions/storage'
 
 describe('deleteMediaAsset', () => {
   beforeEach(() => {

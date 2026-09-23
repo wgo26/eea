@@ -13,18 +13,31 @@ describe("admin queries barrel (W17 split)", () => {
             // content-ops
             "getDashboardStats",
             "getContentItems",
+            "getSubmissions",
             // people (users + ads)
             "getUsers",
+            "getUserDetail",
             "getAdSlots",
             "getCampaigns",
             "getAdvertisers",
+            "getPendingAdInquiries",
             // safety (audit log, storage, trust & safety)
             "getRecentModeration",
             "getReports",
+            "getCorrections",
             // catalog (listings, reference data, taxonomy, polls)
-            "getReferenceData",
+            "getListingsAdmin",
+            "getLocations",
+            "getCategoriesAdmin",
+            "getLocationsAdmin",
+            "getPollsAdmin",
+            // programs (fundraisers, policies, about, advertise)
+            "getFundraisersAdmin",
+            "getPoliciesAdmin",
             // settings (site settings, digest archive, legal inbox)
-            "getSiteSettings",
+            "getSiteSettingsAdmin",
+            "getPublicSiteSettings",
+            "getDigestIssues",
         ];
         for (const name of expected) {
             expect(typeof (barrel as Record<string, unknown>)[name], `${name} should be exported`).toBe(
@@ -37,8 +50,13 @@ describe("admin queries barrel (W17 split)", () => {
         // hasDatabase() is false in the test env, so these must resolve to their
         // empty shapes rather than throwing — the convention the admin pages rely
         // on during a DB outage.
-        await expect(barrel.getUsers({})).resolves.toBeDefined();
-        await expect(barrel.getCampaigns({})).resolves.toBeDefined();
-        await expect(barrel.getAdSlots()).resolves.toBeDefined();
+        await expect(barrel.getUsers({})).resolves.toEqual({ rows: [], total: 0 });
+        await expect(barrel.getCampaigns({})).resolves.toEqual({ rows: [], total: 0 });
+        await expect(barrel.getAdSlots()).resolves.toEqual({ rows: [], total: 0 });
+        await expect(barrel.getAdvertisers({})).resolves.toEqual({ rows: [], total: 0 });
+        await expect(barrel.getPendingAdInquiries({})).resolves.toEqual({ rows: [], total: 0 });
+        await expect(barrel.getUserDetail("00000000-0000-0000-0000-000000000000")).resolves.toBeNull();
+        await expect(barrel.getDashboardStats()).resolves.toBeDefined();
+        await expect(barrel.getSubmissions({})).resolves.toBeDefined();
     });
 });

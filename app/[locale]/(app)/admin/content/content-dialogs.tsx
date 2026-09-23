@@ -2,14 +2,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- edit dialog fetches on open by design */
 
 import { useEffect, useRef, useState } from "react";
-import {
-  createContentItem,
-  deleteContentItem,
-  saveContentItem,
-  getContentItemEditData as fetchEditDataAction,
-  getContentHistoryData,
-  searchAuthors,
-} from "@/lib/admin/actions";
+import { createContentItem, deleteContentItem, saveContentItem, getContentItemEditData as fetchEditDataAction, getContentHistoryData, searchAuthors } from "@/lib/admin/actions/content";
 import {
   useContentTranslator,
   TranslateButtons,
@@ -562,6 +555,12 @@ export function ContentCreateDialog({
                 sectionTitle: copy.blocksTitle,
                 sectionHint: copy.blocksHint,
                 addBlock: copy.blocksAdd,
+                addTextSection: copy.blocksAddText,
+                addImageSection: copy.blocksAddImage,
+                addVideoSection: copy.blocksAddVideo,
+                addGallerySection: copy.blocksAddGallery,
+                addCtaSection: copy.blocksAddCta,
+                addDividerSection: copy.blocksAddDivider,
                 insertIntoBody: copy.blocksInsert,
                 inserted: copy.blocksInserted,
                 empty: copy.blocksEmpty,
@@ -571,6 +570,7 @@ export function ContentCreateDialog({
                 bodyPlaceholder: copy.blocksBodyPh,
                 imageLabel: copy.blocksImage,
                 imagePlaceholder: copy.blocksImagePh,
+                uploadImage: copy.blocksUploadImage,
                 altLabel: copy.blocksAlt,
                 captionLabel: copy.blocksCaption,
                 layoutLabel: copy.blocksLayout,
@@ -582,10 +582,33 @@ export function ContentCreateDialog({
                 removeBlock: copy.blocksRemove,
                 blockTitle: copy.blocksBlock,
                 pickFromPhotos: copy.blocksPickPhotos,
+                videoUrlLabel: copy.blocksVideoUrl,
+                videoUrlPlaceholder: copy.blocksVideoUrlPh,
+                videoThumbnailLabel: copy.blocksVideoThumbnail,
+                galleryImages: copy.blocksGalleryImages,
+                ctaTextLabel: copy.blocksCtaText,
+                ctaTextPlaceholder: copy.blocksCtaTextPh,
+                ctaLinkLabel: copy.blocksCtaLink,
+                ctaLinkPlaceholder: copy.blocksCtaLinkPh,
+                removeImage: copy.blocksRemoveImage,
               }}
               photoUrls={newPhotos.map((p) => p.url).filter(Boolean)}
               onInsert={(html) => setEnBody((prev) => (prev.trim() ? `${prev.trim()}\n\n${html}` : html))}
               onToast={addToast}
+              onExcerptPreview={(excerpt, count) => {
+                // FR-9/FR-10: surface the multi-block draft next to the manual
+                // excerpt; only fill an empty excerpt and never overwrite one.
+                if (count > 1 && excerpt && !enExcerpt.trim()) setEnExcerpt(excerpt);
+              }}
+              onBlockAdded={() => {
+                // FR-13 automation answer for the create dialog: content starts
+                // empty, so a newly added block updates the body automatically.
+                if (!enBody.trim()) {
+                  addToast(copy.blocksInserted, "success");
+                  return true;
+                }
+                return false;
+              }}
             />
             <MediaUploader
               newPhotos={newPhotos}
@@ -1653,6 +1676,12 @@ function ContentEditForm({
           sectionTitle: copy.blocksTitle,
           sectionHint: copy.blocksHint,
           addBlock: copy.blocksAdd,
+          addTextSection: copy.blocksAddText,
+          addImageSection: copy.blocksAddImage,
+          addVideoSection: copy.blocksAddVideo,
+          addGallerySection: copy.blocksAddGallery,
+          addCtaSection: copy.blocksAddCta,
+          addDividerSection: copy.blocksAddDivider,
           insertIntoBody: copy.blocksInsert,
           inserted: copy.blocksInserted,
           empty: copy.blocksEmpty,
@@ -1662,6 +1691,7 @@ function ContentEditForm({
           bodyPlaceholder: copy.blocksBodyPh,
           imageLabel: copy.blocksImage,
           imagePlaceholder: copy.blocksImagePh,
+          uploadImage: copy.blocksUploadImage,
           altLabel: copy.blocksAlt,
           captionLabel: copy.blocksCaption,
           layoutLabel: copy.blocksLayout,
@@ -1673,10 +1703,30 @@ function ContentEditForm({
           removeBlock: copy.blocksRemove,
           blockTitle: copy.blocksBlock,
           pickFromPhotos: copy.blocksPickPhotos,
+          videoUrlLabel: copy.blocksVideoUrl,
+          videoUrlPlaceholder: copy.blocksVideoUrlPh,
+          videoThumbnailLabel: copy.blocksVideoThumbnail,
+          galleryImages: copy.blocksGalleryImages,
+          ctaTextLabel: copy.blocksCtaText,
+          ctaTextPlaceholder: copy.blocksCtaTextPh,
+          ctaLinkLabel: copy.blocksCtaLink,
+          ctaLinkPlaceholder: copy.blocksCtaLinkPh,
+          removeImage: copy.blocksRemoveImage,
         }}
         photoUrls={[...data.photos.map((p) => p.url), ...newPhotos.map((p) => p.url)].filter(Boolean)}
         onInsert={(html) => setEnBody((prev) => (prev.trim() ? `${prev.trim()}\n\n${html}` : html))}
         onToast={addToast}
+        contentItemId={data.id}
+        onExcerptPreview={(excerpt, count) => {
+          // FR-9/FR-10: edit drawer mirrors the create dialog — only an empty
+          // excerpt is auto-filled from multi-block drafts.
+          if (count > 1 && excerpt && !enExcerpt.trim()) setEnExcerpt(excerpt);
+        }}
+        onBlockAdded={() => {
+          // FR-13: on existing content never auto-append; the editor reviews
+          // sections first, then uses "Insert sections into body" explicitly.
+          return false;
+        }}
       />
 
       {/* Permalink, publish date, expiry, byline, SEO description and tags — the

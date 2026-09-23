@@ -8,7 +8,8 @@ vi.mock('next/cache', () => ({
   unstable_cache: (fn: unknown) => fn,
 }))
 
-import { createContentItem, deleteContentItem, updateHomepageSlotWindow } from './actions'
+import { createContentItem, deleteContentItem } from './actions/content'
+import { updateHomepageSlotWindow } from './actions/slots'
 
 vi.mock('./auth', () => ({
   assertCapability: vi.fn().mockResolvedValue({

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import { subscribeDigest, unsubscribeDigest } from "@/lib/notify/actions";
+import { useExperiment } from "@/lib/experiments";
 import type { Dictionary, Locale } from "@/lib/i18n";
 
 type State = { ok: true } | { ok: false; error: string };
@@ -24,6 +25,11 @@ export function DigestForm({ dict, locale }: { dict: Dictionary; locale: Locale 
     unsubscribeDigest,
     { ok: false, error: '' },
   );
+  // W18 (H6) — diaspora pitch experiment: copy-only variant for readers
+  // abroad. The submitted fields are identical; the hidden pitch_variant
+  // attributes the signup for measurement (signups/day by variant).
+  const pitch = useExperiment('digest-diaspora-pitch');
+  const isDiasporaPitch = pitch === 'diaspora-pitch';
 
   if (state.ok) {
     return (
@@ -49,6 +55,13 @@ export function DigestForm({ dict, locale }: { dict: Dictionary; locale: Locale 
   return (
     <div className="space-y-8">
       <form action={formAction} className="space-y-4 rounded-2xl border bg-card p-6">
+        {isDiasporaPitch ? (
+          <div className="rounded-xl bg-primary/5 p-4">
+            <p className="font-bold">{t.diasporaPitchTitle}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t.diasporaPitchBody}</p>
+          </div>
+        ) : null}
+        <input type="hidden" name="pitch_variant" value={isDiasporaPitch ? 'diaspora' : 'standard'} />
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="digest-email">{t.email}</Label>

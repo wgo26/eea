@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { approveAdInquiry, rejectAdInquiry, deleteAdInquiry } from '@/lib/admin/actions'
+import { approveAdInquiry, rejectAdInquiry, deleteAdInquiry } from '@/lib/admin/actions/ads'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import type { AdInquiryRow, AdSlotRow } from '@/lib/admin/queries'

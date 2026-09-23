@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { inviteUser } from '@/lib/admin/actions'
+import { inviteUser } from '@/lib/admin/actions/users'
 import { useToast } from '@/components/admin/toast'
 import type { Dictionary } from '@/lib/i18n'
 import type { AppRole } from '@/lib/admin/queries'

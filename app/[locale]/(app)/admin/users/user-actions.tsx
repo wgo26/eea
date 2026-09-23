@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { deleteUser, setUserRole, setUserStatus, updateUserProfile } from '@/lib/admin/actions'
+import { deleteUser, setUserRole, setUserStatus, updateUserProfile } from '@/lib/admin/actions/users'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { ActionMenu, ActionMenuTrigger } from '@/components/admin/action-menu'

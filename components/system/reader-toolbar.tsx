@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { TextSizeControl } from "@/components/system/text-size-control";
 import { SaveOfflineButton } from "@/components/system/save-offline-button";
 import { useLiteMode } from "@/components/media/adaptive-image";
+import { beaconShareTap, resolveShareVoice } from "@/lib/analytics/share-voice";
 import type { Dictionary } from "@/lib/i18n";
+import type { Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /**
@@ -19,6 +21,9 @@ export function ReaderToolbar({
     shareUrl,
     title,
     shareText,
+    /** W21 — voice register of the share line, when the query provides it. */
+    voiceType,
+    locale,
     saveLabel,
     savedLabel,
     offlineUnavailableLabel,
@@ -32,6 +37,8 @@ export function ReaderToolbar({
     title: string;
     /** Pidgin/Camfranglais share line when the editor wrote one. */
     shareText?: string | null;
+    voiceType?: string | null;
+    locale?: Locale;
     saveLabel: string;
     savedLabel: string;
     offlineUnavailableLabel: string;
@@ -41,6 +48,9 @@ export function ReaderToolbar({
     const [lite, setLite] = useLiteMode();
     const shareLine = shareText?.trim() || title;
     const waHref = `https://wa.me/?text=${encodeURIComponent(`${shareLine} ${shareUrl}`)}`;
+    // W21 — count WhatsApp share taps by voice register (skipped when the
+    // voice cannot be known honestly; see resolveShareVoice).
+    const beaconTap = () => beaconShareTap(resolveShareVoice(shareText, voiceType), locale ?? "en");
 
     return (
         <>
@@ -71,7 +81,7 @@ export function ReaderToolbar({
                 <Button
                     variant="outline"
                     size="sm"
-                    render={<a href={waHref} target="_blank" rel="noopener noreferrer" />}
+                    render={<a href={waHref} target="_blank" rel="noopener noreferrer" onClick={beaconTap} />}
                     aria-label={whatsappLabel}
                     className="gap-1.5"
                 >
@@ -84,6 +94,7 @@ export function ReaderToolbar({
                 href={waHref}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={beaconTap}
                 aria-label={whatsappLabel}
                 className={cn(
                     "no-print fixed bottom-5 right-4 z-40 inline-flex h-12 w-12 items-center justify-center",

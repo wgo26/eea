@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { approveCreative, deleteAdCampaign, rejectCreative, updateAdCampaign, updateCampaignStatus } from '@/lib/admin/actions'
+import { approveCreative, deleteAdCampaign, rejectCreative, updateAdCampaign, updateCampaignStatus } from '@/lib/admin/actions/ads'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import { MediaUploader, type UploadedPhoto } from '@/components/admin/media-uploader'
 import {

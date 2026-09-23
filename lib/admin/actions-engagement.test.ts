@@ -7,10 +7,12 @@ import {
   updatePoll,
   deletePoll,
   exportPollResults,
+} from './actions/polls'
+import {
   createFundraiser,
   updateFundraiser,
   deleteFundraiser,
-} from './actions'
+} from './actions/fundraisers'
 
 vi.mock('./auth', () => ({
   assertCapability: vi.fn().mockResolvedValue({

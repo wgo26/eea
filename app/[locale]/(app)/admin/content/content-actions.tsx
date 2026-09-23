@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { updateContentStatus, setContentFeatured, archiveContent, unarchiveContent } from '@/lib/admin/actions'
+import { updateContentStatus, setContentFeatured, archiveContent, unarchiveContent } from '@/lib/admin/actions/content'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import { useToast } from '@/components/admin/toast'
 import { ActionMenu, ActionMenuTrigger } from '@/components/admin/action-menu'

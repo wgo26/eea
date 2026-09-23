@@ -10,12 +10,8 @@ import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { formatRelative } from '@/lib/admin/format'
 import { localizeStatus, localizeReportType } from '@/lib/admin/labels'
 import { localePath } from '@/lib/i18n/urls'
-import {
-  bulkResolveReports,
-  bulkDeleteReports,
-  bulkResolveCorrections,
-  bulkDeleteCorrections,
-} from '@/lib/admin/actions'
+import { bulkResolveReports, bulkDeleteReports } from '@/lib/admin/actions/moderation'
+import { bulkResolveCorrections, bulkDeleteCorrections } from '@/lib/admin/actions/safety'
 
 import type { Dictionary, Locale } from '@/lib/i18n'
 import type { ReportRow, CorrectionRow } from '@/lib/admin/queries'

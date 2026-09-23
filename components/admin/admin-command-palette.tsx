@@ -11,7 +11,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import { adminGlobalSearch, type AdminSearchResults } from '@/lib/admin/actions'
+import { adminGlobalSearch, type AdminSearchResults } from '@/lib/admin/actions/content'
 import { localePath } from '@/lib/i18n/urls'
 import { getDictionary } from '@/lib/i18n'
 import { useLocaleFromPath } from '@/components/site-header'

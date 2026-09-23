@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { expireListing, relistListing, moderateListing, updateListing, deleteContentItem } from '@/lib/admin/actions'
+import { expireListing, relistListing, moderateListing, updateListing } from '@/lib/admin/actions/listings'
+import { deleteContentItem } from '@/lib/admin/actions/content'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { ActionMenu, ActionMenuTrigger } from '@/components/admin/action-menu'
