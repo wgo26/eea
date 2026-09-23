@@ -92,6 +92,13 @@ const STORY_SELECT = `id, slug, verification, published_at, view_count,
     translations:content_translations(locale, title, excerpt, body, share_text),
     media:media_assets(public_url, alt_text, caption, photographer_credit, is_cover, sort_order, width, height, kind, mime_type)`;
 
+/**
+ * Select without the Phase-4 `share_text` column, for databases that have not
+ * applied the differentiators migration yet (see `selectStories` below).
+ * Derived from STORY_SELECT so the two can never drift apart field-by-field.
+ */
+const STORY_SELECT_LEGACY = STORY_SELECT.replace(", share_text", "");
+
 type QueryResult<T> = {
     data: T | null;
     count: number | null;
@@ -166,15 +173,52 @@ export function prettifyCategory(slug: string): string {
 }
 
 /** Base builder for every public photo-story query (published, unarchived). */
-function publishedPhotoStories(countExact = false) {
+function publishedPhotoStories(countExact = false, select = STORY_SELECT) {
     const supabase = createAdminClient();
     return supabase
         .from("content_items")
-        .select(STORY_SELECT, countExact ? { count: "exact" } : undefined)
+        .select(select, countExact ? { count: "exact" } : undefined)
         .eq("type", "photo_story")
         .eq("status", "published")
         .eq("is_archived", false)
         .not("published_at", "is", null);
+}
+
+/** PostgREST surfaces an unknown column as Postgres 42703 (undefined_column). */
+function isMissingColumnError(
+    error: { code?: string; message: string } | null,
+    column: string,
+): boolean {
+    if (!error) return false;
+    return error.code === "42703" && error.message.includes(column);
+}
+
+type StoryQueryResult = {
+    data: unknown;
+    count?: number | null;
+    error: { message: string; code?: string } | null;
+};
+
+/**
+ * Runs a story query with the full Phase-4 select, retrying once with the
+ * legacy select when the database has not applied the differentiators
+ * migration (`share_text` on `content_translations` — verified missing on
+ * production 2026-09-23). Stories render with `shareText: null` instead of
+ * the whole section going empty; the moment the migration lands, the full
+ * select succeeds again with no code change. Any other error is returned
+ * untouched for the normal throw-or-fallback policy above.
+ */
+async function selectStories(
+    full: string,
+    legacy: string,
+    build: (select: string) => PromiseLike<StoryQueryResult>,
+): Promise<StoryQueryResult> {
+    const first = await build(full);
+    if (!first.error || !isMissingColumnError(first.error, "share_text")) return first;
+    logger.error("photo-stories", "share_text column missing — retrying with legacy select", {
+        error: first.error.message,
+    });
+    return build(legacy);
 }
 
 /** PostgREST `or()` phrases cannot contain commas or wildcard characters. */
@@ -246,6 +290,9 @@ const FEATURED_SELECT = `id, slug, verification, published_at, view_count,
     translations:content_translations(locale, title, excerpt, body, share_text),
     media:media_assets!inner(public_url, alt_text, caption, photographer_credit, is_cover, sort_order, width, height, kind, mime_type)`;
 
+/** Legacy twin of FEATURED_SELECT — see STORY_SELECT_LEGACY. */
+const FEATURED_SELECT_LEGACY = FEATURED_SELECT.replace(", share_text", "");
+
 /**
  * Full-bleed featured story for the landing page: the newest essay with at
  * least one photograph, falling back to the newest essay of any kind.
@@ -253,22 +300,29 @@ const FEATURED_SELECT = `id, slug, verification, published_at, view_count,
  */
 const getCachedFeaturedPhotoStory = unstable_cache(
     async (locale: Locale): Promise<PhotoStoryData | null> => {
-        const withMedia = await createAdminClient()
-            .from("content_items")
-            .select(FEATURED_SELECT)
-            .eq("type", "photo_story")
-            .eq("status", "published")
-            .eq("is_archived", false)
-            .not("published_at", "is", null)
-            .order("published_at", { ascending: false, nullsFirst: false })
-            .limit(1);
+        const withMedia = await selectStories(
+            FEATURED_SELECT,
+            FEATURED_SELECT_LEGACY,
+            (select) =>
+                createAdminClient()
+                    .from("content_items")
+                    .select(select)
+                    .eq("type", "photo_story")
+                    .eq("status", "published")
+                    .eq("is_archived", false)
+                    .not("published_at", "is", null)
+                    .order("published_at", { ascending: false, nullsFirst: false })
+                    .limit(1),
+        );
         if (withMedia.error) throw new Error(withMedia.error.message);
         const withMediaRow = asOne((withMedia.data ?? []) as unknown as RawStoryRow[]);
         if (withMediaRow) return toCard(withMediaRow, locale);
 
-        const anyStory = await publishedPhotoStories()
-            .order("published_at", { ascending: false, nullsFirst: false })
-            .limit(1);
+        const anyStory = await selectStories(STORY_SELECT, STORY_SELECT_LEGACY, (select) =>
+            publishedPhotoStories(false, select)
+                .order("published_at", { ascending: false, nullsFirst: false })
+                .limit(1),
+        );
         if (anyStory.error) throw new Error(anyStory.error.message);
         const anyRow = asOne((anyStory.data ?? []) as unknown as RawStoryRow[]);
         return anyRow ? toCard(anyRow, locale) : null;
@@ -308,34 +362,39 @@ const getCachedPhotoStories = unstable_cache(
         page: number;
         pageCount: number;
     }> => {
-        let query = publishedPhotoStories(true);
-        if (search) {
-            query = query.or(
-                `content_translations.title.ilike.*${search}*,` +
-                    `content_translations.excerpt.ilike.*${search}*`,
-            );
-        }
-        if (category) {
-            query = query.or(
-                `categories.slug.eq.${category},` +
-                    `categories.category_translations.name.ilike.*${category}*`,
-            );
-        }
-        if (location) {
-            query = query.eq("locations.slug", location);
-        }
-        // Phase 3/P4 — visual-archive year depth (Differentiator #2): bound
-        // published_at to the calendar year so ?year=2024 browses the archive.
-        if (year) {
-            query = query
-                .gte("published_at", `${year}-01-01T00:00:00.000Z`)
-                .lt("published_at", `${year + 1}-01-01T00:00:00.000Z`);
-        }
-
         const from = (page - 1) * PHOTO_STORIES_PAGE_SIZE;
-        const { data, count: total, error } = await query
-            .order("published_at", { ascending: false, nullsFirst: false })
-            .range(from, from + PHOTO_STORIES_PAGE_SIZE - 1);
+        const { data, count: total, error } = await selectStories(
+            STORY_SELECT,
+            STORY_SELECT_LEGACY,
+            (select) => {
+                let query = publishedPhotoStories(true, select);
+                if (search) {
+                    query = query.or(
+                        `content_translations.title.ilike.*${search}*,` +
+                            `content_translations.excerpt.ilike.*${search}*`,
+                    );
+                }
+                if (category) {
+                    query = query.or(
+                        `categories.slug.eq.${category},` +
+                            `categories.category_translations.name.ilike.*${category}*`,
+                    );
+                }
+                if (location) {
+                    query = query.eq("locations.slug", location);
+                }
+                // Phase 3/P4 — visual-archive year depth (Differentiator #2): bound
+                // published_at to the calendar year so ?year=2024 browses the archive.
+                if (year) {
+                    query = query
+                        .gte("published_at", `${year}-01-01T00:00:00.000Z`)
+                        .lt("published_at", `${year + 1}-01-01T00:00:00.000Z`);
+                }
+                return query
+                    .order("published_at", { ascending: false, nullsFirst: false })
+                    .range(from, from + PHOTO_STORIES_PAGE_SIZE - 1);
+            },
+        );
         if (error) throw new Error(error.message);
 
         const stories = ((data ?? []) as unknown as RawStoryRow[]).flatMap((row) => {
@@ -531,9 +590,11 @@ export async function getPhotoStoryLocations(): Promise<
  */
 const getCachedPhotoStoryBySlug = unstable_cache(
     async (slug: string, locale: Locale): Promise<PhotoStoryData | null> => {
-        const { data, error } = await publishedPhotoStories()
-            .eq("slug", slug)
-            .limit(1);
+        const { data, error } = await selectStories(STORY_SELECT, STORY_SELECT_LEGACY, (select) =>
+            publishedPhotoStories(false, select)
+                .eq("slug", slug)
+                .limit(1),
+        );
         if (error) throw new Error(error.message);
         const row = asOne((data ?? []) as unknown as RawStoryRow[]);
         return row ? toCard(row, locale) : null;
@@ -565,10 +626,12 @@ export async function getPhotoStoryBySlug(
  */
 const getCachedOtherPhotoStories = unstable_cache(
     async (excludeId: string, locale: Locale, limit: number): Promise<PhotoStoryData[]> => {
-        const { data, error } = await publishedPhotoStories()
-            .neq("id", excludeId)
-            .order("published_at", { ascending: false, nullsFirst: false })
-            .limit(limit);
+        const { data, error } = await selectStories(STORY_SELECT, STORY_SELECT_LEGACY, (select) =>
+            publishedPhotoStories(false, select)
+                .neq("id", excludeId)
+                .order("published_at", { ascending: false, nullsFirst: false })
+                .limit(limit),
+        );
         if (error) throw new Error(error.message);
         return ((data ?? []) as unknown as RawStoryRow[]).flatMap((row) => {
             const card = toCard(row, locale);
@@ -600,9 +663,11 @@ export async function getOtherPhotoStories(
  */
 const getCachedMostViewedPhotoStories = unstable_cache(
     async (locale: Locale, limit: number): Promise<PhotoStoryData[]> => {
-        const { data, error } = await publishedPhotoStories()
-            .order("view_count", { ascending: false, nullsFirst: false })
-            .limit(limit * 3);
+        const { data, error } = await selectStories(STORY_SELECT, STORY_SELECT_LEGACY, (select) =>
+            publishedPhotoStories(false, select)
+                .order("view_count", { ascending: false, nullsFirst: false })
+                .limit(limit * 3),
+        );
         if (error) throw new Error(error.message);
         // view_count is only an ornament — guarantee at least three with a real
         // photo before giving up, so the rail never shows empty covers.
@@ -691,14 +756,18 @@ const getCachedAdjacentPhotoStories = unstable_cache(
         locale: Locale,
     ): Promise<{ prev: PhotoStoryData | null; next: PhotoStoryData | null }> => {
         const [nextResult, prevResult] = await Promise.all([
-            publishedPhotoStories()
-                .gt("published_at", publishedAt)
-                .order("published_at", { ascending: true })
-                .limit(1),
-            publishedPhotoStories()
-                .lt("published_at", publishedAt)
-                .order("published_at", { ascending: false })
-                .limit(1),
+            selectStories(STORY_SELECT, STORY_SELECT_LEGACY, (select) =>
+                publishedPhotoStories(false, select)
+                    .gt("published_at", publishedAt)
+                    .order("published_at", { ascending: true })
+                    .limit(1),
+            ),
+            selectStories(STORY_SELECT, STORY_SELECT_LEGACY, (select) =>
+                publishedPhotoStories(false, select)
+                    .lt("published_at", publishedAt)
+                    .order("published_at", { ascending: false })
+                    .limit(1),
+            ),
         ]);
         if (nextResult.error) throw new Error(nextResult.error.message);
         if (prevResult.error) throw new Error(prevResult.error.message);

@@ -26,7 +26,6 @@ import { FacetFilter, type FilterGroup } from "@/components/shared/facet-filter"
 import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
 import { VerticalSearchSidebar } from "@/components/shared/vertical-search-sidebar";
 import { getLocationsByContentType } from "@/lib/queries/locations";
-import { LocationProvider } from "@/hooks/use-location-context";
 import {
     getFeaturedPhotoStory,
     getMostViewedPhotoStories,
@@ -155,15 +154,6 @@ export default async function PhotoStoriesPage({
                 .sort((a, b) => a - b);
 
     return (
-        <LocationProvider
-            locations={locations}
-            activeLocation={location ?? null}
-            locationHref={(slug) =>
-                slug
-                    ? hrefL({ search, category, year, location: slug })
-                    : hrefL({ search, category, year })
-            }
-        >
         <div className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
             {/* Page band */}
             <header className="mb-8">
@@ -238,12 +228,12 @@ export default async function PhotoStoriesPage({
                             label: dict.photoStories.categories,
                             activeKey: category ?? null,
                             allLabel: dict.photoStories.allCategories,
-                            hrefFor: (k) =>
-                                k ? hrefL({ search, location, year, category: k }) : hrefL({ search, location, year }),
+                            allHref: hrefL({ search, location, year }),
                             facets: categories.map((f) => ({
                                 key: f.slug,
                                 label: f.name,
                                 count: f.total,
+                                href: hrefL({ search, location, year, category: f.slug }),
                             })),
                         },
                         ...(years.length > 0
@@ -253,13 +243,11 @@ export default async function PhotoStoriesPage({
                                     label: dict.photoStories.years,
                                     activeKey: year ? String(year) : null,
                                     allLabel: dict.photoStories.allYears,
-                                    hrefFor: (k: string) =>
-                                        k
-                                            ? hrefL({ search, category, location, year: Number(k) })
-                                            : hrefL({ search, category, location }),
+                                    allHref: hrefL({ search, category, location }),
                                     facets: years.map((y) => ({
                                         key: String(y),
                                         label: String(y),
+                                        href: hrefL({ search, category, location, year: Number(y) }),
                                     })),
                                 } as FilterGroup,
                             ]
@@ -271,11 +259,11 @@ export default async function PhotoStoriesPage({
                                     label: dict.photoStories.locations,
                                     activeKey: location ?? null,
                                     allLabel: "All",
-                                    hrefFor: (k: string) =>
-                                        k ? hrefL({ search, category, year, location: k }) : hrefL({ search, category, year }),
+                                    allHref: hrefL({ search, category, year }),
                                     facets: locations.map((loc) => ({
                                         key: loc.slug,
                                         label: loc.name,
+                                        href: hrefL({ search, category, year, location: loc.slug }),
                                     })),
                                 } as FilterGroup,
                             ]
@@ -389,11 +377,11 @@ export default async function PhotoStoriesPage({
                     locationLabel={dict.photoStories.locations}
                     allLocationsLabel={dict.photoStories.allLocations}
                     activeLocation={location ?? null}
-                    locationHref={(slug) =>
-                        slug
-                            ? hrefL({ search, category, year, location: slug })
-                            : hrefL({ search, category, year })
-                    }
+                    locationHrefs={locations.map((loc) => ({
+                        slug: loc.slug,
+                        href: hrefL({ search, category, year, location: loc.slug }),
+                    }))}
+                    clearLocationHref={hrefL({ search, category, year })}
                     clearHref={localePath(locale, "/photo-stories")}
                     clearLabel={dict.photoStories.clearFilters}
                     isFiltered={isFiltered || page > 1}
@@ -469,6 +457,5 @@ export default async function PhotoStoriesPage({
                 </aside>
             </div>
         </div>
-        </LocationProvider>
     );
 }

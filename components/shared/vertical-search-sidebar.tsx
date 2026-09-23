@@ -19,7 +19,15 @@ type Props = {
     locationLabel?: string;
     allLocationsLabel?: string;
     activeLocation?: string | null;
-    locationHref?: (slug: string | null) => string;
+    /**
+     * Precomputed hrefs, one per location slug (built server-side).
+     * A closure prop here would cross the server/client boundary the moment
+     * this component (or any child) becomes a Client Component — see the
+     * FacetFilter contract. Keep props data-only.
+     */
+    locationHrefs?: { slug: string; href: string }[];
+    /** Href that clears the location filter. */
+    clearLocationHref?: string;
     clearHref?: string;
     clearLabel?: string;
     isFiltered?: boolean;
@@ -41,7 +49,8 @@ export function VerticalSearchSidebar({
     locationLabel,
     allLocationsLabel,
     activeLocation,
-    locationHref,
+    locationHrefs,
+    clearLocationHref,
     clearHref,
     clearLabel,
     isFiltered,
@@ -80,7 +89,7 @@ export function VerticalSearchSidebar({
                 </CardContent>
             </Card>
 
-            {locations && locations.length > 0 && locationLabel && locationHref ? (
+            {locations && locations.length > 0 && locationLabel && locationHrefs ? (
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-base">
@@ -93,7 +102,7 @@ export function VerticalSearchSidebar({
                             {locations.map((loc) => (
                                 <li key={loc.slug}>
                                     <Link
-                                        href={locationHref(loc.slug)}
+                                        href={locationHrefs.find((h) => h.slug === loc.slug)?.href ?? "#"}
                                         aria-current={activeLocation === loc.slug ? "page" : undefined}
                                         className={`inline-block rounded-full border px-2.5 py-1 text-xs transition-colors hover:bg-muted ${
                                             activeLocation === loc.slug
@@ -106,9 +115,9 @@ export function VerticalSearchSidebar({
                                 </li>
                             ))}
                         </ul>
-                        {activeLocation ? (
+                        {activeLocation && clearLocationHref ? (
                             <Link
-                                href={locationHref(null)}
+                                href={clearLocationHref}
                                 className="mt-2 block text-xs font-semibold text-muted-foreground underline-offset-4 hover:underline"
                             >
                                 {allLocationsLabel ?? "All locations"}

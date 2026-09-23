@@ -503,6 +503,19 @@ below.*
 
 ## Changelog
 
+- 2026-09-24 — **CMS section architecture + media/automation pass** (`tsc --noEmit`
+  clean, vitest green, bare-href + background-image audits zero): StoryBlocks
+  are now modular sections (`text`/`image`/`video`/`gallery`/`cta`/`divider`
+  in `lib/admin/content-assist.ts`, sanitizer-safe serialization per type);
+  `StoryBlocksEditor` exposes one button per section type, direct image upload
+  via resumable `admin_asset`, auto-derived YouTube thumbnails with preview,
+  and per-type fields scoped by block kind. Excerpt automation is explicit via
+  `suggestExcerptFromBlocks` (densest summary-flagged section; dividers and
+  `isSummary: false` excluded): create fills only an empty excerpt on
+  multi-block drafts, and a new block auto-inserts only into an empty body
+  (edit keeps manual insert). Display-image fallback is centralized in
+  `resolveDisplayImage` (specific image → site logo →
+  `/images/default-display.jpg`).
 - 2026-09-23 — **W17 code health closed + P3 quarterly bets shipped/triaged.**
   `lib/admin/actions.ts` (4,085 lines) split into 13 per-domain Server Action
   modules (`lib/admin/actions/`, largest 604 lines) with all 35 client import

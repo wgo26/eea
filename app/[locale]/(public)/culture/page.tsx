@@ -249,10 +249,11 @@ export default async function CulturePage({
                         key: "category",
                         label: dict.culture.subSections,
                         activeKey: category ?? null,
-                        hrefFor: (k) => (k ? hrefL({ search, location, category: k }) : hrefL({ search, location })),
+                        allHref: hrefL({ search, location }),
                         facets: SUB_SECTIONS.map((s) => ({
                             key: s.slug,
                             label: dict.culture[s.dictKey as keyof typeof dict.culture],
+                            href: hrefL({ search, location, category: s.slug }),
                         })),
                     },
                 ]}

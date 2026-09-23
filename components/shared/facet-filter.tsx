@@ -17,6 +17,8 @@ export type FilterFacet = {
     label: string;
     count?: number;
     slug?: string;
+    /** Precomputed destination href (built server-side — never a function). */
+    href: string;
 };
 
 export type FilterGroup = {
@@ -24,11 +26,21 @@ export type FilterGroup = {
     label: string;
     facets: FilterFacet[];
     activeKey: string | null;
-    /** Build href preserving other filters */
-    hrefFor: (facetKey: string) => string;
+    /** Href for the "all" pill (clears this group's facet, preserves the rest). */
+    allHref: string;
     /** "all" label shown when activeKey is null */
     allLabel?: string;
 };
+
+/**
+ * Server Component contract (same rule as `components/admin/tabs.tsx` and
+ * `pager.tsx`): every page renders FacetFilter from a Server Component with
+ * PRECOMPUTED hrefs. If this file were to receive a closure prop (e.g. an
+ * `hrefFor` builder), that function would cross the server/client boundary →
+ * production React #441 ("An error occurred in the Server Components render")
+ * on every section page. Do NOT add function props — extend the
+ * FilterFacet/FilterGroup data shapes instead.
+ */
 
 /**
  * Shared facet filter bar for public content verticals.
@@ -119,7 +131,7 @@ export function FacetFilter({
 }
 
 function FilterNav({ group, vertical }: { group: FilterGroup; vertical?: boolean }) {
-    const { activeKey, allLabel, facets, hrefFor } = group;
+    const { activeKey, allLabel, allHref, facets } = group;
 
     if (facets.length === 0) return null;
 
@@ -134,7 +146,7 @@ function FilterNav({ group, vertical }: { group: FilterGroup; vertical?: boolean
         >
             {(allLabel ?? "All") ? (
                 <Link
-                    href={hrefFor("")}
+                    href={allHref}
                     aria-current={!activeKey ? "page" : undefined}
                     className={
                         vertical
@@ -153,7 +165,7 @@ function FilterNav({ group, vertical }: { group: FilterGroup; vertical?: boolean
                 return (
                     <Link
                         key={facet.key}
-                        href={hrefFor(facet.key)}
+                        href={facet.href}
                         aria-current={isActive ? "page" : undefined}
                         className={
                             vertical

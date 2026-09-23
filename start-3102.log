@@ -1,0 +1,26 @@
+▲ Next.js 16.3.4
+- Local:         http://localhost:3102
+- Network:       http://172.21.240.1:3102
+✓ Ready in 282ms
+[@sentry/nextjs] Importing `withSentryConfig` from `@sentry/nextjs` is deprecated and will stop working in v11. Import it from `@sentry/nextjs/config` instead:
+  import { withSentryConfig } from '@sentry/nextjs/config';
+[@sentry/nextjs] DEPRECATION WARNING: disableLogger is deprecated and will be removed in a future version. Use webpack.treeshake.removeDebugLogging instead.
+[@sentry/nextjs] DEPRECATION WARNING: automaticVercelMonitors is deprecated and will be removed in a future version. Use webpack.automaticVercelMonitors instead.
+✓ Running next.config.ts took 1068ms
+[proxy] failed to load legacy redirects: Could not find the table 'public.legacy_redirects' in the schema cache
+[proxy] failed to load legacy redirects: Could not find the table 'public.legacy_redirects' in the schema cache
+[proxy] failed to load legacy redirects: Could not find the table 'public.legacy_redirects' in the schema cache
+[proxy] failed to load legacy redirects: Could not find the table 'public.legacy_redirects' in the schema cache
+[proxy] failed to load legacy redirects: Could not find the table 'public.legacy_redirects' in the schema cache
+[proxy] failed to load legacy redirects: Could not find the table 'public.legacy_redirects' in the schema cache
+{"timestamp":"2026-09-23T10:31:03.290Z","level":"error","scope":"photo-stories","message":"cached query failed (getMostViewedPhotoStories)","error":"column content_translations_1.share_text does not exist"}
+revalidating cache with key: async a=>{let b=await (0,c.createAdminClient)().from("content_items").select(p).eq("type","photo_story").eq("status","published").eq("is_archived",!1).not("published_at","is",null).order("published_at",{ascending:!1,nullsFirst:!1}).limit(1);if(b.error)throw Error(b.error.message);let d=k(b.data??[]);if(d)return o(d,a);let e=await m().order("published_at",{ascending:!1,nullsFirst:!1}).limit(1);if(e.error)throw Error(e.error.message);let f=k(e.data??[]);return f?o(f,a):null}-photo-story-featured-["en"] Error: column content_translations_1.share_text does not exist
+    at q.tags (C:\Users\Fame\apps\eea\.next\server\chunks\ssr\_07q7y31._.js:10:418)
+{"timestamp":"2026-09-23T10:31:03.302Z","level":"error","scope":"photo-stories","message":"cached query failed (getPhotoStories)","error":"column content_translations_1.share_text does not exist"}
+[proxy] failed to load legacy redirects: Could not find the table 'public.legacy_redirects' in the schema cache
+[proxy] failed to load legacy redirects: Could not find the table 'public.legacy_redirects' in the schema cache
+[proxy] failed to load legacy redirects: Could not find the table 'public.legacy_redirects' in the schema cache
+[proxy] failed to load legacy redirects: Could not find the table 'public.legacy_redirects' in the schema cache
+[proxy] failed to load legacy redirects: Could not find the table 'public.legacy_redirects' in the schema cache
+[proxy] failed to load legacy redirects: Could not find the table 'public.legacy_redirects' in the schema cache
+{"timestamp":"2026-09-23T10:31:04.875Z","level":"error","scope":"culture","message":"cached query failed (getUpcomingEvents)","error":"\"failed to parse order (events.starts_at.asc)\" (line 1, column 8)"}

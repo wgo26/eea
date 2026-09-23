@@ -31,7 +31,6 @@ import { getLocationsByContentType } from "@/lib/queries/locations";
 import { FacetFilter } from "@/components/shared/facet-filter";
 import { PlaceRail } from "@/components/place/place-rail";
 import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
-import { LocationProvider } from "@/hooks/use-location-context";
 
 export async function generateMetadata({
     params,
@@ -142,15 +141,6 @@ export default async function NoticesPage({
                 .sort((a, b) => a - b);
 
     return (
-        <LocationProvider
-            locations={locations}
-            activeLocation={location ?? null}
-            locationHref={(slug) =>
-                slug
-                    ? hrefL({ search, type: noticeType, status, location: slug })
-                    : hrefL({ search, type: noticeType, status })
-            }
-        >
         <div className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
             <header className="mb-8">
                 <div className="flex items-center gap-3">
@@ -248,24 +238,25 @@ export default async function NoticesPage({
                             label: dict.notices.noticeTypes,
                             activeKey: noticeType ?? null,
                             allLabel: dict.notices.allTypes,
-                            hrefFor: (k) =>
-                                k ? hrefL({ search, location, status, type: k }) : hrefL({ search, location, status }),
+                            allHref: hrefL({ search, location, status }),
                             facets: types.map((f) => ({
                                 key: f.type,
                                 label: f.label,
                                 count: f.total,
+                                href: hrefL({ search, location, status, type: f.type }),
                             })),
                         },
                         {
                             key: "status",
                             label: dict.notices.board,
                             activeKey: status === "active" ? null : status,
-                            hrefFor: (k) =>
-                                k ? hrefL({ search, type: noticeType, location, status: k }) : hrefL({ search, type: noticeType, location, status: "active" }),
+                            allLabel: dict.notices.statusActive,
+                            allHref: hrefL({ search, type: noticeType, location, status: "active" }),
                             facets: statuses.map((s) => ({
                                 key: s.value,
                                 label: s.label,
-                                count: s.value === "all" ? undefined : undefined,
+                                count: undefined,
+                                href: hrefL({ search, type: noticeType, location, status: s.value }),
                             })),
                         },
                     ]}
@@ -531,6 +522,5 @@ export default async function NoticesPage({
                 </aside>
             </div>
         </div>
-        </LocationProvider>
     );
 }

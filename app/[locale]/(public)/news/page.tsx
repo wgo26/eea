@@ -47,7 +47,6 @@ import {
     type NewsArticle,
 } from "@/lib/queries/news";
 import { getLocationsByContentType } from "@/lib/queries/locations";
-import { LocationProvider } from "@/hooks/use-location-context";
 
 export async function generateMetadata({
     params,
@@ -184,17 +183,8 @@ export default async function NewsPage({
                   .filter((p) => p >= 1 && p <= pageCount)
                   .sort((a, b) => a - b);
 
-     return (
-        <LocationProvider
-            locations={locations}
-            activeLocation={location ?? null}
-            locationHref={(slug) =>
-                slug
-                    ? hrefL({ search, category, sort, location: slug })
-                    : hrefL({ search, category, sort })
-            }
-        >
-        <div className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
+      return (
+         <div className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
             {/* Page band */}
             <header className="mb-8">
                 <div className="flex flex-wrap items-center gap-3">
@@ -326,12 +316,12 @@ export default async function NewsPage({
                             label: dict.news.categories,
                             activeKey: category ?? null,
                             allLabel: dict.news.allCategories,
-                            hrefFor: (k) =>
-                                k ? hrefL({ search, location, sort, category: k }) : hrefL({ search, location, sort }),
+                            allHref: hrefL({ search, location, sort }),
                             facets: categories.map((f) => ({
                                 key: f.slug,
                                 label: f.name,
                                 count: f.total,
+                                href: hrefL({ search, location, sort, category: f.slug }),
                             })),
                         },
                         ...(locations.length > 0
@@ -341,12 +331,12 @@ export default async function NewsPage({
                                     label: dict.news.locations,
                                     activeKey: location ?? null,
                                     allLabel: dict.news.allLocations,
-                                    hrefFor: (k: string) =>
-                                        k ? hrefL({ search, category, sort, location: k }) : hrefL({ search, category, sort }),
+                                    allHref: hrefL({ search, category, sort }),
                                     facets: locations.map((loc) => ({
                                         key: loc.slug,
                                         label: loc.name,
                                         count: undefined,
+                                        href: hrefL({ search, category, sort, location: loc.slug }),
                                     })),
                                 },
                             ]
@@ -578,6 +568,5 @@ export default async function NewsPage({
                 </aside>
             </div>
         </div>
-        </LocationProvider>
     );
 }

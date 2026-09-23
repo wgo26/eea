@@ -46,7 +46,17 @@ async function getLegacyRedirects(): Promise<Record<string, string>> {
       .from("legacy_redirects")
       .select("from_path, to_path");
     if (error) {
-      console.error("[proxy] failed to load legacy redirects:", error.message);
+      // Negative-cache the miss for one TTL so a missing/unreachable table
+      // doesn't re-query + log on EVERY request (verified 2026-09-23: the
+      // table is absent until the legacy_redirects migration is pushed, which
+      // spammed one error line per request). PGRST205 (absent from the
+      // PostgREST schema cache) is an expected state on lagging DBs, so it
+      // stays silent; anything else still warns. Either way the proxy fails
+      // open — legacy URLs just don't redirect until the table exists.
+      legacyRedirectsCacheAt = now;
+      if (error.code !== "PGRST205") {
+        console.error("[proxy] failed to load legacy redirects:", error.message);
+      }
       return legacyRedirectsCache ?? {};
     }
     const map: Record<string, string> = {};

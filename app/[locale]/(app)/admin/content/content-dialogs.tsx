@@ -1185,20 +1185,63 @@ export function ContentEditTrigger({
    *  page derives it from the `edit` query param). */
   autoOpen?: boolean;
 }) {
+  const { addToast } = useToast();
   const [open, setOpen] = useState(autoOpen);
   const [data, setData] = useState<Awaited<
     ReturnType<typeof fetchEditData>
   > | null>(null);
   const [fetching, setFetching] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Data fetch on dialog open — mirrors moderation review pattern.
+  // Reloads on every open so switching rows (or reopening after an edit)
+  // never shows a stale previous item; resets error/data for a clean slate.
+  // Failures surface as a retryable error panel + toast, never the bare "—".
+  const loadEditData = async (contentId: string) => {
+    setFetching(true);
+    setFetchError(null);
+    try {
+      const loaded = await fetchEditData(contentId);
+      if (!loaded) {
+        const message = copy.editLoadMissing ?? "Content not found — it may have been deleted.";
+        setFetchError(message);
+        setData(null);
+        addToast(message, "error");
+      } else {
+        setData(loaded);
+      }
+    } catch (e) {
+      const message = e instanceof Error && e.message ? e.message : (copy.editLoadError ?? "Could not load content for editing.");
+      setFetchError(message);
+      setData(null);
+      addToast(message, "error");
+    } finally {
+      setFetching(false);
+    }
+  };
+
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    setData(null);
     setFetching(true);
+    setFetchError(null);
     fetchEditData(content.id)
-      .then((d) => {
-        if (!cancelled) setData(d);
+      .then((loaded) => {
+        if (cancelled) return;
+        if (!loaded) {
+          const message = copy.editLoadMissing ?? "Content not found — it may have been deleted.";
+          setFetchError(message);
+          addToast(message, "error");
+        } else {
+          setData(loaded);
+        }
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        const message = e instanceof Error && e.message ? e.message : (copy.editLoadError ?? "Could not load content for editing.");
+        setFetchError(message);
+        addToast(message, "error");
       })
       .finally(() => {
         if (!cancelled) setFetching(false);
@@ -1206,7 +1249,11 @@ export function ContentEditTrigger({
     return () => {
       cancelled = true;
     };
-  }, [open, content.id]);
+  }, [open, content.id]); // eslint-disable-line react-hooks/exhaustive-deps -- copy/addToast stable per locale
+
+  const handleRetry = () => {
+    void loadEditData(content.id);
+  };
 
   return (
     <>
@@ -1217,11 +1264,35 @@ export function ContentEditTrigger({
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{copy.editContent}</DialogTitle>
+            {data ? (
+              <p className="text-sm text-muted-foreground">
+                {data.enTitle ?? data.title ?? content.title ?? content.slug ?? content.id.slice(0, 8)}
+                {data.status ? ` · ${data.status}` : ""}
+              </p>
+            ) : null}
           </DialogHeader>
           {fetching ? (
-            <p className="text-sm text-muted-foreground">{common.working}</p>
+            <div className="grid gap-2" aria-live="polite">
+              <div className="h-8 animate-pulse rounded-md bg-muted" />
+              <div className="h-8 animate-pulse rounded-md bg-muted" />
+              <div className="h-24 animate-pulse rounded-md bg-muted" />
+              <p className="text-sm text-muted-foreground">{common.working}</p>
+            </div>
+          ) : fetchError ? (
+            <div className="grid gap-3" role="alert">
+              <p className="text-sm text-destructive">{fetchError}</p>
+              <div className="flex gap-2">
+                <button type="button" onClick={handleRetry} className={btnPrimary}>
+                  {copy.editRetry ?? "Retry"}
+                </button>
+                <button type="button" onClick={() => setOpen(false)} className={btnGhost}>
+                  {common.cancel}
+                </button>
+              </div>
+            </div>
           ) : data ? (
             <ContentEditForm
+              key={data.id}
               data={data}
               copy={copy}
               common={common}

@@ -405,7 +405,10 @@ const getCachedUpcomingEvents = unstable_cache(
             .not("published_at", "is", null)
             .not("events.starts_at", "is", null)
             .gte("events.starts_at", new Date().toISOString())
-            .order("events.starts_at", { ascending: true })
+            // Order on the embedded table needs the referencedTable form —
+            // the "events.starts_at" string form is rejected by PostgREST
+            // ("failed to parse order"), which emptied the events rail.
+            .order("starts_at", { ascending: true, referencedTable: "events" })
             .limit(limit);
         if (error) throw new Error(error.message);
         return ((data ?? []) as unknown as RawCultureRow[]).flatMap((row) => {

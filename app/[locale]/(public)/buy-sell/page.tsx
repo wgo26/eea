@@ -28,7 +28,6 @@ import { getLocationsByContentType } from "@/lib/queries/locations";
 import { FacetFilter } from "@/components/shared/facet-filter";
 import { PlaceRail } from "@/components/place/place-rail";
 import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
-import { LocationProvider } from "@/hooks/use-location-context";
 
 export async function generateMetadata({
     params,
@@ -151,16 +150,7 @@ export default async function BuySellPage({
                 .filter((p) => p >= 1 && p <= pageCount)
                 .sort((a, b) => a - b);
 
-     return (
-        <LocationProvider
-            locations={locations}
-            activeLocation={location ?? null}
-            locationHref={(slug) =>
-                slug
-                    ? hrefL({ search, category, sort, location: slug })
-                    : hrefL({ search, category, sort })
-            }
-        >
+      return (
         <div className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
             {/* Page header */}
             <header className="mb-8">
@@ -199,11 +189,11 @@ export default async function BuySellPage({
                         label: dict.buySell.categories,
                         activeKey: category ?? null,
                         allLabel: dict.buySell.allCategories,
-                        hrefFor: (k) =>
-                            k ? hrefL({ search, location, sort, category: k }) : hrefL({ search, location, sort }),
+                        allHref: hrefL({ search, location, sort }),
                         facets: CATEGORY_SLUGS.map((c) => ({
                             key: c.slug,
                             label: dict.buySell[c.key],
+                            href: hrefL({ search, location, sort, category: c.slug }),
                         })),
                     },
                     ...(locations.length > 0
@@ -213,13 +203,11 @@ export default async function BuySellPage({
                                   label: dict.buySell.locations,
                                   activeKey: location ?? null,
                                   allLabel: dict.buySell.allLocations,
-                                  hrefFor: (k: string) =>
-                                      k
-                                          ? hrefL({ search, category, sort, location: k })
-                                          : hrefL({ search, category, sort }),
+                                  allHref: hrefL({ search, category, sort }),
                                   facets: locations.map((loc) => ({
                                       key: loc.slug,
                                       label: loc.name,
+                                      href: hrefL({ search, category, sort, location: loc.slug }),
                                   })),
                               },
                           ]
@@ -491,6 +479,5 @@ export default async function BuySellPage({
                 </aside>
             </div>
         </div>
-        </LocationProvider>
     );
 }
