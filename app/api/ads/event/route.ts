@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/observability/logger'
 import { checkRateLimit, resolveClientIpFromRequest } from '@/lib/security/rate-limit'
+import { createAdEventDedup, ipAndUserAgentKey } from '@/lib/security/ad-dedup'
 
 // Best-effort per-IP throttle (single-instance guard; the RPC itself is the
 // durable write). Bots hammering pixels get 429s instead of DB rows.
@@ -43,6 +44,14 @@ function throttled(ip: string): boolean {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+/**
+ * Process-wide dedup store for the beacon — the W15 fraud damper that stops one
+ * viewer's repeat fires from inflating billable counters. Implementation,
+ * privacy notes and the bounded-memory discipline live in
+ * `lib/security/ad-dedup.ts`; this route only decides the viewer identity.
+ */
+const adDedup = createAdEventDedup()
 
 /**
  * Public ad-event beacon (impression/click). Session-safe: the client sends
@@ -96,6 +105,15 @@ export async function POST(request: Request) {
     typeof sessionHash === 'string' && /^[0-9a-fA-F]{8,128}$/.test(sessionHash.trim())
       ? sessionHash.trim().slice(0, 128)
       : null
+
+  // W15 — fraud damping: count one impression per viewer per 30 minutes (10 s
+  // for clicks). The client session hash is the precise identity; IP + UA hash
+  // is the coarse fallback for beacons that arrive without one. Deduplicated
+  // fires are acknowledged (202) so the pixel never shows an error in console.
+  const viewerKey = session ?? ipAndUserAgentKey(ip, request.headers.get('user-agent'))
+  if (adDedup.seen(campaignId, eventType, viewerKey)) {
+    return NextResponse.json({ ok: true, deduped: true }, { status: 202 })
+  }
 
   try {
     const supabase = createAdminClient()

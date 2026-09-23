@@ -16,6 +16,7 @@ import { AdCreateForms } from './ad-create-forms'
 import { InquiryActions } from './inquiry-actions'
 import { AdvertiserActions } from './advertiser-actions'
 import { CampaignActions } from './campaign-actions'
+import { BillingActions } from './billing-actions'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -151,6 +152,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
 
       <section>
         <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{t.campaignsHeading}</h2>
+        <p className="mb-3 max-w-3xl text-xs text-muted-foreground">{t.makeGoodPolicy}</p>
         {campaigns.length === 0 ? (
           <EmptyState message={t.emptyCampaigns} />
         ) : (
@@ -195,6 +197,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
                 </div>
               ), headerClassName: 'hidden xl:table-cell', className: 'hidden xl:table-cell whitespace-nowrap' },
               { key: 'pricing', header: t.colPrice, render: (r) => <span className="text-xs whitespace-nowrap">{formatPrice(r.agreedPrice, r.currency)}</span>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
+              { key: 'billing', header: t.paymentStatus, render: (r) => <BillingActions campaign={r} copy={t} />, headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell whitespace-nowrap' },
               { key: 'performance', header: t.colPerformance, render: (r) => (
                 <div className="text-xs whitespace-nowrap">
                   <span>{r.impressions.toLocaleString()} {t.impressions}</span>

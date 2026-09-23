@@ -2108,6 +2108,136 @@ export async function deleteAdCampaign(campaignId: string): Promise<ActionResult
   } catch (e) { return fail(e) }
 }
 
+/* ------------------------------------------------------------------ */
+/* Ads business loop (W15): quote → invoice → paid                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * W15 — record an invoice against a campaign.
+ *
+ * The "quote" is the slot rate card / agreed price; this stamps the
+ * human-readable reference finance reconciles against, and flips the payment
+ * state to `invoiced`. There is deliberately **no payment gateway**: money
+ * moves out-of-band (mobile money, transfer) in this market — the product's
+ * job is to make the *record* auditable, and every transition writes a
+ * moderation_log row so the audit page shows who billed whom.
+ *
+ * Amount is optional: passing it updates the agreed price (the invoice total
+ * becomes the record of truth for that booking); omitting it keeps the quote.
+ */
+export async function setAdCampaignInvoice(
+  campaignId: string,
+  input: { reference: string; amount?: number | null },
+): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageAds')
+    const reference = input.reference.trim()
+    // Reference is echoed in the admin table and matched by hand against the
+    // ledger: keep it short, printable, and bounded.
+    if (reference.length < 3 || reference.length > 64) {
+      return { ok: false, error: 'An invoice reference of 3–64 characters is required.' }
+    }
+    const patch: UpdateOf<'ad_campaigns'> = {
+      invoice_reference: reference,
+      payment_status: 'invoiced',
+    }
+    if (input.amount !== undefined && input.amount !== null) {
+      if (!Number.isFinite(input.amount) || input.amount < 0) {
+        return { ok: false, error: 'The invoice amount must be a positive number.' }
+      }
+      patch.agreed_price = input.amount
+    }
+    const { error } = await supabase.from('ad_campaigns').update(patch).eq('id', campaignId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, {
+      action: 'ad:campaign:invoice',
+      entityType: 'ad_campaign',
+      entityId: campaignId,
+      toStatus: 'invoiced',
+      notes: reference,
+    })
+    revalidateLocalized('/admin/ads')
+    revalidateAdsCache()
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+/**
+ * W15 — mark an invoiced campaign as paid.
+ *
+ * Refuses to skip the invoice step: an unpaid→paid jump with no reference is
+ * exactly the state that makes an ad-revenue ledger unauditable later. The UI
+ * also hides the button, but the server is the source of truth.
+ */
+export async function markAdCampaignPaid(campaignId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageAds')
+    const { data: current, error: readError } = await supabase
+      .from('ad_campaigns')
+      .select('invoice_reference, payment_status')
+      .eq('id', campaignId)
+      .maybeSingle()
+    if (readError) return { ok: false, error: readError.message }
+    if (!current) return { ok: false, error: 'Campaign not found.' }
+    const row = current as { invoice_reference: string | null; payment_status: string | null }
+    if (!row.invoice_reference) {
+      return { ok: false, error: 'Record an invoice reference before marking this campaign paid.' }
+    }
+    if (row.payment_status === 'paid') return { ok: true }
+    const { error } = await supabase
+      .from('ad_campaigns')
+      .update({ payment_status: 'paid' } as UpdateOf<'ad_campaigns'>)
+      .eq('id', campaignId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, {
+      action: 'ad:campaign:paid',
+      entityType: 'ad_campaign',
+      entityId: campaignId,
+      toStatus: 'paid',
+      notes: row.invoice_reference,
+    })
+    revalidateLocalized('/admin/ads')
+    revalidateAdsCache()
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+/**
+ * W15 — void an invoice (wrong reference, cancelled booking, refund).
+ *
+ * Returns the campaign to `unpaid` and clears the reference so a stale number
+ * can never be marked paid later. The audit row keeps the voided reference.
+ */
+export async function voidAdCampaignInvoice(campaignId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageAds')
+    const { data: current, error: readError } = await supabase
+      .from('ad_campaigns')
+      .select('invoice_reference')
+      .eq('id', campaignId)
+      .maybeSingle()
+    if (readError) return { ok: false, error: readError.message }
+    if (!current) return { ok: false, error: 'Campaign not found.' }
+    const previous = (current as { invoice_reference: string | null }).invoice_reference
+    const { error } = await supabase
+      .from('ad_campaigns')
+      .update({ invoice_reference: null, payment_status: 'unpaid' } as UpdateOf<'ad_campaigns'>)
+      .eq('id', campaignId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, {
+      action: 'ad:campaign:invoice:void',
+      entityType: 'ad_campaign',
+      entityId: campaignId,
+      fromStatus: 'invoiced',
+      toStatus: 'unpaid',
+      notes: previous ?? 'no reference',
+    })
+    revalidateLocalized('/admin/ads')
+    revalidateAdsCache()
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
 export async function createAdSlot(input: { slotKey: string; name: string; placement?: string; dimensions?: string; mobileDimensions?: string; allowedFormats?: string[]; maxDurationSeconds?: number | null; capacity?: number; basePrice?: number; currency?: string }): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertCapability('manageAds')
