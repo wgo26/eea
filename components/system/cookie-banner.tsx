@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 
 import type { Dictionary, Locale } from "@/lib/i18n";
@@ -47,6 +47,13 @@ export function CookieBanner({ locale, dict }: { locale: Locale; dict: Dictionar
         () => false,
     );
     const [dismissed, setDismissed] = useState(false);
+    // Defer the first mount so the banner never covers the top of the fold on
+    // a user's first view — reading comes first, consent stays available.
+    const [ready, setReady] = useState(false);
+    useEffect(() => {
+        const t = window.setTimeout(() => setReady(true), 2000);
+        return () => window.clearTimeout(t);
+    }, []);
 
     function choose(value: "accepted" | "declined") {
         try {
@@ -58,7 +65,7 @@ export function CookieBanner({ locale, dict }: { locale: Locale; dict: Dictionar
         setDismissed(true);
     }
 
-    if (!unanswered || dismissed) return null;
+    if (!ready || !unanswered || dismissed) return null;
 
     return (
         <div

@@ -43,6 +43,11 @@ badges: {
     buySell: 'Acheter & vendre',
     culture: 'Culture & divertissement',
     viewAll: 'Tout voir',
+    viewAllPhotoStories: 'Tout voir — Reportages photo',
+    viewAllNews: 'Tout voir — Actualités',
+    viewAllNotices: 'Tout voir — Avis',
+    viewAllBuySell: 'Tout voir — Acheter & vendre',
+    viewAllCulture: 'Tout voir — Culture & divertissement',
     photographBy: 'Photo :',
     submittedBy: 'Soumis par',
     posted: 'Publié',
@@ -687,7 +692,7 @@ badges: {
       useProfile: 'Utiliser mon profil',
       continue: 'Continuer',
       back: 'Retour',
-      review: 'Retour au début pour relire',
+      review: 'Revoir ma soumission',
       media: 'Ajouter des médias',
       optional: 'Facultatif',
       detect: 'Utiliser ma position',
@@ -708,6 +713,7 @@ badges: {
     deletePolicy:
       'Les soumissions en cours peuvent être retirées ici, mais pas supprimées. Les éléments rejetés peuvent être resoumis ; les éléments publiés nécessitent un retrait par l’équipe. Sondages et collectes sont gérés par les rédacteurs — contactez le support pour toute modification.',
     submit: 'Soumettre pour relecture',
+    saveDraft: 'Enregistrer le brouillon',
     submitting: 'Envoi…',
     successTitle: 'Soumission reçue',
     successBody:

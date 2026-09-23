@@ -82,5 +82,6 @@ footer: {
     placePromptTitle: 'Where is home?',
     placePromptBody: 'Pick your place once — the homepage will lead with news, notices, listings and events near you.',
     placePromptLater: 'Not now',
+    placePromptNever: "Don't show again",
   },
 }

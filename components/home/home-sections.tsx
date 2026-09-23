@@ -127,7 +127,7 @@ export async function HomePhotoStories({ locale, dict }: SectionProps) {
                     title={dict.home.latestPhotoStories}
                     hint={dict.home.sectionHintPhoto}
                     viewAllHref={href(locale, "/photo-stories")}
-                    viewAllLabel={dict.home.viewAll}
+                    viewAllLabel={dict.home.viewAllPhotoStories}
                 />
                 <div className="grid gap-5 sm:grid-cols-2">
                     {data.photoStories.map((s) => (
@@ -157,7 +157,7 @@ export async function HomeNewsTrending({ locale, dict }: SectionProps) {
                     title={dict.home.latestNews}
                     hint={dict.home.sectionHintNews}
                     viewAllHref={href(locale, "/news")}
-                    viewAllLabel={dict.home.viewAll}
+                    viewAllLabel={dict.home.viewAllNews}
                 />
                 {data.news.length > 0 ? (
                     <div className="grid gap-5 sm:grid-cols-2">
@@ -166,7 +166,7 @@ export async function HomeNewsTrending({ locale, dict }: SectionProps) {
                         ))}
                     </div>
                 ) : (
-                    <EmptySection dict={dict} href={href(locale, "/news")} label={dict.home.viewAll} />
+                    <EmptySection dict={dict} href={href(locale, "/news")} label={dict.home.viewAllNews} />
                 )}
             </div>
             <aside>
@@ -194,7 +194,7 @@ export async function HomeBoard({ locale, dict }: SectionProps) {
                     title={dict.home.latestNotices}
                     hint={dict.home.sectionHintNotices}
                     viewAllHref={href(locale, "/notices")}
-                    viewAllLabel={dict.home.viewAll}
+                    viewAllLabel={dict.home.viewAllNotices}
                 />
                 <NoticesList notices={data.notices} dict={dict} locale={locale} />
             </div> : null}
@@ -203,7 +203,7 @@ export async function HomeBoard({ locale, dict }: SectionProps) {
                     title={dict.home.buySell}
                     hint={dict.home.sectionHintBuySell}
                     viewAllHref={href(locale, "/buy-sell")}
-                    viewAllLabel={dict.home.viewAll}
+                    viewAllLabel={dict.home.viewAllBuySell}
                 />
                 <div className="grid gap-4 sm:grid-cols-2">
                     {data.listings.map((l) => (
@@ -225,7 +225,7 @@ export async function HomeCulture({ locale, dict }: SectionProps) {
                 title={dict.home.culture}
                 hint={dict.home.sectionHintCulture}
                 viewAllHref={href(locale, "/culture")}
-                viewAllLabel={dict.home.viewAll}
+                viewAllLabel={dict.home.viewAllCulture}
             />
             <div className="grid gap-5 sm:grid-cols-3">
                 {data.culture.map((s) => (

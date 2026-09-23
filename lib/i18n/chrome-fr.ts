@@ -72,5 +72,6 @@ footer: {
     placePromptTitle: 'Où habitez-vous ?',
     placePromptBody: 'Choisissez votre lieu une fois — la page d’accueil mettra en avant les actualités, avis, annonces et événements près de chez vous.',
     placePromptLater: 'Pas maintenant',
+    placePromptNever: 'Ne plus afficher',
   },
 }

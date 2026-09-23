@@ -4,7 +4,7 @@ import * as React from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, Info, Loader2, LocateFixed, MapPin } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, Info, Loader2, LocateFixed, MapPin } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -292,6 +292,8 @@ export function SubmitForm({
     // Signed-in contributors with a known name start with contact collapsed.
     const [showContact, setShowContact] = React.useState(!initial?.name);
     const [mediaOpen, setMediaOpen] = React.useState(false);
+    const [reviewOpen, setReviewOpen] = React.useState(false);
+    const [reviewValues, setReviewValues] = React.useState<Record<string, string>>({});
     const formRef = React.useRef<HTMLFormElement>(null);
     const stepRef = React.useRef<HTMLDivElement>(null);
 
@@ -347,7 +349,30 @@ export function SubmitForm({
         }
         setStep(next);
         stepRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
-    };
+    }
+
+    /** Capture live form values into state when the review summary opens, so
+     * refs are read inside an event handler (not during render). */
+    function captureReviewValues() {
+        const form = formRef.current;
+        if (!form) return;
+        const next: Record<string, string> = {};
+        for (const name of ["contributorName", "email", "phone", "location_text", "date"]) {
+            const el = form.elements.namedItem(name);
+            if (
+                el instanceof HTMLInputElement ||
+                el instanceof HTMLTextAreaElement ||
+                el instanceof HTMLSelectElement
+            ) {
+                if (el instanceof HTMLInputElement && (el.type === "checkbox" || el.type === "radio")) {
+                    next[name] = el.checked ? el.value : "";
+                } else {
+                    next[name] = el.value.trim();
+                }
+            }
+        }
+        setReviewValues(next);
+    }
 
     if (state.ok) {
         return (
@@ -416,22 +441,29 @@ export function SubmitForm({
 
             {/* Contact card — collapsed for signed-in contributors */}
             <div className="rounded-2xl border bg-muted/30 p-4">
-                {initial?.name && !showContact ? (
-                    <div className="flex items-center justify-between gap-3 text-sm">
-                        <p>
+            {initial?.name && !showContact ? (
+                <div className="flex items-center justify-between gap-3 text-sm">
+                    <p className="inline-flex items-center gap-2">
+                        {initial.email ? (
+                            <Check className="h-4 w-4 text-emerald-500" aria-hidden />
+                        ) : (
+                            <AlertCircle className="h-4 w-4 text-amber-500" aria-hidden />
+                        )}
+                        <span>
                             {s.submittingAs}{" "}
                             <strong>{initial.name}</strong>
                             {initial.email ? ` · ${initial.email}` : ""}
-                        </p>
-                        <button
-                            type="button"
-                            onClick={() => setShowContact(true)}
-                            className="shrink-0 font-medium text-primary hover:underline"
-                        >
-                            {s.change}
-                        </button>
-                    </div>
-                ) : (
+                        </span>
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => setShowContact(true)}
+                        className="shrink-0 font-medium text-primary hover:underline"
+                    >
+                        {s.change}
+                    </button>
+                </div>
+            ) : (
                     <div className="space-y-4">
                         <div className="flex items-center justify-between gap-3">
                             <p className="text-sm font-bold">{s.contact}</p>
@@ -717,26 +749,69 @@ export function SubmitForm({
                     />
                     <TurnstileWidget />
 
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                        {canUpload ? (
-                            <Button 
-                                type="submit" 
-                                formAction={draftAction} 
-                                disabled={pending || draftPending} 
-                                variant="outline" 
-                                className="w-full sm:w-1/3"
-                            >
-                                {draftPending ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                                        {dict.submit.submitting}
-                                    </>
-                                ) : (
-                                    "Save Draft"
-                                )}
-                            </Button>
-                        ) : null}
-                        <Button type="submit" disabled={pending || draftPending} className="w-full flex-1">
+                    {reviewOpen ? (
+                        <section aria-label={s.review} className="rounded-2xl border bg-muted/30 p-4">
+                            <h3 className="mb-3 text-sm font-bold">{s.review}</h3>
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <div>
+                                    <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                                        {s.contact}
+                                    </p>
+                                    <ul className="space-y-1 text-sm">
+                                        <li>
+                                            <span className="text-muted-foreground">{f.contributorName}:</span>{" "}
+                                            {reviewValues.contributorName || "—"}
+                                        </li>
+                                        <li>
+                                            <span className="text-muted-foreground">{f.email}:</span>{" "}
+                                            {reviewValues.email || "—"}
+                                        </li>
+                                        <li>
+                                            <span className="text-muted-foreground">{f.phone}:</span>{" "}
+                                            {reviewValues.phone || "—"}
+                                        </li>
+                                    </ul>
+                                    <button
+                                        type="button"
+                                        className="mt-2 text-xs font-medium text-primary hover:underline"
+                                        onClick={() => {
+                                            setShowContact(true);
+                                            setReviewOpen(false);
+                                        }}
+                                    >
+                                        {s.change}
+                                    </button>
+                                </div>
+                                <div>
+                                    <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                                        {s.two}
+                                    </p>
+                                    <ul className="space-y-1 text-sm">
+                                        <li>
+                                            <span className="text-muted-foreground">{f.location}:</span>{" "}
+                                            {reviewValues.location_text || "—"}
+                                        </li>
+                                        <li>
+                                            <span className="text-muted-foreground">{f.date}:</span>{" "}
+                                            {reviewValues.date || "—"}
+                                        </li>
+                                    </ul>
+                                    <button
+                                        type="button"
+                                        className="mt-2 text-xs font-medium text-primary hover:underline"
+                                        onClick={() => {
+                                            setReviewOpen(false);
+                                            goStep(1);
+                                        }}
+                                    >
+                                        {s.change}
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+                    ) : null}
+                    <div className="flex flex-col gap-3">
+                        <Button type="submit" disabled={pending || draftPending} className="w-full">
                             {pending ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
@@ -746,6 +821,23 @@ export function SubmitForm({
                                 dict.submit.submit
                             )}
                         </Button>
+                        {canUpload ? (
+                            <button
+                                type="submit"
+                                formAction={draftAction}
+                                disabled={pending || draftPending}
+                                className="text-sm font-medium text-primary underline underline-offset-2 hover:no-underline disabled:opacity-50"
+                            >
+                                {draftPending ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                                        {dict.submit.submitting}
+                                    </>
+                                ) : (
+                                    dict.submit.saveDraft
+                                )}
+                            </button>
+                        ) : null}
                     </div>
                 </div>
             </div>
@@ -765,7 +857,15 @@ export function SubmitForm({
                         {s.continue}
                     </Button>
                 ) : (
-                    <Button type="button" variant="ghost" onClick={() => goStep(0)}>
+                    <Button
+                        type="button"
+                        variant={reviewOpen ? "default" : "ghost"}
+                        aria-expanded={reviewOpen}
+                        onClick={() => {
+                            if (!reviewOpen) captureReviewValues();
+                            setReviewOpen((v) => !v);
+                        }}
+                    >
                         {s.review}
                     </Button>
                 )}

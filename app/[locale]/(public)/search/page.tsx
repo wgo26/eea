@@ -139,6 +139,17 @@ export default async function SearchPage({
 
     const typeParam = type ?? "";
 
+    // Zero-results recovery: surface top-level section links so a miss has a
+    // next move (audit §2.5). Uses existing nav labels — no new i18n needed.
+    const SEARCH_SECTIONS = [
+        { href: "/photo-stories", label: dict.nav.photoStories },
+        { href: "/news", label: dict.nav.news },
+        { href: "/notices", label: dict.nav.notices },
+        { href: "/buy-sell", label: dict.nav.buySell },
+        { href: "/culture", label: dict.nav.culture },
+        { href: "/locations", label: dict.nav.locations },
+    ];
+
     return (
         <div className="mx-auto w-full max-w-4xl px-4 py-8 md:px-6 lg:px-8">
             <header className="mb-6">
@@ -197,6 +208,17 @@ export default async function SearchPage({
                         <p className="mt-2 text-sm text-muted-foreground">
                             {dict.search.noResultsHint}
                         </p>
+                        <nav aria-label={dict.search.browse} className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-2 text-center text-sm">
+                            {SEARCH_SECTIONS.map((sec) => (
+                                <Link
+                                    key={sec.href}
+                                    href={localePath(locale, sec.href)}
+                                    className="inline-block underline underline-offset-2"
+                                >
+                                    {sec.label}
+                                </Link>
+                            ))}
+                        </nav>
                     </div>
                 ) : (
                     <>

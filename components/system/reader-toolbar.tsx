@@ -83,7 +83,7 @@ export function ReaderToolbar({
                     size="sm"
                     render={<a href={waHref} target="_blank" rel="noopener noreferrer" onClick={beaconTap} />}
                     aria-label={whatsappLabel}
-                    className="gap-1.5"
+                    className="hidden lg:inline-flex gap-1.5"
                 >
                     <MessageCircle className="h-4 w-4" aria-hidden />
                     <span className="hidden sm:inline">WhatsApp</span>

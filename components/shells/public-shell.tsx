@@ -66,7 +66,7 @@ export async function PublicShell({ children, locale }: { children: ReactNode; l
         branding={{ logoUrl: settings.logoUrl, siteName: settings.siteName, siteTagline: settings.siteTagline, siteNameFr: settings.siteNameFr, siteTaglineFr: settings.siteTaglineFr }}
         chrome={getChromeStrings(locale)}
       />
-      <main id="main-content" className="flex-1">{children}</main>
+      <main id="main-content" tabIndex={-1} className="flex-1">{children}</main>
       <SiteFooter
         socialLinks={{ facebook: settings.facebookUrl, youtube: settings.youtubeUrl }}
         branding={{ logoUrl: settings.logoUrl, siteName: settings.siteName, siteNameFr: settings.siteNameFr }}

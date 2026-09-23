@@ -515,6 +515,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                                 listenText={`${article.excerpt ?? ""}\n\n${rawBody}`}
                                 showReadingMode={readingModeOn}
                                 showListen={ttsOn}
+                                showTextSize={false}
                                 dict={dict}
                             />
                             {/* Phase 4 — Save for offline (service worker + Cache API). */}

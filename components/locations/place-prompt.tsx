@@ -19,6 +19,8 @@ import {
 
 const PLACE_COOKIE = "eea-place";
 const DISMISSED_KEY = "eea-place-dismissed";
+const REMIND_KEY = "eea-place-remind-after";
+const REMIND_MS = 5 * 24 * 60 * 60 * 1000;
 
 function readPlaceCookie(): { slug: string; name: string } | null {
     try {
@@ -63,6 +65,8 @@ export function PlacePrompt({
         try {
             if (readPlaceCookie()) return;
             if (window.localStorage.getItem(DISMISSED_KEY) === "1") return;
+            const snooze = window.localStorage.getItem(REMIND_KEY);
+            if (snooze && Number(snooze) > Date.now()) return;
         } catch {
             return;
         }
@@ -89,18 +93,41 @@ export function PlacePrompt({
         };
     }, [locale, open]);
 
-    function dismiss() {
+    function remindLater() {
+        // "Not now": re-prompt in 5 days (honest reading of the button's intent)
+        // rather than hiding the prompt for the whole session.
         try {
-            window.localStorage.setItem(DISMISSED_KEY, "1");
+            window.localStorage.setItem(REMIND_KEY, String(Date.now() + REMIND_MS));
         } catch {
             /* private mode — the cookie check still guards re-prompting */
         }
         setOpen(false);
     }
 
+    function dismissForever() {
+        try {
+            window.localStorage.setItem(DISMISSED_KEY, "1");
+            window.localStorage.removeItem(REMIND_KEY);
+        } catch {
+            /* private mode — the cookie check still guards re-prompting */
+        }
+        setOpen(false);
+    }
+
+    function dismiss() {
+        // Backdrop/esc dismiss behaves like "Not now" (5-day snooze) so the
+        // prompt does not permanently vanish when a user just closes the sheet.
+        remindLater();
+    }
+
     function choose(place: LocationData) {
         writePlaceCookie({ slug: place.slug, name: place.name });
-        dismiss();
+        try {
+            window.localStorage.removeItem(REMIND_KEY);
+            window.localStorage.setItem(DISMISSED_KEY, "1");
+        } catch {
+            /* private mode — the cookie check still guards re-prompting */
+        }
         router.refresh();
     }
 
@@ -155,9 +182,12 @@ export function PlacePrompt({
                         )}
                     </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="flex gap-2">
                     <Button variant="ghost" size="sm" onClick={dismiss}>
                         {dict.placePromptLater ?? "Not now"}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={dismissForever}>
+                        {dict.placePromptNever ?? "Don't show again"}
                     </Button>
                 </DialogFooter>
             </DialogContent>

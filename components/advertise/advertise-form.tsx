@@ -76,6 +76,7 @@ export function AdvertiseForm({ dict }: { dict: Dictionary }) {
                         id="placement"
                         name="placement"
                         defaultValue=""
+                        required
                         className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-sm shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
                     >
                         <option value="" disabled>
@@ -94,6 +95,7 @@ export function AdvertiseForm({ dict }: { dict: Dictionary }) {
                         id="format"
                         name="format"
                         defaultValue=""
+                        required
                         className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-sm shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
                     >
                         <option value="" disabled>

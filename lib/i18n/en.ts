@@ -44,6 +44,11 @@ export const en = {
     buySell: 'Buy & Sell',
     culture: 'Culture & Entertainment',
     viewAll: 'View all',
+    viewAllPhotoStories: 'View all Photo Stories',
+    viewAllNews: 'View all Community News',
+    viewAllNotices: 'View all Notices',
+    viewAllBuySell: 'View all Buy & Sell',
+    viewAllCulture: 'View all Culture & Entertainment',
     photographBy: 'Photo:',
     submittedBy: 'Submitted by',
     posted: 'Posted',
@@ -582,7 +587,7 @@ export const en = {
       useProfile: 'Use my profile',
       continue: 'Continue',
       back: 'Back',
-      review: 'Back to start to review',
+      review: 'Review your answers',
       media: 'Add media',
       optional: 'Optional',
       detect: 'Use my location',
@@ -603,6 +608,7 @@ export const en = {
     deletePolicy:
       'Submissions under review can be withdrawn here but not deleted. Rejected items can be resubmitted; published items need staff takedown. Polls and fundraisers are managed by editors — ask support for changes.',
     submit: 'Submit for review',
+    saveDraft: 'Save draft',
     submitting: 'Submitting…',
     successTitle: 'Submission received',
     successBody:
