@@ -129,7 +129,7 @@ export default async function NewsPage({
     const isFiltered = Boolean(search || category || location);
     const browseMode = !isFiltered && page === 1;
 
-    let list = { articles: [] as any[], pageCount: 1 };
+    let list: { articles: NewsArticle[]; pageCount: number; total: number; page: number } = { articles: [], pageCount: 1, total: 0, page: 1 };
     let categories: Awaited<ReturnType<typeof getNewsCategories>> = [];
     let locations: Awaited<ReturnType<typeof getLocationsByContentType>> = [];
     let stats = { articles: 0, places: 0, contributors: 0, thisWeek: 0 };

@@ -22,6 +22,7 @@ import { getDictionary, resolveLocale } from "@/lib/i18n";
 import {
     getFeaturedListing,
     getListings,
+    type ListingData,
 } from "@/lib/queries/buy-sell";
 import { getLocationsByContentType } from "@/lib/queries/locations";
 import { FacetFilter } from "@/components/shared/facet-filter";
@@ -124,7 +125,7 @@ export default async function BuySellPage({
     const isFiltered = Boolean(search || category || location || sort !== "newest");
 
     let featured: Awaited<ReturnType<typeof getFeaturedListing>> = null;
-    let list = { listings: [] as any[], pageCount: 1, total: 0 };
+    let list: { listings: ListingData[]; pageCount: number; total: number; page: number } = { listings: [], pageCount: 1, total: 0, page: 1 };
     let locations: Awaited<ReturnType<typeof getLocationsByContentType>> = [];
 
     try {

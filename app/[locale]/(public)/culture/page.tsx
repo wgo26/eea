@@ -21,6 +21,7 @@ import {
     getCultureArticles,
     getFeaturedCulture,
     getUpcomingEvents,
+    type CultureArticle,
 } from "@/lib/queries/culture";
 import { FacetFilter } from "@/components/shared/facet-filter";
 import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
@@ -100,7 +101,7 @@ export default async function CulturePage({
     const browseMode = !isFiltered && page === 1;
 
     let featured: Awaited<ReturnType<typeof getFeaturedCulture>> = null;
-    let list = { articles: [] as any[], total: 0, pageCount: 1 };
+    let list: { articles: CultureArticle[]; total: number; pageCount: number; page: number } = { articles: [], total: 0, pageCount: 1, page: 1 };
     let upcomingEvents: Awaited<ReturnType<typeof getUpcomingEvents>> = [];
 
     try {

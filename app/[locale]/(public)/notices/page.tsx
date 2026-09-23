@@ -25,6 +25,7 @@ import {
     getFeaturedNotice,
     getNoticeTypes,
     NOTICE_TYPE_LABELS,
+    type NoticeData,
 } from "@/lib/queries/notices";
 import { getLocationsByContentType } from "@/lib/queries/locations";
 import { FacetFilter } from "@/components/shared/facet-filter";
@@ -112,7 +113,7 @@ export default async function NoticesPage({
     ];
 
     let featured: Awaited<ReturnType<typeof getFeaturedNotice>> = null;
-    let list = { notices: [] as any[], pageCount: 1 };
+    let list: { notices: NoticeData[]; pageCount: number; total: number; page: number } = { notices: [], pageCount: 1, total: 0, page: 1 };
     let types: Awaited<ReturnType<typeof getNoticeTypes>> = [];
     let locations: Awaited<ReturnType<typeof getLocationsByContentType>> = [];
 
