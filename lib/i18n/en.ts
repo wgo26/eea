@@ -92,6 +92,8 @@ export const en = {
     locations: 'Locations',
     allLocations: 'All locations',
     clearFilters: 'Clear filters',
+    years: 'Years',
+    allYears: 'All years',
     moreEssays: 'More photo stories',
     photographBy: 'Photo:',
     views: 'views',

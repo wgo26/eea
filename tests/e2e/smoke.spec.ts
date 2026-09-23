@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 
 /**
  * Phase 2 — submit→trust→advertise smoke (no database required).
+ * Phase 3 — digest, archive-year filter, guarded account pages.
  *
  * Runs against `next start` with dummy Supabase env (every query falls back
  * gracefully), so this asserts the shells, SLA copy and degraded UX a reader
@@ -42,6 +43,29 @@ test('homepage shows the degraded notice on empty fallback (dummy backend)', asy
 }) => {
   await page.goto('/en', { waitUntil: 'networkidle' })
   await expect(page.getByText('couldn’t load', { exact: false })).toBeVisible()
+})
+
+test('homepage carries the digest CTA band (return leg)', async ({ page }) => {
+  await page.goto('/en', { waitUntil: 'networkidle' })
+  await expect(page.getByText('Get the daily digest', { exact: false })).toBeVisible()
+})
+
+test('digest signup renders with diaspora opt-in', async ({ page }) => {
+  await page.goto('/en/digest', { waitUntil: 'networkidle' })
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  await expect(page.getByText('diaspora', { exact: false }).first()).toBeVisible()
+})
+
+test('photo archive year filter renders without crashing', async ({ page }) => {
+  await page.goto('/en/photo-stories?year=2024', { waitUntil: 'networkidle' })
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+})
+
+test('guarded account pages bounce anonymous visitors to login', async ({ page }) => {
+  for (const route of ['/en/account/follows', '/en/account/recent', '/en/account/submissions']) {
+    await page.goto(route, { waitUntil: 'networkidle' })
+    await expect(page).toHaveURL(/\/account\/login/)
+  }
 })
 
 test('health is dependency-free, ready answers anonymously', async ({ request }) => {

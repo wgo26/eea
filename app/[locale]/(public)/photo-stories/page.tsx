@@ -32,6 +32,7 @@ import {
     getPhotoStories,
     getPhotoStoryCategories,
     getPhotoStoriesStats,
+    getPhotoStoryYears,
 } from "@/lib/queries/photo-stories";
 
 export async function generateMetadata({
@@ -65,6 +66,7 @@ type PhotoStoriesSearchParams = {
     q?: string | string[];
     category?: string | string[];
     location?: string | string[];
+    year?: string | string[];
     page?: string | string[];
 };
 
@@ -77,12 +79,14 @@ function buildCanonicalHref(params: {
     search?: string;
     category?: string;
     location?: string;
+    year?: number;
     page?: number;
 }): string {
     const qs = new URLSearchParams();
     if (params.search) qs.set("q", params.search);
     if (params.category) qs.set("category", params.category);
     if (params.location) qs.set("location", params.location);
+    if (params.year) qs.set("year", String(params.year));
     if (params.page && params.page > 1) qs.set("page", String(params.page));
     const query = qs.toString();
     return query ? `/photo-stories?${query}` : "/photo-stories";
@@ -104,20 +108,25 @@ export default async function PhotoStoriesPage({
     const search = firstParam(sp.q)?.trim() || undefined;
     const category = firstParam(sp.category)?.trim() || undefined;
     const location = firstParam(sp.location)?.trim() || undefined;
+    // Phase 3/P4 — archive year (visual-archive browsing, Differentiator #2).
+    const yearRaw = Number.parseInt(firstParam(sp.year) ?? "", 10);
+    const year =
+        Number.isInteger(yearRaw) && yearRaw >= 2000 && yearRaw <= 2100 ? yearRaw : undefined;
     const page = Math.max(
         1,
         Number.parseInt(firstParam(sp.page) ?? "1", 10) || 1,
     );
-    const isFiltered = Boolean(search || category || location);
+    const isFiltered = Boolean(search || category || location || year);
     const browseMode = !isFiltered && page === 1;
 
-    const [featured, list, categories, locations, stats, mostViewed] = await Promise.all([
+    const [featured, list, categories, locations, stats, mostViewed, years] = await Promise.all([
         getFeaturedPhotoStory(),
-        getPhotoStories({ search, category, location, locale, page }),
+        getPhotoStories({ search, category, location, locale, page, year }),
         getPhotoStoryCategories(),
         getLocationsByContentType("photo_story"),
         getPhotoStoriesStats(),
         getMostViewedPhotoStories(locale, 5),
+        getPhotoStoryYears(),
     ]);
     const { stories, pageCount } = list;
     const nextUp = featured ? stories.filter((s) => s.id !== featured.id).slice(0, 3) : [];
@@ -136,8 +145,8 @@ export default async function PhotoStoriesPage({
             activeLocation={location ?? null}
             locationHref={(slug) =>
                 slug
-                    ? hrefL({ search, category, location: slug })
-                    : hrefL({ search, category })
+                    ? hrefL({ search, category, year, location: slug })
+                    : hrefL({ search, category, year })
             }
         >
         <div className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 lg:px-8">
@@ -212,13 +221,31 @@ export default async function PhotoStoriesPage({
                             activeKey: category ?? null,
                             allLabel: dict.photoStories.allCategories,
                             hrefFor: (k) =>
-                                k ? hrefL({ search, location, category: k }) : hrefL({ search, location }),
+                                k ? hrefL({ search, location, year, category: k }) : hrefL({ search, location, year }),
                             facets: categories.map((f) => ({
                                 key: f.slug,
                                 label: f.name,
                                 count: f.total,
                             })),
                         },
+                        ...(years.length > 0
+                            ? [
+                                {
+                                    key: "year",
+                                    label: dict.photoStories.years,
+                                    activeKey: year ? String(year) : null,
+                                    allLabel: dict.photoStories.allYears,
+                                    hrefFor: (k: string) =>
+                                        k
+                                            ? hrefL({ search, category, location, year: Number(k) })
+                                            : hrefL({ search, category, location }),
+                                    facets: years.map((y) => ({
+                                        key: String(y),
+                                        label: String(y),
+                                    })),
+                                } as FilterGroup,
+                            ]
+                            : []),
                         ...(locations.length > 0
                             ? [
                                 {
@@ -227,7 +254,7 @@ export default async function PhotoStoriesPage({
                                     activeKey: location ?? null,
                                     allLabel: "All",
                                     hrefFor: (k: string) =>
-                                        k ? hrefL({ search, category, location: k }) : hrefL({ search, category }),
+                                        k ? hrefL({ search, category, year, location: k }) : hrefL({ search, category, year }),
                                     facets: locations.map((loc) => ({
                                         key: loc.slug,
                                         label: loc.name,
@@ -293,6 +320,7 @@ export default async function PhotoStoriesPage({
                                                 search,
                                                 category,
                                                 location,
+                                                year,
                                                 page: page - 1,
                                             })}
                                         />
@@ -301,7 +329,7 @@ export default async function PhotoStoriesPage({
                                 {pages.map((p) => (
                                     <PaginationItem key={p}>
                                         <PaginationLink
-                                            href={hrefL({ search, category, location, page: p })}
+                                            href={hrefL({ search, category, location, year, page: p })}
                                             isActive={p === page}
                                         >
                                             {p}
@@ -315,6 +343,7 @@ export default async function PhotoStoriesPage({
                                                 search,
                                                 category,
                                                 location,
+                                                year,
                                                 page: page + 1,
                                             })}
                                         />
@@ -336,6 +365,7 @@ export default async function PhotoStoriesPage({
                     hiddenParams={[
                         category ? { name: "category", value: category } : null,
                         location ? { name: "location", value: location } : null,
+                        year ? { name: "year", value: String(year) } : null,
                     ].filter((p): p is { name: string; value: string } => p !== null)}
                     locations={locations}
                     locationLabel={dict.photoStories.locations}
@@ -343,8 +373,8 @@ export default async function PhotoStoriesPage({
                     activeLocation={location ?? null}
                     locationHref={(slug) =>
                         slug
-                            ? hrefL({ search, category, location: slug })
-                            : hrefL({ search, category })
+                            ? hrefL({ search, category, year, location: slug })
+                            : hrefL({ search, category, year })
                     }
                     clearHref={localePath(locale, "/photo-stories")}
                     clearLabel={dict.photoStories.clearFilters}

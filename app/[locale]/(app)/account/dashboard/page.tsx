@@ -176,7 +176,6 @@ export default async function Page() {
         submissionsCountRes,
         contentRes,
         publishedCountRes,
-        draftCountRes,
         savedCountRes,
         followsCountRes,
         advertiserRes,
@@ -204,11 +203,6 @@ export default async function Page() {
             .select("id", { count: "exact", head: true })
             .eq("author_id", user.id)
             .eq("status", "published"),
-        supabase
-            .from("content_items")
-            .select("id", { count: "exact", head: true })
-            .eq("author_id", user.id)
-            .eq("status", "draft"),
         supabase.from("saved_content").select("id", { count: "exact", head: true }).eq("user_id", user.id),
         supabase.from("content_follows").select("user_id", { count: "exact", head: true }).eq("user_id", user.id),
         // Advertiser stats: own campaigns via advertisers.user_id (RLS allows).
@@ -239,7 +233,6 @@ export default async function Page() {
     const publishedContent = ((contentRes.data ?? []) as unknown as ContentDbRow[]).map(mapContentRow);
     void publishedContent;
     const publishedTotal = publishedCountRes.count ?? 0;
-    const draftTotal = draftCountRes.count ?? 0;
     const savedTotal = savedCountRes.count ?? 0;
     const followedTotal = followsCountRes.count ?? 0;
     // Phase 3 — contributor impact totals (views + shares over own items).
@@ -524,7 +517,7 @@ export default async function Page() {
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <DashboardCard label={t.statSubmissions} value={String(submissionsTotal)} hint={t.hintRecent} />
                 <DashboardCard label={t.statSaved} value={String(savedTotal)} hint={t.hintBookmarks} href={p("/account/saved")} />
-                <DashboardCard label={t.statFollowed} value={String(followedTotal)} hint={t.hintFollows} />
+                <DashboardCard label={t.statFollowed} value={String(followedTotal)} hint={t.hintFollows} href={p("/account/follows")} />
                 <DashboardCard label={t.statAccess} value={t.member} hint={t.hintStandard} />
             </section>
 

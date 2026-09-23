@@ -91,6 +91,8 @@ export const fr: typeof en = {
     locations: 'Lieux',
     allLocations: 'Tous les lieux',
     clearFilters: 'Effacer les filtres',
+    years: 'Années',
+    allYears: 'Toutes les années',
     moreEssays: 'Plus de reportages photo',
     photographBy: 'Photo :',
     views: 'vues',
