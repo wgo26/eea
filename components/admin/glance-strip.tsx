@@ -94,7 +94,7 @@ export function GlanceStrip({
       <Chip>
         <StatusDot tone={HEALTH_TONE[health.status]} />
         <span className="font-medium">{healthLabel}</span>
-        <span className="text-muted-foreground">
+        <span className="hidden text-muted-foreground min-[480px]:inline">
           {fillCopy(copy.healthChecked, { time: formatRelative(health.checkedAt, locale) })}
         </span>
       </Chip>
@@ -153,7 +153,7 @@ function Chip({
   children: React.ReactNode
 }) {
   const base = cn(
-    'inline-flex items-center gap-1.5 rounded-md border bg-card px-2.5 py-1.5 text-xs',
+    'inline-flex max-w-full items-center gap-1.5 rounded-md border bg-card px-2.5 py-1.5 text-xs',
     toneClass ?? 'border-border',
     href && 'transition-colors hover:bg-accent/50',
   )

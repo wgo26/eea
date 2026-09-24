@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { requireStaff } from '@/lib/auth/guards'
 import { getAdminRoles } from '@/lib/auth/roles'
 import { effectiveCapabilities } from '@/lib/auth/admin-roles'
-import { getDashboardStats, getActiveStates, getActiveIncident, getUnreadNotificationTotal } from '@/lib/admin/queries'
+import { getPendingSubmissionCount, getActiveStates, getActiveIncident, getUnreadNotificationTotal } from '@/lib/admin/queries'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
@@ -16,6 +16,7 @@ import { stateNameKey } from '@/lib/platform/state-presentation'
 import { AdminSidebar } from '@/components/admin/sidebar'
 import { AdminTopbar } from '@/components/admin/topbar'
 import { AdminClientWrapper } from '@/components/admin/admin-client-wrapper'
+import { AdminErrorBoundary } from '@/components/admin/error-boundary'
 import { StateBanner } from '@/components/admin/state-banner'
 import { SystemStateProvider } from '@/components/admin/state-provider'
 import { appMono } from '../fonts'
@@ -37,8 +38,11 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   // without a legacy `admin` row still sees the entries they can operate.
   const adminRoles = await getAdminRoles(supabase, user.id)
   const caps = effectiveCapabilities(roles, adminRoles)
-  const [stats, states, unreadNotifications] = await Promise.all([
-    getDashboardStats(),
+  const [pendingCount, states, unreadNotifications] = await Promise.all([
+    // Badge-only micro-query: the layout never reads the other 11 stat
+    // queries, so the full getDashboardStats() fan-out stays on the
+    // dashboard page itself.
+    getPendingSubmissionCount(),
     getActiveStates(),
     // Spec §38: the sidebar badge is the recipient's own unread mail count.
     getUnreadNotificationTotal(user.id),
@@ -93,7 +97,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         <div className="hidden lg:block">
           <div className="sticky top-0 h-screen">
             <AdminSidebar
-              pendingCount={stats.pendingSubmissions}
+              pendingCount={pendingCount}
               roles={roles}
               adminRoles={adminRoles}
               unreadNotifications={unreadNotifications}
@@ -102,7 +106,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
           <AdminTopbar
-            pendingCount={stats.pendingSubmissions}
+            pendingCount={pendingCount}
             roles={roles}
             adminRoles={adminRoles}
             displayName={displayName}
@@ -132,7 +136,15 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             />
           )}
           <main className="flex-1 overflow-x-hidden p-4 md:p-6 lg:p-8">
-            {children}
+            <AdminErrorBoundary
+              title={dict.admin.common.sectionErrorTitle}
+              message={dict.admin.common.sectionErrorBody}
+              retryLabel={dict.admin.common.sectionErrorRetry}
+              dashboardLabel={dict.admin.common.sectionErrorBack}
+              dashboardHref={localePath(locale, '/admin/dashboard')}
+            >
+              {children}
+            </AdminErrorBoundary>
           </main>
         </div>
       </SystemStateProvider>

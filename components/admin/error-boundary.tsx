@@ -10,6 +10,10 @@ import { Component, type ReactNode } from 'react'
  * retry and back-to-dashboard actions instead of blanking the whole admin
  * shell. Copy travels as props so server pages can pass dictionary strings
  * (client components cannot call the async locale resolver).
+ *
+ * `dashboardHref` is required and must be locale-prefixed via
+ * `localePath(locale, '/admin/dashboard')` — never a hardcoded `/en/...`
+ * default (checklist item 1).
  */
 export function AdminErrorBoundary({
   children,
@@ -17,14 +21,15 @@ export function AdminErrorBoundary({
   message = 'This section failed to load. Your work elsewhere is unaffected.',
   retryLabel = 'Try again',
   dashboardLabel = 'Back to dashboard',
-  dashboardHref = '/en/admin/dashboard',
+  dashboardHref,
 }: {
   children: ReactNode
   title?: string
   message?: string
   retryLabel?: string
   dashboardLabel?: string
-  dashboardHref?: string
+  /** Locale-prefixed dashboard URL — required so FR admins stay in FR. */
+  dashboardHref: string
 }) {
   return (
     <ErrorBoundaryInner

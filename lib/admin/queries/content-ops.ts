@@ -52,6 +52,25 @@ export const EMPTY_DASHBOARD_STATS: DashboardStats = {
   oldestPendingAt: null,
 }
 
+/**
+ * Sidebar-badge count: ONE `count` query instead of the 12-query
+ * getDashboardStats() fan-out. The admin layout renders on every /admin page
+ * but only reads `pendingSubmissions` — it uses this; the full stats stay on
+ * the dashboard page itself.
+ */
+export async function getPendingSubmissionCount(): Promise<number> {
+  if (!hasDatabase()) return 0
+  try {
+    const res = await safe(
+      db().from('submissions').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    )
+    return res.count ?? 0
+  } catch (e) {
+    logger.error('admin', 'getPendingSubmissionCount failed, returning 0', { error: e })
+    return 0
+  }
+}
+
 export async function getDashboardStats(): Promise<DashboardStats> {
   // Fail-safe: the admin shell (layout + page) both call this. If the
   // service-role env is missing or any query throws synchronously (e.g.

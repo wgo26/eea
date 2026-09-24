@@ -179,7 +179,7 @@ export function WidgetBoard({
           <EmptyState message={copy.widgetsEmpty} />
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-3">
           {order.map((id, index) => (
             <article
               key={id}

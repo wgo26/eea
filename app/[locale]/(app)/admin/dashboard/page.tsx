@@ -137,17 +137,17 @@ export default async function Page() {
         actions={
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="mr-1 hidden text-xs font-medium uppercase tracking-wide text-muted-foreground xl:inline">{t.quickActions}</span>
-            <Link href={contentHref({})} className={buttonVariants({ variant: 'default', size: 'sm' })}>
+            <Link href={contentHref({})} aria-label={t.qaCreateContent} title={t.qaCreateContent} className={buttonVariants({ variant: 'default', size: 'sm' })}>
               <FilePlus aria-hidden="true" />
-              {t.qaCreateContent}
+              <span className="hidden min-[480px]:inline">{t.qaCreateContent}</span>
             </Link>
-            <Link href={localePath(locale, '/admin/users')} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+            <Link href={localePath(locale, '/admin/users')} aria-label={t.qaInviteUser} title={t.qaInviteUser} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
               <UserPlus aria-hidden="true" />
-              {t.qaInviteUser}
+              <span className="hidden min-[480px]:inline">{t.qaInviteUser}</span>
             </Link>
-            <Link href={localePath(locale, '/admin/ads')} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+            <Link href={localePath(locale, '/admin/ads')} aria-label={t.qaNewAd} title={t.qaNewAd} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
               <Megaphone aria-hidden="true" />
-              {t.qaNewAd}
+              <span className="hidden min-[480px]:inline">{t.qaNewAd}</span>
             </Link>
           </div>
         }

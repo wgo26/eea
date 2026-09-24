@@ -12,6 +12,7 @@ describe("admin queries barrel (W17 split)", () => {
         const expected = [
             // content-ops
             "getDashboardStats",
+            "getPendingSubmissionCount",
             "getContentItems",
             "getSubmissions",
             // people (users + ads)
@@ -90,6 +91,7 @@ describe("admin queries barrel (W17 split)", () => {
         await expect(barrel.getPendingAdInquiries({})).resolves.toEqual({ rows: [], total: 0 });
         await expect(barrel.getUserDetail("00000000-0000-0000-0000-000000000000")).resolves.toBeNull();
         await expect(barrel.getDashboardStats()).resolves.toBeDefined();
+        await expect(barrel.getPendingSubmissionCount()).resolves.toBe(0);
         await expect(barrel.getSubmissions({})).resolves.toBeDefined();
         // Phase 1.1 — the merged audit trail and its filter dropdowns.
         await expect(barrel.getAuditEvents({})).resolves.toEqual({ rows: [], total: 0 });
