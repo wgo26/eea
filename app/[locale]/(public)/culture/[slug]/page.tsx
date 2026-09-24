@@ -5,8 +5,11 @@ import { CalendarDays, Clock, Landmark, MapPin, Tag, User } from "lucide-react";
 
 import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
 import { RecordRecentView } from "@/components/system/record-recent-view";
+import { ContentSocialProof } from "@/components/system/content-social-proof";
+import { ContentViewBeacon } from "@/components/system/content-view-beacon";
 import { PrintHeader } from "@/components/system/print-header";
 import { ArticleActionRow } from "@/components/system/article-actions";
+import { ShareButtons } from "@/components/share-buttons";
 import { FeedbackWidget } from "@/components/system/feedback-widget";
 import { AddToCalendar } from "@/components/events/add-to-calendar";
 import { ReminderButton } from "@/components/events/reminder-button";
@@ -86,6 +89,7 @@ export default async function CultureDetailPage({ params }: Props) {
 
     return (
         <>
+        <ContentViewBeacon contentId={article.id} />
         {/* Phase 3 — device-local reading history. */}
         <RecordRecentView
             view={{
@@ -148,8 +152,14 @@ export default async function CultureDetailPage({ params }: Props) {
                                 {new Date(article.publishedAt).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-GB")}
                             </span>
                         ) : null}
-                        {article.viewCount ? (
-                            <span>{article.viewCount} {dict.culture.views}</span>
+                        {article.viewCount || article.shareCount ? (
+                            <ContentSocialProof
+                                viewCount={article.viewCount}
+                                shareCount={article.shareCount}
+                                viewsLabel={dict.culture.views}
+                                sharesLabel={dict.news.shares}
+                                locale={locale}
+                            />
                         ) : null}
                     </div>
                 </header>
@@ -312,6 +322,20 @@ export default async function CultureDetailPage({ params }: Props) {
                         locale={locale}
                         dict={dict}
                     />
+                    <div className="mt-3">
+                        <ShareButtons
+                            url={shareUrl}
+                            title={article.title}
+                            locale={locale}
+                            contentId={article.id}
+                            labels={{
+                                share: dict.common.share,
+                                whatsapp: dict.common.whatsapp,
+                                copyLink: dict.common.copyLink,
+                                copied: dict.common.copied,
+                            }}
+                        />
+                    </div>
                 </div>
 
                 <div className="no-print mt-8 border-t pt-6">

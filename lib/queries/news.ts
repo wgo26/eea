@@ -39,6 +39,7 @@ export type NewsArticle = StoryCardData & {
     byline?: string | null;
     locationSlug?: string | null;
     viewCount?: number;
+    shareCount?: number;
     /** Category slug (facet/hrefs), plus tags and cover caption/credit for the hero. */
     categorySlug?: string | null;
     categoryId?: string | null;
@@ -57,6 +58,7 @@ type RawStoryRow = {
     verification: string | null;
     published_at: string | null;
     view_count: number | null;
+    share_count: number | null;
     location?: { name: string | null; slug: string | null } | { name: string | null; slug: string | null }[] | null;
     category?:
         | {
@@ -81,7 +83,7 @@ type RawStoryRow = {
     category_id?: string | null;
 };
 
-const STORY_SELECT = `id, slug, type, verification, published_at, view_count, category_id,
+const STORY_SELECT = `id, slug, type, verification, published_at, view_count, share_count, category_id,
     location:locations(name, slug),
     category:categories(category_translations(locale, name), slug),
     translations:content_translations(locale, title, excerpt, body, byline),
@@ -226,6 +228,7 @@ function toCard(row: RawStoryRow, locale: Locale): NewsArticle | null {
         verification: row.verification ?? null,
         publishedAt: row.published_at,
         viewCount: Number(row.view_count ?? 0),
+        shareCount: Number(row.share_count ?? 0),
         body: translation.body ?? null,
         byline: translation.byline ?? null,
         authorName: author?.display_name ?? null,

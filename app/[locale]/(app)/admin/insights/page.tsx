@@ -1,7 +1,7 @@
 import { getDictionary } from '@/lib/i18n'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { requireCapability } from '@/lib/auth/guards'
-import { getInsights } from '@/lib/admin/analytics'
+import { getInsights, type TopContentRow } from '@/lib/admin/analytics'
 import { PageHeader } from '@/components/admin/page-header'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
 import { EmptyState } from '@/components/admin/empty-state'
@@ -25,6 +25,66 @@ export async function generateMetadata(): Promise<{ title: string }> {
 const sectionHeadingCls =
   'text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2'
 
+type TopTableLabels = {
+  emptyTop: string
+  colContent: string
+  colType: string
+  colViews: string
+  colShares: string
+  colProof: string
+  proofVisible: string
+  proofHidden: string
+}
+
+/** Top-content table — module-level so it never resets state per render. */
+function TopTable({ rows, t }: { rows: TopContentRow[]; t: TopTableLabels }) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-muted-foreground">{t.emptyTop}</p>
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <th className="py-2 pr-3 font-medium">{t.colContent}</th>
+            <th className="py-2 pr-3 font-medium">{t.colType}</th>
+            <th className="py-2 pr-3 text-right font-medium">{t.colViews}</th>
+            <th className="py-2 pr-3 text-right font-medium">{t.colShares}</th>
+            <th className="py-2 text-right font-medium">{t.colProof}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id} className="border-b last:border-0">
+              <td className="max-w-60 truncate py-2 pr-3 font-medium">
+                {row.title}
+              </td>
+              <td className="py-2 pr-3 text-muted-foreground">{row.type}</td>
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {row.views.toLocaleString()}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {row.shares.toLocaleString()}
+              </td>
+              <td className="py-2 text-right text-xs">
+                {row.viewsPublic || row.sharesPublic ? (
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+                    {t.proofVisible}
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-muted px-2 py-0.5 font-semibold text-muted-foreground">
+                    {t.proofHidden}
+                  </span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export default async function Page() {
   await requireCapability('viewDashboard', '/admin/insights')
   const locale = await getRequestLocale()
@@ -35,7 +95,9 @@ export default async function Page() {
   const hasAnyData =
     insights.views14d > 0 ||
     insights.funnel.submissionsReceived > 0 ||
-    insights.funnel.published > 0
+    insights.funnel.published > 0 ||
+    insights.shares14d > 0 ||
+    insights.topContent.length > 0
 
   return (
     <div className="space-y-5">
@@ -56,6 +118,9 @@ export default async function Page() {
                 : {})}
             />
             <StatCard label={t.prior7d} value={insights.viewsPrior7d} />
+            <StatCard label={t.shares14d} value={insights.shares14d} />
+            <StatCard label={t.shares7d} value={insights.shares7d} />
+            <StatCard label={t.proofVisibleCount} value={insights.proofVisibleCount} />
           </StatGrid>
 
           {/* Daily trend — area line chart */}
@@ -117,6 +182,56 @@ export default async function Page() {
               />
             </CardContent>
           </Card>
+
+          {/* Shares by voice register */}
+          <Card>
+            <CardHeader>
+              <CardTitle className={sectionHeadingCls}>{t.shareVoiceTitle}</CardTitle>
+              <p className="text-xs text-muted-foreground">{t.shareVoiceHint}</p>
+            </CardHeader>
+            <CardContent>
+              <BreakdownBarChart
+                rows={insights.shareByVoice}
+                ariaLabel={t.shareVoiceTitle}
+                color="#16a34a"
+              />
+            </CardContent>
+          </Card>
+
+          {/* Lifetime per-content counters */}
+          <Card>
+            <CardHeader>
+              <CardTitle className={sectionHeadingCls}>{t.totalsTitle}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <StatGrid>
+                <StatCard label={t.totalViews} value={insights.totalContentViews} />
+                <StatCard label={t.totalShares} value={insights.totalContentShares} />
+                <StatCard label={t.proofVisibleCount} value={insights.proofVisibleCount} />
+              </StatGrid>
+              <p className="mt-2 text-xs text-muted-foreground">{t.proofHint}</p>
+            </CardContent>
+          </Card>
+
+          {/* Top content tables */}
+          <div className="grid gap-5 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className={sectionHeadingCls}>{t.topViewedTitle}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TopTable rows={insights.topContent} t={t} />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className={sectionHeadingCls}>{t.topSharedTitle}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TopTable rows={insights.topShared} t={t} />
+              </CardContent>
+            </Card>
+          </div>
         </>
       )}
 

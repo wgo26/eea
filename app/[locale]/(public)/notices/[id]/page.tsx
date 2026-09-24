@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShareButtons } from "@/components/share-buttons";
 import { ReaderToolbar } from "@/components/system/reader-toolbar";
+import { ContentViewBeacon } from "@/components/system/content-view-beacon";
 import { RecordRecentView } from "@/components/system/record-recent-view";
 import { PrintHeader } from "@/components/system/print-header";
 import { SITE } from "@/lib/constants";
@@ -126,6 +127,7 @@ export default async function NoticePage({ params }: NoticePageProps) {
 
     return (
         <>
+        <ContentViewBeacon contentId={notice.id} />
         {/* Phase 3 — device-local reading history. */}
         <RecordRecentView
             view={{
@@ -214,6 +216,8 @@ export default async function NoticePage({ params }: NoticePageProps) {
                 path={localePath(locale, `/notices/${notice.id}`)}
                 shareUrl={shareUrl}
                 title={notice.title}
+                locale={locale}
+                contentId={notice.id}
                 saveLabel={dict.news.saveOffline}
                 savedLabel={dict.news.savedOffline}
                 offlineUnavailableLabel={dict.news.offlineUnavailable}
@@ -334,6 +338,8 @@ export default async function NoticePage({ params }: NoticePageProps) {
                             <ShareButtons
                                 url={shareUrl}
                                 title={notice.title}
+                                locale={locale}
+                                contentId={notice.id}
                                 labels={{
                                     share: dict.common.share,
                                     whatsapp: dict.common.whatsapp,

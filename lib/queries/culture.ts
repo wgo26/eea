@@ -26,6 +26,7 @@ export type CultureArticle = StoryCardData & {
     authorId?: string | null;
     locationSlug?: string | null;
     viewCount?: number;
+    shareCount?: number;
     /** Event-specific fields */
     eventDate?: string | null;
     eventTime?: string | null;
@@ -58,6 +59,7 @@ type RawCultureRow = {
     verification: string | null;
     published_at: string | null;
     view_count: number | null;
+    share_count: number | null;
     author?: { id: string; display_name: string | null } | { id: string; display_name: string | null }[] | null;
     location?: { slug: string | null; name: string | null } | { slug: string | null; name: string | null }[] | null;
     category?:
@@ -85,7 +87,7 @@ type RawCultureRow = {
         | null;
 };
 
-const CULTURE_SELECT = `id, slug, verification, published_at, view_count,
+const CULTURE_SELECT = `id, slug, verification, published_at, view_count, share_count,
     location:locations(slug, name),
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title, excerpt, body),
@@ -94,7 +96,7 @@ const CULTURE_SELECT = `id, slug, verification, published_at, view_count,
     events!inner(starts_at, ends_at, venue_name, ticket_url, organizer_name)`;
 
 /** Same as CULTURE_SELECT but with a left join on events for non-event content. */
-const CULTURE_SELECT_LEFT = `id, slug, verification, published_at, view_count,
+const CULTURE_SELECT_LEFT = `id, slug, verification, published_at, view_count, share_count,
     location:locations(slug, name),
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title, excerpt, body),
@@ -205,6 +207,7 @@ function toCard(row: RawCultureRow, locale: Locale): CultureArticle | null {
         verification: row.verification ?? null,
         publishedAt: row.published_at,
         viewCount: Number(row.view_count ?? 0),
+        shareCount: Number(row.share_count ?? 0),
         body: translation.body ?? null,
         authorName: author?.display_name ?? null,
         authorId: author?.id ?? null,

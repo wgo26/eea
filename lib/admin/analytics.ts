@@ -23,6 +23,18 @@ export type FunnelCounts = {
   published: number
 }
 
+export type TopContentRow = {
+  id: string
+  title: string
+  type: string
+  slug: string | null
+  views: number
+  shares: number
+  /** Publicly visible proof (thresholds from lib/content/social-proof). */
+  viewsPublic: boolean
+  sharesPublic: boolean
+}
+
 export type Insights = {
   daily: DayCount[] // last 14 days, zero-filled
   views14d: number
@@ -34,6 +46,18 @@ export type Insights = {
   byLocale: BreakdownRow[]
   byPlace: BreakdownRow[] // top 10, place-agnostic rows excluded
   funnel: FunnelCounts
+  /** Share taps in the last 14d (aggregate share-* surfaces). */
+  shares14d: number
+  shares7d: number
+  /** Share taps by voice register (formal/pidgin/camfranglais). */
+  shareByVoice: BreakdownRow[]
+  /** Per-content lifetime counters (top 10 by views). */
+  topContent: TopContentRow[]
+  topShared: TopContentRow[]
+  totalContentViews: number
+  totalContentShares: number
+  /** Items with public proof visible (>15 views or >10 shares). */
+  proofVisibleCount: number
 }
 
 const EMPTY: Insights = {
@@ -46,6 +70,14 @@ const EMPTY: Insights = {
   byLocale: [],
   byPlace: [],
   funnel: { submitPageViews: 0, submissionsReceived: 0, published: 0 },
+  shares14d: 0,
+  shares7d: 0,
+  shareByVoice: [],
+  topContent: [],
+  topShared: [],
+  totalContentViews: 0,
+  totalContentShares: 0,
+  proofVisibleCount: 0,
 }
 
 const DAY_MS = 86_400_000
@@ -132,6 +164,92 @@ export async function getInsights(): Promise<Insights> {
       .gte('published_at', funnelSince)
     if (pubErr) throw new Error(pubErr.message)
 
+    // Share taps: aggregate share-* surfaces over the same window.
+    const isShareSurface = (s: string) => s.startsWith('share-')
+    const shareRows = rows.filter((r) => isShareSurface(r.surface))
+    const shares14d = sum(shareRows)
+    const shares7d = sum(shareRows.filter((r) => r.day >= sevenAgo))
+    const shareByVoice = group(
+      shareRows.map((r) => ({
+        key: r.surface.replace(/^share-/, ''),
+        count: r.count,
+      })),
+    )
+
+    // Per-content depth: lifetime view/share counters with titles.
+    // Counts only over published, unarchived rows; titles resolve en → fr →
+    // first available so the table never shows a blank row.
+    const { data: contentRows, error: contentErr } = await db
+      .from('content_items')
+      .select(
+        'id, type, slug, view_count, share_count, translations:content_translations(locale, title)',
+      )
+      .eq('status', 'published')
+      .eq('is_archived', false)
+      .order('view_count', { ascending: false })
+      .limit(50)
+    if (contentErr) throw new Error(contentErr.message)
+
+    const all: TopContentRow[] = ((contentRows ?? []) as {
+      id: string
+      type: string
+      slug: string | null
+      view_count: number | null
+      share_count: number | null
+      translations: { locale: string; title: string | null }[] | null
+    }[]).map((r) => {
+      const titles = r.translations ?? []
+      const title =
+        titles.find((t) => t.locale === 'en')?.title?.trim() ||
+        titles.find((t) => t.locale === 'fr')?.title?.trim() ||
+        titles.find((t) => t.title?.trim())?.title?.trim() ||
+        r.slug ||
+        r.id.slice(0, 8)
+      const views = Number(r.view_count ?? 0)
+      const shares = Number(r.share_count ?? 0)
+      return {
+        id: r.id,
+        title,
+        type: r.type,
+        slug: r.slug,
+        views,
+        shares,
+        viewsPublic: views > 15,
+        sharesPublic: shares > 10,
+      }
+    })
+    const topContent = [...all]
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 10)
+    const topShared = [...all]
+      .sort((a, b) => b.shares - a.shares)
+      .slice(0, 10)
+
+    // Lifetime totals need the full table, not just the top-50 window.
+    const { data: totals, error: totalsErr } = await db
+      .from('content_items')
+      .select('view_count, share_count')
+      .eq('status', 'published')
+      .eq('is_archived', false)
+    if (totalsErr) throw new Error(totalsErr.message)
+    const totalContentViews = sum(
+      ((totals ?? []) as { view_count: number | null }[]).map((r) => ({
+        count: Number(r.view_count ?? 0),
+      })),
+    )
+    const totalContentShares = sum(
+      ((totals ?? []) as { share_count: number | null }[]).map((r) => ({
+        count: Number(r.share_count ?? 0),
+      })),
+    )
+    const { count: proofVisibleCount, error: proofErr } = await db
+      .from('content_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'published')
+      .eq('is_archived', false)
+      .or('view_count.gt.15,share_count.gt.10')
+    if (proofErr) throw new Error(proofErr.message)
+
     return {
       daily,
       views14d,
@@ -146,6 +264,14 @@ export async function getInsights(): Promise<Insights> {
         submissionsReceived: submissionsReceived ?? 0,
         published: published ?? 0,
       },
+      shares14d,
+      shares7d,
+      shareByVoice,
+      topContent,
+      topShared,
+      totalContentViews,
+      totalContentShares,
+      proofVisibleCount: proofVisibleCount ?? 0,
     }
   } catch (err) {
     logger.error('admin/analytics', 'getInsights failed', {

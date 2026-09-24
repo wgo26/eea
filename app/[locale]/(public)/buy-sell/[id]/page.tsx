@@ -19,6 +19,7 @@ import { RevealContact } from "@/components/buy-sell/reveal-contact";
 import { PriceWatchButton } from "@/components/buy-sell/price-watch-button";
 import { Badge } from "@/components/ui/badge";
 import { ArticleActionRow } from "@/components/system/article-actions";
+import { ContentViewBeacon } from "@/components/system/content-view-beacon";
 import { RatingWidget } from "@/components/system/rating-widget";
 import { MessageSellerButton } from "@/components/messages/message-seller-button";
 import { SITE } from "@/lib/constants";
@@ -116,6 +117,7 @@ export default async function ListingPage({ params }: ListingPageProps) {
 
     return (
         <>
+        <ContentViewBeacon contentId={listing.id} />
         {/* Phase 3 — device-local reading history. */}
         <RecordRecentView
             view={{

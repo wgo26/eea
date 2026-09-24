@@ -59,7 +59,7 @@ export function ArticleActionRow({
         signIn: dict.common.signInToSave,
     };
 
-    const share = <ShareButtons url={shareUrl} title={title} labels={shareLabels} />;
+    const share = <ShareButtons url={shareUrl} title={title} locale={locale} contentId={contentItemId} labels={shareLabels} />;
     const save = <SaveButton contentItemId={contentItemId} variant={saveVariant} labels={saveLabels} />;
 
     return (

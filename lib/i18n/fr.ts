@@ -204,11 +204,13 @@ badges: {
     participationHint: 'Financez, votez et façonnez les sujets de la communauté.',
     // Article page chrome
     minRead: 'min de lecture',
+    shares: 'partages',
     shareArticle: 'Partager cet article',
     shareCopy: 'Copier le lien',
     shareCopied: 'Copié',
     shareNative: 'Partager',
     shareWhatsapp: 'Partager sur WhatsApp',
+    shareMore: 'Plus d’options',
     shareFacebook: 'Partager sur Facebook',
     shareX: 'Partager sur X',
     shareEmail: 'Partager par e-mail',
@@ -952,7 +954,7 @@ about: {
       errorCaptcha: 'Veuillez compléter la vérification humaine puis réessayer.',
     },
     cookie: {
-      body: 'Nous utilisons un seul cookie de préférence plus ceux requis par l’authentification Supabase. Aucun traqueur publicitaire.',
+      body: 'Nous utilisons un seul cookie de préférence plus ceux requis par l’authentification. Aucun traqueur publicitaire.',
       accept: 'Accepter',
       decline: 'Refuser',
       learnMore: 'Politique de confidentialité',

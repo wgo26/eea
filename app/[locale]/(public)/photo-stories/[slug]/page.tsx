@@ -7,7 +7,6 @@ import {
     ArrowRight,
     CalendarDays,
     Camera,
-    Eye,
     Images,
     MapPin,
 } from "lucide-react";
@@ -28,6 +27,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShareButtons } from "@/components/share-buttons";
 import { ReaderToolbar } from "@/components/system/reader-toolbar";
+import { ContentSocialProof } from "@/components/system/content-social-proof";
+import { ContentViewBeacon } from "@/components/system/content-view-beacon";
 import { RecordRecentView } from "@/components/system/record-recent-view";
 import { PrintHeader } from "@/components/system/print-header";
 import { SITE } from "@/lib/constants";
@@ -113,6 +114,7 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
 
     return (
         <>
+        <ContentViewBeacon contentId={story.id} />
         {/* Phase 3 — device-local reading history. */}
         <RecordRecentView
             view={{
@@ -180,10 +182,13 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                             {formatDate(story.publishedAt, locale)}
                         </span>
                     ) : null}
-                    <span className="inline-flex items-center gap-1.5">
-                        <Eye className="h-4 w-4" aria-hidden />
-                        {story.viewCount}
-                    </span>
+                    <ContentSocialProof
+                        viewCount={story.viewCount}
+                        shareCount={story.shareCount}
+                        viewsLabel={dict.photoStories.views}
+                        sharesLabel={dict.news.shares}
+                        locale={locale}
+                    />
                 </div>
             </header>
 
@@ -193,6 +198,8 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                 shareUrl={shareUrl}
                 title={story.title}
                 shareText={story.shareText}
+                locale={locale}
+                contentId={story.id}
                 saveLabel={dict.news.saveOffline}
                 savedLabel={dict.news.savedOffline}
                 offlineUnavailableLabel={dict.news.offlineUnavailable}
@@ -299,6 +306,9 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                             <ShareButtons
                                 url={shareUrl}
                                 title={story.title}
+                                shareText={story.shareText ?? undefined}
+                                locale={locale}
+                                contentId={story.id}
                                 labels={{
                                     share: dict.common.share,
                                     whatsapp: dict.common.whatsapp,
@@ -370,14 +380,13 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                                         {story.photos.length} {dict.photoStories.photosLabel}
                                     </dd>
                                 </div>
-                                <div className="flex items-start justify-between gap-3">
-                                    <dt className="inline-flex items-center gap-1.5 text-muted-foreground">
-                                        <Eye className="h-4 w-4" aria-hidden />
-                                    </dt>
-                                    <dd className="text-right font-medium tabular-nums text-foreground">
-                                        {story.viewCount}
-                                    </dd>
-                                </div>
+                                <ContentSocialProof
+                                    viewCount={story.viewCount}
+                                    shareCount={story.shareCount}
+                                    viewsLabel={dict.photoStories.views}
+                                    sharesLabel={dict.news.shares}
+                                    locale={locale}
+                                />
                             </dl>
                         </CardContent>
                     </Card>

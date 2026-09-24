@@ -41,6 +41,7 @@ export type PhotoStoryData = StoryCardData & {
     slug: string;
     photos: PhotoStoryPhoto[];
     viewCount?: number;
+    shareCount?: number;
     /** Full essay prose in the active locale. */
     body?: string | null;
     /** Pidgin/Camfranglais WhatsApp share line when the editor wrote one. */
@@ -62,6 +63,7 @@ type RawStoryRow = {
     verification: string | null;
     published_at: string | null;
     view_count: number | null;
+    share_count: number | null;
     location?: { name: string | null } | { name: string | null }[] | null;
     category?:
         | { category_translations: { locale: string; name: string }[] }
@@ -86,7 +88,7 @@ type RawStoryRow = {
         | null;
 };
 
-const STORY_SELECT = `id, slug, verification, published_at, view_count,
+const STORY_SELECT = `id, slug, verification, published_at, view_count, share_count,
     location:locations(name),
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title, excerpt, body, share_text),
@@ -274,6 +276,7 @@ function toCard(row: RawStoryRow, locale: Locale): PhotoStoryData | null {
         verification: row.verification ?? null,
         publishedAt: row.published_at,
         viewCount: Number(row.view_count ?? 0),
+        shareCount: Number(row.share_count ?? 0),
         body: translation.body ?? null,
         shareText: translation.share_text?.trim() || null,
         photos,
@@ -284,7 +287,7 @@ function toCard(row: RawStoryRow, locale: Locale): PhotoStoryData | null {
 }
 
 /** Same fields as STORY_SELECT, but `!inner` on media forces at least one photo. */
-const FEATURED_SELECT = `id, slug, verification, published_at, view_count,
+const FEATURED_SELECT = `id, slug, verification, published_at, view_count, share_count,
     location:locations(name),
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title, excerpt, body, share_text),

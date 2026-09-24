@@ -7,7 +7,6 @@ import {
     CalendarDays,
     Camera,
     Clock,
-    Eye,
     MapPin,
     PencilLine,
     Quote,
@@ -19,6 +18,8 @@ import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
 import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
 import { ArticleActionRow } from "@/components/system/article-actions";
+import { ContentSocialProof } from "@/components/system/content-social-proof";
+import { ContentViewBeacon } from "@/components/system/content-view-beacon";
 import { FeedbackWidget } from "@/components/system/feedback-widget";
 import { StoryCard } from "@/components/home/story-card";
 import { MediaBadge } from "@/components/media/media-attachment";
@@ -168,6 +169,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
     return (
         <>
         <ReadingProgress targetId="article-body" />
+        <ContentViewBeacon contentId={article.id} />
         {/* Phase 3 — device-local reading history. */}
         <RecordRecentView
             view={{
@@ -280,11 +282,14 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                                 <Clock className="h-4 w-4 text-primary" aria-hidden />
                                 {article.readingMinutes ?? 1} {dict.news.minRead}
                             </span>
-                            {(article.viewCount ?? 0) > 0 ? (
-                                <span className="inline-flex items-center gap-1.5">
-                                    <Eye className="h-4 w-4 text-primary" aria-hidden />
-                                    {article.viewCount!.toLocaleString(locale === "fr" ? "fr-FR" : "en-GB")} {dict.news.views}
-                                </span>
+                            {(article.viewCount ?? 0) > 0 || (article.shareCount ?? 0) > 0 ? (
+                                <ContentSocialProof
+                                    viewCount={article.viewCount}
+                                    shareCount={article.shareCount}
+                                    viewsLabel={dict.news.views}
+                                    sharesLabel={dict.news.shares}
+                                    locale={locale}
+                                />
                             ) : null}
                             {article.location ? (
                                 article.locationSlug ? (
@@ -314,9 +319,11 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                         facebookLabel={dict.news.shareFacebook}
                         xLabel={dict.news.shareX}
                         emailLabel={dict.news.shareEmail}
+                        moreOptionsLabel={dict.news.shareMore}
                         shareText={article.shareText ?? undefined}
                         voiceType={article.voiceType ?? undefined}
                         locale={locale}
+                        contentId={article.id}
                     />
                 </div>
             </header>
@@ -329,6 +336,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                 shareText={article.shareText ?? undefined}
                 voiceType={article.voiceType ?? undefined}
                 locale={locale}
+                contentId={article.id}
                 saveLabel={dict.news.saveOffline}
                 savedLabel={dict.news.savedOffline}
                 offlineUnavailableLabel={dict.news.offlineUnavailable}

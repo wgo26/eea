@@ -503,6 +503,22 @@ below.*
 
 ## Changelog
 
+- 2026-09-24 — **Content social proof + share UX + deeper insights** (`tsc --noEmit`
+  clean, eslint clean on touched files, `vitest run lib/content lib/admin`
+  111 green, bare-href audit zero). Public detail pages (news, culture,
+  events, photo-stories, notices, buy-sell) now gate social proof by
+  threshold — views render only above 15, shares only above 10
+  (`lib/content/social-proof.ts`, `ContentSocialProof`) — and count both via
+  atomic service-role RPCs (`content_view_bump`/`content_share_bump`,
+  migration `20260925000000_content_counters.sql`) behind rate-limited
+  `POST /api/content/[id]/view|share` routes (session-guarded view beacon,
+  one-tap share beacon covering per-content + voice aggregate). Sharing is
+  unified in one `ShareSheet` (WhatsApp-first big button, native share,
+  copy-link, expandable more options, ≥44px targets) adopted by
+  `ArticleShare`, `ShareButtons`, `ArticleActionRow` and `ReaderToolbar`.
+  Admin `/admin/insights` gains share KPIs (14d/7d), shares-by-voice
+  breakdown, lifetime content counters, and top-viewed/top-shared tables
+  with public-proof badges (EN+FR dictionary coverage).
 - 2026-09-24 — **Fix: admin Content page crashed on render** (`tsc --noEmit`
   clean, eslint clean, `vitest run lib/admin` 108 green, bare-href +
   client-dictionary audits zero; every admin route fetched with a real staff

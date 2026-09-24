@@ -64,3 +64,35 @@ export function beaconShareTap(voice: ShareVoice | null, locale: string): void {
         /* observational */
     }
 }
+
+/**
+ * Per-content share beacon — bumps `content_items.share_count` AND the
+ * aggregate `share-{voice}` surface in one POST, so the public ">10 shares"
+ * proof and the admin voice breakdown stay in sync. When no content id is
+ * known (legacy callers), falls back to the aggregate-only tap.
+ */
+export function beaconContentShare(
+    contentId: string | null | undefined,
+    voice: ShareVoice | null,
+    locale: string,
+): void {
+    if (!voice) return;
+    const loc = locale === "fr" ? "fr" : "en";
+    try {
+        if (contentId) {
+            void fetch(`/api/content/${contentId}/share`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ voice, locale: loc }),
+                keepalive: true,
+                credentials: "omit",
+            }).catch(() => {
+                /* observational */
+            });
+            return;
+        }
+        beaconShareTap(voice, loc);
+    } catch {
+        /* observational */
+    }
+}

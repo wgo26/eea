@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { CalendarDays, Clock, Landmark, MapPin, Tag, User } from "lucide-react";
 
 import { ShareButtons } from "@/components/share-buttons";
+import { ContentSocialProof } from "@/components/system/content-social-proof";
+import { ContentViewBeacon } from "@/components/system/content-view-beacon";
 import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
 import { SmartImage } from "@/components/media/smart-image";
 import { breadcrumbJsonLd, eventJsonLd, renderJsonLd } from "@/lib/seo/jsonld";
@@ -69,6 +71,7 @@ export default async function EventDetailPage({ params }: Props) {
 
     return (
         <>
+        <ContentViewBeacon contentId={event.id} />
         <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: jsonLd }}
@@ -239,7 +242,29 @@ export default async function EventDetailPage({ params }: Props) {
                 {/* Share */}
                 <div className="mt-8 border-t pt-6">
                     <p className="mb-3 text-sm font-bold">{dict.culture.shareEvent}</p>
-                    <ShareButtons url={shareUrl} title={event.title} />
+                    {event.viewCount || event.shareCount ? (
+                        <p className="mb-3 text-sm text-muted-foreground">
+                            <ContentSocialProof
+                                viewCount={event.viewCount}
+                                shareCount={event.shareCount}
+                                viewsLabel={dict.culture.views}
+                                sharesLabel={dict.news.shares}
+                                locale={locale}
+                            />
+                        </p>
+                    ) : null}
+                    <ShareButtons
+                        url={shareUrl}
+                        title={event.title}
+                        locale={locale}
+                        contentId={event.id}
+                        labels={{
+                            share: dict.common.share,
+                            whatsapp: dict.common.whatsapp,
+                            copyLink: dict.common.copyLink,
+                            copied: dict.common.copied,
+                        }}
+                    />
                 </div>
             </article>
         </div>

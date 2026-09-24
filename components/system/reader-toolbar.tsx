@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { TextSizeControl } from "@/components/system/text-size-control";
 import { SaveOfflineButton } from "@/components/system/save-offline-button";
 import { useLiteMode } from "@/components/media/adaptive-image";
-import { beaconShareTap, resolveShareVoice } from "@/lib/analytics/share-voice";
+import { beaconContentShare, resolveShareVoice } from "@/lib/analytics/share-voice";
 import type { Dictionary } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,8 @@ export function ReaderToolbar({
     /** W21 — voice register of the share line, when the query provides it. */
     voiceType,
     locale,
+    /** Per-content id — WhatsApp taps bump `share_count` + voice aggregate. */
+    contentId,
     saveLabel,
     savedLabel,
     offlineUnavailableLabel,
@@ -39,6 +41,7 @@ export function ReaderToolbar({
     shareText?: string | null;
     voiceType?: string | null;
     locale?: Locale;
+    contentId?: string | null;
     saveLabel: string;
     savedLabel: string;
     offlineUnavailableLabel: string;
@@ -50,7 +53,8 @@ export function ReaderToolbar({
     const waHref = `https://wa.me/?text=${encodeURIComponent(`${shareLine} ${shareUrl}`)}`;
     // W21 — count WhatsApp share taps by voice register (skipped when the
     // voice cannot be known honestly; see resolveShareVoice).
-    const beaconTap = () => beaconShareTap(resolveShareVoice(shareText, voiceType), locale ?? "en");
+    const beaconTap = () =>
+        beaconContentShare(contentId ?? null, resolveShareVoice(shareText, voiceType), locale ?? "en");
 
     return (
         <>
