@@ -28,22 +28,16 @@ function isDismissed(id: string): boolean {
     }
 }
 
-/** Stable short hash so a changed announcement reappears after dismissal. */
-export function announcementId(text: string, url: string | null): string {
-    let hash = 5381;
-    const input = `${text}::${url ?? ""}`;
-    for (let i = 0; i < input.length; i++) {
-        hash = ((hash << 5) + hash + input.charCodeAt(i)) >>> 0;
-    }
-    return hash.toString(36);
-}
-
 /**
  * Site-wide announcement banner (admin: /admin/site-content → Announcement
  * banner). Dismissible per announcement — the dismissal is keyed by content
  * hash in localStorage, so publishing a new announcement shows it again.
  * The server snapshot reports "visible" so the SSR HTML matches the first
  * client render (no hydration mismatch); dismissal applies after hydration.
+ *
+ * The dismissal id comes from `announcementId` (@/lib/announcement), kept in
+ * a server-safe module because the public shell computes it during
+ * pre-rendering — importing it from this client module broke the build.
  */
 export function AnnouncementBanner({
     id,
