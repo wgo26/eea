@@ -1,6 +1,8 @@
 import Link from 'next/link'
 
 import { fillCopy, formatBytes, formatDate, formatRelative } from '@/lib/admin/format'
+import { publishingTrend } from '@/lib/admin/insights'
+import { MeterBar, MiniBars, PROVIDER_TONES, StackedBar, StatusDot, type VizTone } from '@/components/admin/viz'
 import { localizeStatus, localizeType, type SeverityCopy } from '@/lib/admin/labels'
 import type {
   DashboardStats,
@@ -9,7 +11,7 @@ import type {
   SystemHealth,
 } from '@/lib/admin/queries'
 import { isEducationWidget, type WidgetId } from '@/lib/admin/widget-layout'
-import type { ComponentStatus, SystemStatus } from '@/lib/observability/metrics'
+import { ERROR_RATE_DEGRADED_PCT, type ComponentStatus, type SystemStatus } from '@/lib/observability/metrics'
 import { localePath } from '@/lib/i18n/urls'
 import type { Dictionary, Locale } from '@/lib/i18n'
 
@@ -73,6 +75,8 @@ export type WidgetCopy = Pick<
   | 'widgetCommunityAlerts'
   | 'widgetUpcomingDates'
   | 'widgetEducationSubmissions'
+  | 'trendVsPrev'
+  | 'storageProviders'
 >
 
 /** Everything one dashboard render needs, whether or not every widget is on screen. */
@@ -149,47 +153,41 @@ export function WidgetBody({
         </div>
       )
 
-    case 'editorial-queue':
+    case 'editorial-queue': {
+      const peak = Math.max(1, stats.draftCount, stats.scheduled, stats.publishedToday)
       return (
         <div className="space-y-0.5">
-          <WidgetRow
-            label={copy.drafts}
-            value={stats.draftCount}
-            href={content('tab=content&status=draft')}
-          />
-          <WidgetRow
-            label={copy.scheduled}
-            value={stats.scheduled}
-            href={content('tab=content&status=scheduled')}
-          />
-          <WidgetRow
-            label={copy.publishedToday}
-            value={stats.publishedToday}
-            href={content('tab=content&status=published')}
-          />
+          <MeterRow label={copy.drafts} value={stats.draftCount} href={content('tab=content&status=draft')} tone="blue" peak={peak} />
+          <MeterRow label={copy.scheduled} value={stats.scheduled} href={content('tab=content&status=scheduled')} tone="violet" peak={peak} />
+          <MeterRow label={copy.publishedToday} value={stats.publishedToday} href={content('tab=content&status=published')} tone="emerald" peak={peak} />
         </div>
       )
+    }
 
-    case 'moderation-queue':
-      return stats.pendingByType.length === 0 ? (
-        <p className="text-xs text-muted-foreground">{copy.queueEmpty}</p>
-      ) : (
-        <div className="space-y-2">
-          <div className="flex flex-wrap gap-1.5">
-            {stats.pendingByType.map((item) => (
-              <Link
-                key={item.type}
-                href={`${localePath(locale, '/admin/moderation')}?status=pending&type=${item.type}`}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2 py-0.5 text-xs transition-colors hover:bg-accent"
-              >
-                <span>{localizeType(item.type, common)}</span>
-                <span className="font-medium tabular-nums">{item.count}</span>
-              </Link>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground">{copy.pendingByType}</p>
+    case 'moderation-queue': {
+      if (stats.pendingByType.length === 0) {
+        return <p className="text-xs text-muted-foreground">{copy.queueEmpty}</p>
+      }
+      const peak = Math.max(1, ...stats.pendingByType.map((row) => row.count))
+      return (
+        <div className="space-y-1">
+          {stats.pendingByType.map((item) => (
+            <Link
+              key={item.type}
+              href={`${localePath(locale, '/admin/moderation')}?status=pending&type=${item.type}`}
+              className="-mx-1.5 block rounded-md px-1.5 py-1 transition-colors hover:bg-accent/50"
+            >
+              <span className="flex items-baseline justify-between gap-2">
+                <span className="min-w-0 truncate text-xs text-muted-foreground">{localizeType(item.type, common)}</span>
+                <span className="text-sm font-semibold tabular-nums">{item.count}</span>
+              </span>
+              <MeterBar className="mt-1" value={item.count} max={peak} />
+            </Link>
+          ))}
+          <p className="pt-1 text-xs text-muted-foreground">{copy.pendingByType}</p>
         </div>
       )
+    }
 
     case 'active-notices':
       return (
@@ -207,26 +205,16 @@ export function WidgetBody({
         </div>
       )
 
-    case 'marketplace-activity':
+    case 'marketplace-activity': {
+      const peak = Math.max(1, stats.activeListings, stats.expiringListings, stats.activeAds)
       return (
         <div className="space-y-0.5">
-          <WidgetRow
-            label={copy.activeListings}
-            value={stats.activeListings}
-            href={localePath(locale, '/admin/listings')}
-          />
-          <WidgetRow
-            label={copy.expiringSoon}
-            value={stats.expiringListings}
-            href={localePath(locale, '/admin/listings')}
-          />
-          <WidgetRow
-            label={copy.activeAds}
-            value={stats.activeAds}
-            href={localePath(locale, '/admin/ads')}
-          />
+          <MeterRow label={copy.activeListings} value={stats.activeListings} href={localePath(locale, '/admin/listings')} tone="primary" peak={peak} />
+          <MeterRow label={copy.expiringSoon} value={stats.expiringListings} href={localePath(locale, '/admin/listings')} tone="amber" peak={peak} />
+          <MeterRow label={copy.activeAds} value={stats.activeAds} href={localePath(locale, '/admin/ads')} tone="blue" peak={peak} />
         </div>
       )
+    }
 
     case 'photo-archive':
       return (
@@ -236,6 +224,17 @@ export function WidgetBody({
             label={copy.photoStories}
             href={content('tab=content&type=photo_story')}
           />
+          {stats.storageUsed > 0 && stats.storageByProvider.length > 0 && (
+            <StackedBar
+              label={copy.storageUsed}
+              segments={stats.storageByProvider.map((row, index) => ({
+                key: row.provider,
+                value: row.bytes,
+                tone: PROVIDER_TONES[index % PROVIDER_TONES.length],
+                title: `${row.provider.toUpperCase()} — ${formatBytes(row.bytes)}`,
+              }))}
+            />
+          )}
           <div className="space-y-0.5">
             {stats.storageByProvider.map((row) => (
               <div key={row.provider} className="flex items-baseline justify-between gap-2 text-xs">
@@ -256,7 +255,12 @@ export function WidgetBody({
     case 'platform-health':
       return (
         <div className="space-y-2">
-          <HealthBadge status={health.status} copy={copy} />
+          <div className="flex items-center justify-between gap-2">
+            <HealthBadge status={health.status} copy={copy} />
+            <span className="text-xs text-muted-foreground">
+              {fillCopy(copy.healthChecked, { time: formatRelative(health.checkedAt, locale) })}
+            </span>
+          </div>
           <div className="space-y-1">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {copy.healthComponents}
@@ -264,12 +268,13 @@ export function WidgetBody({
             {health.components.map((component) => (
               <div
                 key={component.id}
-                className="flex items-baseline justify-between gap-2 text-xs"
+                className="flex items-center justify-between gap-2 text-xs"
               >
-                <span className="text-muted-foreground">
-                  {copy.healthComponentNames[component.id]}
+                <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+                  <StatusDot tone={COMPONENT_TONE[component.status]} />
+                  <span className="truncate">{copy.healthComponentNames[component.id]}</span>
                 </span>
-                <span className="tabular-nums text-foreground">
+                <span className="shrink-0 tabular-nums text-foreground">
                   {healthStatusLabel(component.status, copy)}
                   {component.latencyMs != null && (
                     <span className="ml-1.5 text-muted-foreground">{component.latencyMs} ms</span>
@@ -278,21 +283,34 @@ export function WidgetBody({
               </div>
             ))}
           </div>
-          <div className="space-y-0.5 border-t border-border pt-1.5 text-xs">
+          <div className="space-y-1.5 border-t border-border pt-1.5 text-xs">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-muted-foreground">{copy.healthErrorRate}</span>
+              <span className="tabular-nums text-foreground">
+                {health.errorRate.ratePct}%
+                <span className="ml-1 opacity-70">
+                  ({health.errorRate.failedOps}/{health.errorRate.totalOps})
+                </span>
+              </span>
+            </div>
+            <MeterBar
+              value={health.errorRate.ratePct}
+              max={100}
+              tone={
+                health.errorRate.ratePct >= ERROR_RATE_DEGRADED_PCT
+                  ? 'red'
+                  : health.errorRate.ratePct > 0
+                    ? 'amber'
+                    : 'emerald'
+              }
+            />
             <p className="text-muted-foreground">
               {copy.healthQueue}: <span className="tabular-nums text-foreground">{health.queue.pending}</span>
               {' · '}
-              {copy.healthFailed}: <span className="tabular-nums text-foreground">{health.queue.failed}</span>
-            </p>
-            <p className="text-muted-foreground">
-              {copy.healthErrorRate}:{' '}
-              <span className="tabular-nums text-foreground">{health.errorRate.ratePct}%</span>
-              <span className="ml-1 tabular-nums opacity-70">
-                ({health.errorRate.failedOps}/{health.errorRate.totalOps})
+              {copy.healthFailed}:{' '}
+              <span className={health.queue.failed > 0 ? 'font-medium tabular-nums text-destructive' : 'tabular-nums text-foreground'}>
+                {health.queue.failed}
               </span>
-            </p>
-            <p className="text-muted-foreground">
-              {fillCopy(copy.healthChecked, { time: formatRelative(health.checkedAt, locale) })}
             </p>
           </div>
         </div>
@@ -350,32 +368,46 @@ export function WidgetBody({
       )
 
     case 'publishing-calendar': {
-      const peak = Math.max(1, ...activity.days.map((day) => day.count))
+      const trend = publishingTrend(activity.days)
+      const peakType = Math.max(1, ...activity.byType.map((row) => row.count))
       return (
         <div className="space-y-2">
-          <WidgetMetric value={activity.total} label={copy.publishedLast14} />
-          <div className="flex h-12 items-end gap-0.5" role="img" aria-label={copy.publishedLast14}>
-            {activity.days.map((day) => (
-              <div
-                key={day.date}
-                title={`${formatDate(day.date, locale)} — ${day.count}`}
-                className={`min-h-[2px] flex-1 rounded-sm ${day.count > 0 ? 'bg-primary/70' : 'bg-muted'}`}
-                style={{ height: `${Math.round((day.count / peak) * 100)}%` }}
-              />
-            ))}
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <WidgetMetric value={activity.total} label={copy.publishedLast14} />
+            {trend.deltaPct !== null && (
+              <span
+                className={`text-xs font-medium ${
+                  trend.deltaPct > 0
+                    ? 'text-emerald-600'
+                    : trend.deltaPct < 0
+                      ? 'text-destructive'
+                      : 'text-muted-foreground'
+                }`}
+              >
+                {trend.deltaPct > 0 ? `+${trend.deltaPct}` : trend.deltaPct}%
+                <span className="ml-1 font-normal">{copy.trendVsPrev}</span>
+              </span>
+            )}
           </div>
+          <MiniBars
+            values={activity.days.map((day) => day.count)}
+            titles={activity.days.map((day) => `${formatDate(day.date, locale)} — ${day.count}`)}
+            label={copy.publishedLast14}
+          />
           {activity.byType.length > 0 && (
-            <div className="space-y-0.5">
+            <div className="space-y-1.5">
               {activity.byType.slice(0, 4).map((row) => (
-                <div key={row.type} className="flex items-baseline justify-between gap-2 text-xs">
-                  <Link
-                    href={`${localePath(locale, '/admin/content')}?tab=content&type=${row.type}`}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    {localizeType(row.type, common)}
-                  </Link>
-                  <span className="tabular-nums text-foreground">{row.count}</span>
-                </div>
+                <Link
+                  key={row.type}
+                  href={`${localePath(locale, '/admin/content')}?tab=content&type=${row.type}`}
+                  className="-mx-1 block rounded-md px-1 transition-colors hover:bg-accent/50"
+                >
+                  <span className="flex items-baseline justify-between gap-2 text-xs">
+                    <span className="text-muted-foreground">{localizeType(row.type, common)}</span>
+                    <span className="tabular-nums text-foreground">{row.count}</span>
+                  </span>
+                  <MeterBar className="mt-0.5" value={row.count} max={peakType} tone="blue" />
+                </Link>
               ))}
             </div>
           )}
@@ -427,6 +459,39 @@ export function WidgetRow({
     >
       <span className="min-w-0 truncate text-xs text-muted-foreground">{label}</span>
       <span className="text-sm font-semibold tabular-nums">{value}</span>
+    </Link>
+  )
+}
+
+/** Component statuses as viz tones — one dot language across the dashboard. */
+const COMPONENT_TONE: Record<ComponentStatus, VizTone> = {
+  operational: 'emerald',
+  degraded: 'amber',
+  down: 'red',
+  unknown: 'muted',
+}
+
+/** A labelled count with a proportion bar — the queue widgets' row. */
+function MeterRow({
+  label,
+  value,
+  href,
+  tone,
+  peak,
+}: {
+  label: string
+  value: number
+  href: string
+  tone: VizTone
+  peak: number
+}) {
+  return (
+    <Link href={href} className="-mx-1.5 block rounded-md px-1.5 py-1 transition-colors hover:bg-accent/50">
+      <span className="flex items-baseline justify-between gap-2">
+        <span className="min-w-0 truncate text-xs text-muted-foreground">{label}</span>
+        <span className="text-sm font-semibold tabular-nums">{value}</span>
+      </span>
+      <MeterBar className="mt-1" value={value} max={peak} tone={tone} />
     </Link>
   )
 }

@@ -24,13 +24,15 @@ import {
 } from '@/lib/admin/widget-layout'
 import { DemoDataCard } from './demo-data-card'
 import { PageHeader } from '@/components/admin/page-header'
-import { StatCard, StatGrid } from '@/components/admin/stat-card'
 import { CommandCenter } from '@/components/admin/command-center'
+import { GlanceStrip } from '@/components/admin/glance-strip'
+import { OverviewSection } from '@/components/admin/overview-section'
 import { WidgetBoard } from '@/components/admin/widget-board'
 import { WidgetBody, widgetTitles, type WidgetData } from '@/components/admin/widget-system'
 import { EducationWidget } from '@/components/admin/widget-education'
-import { formatBytes } from '@/lib/admin/format'
+import { buttonVariants } from '@/components/ui/button'
 import { localePath } from '@/lib/i18n/urls'
+import { FilePlus, Megaphone, UserPlus } from 'lucide-react'
 import Link from 'next/link'
 
 export async function generateMetadata(): Promise<{ title: string }> {
@@ -39,20 +41,22 @@ export async function generateMetadata(): Promise<{ title: string }> {
 }
 
 /**
- * Phase 4.4 — the command center (spec §34/§35).
+ * Phase 4.4 → "command centre UX" upgrade — the dashboard (spec §34/§35).
  *
- * The page answers spec §34's five questions in reading order: the operational
- * alerts and the prioritized actions come first (what requires attention and
- * what to do about it), the content inventory stays as the one fixed counter
- * band (how much content is where — news and culture have no widget of their
- * own), and everything else is the arrangement the viewer saved: the widget
- * board below renders their layout, falling back to the role defaults.
+ * The page answers spec §34's five questions in reading order:
+ *   1. glance strip   — is everything OK right now? (health, alerts, the SLA
+ *                       clock and today's publishing in one scannable row)
+ *   2. command center — what requires attention, and what to do about it
+ *   3. overview band  — how much content is where, now with share meters, a
+ *                       content-mix bar, the storage split and the editorial
+ *                       pipeline funnel (the old Content + Operations bands,
+ *                       unified into one section)
+ *   4. widget board   — the arrangement the viewer saved (role defaults).
  *
- * The retired pieces of this page are all owned by widgets now: the pending /
- * published-today / scheduled / draft counters live in the Pending Submissions
- * and Editorial Queue widgets, the SLA banner became the alerts panel's `sla`
- * alert, and the pending-by-type pills and activity list moved into the
- * Moderation Queue and Recent Activity widgets.
+ * All visualisations are hand-rolled CSS — the project carries no chart
+ * library (see components/admin/viz.tsx) — and every number comes from
+ * queries the page has already run: no widget adds a query on the render
+ * path, and a DB outage degrades a card instead of the page.
  */
 export default async function Page() {
   const { user, roles, adminRoles } = await requireCapability('viewDashboard', '/admin/dashboard')
@@ -124,10 +128,6 @@ export default async function Page() {
     if (params.type) sp.set('type', params.type)
     return `${localePath(locale, '/admin/content')}?${sp.toString()}`
   }
-  const quickActionCls =
-    'inline-flex min-h-[32px] items-center rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium hover:bg-accent transition-colors'
-
-  const sectionHeadingCls = 'text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2'
 
   return (
     <div className="space-y-5">
@@ -137,39 +137,30 @@ export default async function Page() {
         actions={
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="mr-1 hidden text-xs font-medium uppercase tracking-wide text-muted-foreground xl:inline">{t.quickActions}</span>
-            <Link href={contentHref({})} className={quickActionCls}>{t.qaCreateContent}</Link>
-            <Link href={localePath(locale, '/admin/users')} className={quickActionCls}>{t.qaInviteUser}</Link>
-            <Link href={localePath(locale, '/admin/ads')} className={quickActionCls}>{t.qaNewAd}</Link>
+            <Link href={contentHref({})} className={buttonVariants({ variant: 'default', size: 'sm' })}>
+              <FilePlus aria-hidden="true" />
+              {t.qaCreateContent}
+            </Link>
+            <Link href={localePath(locale, '/admin/users')} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+              <UserPlus aria-hidden="true" />
+              {t.qaInviteUser}
+            </Link>
+            <Link href={localePath(locale, '/admin/ads')} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+              <Megaphone aria-hidden="true" />
+              {t.qaNewAd}
+            </Link>
           </div>
         }
       />
 
+      {/* Is everything OK right now? One scannable status row (§34.3/§34.4). */}
+      <GlanceStrip health={health} alerts={alerts} stats={stats} copy={t} severity={severity} locale={locale} />
+
       {/* §34.1 + §34.5 — what requires attention, and what to do about it. */}
       <CommandCenter alerts={alerts} actions={actions} copy={t} severity={severity} locale={locale} />
 
-      {/* §34.2 — the content inventory the widgets do not cover (news, culture). */}
-      <div className="grid gap-5 xl:grid-cols-5">
-      <section className="xl:col-span-3">
-        <h2 className={sectionHeadingCls}>{t.content}</h2>
-        <StatGrid>
-          <StatCard label={t.photoStories} value={stats.totalStories} href={contentHref({ type: 'photo_story' })} />
-          <StatCard label={t.communityNews} value={stats.totalNews} href={contentHref({ type: 'news' })} />
-          <StatCard label={t.buySell} value={stats.totalListings} href={localePath(locale, '/admin/listings')} />
-          <StatCard label={t.notices} value={stats.totalNotices} href={contentHref({ type: 'notice' })} />
-          <StatCard label={t.culture} value={stats.totalCulture} href={contentHref({ type: 'culture' })} />
-        </StatGrid>
-      </section>
-
-      {/* Operations */}
-      <section className="xl:col-span-2">
-        <h2 className={sectionHeadingCls}>{t.operations}</h2>
-        <StatGrid>
-          <StatCard label={t.activeAds} value={stats.activeAds} href={localePath(locale, '/admin/ads')} />
-          <StatCard label={t.activeListings} value={stats.activeListings} hint={t.expiringListings.replace('{count}', String(stats.expiringListings))} href={localePath(locale, '/admin/listings')} />
-          <StatCard label={t.storageUsed} value={formatBytes(stats.storageUsed)} href={localePath(locale, '/admin/storage-backup')} />
-        </StatGrid>
-      </section>
-      </div>
+      {/* §34.2 — the fixed counter band, unified: shares, meters, pipeline. */}
+      <OverviewSection stats={stats} copy={t} locale={locale} />
 
       {/* §35 — the arrangement the viewer saved (role defaults when none). */}
       <WidgetBoard widgets={widgets} catalog={catalog} copy={t} cancelLabel={dict.admin.common.cancel} />

@@ -11,6 +11,8 @@ type StatCardProps = {
   href?: string
   /** Visual tone for urgent/colored cards */
   tone?: 'default' | 'amber' | 'emerald' | 'blue' | 'red'
+  /** Extra visualisation rendered under the hint (meter, stacked bar, …). */
+  footer?: React.ReactNode
   className?: string
 }
 
@@ -22,7 +24,7 @@ const toneClasses: Record<string, string> = {
   red: 'border-red-200 dark:border-red-900/50',
 }
 
-export function StatCard({ label, value, icon, hint, trend, href, tone = 'default', className }: StatCardProps) {
+export function StatCard({ label, value, icon, hint, trend, href, tone = 'default', footer, className }: StatCardProps) {
   const inner = (
     <div
       className={cn(
@@ -50,6 +52,7 @@ export function StatCard({ label, value, icon, hint, trend, href, tone = 'defaul
         )}
       </div>
       {hint && <span className="text-xs leading-tight text-muted-foreground truncate">{hint}</span>}
+      {footer && <div className="mt-1 min-w-0">{footer}</div>}
     </div>
   )
 

@@ -13,6 +13,11 @@ import {
 } from '@/lib/observability/metrics'
 import { db, hasDatabase, safe } from './shared'
 import { getActiveIncident, type IncidentRow } from './states'
+// The SLA thresholds live in the pure insight helpers so the alert query and
+// the SLA-toned dashboard UI (glance strip) agree on one definition.
+import { SLA_CRITICAL_HOURS, SLA_WARNING_HOURS } from '../insights'
+
+export { SLA_CRITICAL_HOURS, SLA_WARNING_HOURS }
 
 /**
  * Phase 4.4 — the dashboard's operational layer (spec §34/§35/§52).
@@ -59,10 +64,7 @@ export type OperationalAlert = {
     incidentId?: string
 }
 
-/** Submissions pending longer than this are past the editorial SLA. */
-export const SLA_WARNING_HOURS = 48
-/** …and longer than this are an escalation, not a reminder. */
-export const SLA_CRITICAL_HOURS = 96
+/* SLA thresholds (SLA_WARNING_HOURS / SLA_CRITICAL_HOURS) live in ../insights. */
 
 function hoursSince(value: string | null | undefined, now: Date): number | null {
     if (!value) return null

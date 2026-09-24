@@ -63,7 +63,7 @@ export function CommandCenter({
 }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Panel title={copy.alertsHeading}>
+      <Panel title={copy.alertsHeading} count={alerts.length}>
         {alerts.length === 0 ? (
           <EmptyState message={copy.alertsClear} />
         ) : (
@@ -94,21 +94,23 @@ export function CommandCenter({
         )}
       </Panel>
 
-      <Panel title={copy.nextActions}>
+      <Panel title={copy.nextActions} count={actions.length}>
         {actions.length === 0 ? (
           <EmptyState message={copy.actionsClear} />
         ) : (
           <ol className="space-y-1">
-            {actions.slice(0, 6).map((action) => (
+            {actions.slice(0, 6).map((action, index) => (
               <li key={action.id}>
                 <Link
                   href={localePath(locale, action.href)}
                   className="-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1.5 transition-colors hover:bg-accent/50"
                 >
                   <span
-                    className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium ${severityTone[action.severity]}`}
+                    className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${severityTone[action.severity]}`}
+                    title={severity[action.severity]}
                   >
-                    {severity[action.severity]}
+                    {index + 1}
+                    <span className="sr-only">{severity[action.severity]}</span>
                   </span>
                   <span className="min-w-0 flex-1 text-sm">{actionLabel(action, copy)}</span>
                   <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
@@ -124,10 +126,17 @@ export function CommandCenter({
   )
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+function Panel({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-card">
-      <h2 className="border-b border-border px-3 py-2 text-sm font-medium text-foreground">{title}</h2>
+      <h2 className="border-b border-border px-3 py-2 text-sm font-medium text-foreground">
+        {title}
+        {typeof count === 'number' && count > 0 && (
+          <span className="ml-2 inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
+            {count}
+          </span>
+        )}
+      </h2>
       <div className="p-3">{children}</div>
     </section>
   )
