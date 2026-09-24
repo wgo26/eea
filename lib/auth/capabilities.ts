@@ -22,6 +22,20 @@ export type Capability =
   | 'manageStorage'
   | 'manageNotifications'
   | 'viewAuditLog'
+  // Phase 1.2 — platform states + incidents (spec §24–§39).
+  | 'system.configure'
+  | 'incidents.manage'
+  | 'branding.publish'
+  // Phase 2.1 — security, analytics and the granular content/admin domains
+  // (spec §17–§18). Names match the plan so role mappings read verbatim.
+  | 'secrets.read_metadata'
+  | 'secrets.create'
+  | 'secrets.rotate'
+  | 'secrets.revoke'
+  | 'secrets.manage'
+  | 'analytics.read'
+  | 'listings.manage'
+  | 'media.manage'
 
 const ROLE_CAPABILITIES: Record<AppRole, Capability[]> = {
   admin: [
@@ -37,6 +51,17 @@ const ROLE_CAPABILITIES: Record<AppRole, Capability[]> = {
     'manageStorage',
     'manageNotifications',
     'viewAuditLog',
+    'system.configure',
+    'incidents.manage',
+    'branding.publish',
+    'secrets.read_metadata',
+    'secrets.create',
+    'secrets.rotate',
+    'secrets.revoke',
+    'secrets.manage',
+    'analytics.read',
+    'listings.manage',
+    'media.manage',
   ],
   editor: ['viewDashboard', 'moderate', 'manageContent', 'managePolls', 'manageFundraisers', 'managePolicies', 'manageSiteContent', 'manageNotifications'],
   // Contributor/advertiser capabilities are scoped to their own rows by RLS
@@ -58,7 +83,26 @@ const CAPABILITY_WEIGHT: Record<Capability, number> = {
   manageStorage: 10,
   manageNotifications: 11,
   manageUsers: 12,
+  'analytics.read': 13,
+  'listings.manage': 14,
+  'media.manage': 15,
+  'incidents.manage': 16,
+  'system.configure': 17,
+  'branding.publish': 18,
+  'secrets.read_metadata': 19,
+  'secrets.create': 20,
+  'secrets.rotate': 21,
+  'secrets.revoke': 22,
+  'secrets.manage': 23,
 }
+
+/**
+ * Every capability in weight order. `Capability` is exactly the key set of
+ * CAPABILITY_WEIGHT (a `Record<Capability, number>`), so this stays complete
+ * by construction — spec §17 role maps derive their "everything except X"
+ * lists from it instead of hardcoding near-complete duplicates.
+ */
+export const ALL_CAPABILITIES: Capability[] = Object.keys(CAPABILITY_WEIGHT) as Capability[]
 
 /** Union of all capabilities granted by the user's roles. */
 export function capabilitiesFor(roles: AppRole[]): Set<Capability> {

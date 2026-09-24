@@ -81,3 +81,16 @@ export function formatPercent(part: number, whole: number): string {
   if (!whole) return '0%'
   return `${Math.round((part / whole) * 100)}%`
 }
+
+/**
+ * Dictionary interpolation: `fillCopy('Draft saved as v{version}.', { version: '1.4' })`.
+ * Client-safe (no imports beyond the Locale type), so the theme editor, the
+ * preview and the asset library share one implementation instead of each
+ * carrying its own `split/join`.
+ */
+export function fillCopy(template: string, values: Record<string, string | number>): string {
+  return Object.entries(values).reduce(
+    (out, [key, value]) => out.split(`{${key}}`).join(String(value)),
+    template,
+  )
+}

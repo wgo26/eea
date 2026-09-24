@@ -108,7 +108,7 @@ Copy `.env.example` → `.env.local` and fill in the values. Never commit real s
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Browser/publishable anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | **Server-only.** Service-role client for reads/writes; its presence also switches queries from fallbacks to live data |
 | `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | uploads | Cloudflare R2 — public media storage |
-| `R2_PUBLIC_BASE_URL` | media | Public media base URL (wired into `next/image` remote patterns) |
+| `R2_PUBLIC_BASE_URL` / `NEXT_PUBLIC_R2_PUBLIC_BASE_URL` | media | Public media base URL (server uses the first value, then the public fallback; keep hosts in sync) |
 | `B2_ENDPOINT` / `B2_KEY_ID` / `B2_APPLICATION_KEY` / `B2_BACKUP_BUCKET` | backups | Backblaze B2 — nightly backup mirror |
 | `SUPABASE_ADMIN_ASSET_BUCKET` | — | Admin-asset bucket name (defaults to `admin-asset`) |
 | `CRON_SECRET` | production | Bearer secret guarding `/api/cron/*` (fail-closed) |

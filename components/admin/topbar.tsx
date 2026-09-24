@@ -5,9 +5,13 @@ import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
 import { signOutAction } from '@/lib/auth/actions'
 import type { AppRole } from '@/lib/auth/types'
+import type { AdminRole } from '@/lib/auth/admin-roles'
 import { useLocaleFromPath } from '@/components/site-header'
 import { AdminMobileNav } from './admin-mobile-nav'
 import { AdminCommandPalette } from './admin-command-palette'
+import { SystemStateIndicator } from './system-state-indicator'
+import { useSystemState } from './state-provider'
+import { EnvIndicator } from './env-indicator'
 import { buildAdminNavItems } from './nav-items'
 
 /**
@@ -17,23 +21,30 @@ import { buildAdminNavItems } from './nav-items'
  * pass functions across the server/client boundary → React #441.
  * Sticky, localized, with the mobile drawer trigger (item 8), the
  * pending-moderation shortcut, the staff identity area and a sign-out
- * control on every admin page (item 11).
+ * control on every admin page (item 11). The system-state pill (spec §26/§31)
+ * reads the state from `SystemStateProvider` — the layout resolves it once per
+ * request, so no page has to thread it down by hand.
  */
 export function AdminTopbar({
   pendingCount,
   roles,
+  adminRoles = [],
   displayName,
   email,
+  unreadNotifications = 0,
 }: {
   pendingCount: number
   roles: AppRole[]
+  adminRoles?: AdminRole[]
   displayName: string
   email: string
+  unreadNotifications?: number
 }) {
   const locale = useLocaleFromPath()
   const dict = getDictionary(locale)
-  const items = buildAdminNavItems(locale, dict, roles, pendingCount)
+  const items = buildAdminNavItems(locale, dict, roles, pendingCount, adminRoles, unreadNotifications)
   const isAdmin = roles.includes('admin')
+  const systemState = useSystemState()
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60">
@@ -47,6 +58,15 @@ export function AdminTopbar({
         <div className="flex-1" />
 
         <nav className="flex items-center gap-2">
+          <EnvIndicator locale={locale} />
+          {systemState && (
+            <SystemStateIndicator
+              label={dict.admin.states.label}
+              name={systemState.name}
+              tone={systemState.tone}
+              href={systemState.href}
+            />
+          )}
           <AdminCommandPalette items={items} />
           {pendingCount > 0 && (
             <Link

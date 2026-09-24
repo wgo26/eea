@@ -66,8 +66,17 @@ export function buildReadinessChecks(
     hasCoverPhoto: boolean,
     excerpt: string,
     copy: Copy,
+    opts?: {
+        seoDescription?: string;
+        tags?: string;
+        contactPhone?: string;
+        contactEmail?: string;
+        whatsappNumber?: string;
+        organizationName?: string;
+        noticeType?: string;
+    }
 ): ReadinessCheck[] {
-    return [
+    const checks: ReadinessCheck[] = [
         {
             key: 'title',
             label: copy.readinessNeedsTitle,
@@ -99,4 +108,63 @@ export function buildReadinessChecks(
             passed: Boolean(excerpt.trim()),
         },
     ];
+
+    // Type-specific checks
+    if (type === 'listing') {
+        if (opts?.contactPhone) {
+            checks.push({
+                key: 'contactPhone',
+                label: copy.readinessNeedsPhone,
+                passed: Boolean(opts.contactPhone.trim()),
+            });
+        }
+        if (opts?.contactEmail) {
+            checks.push({
+                key: 'contactEmail',
+                label: copy.readinessNeedsEmail,
+                passed: Boolean(opts.contactEmail.trim()) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(opts.contactEmail.trim()),
+            });
+        }
+    }
+
+    if (type === 'notice') {
+        if (opts?.organizationName) {
+            checks.push({
+                key: 'organization',
+                label: copy.readinessNeedsOrganization,
+                passed: Boolean(opts.organizationName.trim()),
+            });
+        }
+        if (opts?.noticeType) {
+            checks.push({
+                key: 'noticeType',
+                label: copy.readinessNeedsNoticeType,
+                passed: Boolean(opts.noticeType.trim()),
+            });
+        }
+    }
+
+    if (type === 'news' || type === 'photo_story' || type === 'micro_story') {
+        if (opts?.seoDescription) {
+            checks.push({
+                key: 'seo',
+                label: copy.readinessNeedsSeo,
+                passed: Boolean(opts.seoDescription.trim()),
+            });
+        }
+    }
+
+    // General: tags if provided
+    if (opts?.tags) {
+        const tagCount = opts.tags.split(',').filter(t => t.trim()).length;
+        if (tagCount > 0) {
+            checks.push({
+                key: 'tags',
+                label: copy.readinessNeedsTags,
+                passed: tagCount >= 1,
+            });
+        }
+    }
+
+    return checks;
 }

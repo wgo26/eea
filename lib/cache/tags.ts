@@ -18,6 +18,9 @@
  *     every public page; invalidated by the site-settings admin mutation.
  *   - `ads`   — active ad creatives per slot (`lib/queries/ads.ts`); invalidated
  *     by every ad/slot/campaign mutation so creative swaps land immediately.
+ *   - `brand` — the published brand theme (`lib/branding/index.ts`), read by the
+ *     shells on every request; invalidated by every theme mutation, so a
+ *     publish or archive lands immediately rather than after the window.
  *
  * Invalidation uses the two-argument `revalidateTag(tag, profile)` form — the
  * single-argument form is deprecated in Next.js 16. `max` serves stale content
@@ -39,6 +42,7 @@ export const CACHE_TAGS = {
     locations: "locations",
     site: "site",
     ads: "ads",
+    brand: "brand",
 } as const;
 
 /** Cache/revalidate window for public content data + ISR pages (5 minutes). */

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { localePath, safeNextPath } from '@/lib/i18n/urls'
 import { checkRateLimit } from '@/lib/security/rate-limit'
+import { AUTH_AUDIT_ACTIONS, recordAuthEvent } from '@/lib/security/auth-audit'
 import { verifyTurnstileToken } from '@/lib/security/turnstile'
 import { SITE } from '@/lib/constants'
 import { enabledOAuthProviders, type OAuthProvider } from '@/lib/auth/oauth'
@@ -16,7 +17,11 @@ import { enabledOAuthProviders, type OAuthProvider } from '@/lib/auth/oauth'
  */
 export async function signOutAction(): Promise<void> {
   const supabase = await createClient()
+  const { data } = await supabase.auth.getUser()
   await supabase.auth.signOut()
+  // §53 session activity: a sign-out is the closing edge of the session the
+  // sign-in opened, so the security timeline can pair them per actor.
+  await recordAuthEvent({ action: AUTH_AUDIT_ACTIONS.logout, actorId: data.user?.id ?? null })
   const locale = await getRequestLocale()
   redirect(localePath(locale, '/'))
 }
@@ -104,6 +109,11 @@ export async function signInWithPassword(
     : ''
 
   if (!isValidEmail(email) || password.length < 1 || password.length > 256) {
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.loginFailed,
+      identifier: email,
+      detail: { reason: 'invalid_input' },
+    })
     return { ok: false, error: 'invalid' }
   }
 
@@ -112,19 +122,47 @@ export async function signInWithPassword(
   // fail-closed: credential surface — an outage must not become an unlimited
   // password-guessing window.
   const limited = await checkRateLimit('auth:login', { max: 10, windowMs: 10 * 60_000, policy: 'fail-closed' })
-  if (!limited.ok) return { ok: false, error: 'rate_limited' }
+  if (!limited.ok) {
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.loginBlocked,
+      identifier: email,
+      detail: { reason: 'rate_limited' },
+    })
+    return { ok: false, error: 'rate_limited' }
+  }
   const turnstileToken = formData.get('cf-turnstile-response')
   if (!(await verifyTurnstileToken(typeof turnstileToken === 'string' ? turnstileToken : null))) {
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.loginBlocked,
+      identifier: email,
+      detail: { reason: 'captcha' },
+    })
     return { ok: false, error: 'captcha' }
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
-  if (error) return { ok: false, error: mapSupabaseError(error.message) }
+  const { data: auth, error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) {
+    const code = mapSupabaseError(error.message)
+    // The mapped code, not Supabase's raw (sometimes user-enumerating) message.
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.loginFailed,
+      identifier: email,
+      detail: { reason: code },
+    })
+    return { ok: false, error: code }
+  }
 
-  const { data: profile } = await supabase.from('profiles').select('is_suspended, is_banned').eq('id', (await supabase.auth.getUser()).data.user?.id ?? '').single()
+  const userId = auth.user?.id ?? null
+  const { data: profile } = await supabase.from('profiles').select('is_suspended, is_banned').eq('id', userId ?? '').single()
   if (profile?.is_suspended || profile?.is_banned) {
     await supabase.auth.signOut()
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.loginBlocked,
+      actorId: userId,
+      identifier: email,
+      detail: { reason: 'account_disabled' },
+    })
     return { ok: false, error: 'account_disabled' }
   }
 
@@ -132,11 +170,23 @@ export async function signInWithPassword(
   // of straight into the app (the aal1 session can verify, nothing else).
   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
   if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+    // The password step succeeded; the second factor is still outstanding.
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.loginSucceeded,
+      actorId: userId,
+      identifier: email,
+      detail: { mfa: 'challenge_pending' },
+    })
     const locale = await getRequestLocale()
     const challengeNext = safeNextPath(str(formData.get('next')) || null, locale)
     redirect(localePath(locale, `/account/mfa-challenge${challengeNext ? `?next=${encodeURIComponent(challengeNext)}` : ''}`))
   }
 
+  await recordAuthEvent({
+    action: AUTH_AUDIT_ACTIONS.loginSucceeded,
+    actorId: userId,
+    identifier: email,
+  })
   redirect(await landingFor(str(formData.get('next')) || null))
 }
 

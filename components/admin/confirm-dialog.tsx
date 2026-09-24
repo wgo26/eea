@@ -12,6 +12,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/components/admin/toast'
+import { useLocaleFromPath } from '@/components/site-header'
+import { ProductionWarning } from '@/components/admin/env-indicator'
 
 type ToastActionOption = {
   label: string
@@ -47,6 +49,8 @@ export function ConfirmDialog({
   tone?: 'danger' | 'default'
   children?: React.ReactNode
 }) {
+  const locale = useLocaleFromPath()
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent size="sm">
@@ -54,6 +58,7 @@ export function ConfirmDialog({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
           {children}
+          {tone === 'danger' && <ProductionWarning locale={locale} />}
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>{cancelLabel}</AlertDialogCancel>

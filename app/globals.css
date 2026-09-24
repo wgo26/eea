@@ -399,6 +399,19 @@ html.high-contrast *:focus-visible {
   }
 }
 
+/* Spec §25/§30 — a state whose visual profile declares reduced motion
+   (maintenance, degraded, incident, critical) sets data-state-motion on the
+   admin shell; nonessential animation is zeroed exactly as the OS preference
+   does, without touching the user's own setting. */
+[data-state-motion="reduced"] *,
+[data-state-motion="reduced"] *::before,
+[data-state-motion="reduced"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
 /* Print — clean article layout: chrome (marked .no-print) drops out, prose
    goes black-on-white at a readable measure. `.print-only` is the inverse:
    hidden on screen, visible on paper (detail-page attribution headers). */

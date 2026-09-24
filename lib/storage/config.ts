@@ -51,6 +51,21 @@ export function mimeToKind(mimeType: string): MediaKind | null {
   return null
 }
 
+/**
+ * Resolve the public URL used for R2 objects.
+ *
+ * The server-side variable is preferred, but deployments commonly expose the
+ * same value as NEXT_PUBLIC_R2_PUBLIC_BASE_URL for the browser. Treating the
+ * public variable as a valid fallback prevents an object from being uploaded
+ * and then rejected while constructing its public URL.
+ */
+export function resolveR2PublicBaseUrl(
+  serverValue: string | undefined,
+  clientValue: string | undefined,
+): string {
+  return serverValue?.trim() || clientValue?.trim() || ''
+}
+
 export const storageConfig = {
   r2: {
     accountId: process.env.R2_ACCOUNT_ID!,
@@ -58,7 +73,10 @@ export const storageConfig = {
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
     bucket: process.env.R2_BUCKET!,
     // Custom domain or r2.dev subdomain the bucket is served from.
-    publicBaseUrl: process.env.R2_PUBLIC_BASE_URL!,
+    publicBaseUrl: resolveR2PublicBaseUrl(
+      process.env.R2_PUBLIC_BASE_URL,
+      process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL,
+    ),
   },
   b2: {
     keyId: process.env.B2_KEY_ID!,

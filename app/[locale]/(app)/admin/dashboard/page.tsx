@@ -1,45 +1,123 @@
 import { getDictionary } from '@/lib/i18n'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { requireCapability } from '@/lib/auth/guards'
+import { effectiveCapabilities } from '@/lib/auth/admin-roles'
 import { isAdminRoles } from '@/lib/auth/roles'
-import { getDashboardStats } from '@/lib/admin/queries'
+import {
+  getActiveStates,
+  getDashboardStats,
+  getEducationSnapshot,
+  getOperationalAlerts,
+  getPrioritizedActions,
+  getPublishingActivity,
+  getSavedWidgetLayout,
+  getSystemHealth,
+} from '@/lib/admin/queries'
 import { getDemoDataCounts } from '@/lib/admin/demo-data'
+import {
+  BASE_WIDGET_IDS,
+  WIDGET_IDS,
+  isEducationSeasonActive,
+  isEducationWidget,
+  resolveWidgetLayout,
+  type WidgetId,
+} from '@/lib/admin/widget-layout'
 import { DemoDataCard } from './demo-data-card'
 import { PageHeader } from '@/components/admin/page-header'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
-import { EmptyState } from '@/components/admin/empty-state'
-import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
-import { localizeStatus, localizeType } from '@/lib/admin/labels'
-import { formatBytes, formatRelative } from '@/lib/admin/format'
+import { CommandCenter } from '@/components/admin/command-center'
+import { WidgetBoard } from '@/components/admin/widget-board'
+import { WidgetBody, widgetTitles, type WidgetData } from '@/components/admin/widget-system'
+import { EducationWidget } from '@/components/admin/widget-education'
+import { formatBytes } from '@/lib/admin/format'
 import { localePath } from '@/lib/i18n/urls'
 import Link from 'next/link'
-import type { ModerationEntry } from '@/lib/admin/queries'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
   return { title: getDictionary(locale).admin.dashboard.title }
 }
 
-// SLA watch: pending queue older than 48h gets the amber treatment.
-// Module-scope helper so the server-component render stays pure
-// (react-hooks/purity flags Date.now() inside render).
-function getOldestPendingHours(oldestPendingAt: string | null): number | null {
-  if (!oldestPendingAt) return null
-  return Math.floor((Date.now() - new Date(oldestPendingAt).getTime()) / 3_600_000)
-}
-
+/**
+ * Phase 4.4 — the command center (spec §34/§35).
+ *
+ * The page answers spec §34's five questions in reading order: the operational
+ * alerts and the prioritized actions come first (what requires attention and
+ * what to do about it), the content inventory stays as the one fixed counter
+ * band (how much content is where — news and culture have no widget of their
+ * own), and everything else is the arrangement the viewer saved: the widget
+ * board below renders their layout, falling back to the role defaults.
+ *
+ * The retired pieces of this page are all owned by widgets now: the pending /
+ * published-today / scheduled / draft counters live in the Pending Submissions
+ * and Editorial Queue widgets, the SLA banner became the alerts panel's `sla`
+ * alert, and the pending-by-type pills and activity list moved into the
+ * Moderation Queue and Recent Activity widgets.
+ */
 export default async function Page() {
-  const { roles } = await requireCapability('viewDashboard', '/admin/dashboard')
+  const { user, roles, adminRoles } = await requireCapability('viewDashboard', '/admin/dashboard')
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
   const t = dict.admin.dashboard
-  const stats = await getDashboardStats()
+  const severity = dict.admin.statesPage.severity
 
+  const [stats, alerts, health, activity, education, savedLayout, activeStates] = await Promise.all([
+    getDashboardStats(),
+    getOperationalAlerts(),
+    getSystemHealth(),
+    getPublishingActivity(),
+    getEducationSnapshot(locale),
+    getSavedWidgetLayout(user.id),
+    getActiveStates(),
+  ])
   // Demo-data sweep is admin-only: editors see neither the card nor the counts.
   const demoCounts = isAdminRoles(roles) ? await getDemoDataCounts() : null
 
-  const oldestPendingHours = getOldestPendingHours(stats.oldestPendingAt)
-  const slaBreached = oldestPendingHours != null && oldestPendingHours >= 48
+  const role = isAdminRoles(roles) ? 'admin' : 'editor'
+  const seasonActive = isEducationSeasonActive(
+    new Date(),
+    activeStates.map((state) => state.id),
+  )
+  const layout = resolveWidgetLayout(savedLayout, role, seasonActive)
+
+  const actions = getPrioritizedActions({
+    capabilities: [...effectiveCapabilities(roles, adminRoles)],
+    alerts,
+    stats: {
+      pendingSubmissions: stats.pendingSubmissions,
+      scheduled: stats.scheduled,
+      draftCount: stats.draftCount,
+    },
+    systemStatus: health.status,
+    hasActiveIncident: alerts.some((alert) => alert.id === 'incident'),
+  })
+
+  const data: WidgetData = { stats, alerts, health, activity }
+  const titles = widgetTitles(t)
+  const renderWidget = (id: WidgetId) =>
+    isEducationWidget(id) ? (
+      <EducationWidget id={id} snapshot={education} stats={stats} copy={t} locale={locale} />
+    ) : (
+      <WidgetBody
+        id={id}
+        data={data}
+        copy={t}
+        severity={severity}
+        locale={locale}
+        common={dict.admin.common}
+        systemLabel={dict.admin.audit.system}
+        deletedLabel={dict.admin.audit.deletedUser}
+      />
+    )
+
+  const widgets = layout.map((id) => ({ id, content: renderWidget(id) }))
+  // The catalogue only offers widgets the season allows, so an add can never
+  // save an arrangement that `resolveWidgetLayout` would silently trim.
+  const catalog = (seasonActive ? WIDGET_IDS : BASE_WIDGET_IDS).map((id) => ({
+    id,
+    title: titles[id],
+  }))
+
   const contentHref = (params: { status?: string; type?: string }) => {
     const sp = new URLSearchParams({ tab: 'content' })
     if (params.status) sp.set('status', params.status)
@@ -66,30 +144,10 @@ export default async function Page() {
         }
       />
 
-      {/* SLA warning — oldest pending > 48h */}
-      {slaBreached && oldestPendingHours != null && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-          <span aria-hidden>⏰</span>
-          <p>{t.slaWarning.replace('{hours}', String(oldestPendingHours))}</p>
-          <Link href={localePath(locale, '/admin/moderation')} className="ml-auto text-xs font-medium underline">
-            {t.pending} →
-          </Link>
-        </div>
-      )}
+      {/* §34.1 + §34.5 — what requires attention, and what to do about it. */}
+      <CommandCenter alerts={alerts} actions={actions} copy={t} severity={severity} locale={locale} />
 
-      {/* Submissions */}
-      <section>
-        <h2 className={sectionHeadingCls}>{t.submissions}</h2>
-        <StatGrid>
-          <StatCard label={t.pending} value={stats.pendingSubmissions} hint={t.hintAwaitingReview} href={localePath(locale, '/admin/moderation')} tone={slaBreached ? 'amber' : 'default'} />
-          <StatCard label={t.publishedToday} value={stats.publishedToday} href={contentHref({ status: 'published' })} />
-          <StatCard label={t.scheduled} value={stats.scheduled} href={contentHref({ status: 'scheduled' })} />
-          <StatCard label={t.drafts} value={stats.draftCount} href={contentHref({ status: 'draft' })} />
-        </StatGrid>
-      </section>
-
-      {/* Content + operations share one row on wide screens so the
-          storage/ads actions are visible without scrolling. */}
+      {/* §34.2 — the content inventory the widgets do not cover (news, culture). */}
       <div className="grid gap-5 xl:grid-cols-5">
       <section className="xl:col-span-3">
         <h2 className={sectionHeadingCls}>{t.content}</h2>
@@ -113,83 +171,11 @@ export default async function Page() {
       </section>
       </div>
 
-      {/* Pending by type */}
-      {stats.pendingByType.length > 0 && (
-        <section>
-          <h2 className={sectionHeadingCls}>{t.pendingByType}</h2>
-          <div className="flex flex-wrap gap-1.5">
-            {stats.pendingByType.map((item) => (
-              <Link
-                key={item.type}
-                href={`${localePath(locale, '/admin/moderation')}?status=pending&type=${item.type}`}
-                className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1 text-xs transition-colors hover:bg-accent"
-              >
-                <TypeBadge type={item.type} />
-                <span className="font-medium tabular-nums">{item.count}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Recent activity */}
-      <section>
-        <h2 className={sectionHeadingCls}>{t.recentActivity}</h2>
-        {stats.recentActivity.length === 0 ? (
-          <EmptyState message={t.noActivity} className="p-4" />
-        ) : (
-          <div className="rounded-lg border border-border overflow-hidden">
-            <ul className="divide-y divide-border">
-              {stats.recentActivity.map((entry) => (
-                <ActivityRow
-                  key={entry.id}
-                  entry={entry}
-                  systemLabel={dict.admin.audit.system}
-                  deletedLabel={dict.admin.audit.deletedUser}
-                  common={dict.admin.common}
-                />
-              ))}
-            </ul>
-          </div>
-        )}
-      </section>
+      {/* §35 — the arrangement the viewer saved (role defaults when none). */}
+      <WidgetBoard widgets={widgets} catalog={catalog} copy={t} cancelLabel={dict.admin.common.cancel} />
 
       {/* Demo data sweep — admin only (clear seeded sample content before real data) */}
       {demoCounts && <DemoDataCard copy={t} cancelLabel={dict.admin.common.cancel} counts={demoCounts} />}
     </div>
-  )
-}
-
-function ActivityRow({
-  entry,
-  systemLabel,
-  deletedLabel,
-  common,
-}: {
-  entry: ModerationEntry
-  systemLabel: string
-  deletedLabel: string
-  common: Parameters<typeof localizeStatus>[1]
-}) {
-  const actor = entry.actorName ?? (entry.actorId ? deletedLabel : systemLabel)
-  return (
-    <li className="flex items-start gap-3 px-3 py-2 bg-card">
-      <div className="mt-0.5">
-        <StatusBadge status={entry.action} label={localizeStatus(entry.action, common)} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm">
-          <span className="font-medium">{actor}</span>{' '}
-          <span className="text-muted-foreground">{localizeStatus(entry.action, common)}</span>
-          {entry.contentTitle && (
-            <>
-              {' '}· <span className="font-medium">{entry.contentType ? localizeType(entry.contentType, common) : entry.contentType}</span> &ldquo;{entry.contentTitle}&rdquo;
-            </>
-          )}
-        </p>
-        {entry.notes && <p className="mt-0.5 text-xs text-muted-foreground truncate">{entry.notes}</p>}
-      </div>
-      <time className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(entry.createdAt)}</time>
-    </li>
   )
 }

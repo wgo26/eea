@@ -54,6 +54,7 @@ R2_ACCESS_KEY_ID=<production value>
 R2_SECRET_ACCESS_KEY=<production value>
 R2_BUCKET=<production value>
 R2_PUBLIC_BASE_URL=<production public media URL>
+NEXT_PUBLIC_R2_PUBLIC_BASE_URL=<same production public media URL; browser mirror>
 B2_ENDPOINT=<production value>
 B2_KEY_ID=<production value>
 B2_APPLICATION_KEY=<production value>

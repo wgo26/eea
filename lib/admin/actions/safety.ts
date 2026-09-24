@@ -1,7 +1,7 @@
 'use server'
 
 import { assertAdmin, assertCapability } from '@/lib/admin/auth'
-import { type ActionResult, audit, fail, revalidateLocalized } from './_shared'
+import { type ActionResult, audit, auditBulkOperation, fail, revalidateLocalized } from './_shared'
 
 /* ------------------------------------------------------------------ */
 /* Trust & safety (reports + corrections)                              */
@@ -124,6 +124,7 @@ export async function bulkResolveCorrections(
     const result = await resolveCorrection(id, status)
     if (!result.ok) failed += 1
   }
+  await auditBulkOperation({ action: `correction:bulk_${status}`, resourceType: 'correction', ids, failed })
   return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} correction(s) failed.` } : { ok: true }
 }
 
@@ -135,6 +136,8 @@ export async function bulkDeleteCorrections(ids: string[]): Promise<ActionResult
       const { error } = await supabase.from('corrections').delete().eq('id', id)
       if (error) failed += 1
     }
+    // §53 bulk deletion — corrections had no audit trail beyond the row count.
+    await auditBulkOperation({ action: 'correction:bulk_delete', resourceType: 'correction', ids, failed })
     if (failed > 0) return { ok: false, error: `${failed} of ${ids.length} correction(s) failed.` }
     revalidateLocalized('/admin/trust-safety')
     return { ok: true }

@@ -1,11 +1,12 @@
 import 'server-only'
 
 import { revalidatePath, revalidateTag } from 'next/cache'
-import { type AdminContext } from '@/lib/admin/auth'
+import { type AdminContext, assertStaff } from '@/lib/admin/auth'
 import { CACHE_TAGS } from '@/lib/cache/tags'
 import { deleteFromR2 } from '@/lib/storage/providers/r2'
 import { storageConfig } from '@/lib/storage/config'
-import { type InsertOf, type UpdateOf } from '@/lib/supabase/admin'
+import { type InsertOf, type UpdateOf, createAdminClient } from '@/lib/supabase/admin'
+import type { Json } from '@/lib/supabase/database.types'
 import { sanitizeBodyHtml } from '@/lib/security/html'
 
 /**
@@ -52,6 +53,15 @@ export function revalidateAdsCache() {
 }
 
 /**
+ * Phase 3.3 — on-demand invalidation for the brand/theme cache
+ * (lib/branding/index.ts). Publishing a theme re-paints every public surface,
+ * so the brand tag is paired with `revalidatePublicContentCache()` there.
+ */
+export function revalidateBrandCache() {
+    revalidateTag(CACHE_TAGS.brand, 'max')
+}
+
+/**
  * Always the error variant — declared narrowly (not ActionResult) so callers
  * with richer success shapes (e.g. bulkInviteUsers' sent/skipped) still
  * type-check; { ok: false; error } is assignable to ActionResult everywhere.
@@ -69,6 +79,11 @@ export type AuditEntry = {
   fromStatus?: string | null
   toStatus?: string | null
   notes?: string | null
+  /** Phase 1.1 — system-trail fields (audit_events, spec §19). */
+  resourceType?: string | null
+  resourceId?: string | null
+  requestId?: string | null
+  source?: string | null
 }
 
 /**
@@ -94,6 +109,74 @@ export async function audit(
       to_status: entry.toStatus ?? null,
       notes: entry.notes ?? null,
       actor_id: actorId,
+    })
+  } catch {
+    // Audit must never break the admin action itself.
+  }
+}
+
+export type AuditEventInput = AuditEntry & {
+  resourceType: string
+  metadata?: Record<string, unknown> | null
+  actorRole?: string | null
+}
+
+/**
+ * System-wide audit event (spec §19): every privileged action lands in
+ * `audit_events` with actor, role, resource, request id and source, so the
+ * trail survives independently of the content pipeline. `moderation_log`
+ * (via `audit()`) stays the moderation/submission source of truth; actions
+ * that are both may write to each. Same best-effort contract — metadata must
+ * never carry secret values (spec §19).
+ */
+export async function auditEvent(actorId: string, entry: AuditEventInput): Promise<void> {
+  try {
+    // `audit_events` is service-role-write-only (SELECT-only RLS), so this
+    // owns its client instead of taking the caller's cookie-scoped one.
+    const supabase = createAdminClient()
+    await supabase.from('audit_events').insert({
+      action: entry.action,
+      actor_id: actorId,
+      actor_role: entry.actorRole ?? null,
+      resource_type: entry.resourceType,
+      resource_id: entry.resourceId ?? entry.entityId ?? null,
+      request_id: entry.requestId ?? crypto.randomUUID(),
+      source: entry.source ?? 'admin_dashboard',
+      metadata: (entry.metadata ?? {}) as unknown as Json,
+    })
+  } catch {
+    // Audit must never break the admin action itself.
+  }
+}
+
+/**
+ * Phase 4.6 (spec §53) — one `audit_events` row per bulk operation, never one
+ * per item, so the security view can surface destructive bulk work as a
+ * pattern without the trail exploding on a 200-row selection. The bulk
+ * wrappers only loop single-item actions (which authorize per item), so
+ * attribution is resolved here.
+ */
+export async function auditBulkOperation(entry: {
+  action: string
+  resourceType: string
+  ids: string[]
+  failed?: number
+  metadata?: Record<string, unknown>
+}): Promise<void> {
+  try {
+    const { user } = await assertStaff()
+    await auditEvent(user.id, {
+      action: entry.action,
+      resourceType: entry.resourceType,
+      resourceId: entry.ids[0] ?? null,
+      metadata: {
+        selection: entry.ids.length,
+        ...(entry.failed ? { failed: entry.failed } : {}),
+        // Enough to trace a specific report, bounded so a huge selection does
+        // not turn one row into a novel.
+        sampleIds: entry.ids.slice(0, 10),
+        ...entry.metadata,
+      },
     })
   } catch {
     // Audit must never break the admin action itself.

@@ -301,7 +301,14 @@ export function MediaUploader({
     }
     if (failed.length > 0) {
       setFailed((prev) => [...prev, ...failed])
-      addToast(c.failedCount.replace('{count}', String(failed.length)), 'error')
+      const firstError = failed[0]?.error ?? c.uploadError
+      addToast(
+        failed.length === 1
+          ? `${c.failedCount.replace('{count}', String(failed.length))} ${firstError}`
+          : `${c.failedCount.replace('{count}', String(failed.length))} First: ${firstError}`,
+        'error',
+      )
+      console.error('[MediaUploader] Upload failed:', failed.map((f) => ({ name: f.file.name, error: f.error })))
     }
     setProgress(null)
     setUploading(false)
@@ -329,7 +336,17 @@ export function MediaUploader({
       updateNewPhotos([...newPhotos, ...uploaded])
       addToast(`${uploaded.length} file${uploaded.length > 1 ? 's' : ''} uploaded.`, 'success')
     }
-    setFailed(stillFailed)
+    if (stillFailed.length > 0) {
+      setFailed(stillFailed)
+      const firstError = stillFailed[0]?.error ?? c.uploadError
+      addToast(
+        stillFailed.length === 1
+          ? `${c.failedCount.replace('{count}', String(stillFailed.length))} ${firstError}`
+          : `${c.failedCount.replace('{count}', String(stillFailed.length))} First: ${firstError}`,
+        'error',
+      )
+      console.error('[MediaUploader] Retry failed:', stillFailed.map((f) => ({ name: f.file.name, error: f.error })))
+    }
     setProgress(null)
     setUploading(false)
   }, [addToast, c, destination, contentItemId, failed, uploading, newPhotos, updateNewPhotos])

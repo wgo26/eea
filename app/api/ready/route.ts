@@ -91,6 +91,9 @@ async function runProbe(): Promise<ProbeResult> {
   ]) {
     if (!process.env[key]) envMissing.push(key)
   }
+  if (!process.env.R2_PUBLIC_BASE_URL && !process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL) {
+    envMissing.push('R2_PUBLIC_BASE_URL or NEXT_PUBLIC_R2_PUBLIC_BASE_URL')
+  }
   const environment: CheckOutcome = {
     ok: envMissing.length === 0,
     latencyMs: 0,

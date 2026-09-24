@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { getDictionary, type Locale } from '@/lib/i18n'
 import { useLocaleFromPath } from '@/components/site-header'
 import type { AppRole } from '@/lib/auth/types'
+import type { AdminRole } from '@/lib/auth/admin-roles'
 import {
   adminBackToSiteHref,
   adminHomeHref,
@@ -21,14 +22,18 @@ import {
 export function AdminSidebar({
   pendingCount = 0,
   roles,
+  adminRoles = [],
+  unreadNotifications = 0,
 }: {
   pendingCount?: number
   roles: AppRole[]
+  adminRoles?: AdminRole[]
+  unreadNotifications?: number
 }) {
   const pathname = usePathname() ?? ''
   const locale: Locale = useLocaleFromPath()
   const dict = getDictionary(locale)
-  const items = buildAdminNavItems(locale, dict, roles, pendingCount)
+  const items = buildAdminNavItems(locale, dict, roles, pendingCount, adminRoles, unreadNotifications)
 
   return (
     <aside className="flex h-full w-64 flex-col border-r border-border bg-card">

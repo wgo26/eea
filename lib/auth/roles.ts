@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppRole } from "./types";
+import { isAdminRole, type AdminRole } from "./admin-roles";
 
 export type { AppRole };
 export type Role = AppRole;
@@ -15,8 +16,12 @@ export const ADMIN_ROLES: AppRole[] = ["admin"];
  */
 export type SubmissionStatus =
   | "pending"
+  | "automated_checks"
+  | "editorial_review"
+  | "escalated"
   | "in_review"
   | "approved"
+  | "scheduled"
   | "rejected"
   | "needs_clarification"
   | "published"
@@ -92,4 +97,52 @@ export async function getUserRoles(
   return (data ?? [])
     .map((row: { role: string }) => row.role)
     .filter(isRole);
+}
+
+/**
+ * Phase 2.1 (spec §17) — the fine-grained admin roles from `user_admin_roles`
+ * (see lib/auth/admin-roles.ts). The coarse `user_roles` enum above decides
+ * whether someone is staff; these decide what they may do inside the admin
+ * area.
+ *
+ * Reads are RLS-scoped ("Admins read admin roles" / "Users read own admin
+ * roles"), so the cookie-scoped client works for both self-checks and the
+ * users admin screen — no service-role escalation just to render a badge.
+ * Expired grants (`expires_at` in the past) are ignored, matching the
+ * migration's contract.
+ */
+export async function getAdminRoles(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<AdminRole[]> {
+  const { data, error } = await supabase
+    .from("user_admin_roles")
+    .select("role, expires_at")
+    .eq("user_id", userId);
+
+  if (error) {
+    // Same contract as getUserRoles: log the real cause (a denied read would
+    // otherwise masquerade as "no admin roles") and degrade to no roles.
+    console.error(
+      JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: 'error',
+        scope: 'auth',
+        message: 'getAdminRoles failed, treating as no admin roles',
+        error: { message: error.message },
+      }),
+    );
+    return [];
+  }
+  const now = Date.now();
+  return (data ?? [])
+    .filter((row: { expires_at: string | null }) => !row.expires_at || Date.parse(row.expires_at) > now)
+    .map((row: { role: string }) => row.role)
+    .filter(isAdminRole);
+}
+
+/** True when the user's admin roles include any of the required role(s). */
+export function hasAdminRole(adminRoles: AdminRole[], role: AdminRole | AdminRole[]): boolean {
+  const required = Array.isArray(role) ? role : [role];
+  return required.some((r) => adminRoles.includes(r));
 }

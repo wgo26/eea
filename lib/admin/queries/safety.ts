@@ -126,21 +126,6 @@ export async function getContentHistory(contentItemId: string): Promise<Moderati
   }
 }
 
-/** Distinct action / entity-type values for the audit-log filter dropdowns. */
-export async function getAuditFilterOptions(): Promise<{ actions: string[]; entityTypes: string[] }> {
-  if (!hasDatabase()) return { actions: [], entityTypes: [] }
-  const [actionsRes, entitiesRes] = await Promise.all([
-    safe(db().from('moderation_log').select('action').limit(5000)),
-    safe(db().from('moderation_log').select('entity_type').limit(5000)),
-  ])
-  const uniqSorted = (values: (string | null | undefined)[]) =>
-    [...new Set(values.filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b))
-  return {
-    actions: uniqSorted((actionsRes.data ?? []).map((r) => (r as { action: string }).action)),
-    entityTypes: uniqSorted((entitiesRes.data ?? []).map((r) => (r as { entity_type: string | null }).entity_type)),
-  }
-}
-
 /* ------------------------------------------------------------------ */
 /* Storage / backup                                                   */
 /* ------------------------------------------------------------------ */

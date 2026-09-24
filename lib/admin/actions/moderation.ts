@@ -4,7 +4,7 @@ import { assertStaff, assertAdmin, assertCapability } from '@/lib/admin/auth'
 import { validateContentDraft, type ContentDraftInput } from '../content-validation'
 import { type UpdateOf } from '@/lib/supabase/admin'
 import { enqueueUser, submissionNotifyTarget } from '@/lib/notify/queue'
-import { type ActionResult, audit, fail, revalidateLocalized, revalidatePublicContentCache, SUBMISSION_TO_CONTENT, uniqueSlug, syncPhotos, upsertTranslations } from './_shared'
+import { type ActionResult, audit, auditBulkOperation, fail, revalidateLocalized, revalidatePublicContentCache, SUBMISSION_TO_CONTENT, uniqueSlug, syncPhotos, upsertTranslations } from './_shared'
 import { deleteReport, resolveReport } from './safety'
 
 /**
@@ -238,6 +238,7 @@ export async function bulkApproveSubmissions(ids: string[]): Promise<ActionResul
     const result = await approveSubmission(id)
     if (!result.ok) failed += 1
   }
+  await auditBulkOperation({ action: 'submission:bulk_approve', resourceType: 'submission', ids, failed })
   return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} submission(s) failed.` } : { ok: true }
 }
 
@@ -248,6 +249,7 @@ export async function bulkRejectSubmissions(ids: string[], reason: string): Prom
     const result = await rejectSubmission(id, reason)
     if (!result.ok) failed += 1
   }
+  await auditBulkOperation({ action: 'submission:bulk_reject', resourceType: 'submission', ids, failed, metadata: { reason: reason.trim() } })
   return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} submission(s) failed.` } : { ok: true }
 }
 
@@ -259,6 +261,7 @@ export async function bulkRequestClarification(ids: string[], question: string):
     const result = await requestClarification(id, question)
     if (!result.ok) failed += 1
   }
+  await auditBulkOperation({ action: 'submission:bulk_clarify', resourceType: 'submission', ids, failed })
   return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} submission(s) failed.` } : { ok: true }
 }
 
@@ -275,6 +278,7 @@ export async function bulkResolveReports(
     const result = await resolveReport(id, status)
     if (!result.ok) failed += 1
   }
+  await auditBulkOperation({ action: `report:bulk_${status}`, resourceType: 'report', ids, failed })
   return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} report(s) failed.` } : { ok: true }
 }
 
@@ -284,6 +288,9 @@ export async function bulkDeleteReports(ids: string[]): Promise<ActionResult> {
     const result = await deleteReport(id)
     if (!result.ok) failed += 1
   }
+  // §53 bulk deletion — the single most destructive action in the pipeline,
+  // so it gets an audit_events row on top of the per-item moderation_log ones.
+  await auditBulkOperation({ action: 'report:bulk_delete', resourceType: 'report', ids, failed })
   return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} report(s) failed.` } : { ok: true }
 }
 

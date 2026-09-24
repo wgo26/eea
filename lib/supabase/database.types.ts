@@ -29,6 +29,14 @@ export type Database = {
                 | "advertiser"
             );
         }
+        brand_asset_type: {
+            Enum: (
+                | "logo"
+                | "wordmark"
+                | "icon"
+                | "illustration"
+            );
+        }
         content_status: {
             Enum: (
                 | "draft"
@@ -47,6 +55,23 @@ export type Database = {
                 | "listing"
                 | "notice"
                 | "culture"
+            );
+        }
+        credential_status: {
+            Enum: (
+                | "active"
+                | "disabled"
+                | "expired"
+                | "revoked"
+            );
+        }
+        incident_status: {
+            Enum: (
+                | "investigating"
+                | "identified"
+                | "mitigating"
+                | "monitoring"
+                | "resolved"
             );
         }
         layout_template: {
@@ -108,6 +133,14 @@ export type Database = {
                 | "other"
             );
         }
+        severity_level: {
+            Enum: (
+                | "normal"
+                | "info"
+                | "warning"
+                | "critical"
+            );
+        }
         storage_destination: {
             Enum: (
                 | "public_photo"
@@ -141,6 +174,15 @@ export type Database = {
                 | "culture"
                 | "notice"
                 | "buy_sell"
+            );
+        }
+        theme_status: {
+            Enum: (
+                | "draft"
+                | "review"
+                | "approved"
+                | "published"
+                | "archived"
             );
         }
         verification_status: {
@@ -475,6 +517,116 @@ export type Database = {
             };
             Relationships: [];
         }
+        admin_notification_sources: {
+            Row: {
+            key: string;
+            label: string;
+            description: string | null;
+            created_at: string;
+            };
+            Insert: {
+            key: string;
+            label: string;
+            description?: string | null;
+            created_at?: string;
+            };
+            Update: {
+            key?: string | null;
+            label?: string | null;
+            description?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [];
+        }
+        admin_notifications: {
+            Row: {
+            id: string;
+            user_id: string;
+            source: string;
+            category: string;
+            title: string;
+            body: string | null;
+            link_path: string | null;
+            is_read: boolean;
+            created_at: string;
+            expires_at: string | null;
+            };
+            Insert: {
+            id?: string;
+            user_id: string;
+            source: string;
+            category: string;
+            title: string;
+            body?: string | null;
+            link_path?: string | null;
+            is_read?: boolean;
+            created_at?: string;
+            expires_at?: string | null;
+            };
+            Update: {
+            id?: string | null;
+            user_id?: string | null;
+            source?: string | null;
+            category?: string | null;
+            title?: string | null;
+            body?: string | null;
+            link_path?: string | null;
+            is_read?: boolean | null;
+            created_at?: string | null;
+            expires_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_admin_notifications_user_id_fkey",
+                    columns: ["user_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_admin_notifications_source_fkey",
+                    columns: ["source"],
+                    isOneToOne: false,
+                    referencedRelation: "admin_notification_sources",
+                    referencedColumns: ["key"],
+                },
+            ];
+        }
+        admin_widget_layouts: {
+            Row: {
+            id: string;
+            user_id: string;
+            role: string;
+            widgets: Json;
+            created_at: string;
+            updated_at: string;
+            };
+            Insert: {
+            id?: string;
+            user_id: string;
+            role: string;
+            widgets?: Json;
+            created_at?: string;
+            updated_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            user_id?: string | null;
+            role?: string | null;
+            widgets?: Json;
+            created_at?: string | null;
+            updated_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_admin_widget_layouts_user_id_fkey",
+                    columns: ["user_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
         advertise_sections: {
             Row: {
             id: string;
@@ -580,6 +732,106 @@ export type Database = {
             };
             Relationships: [];
         }
+        api_credentials: {
+            Row: {
+            id: string;
+            name: string;
+            provider: string;
+            status: string;
+            secret_encrypted: string;
+            created_by: string | null;
+            created_at: string;
+            updated_at: string;
+            last_used_at: string | null;
+            expires_at: string | null;
+            rotation_policy: Json;
+            metadata: Json;
+            };
+            Insert: {
+            id?: string;
+            name: string;
+            provider: string;
+            status?: string;
+            secret_encrypted: string;
+            created_by?: string | null;
+            created_at?: string;
+            updated_at?: string;
+            last_used_at?: string | null;
+            expires_at?: string | null;
+            rotation_policy?: Json;
+            metadata?: Json;
+            };
+            Update: {
+            id?: string | null;
+            name?: string | null;
+            provider?: string | null;
+            status?: string | null;
+            secret_encrypted?: string | null;
+            created_by?: string | null;
+            created_at?: string | null;
+            updated_at?: string | null;
+            last_used_at?: string | null;
+            expires_at?: string | null;
+            rotation_policy?: Json | null;
+            metadata?: Json | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_api_credentials_created_by_fkey",
+                    columns: ["created_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        audit_events: {
+            Row: {
+            id: string;
+            actor_id: string | null;
+            actor_role: string | null;
+            action: string;
+            resource_type: string;
+            resource_id: string | null;
+            created_at: string;
+            request_id: string | null;
+            source: string;
+            metadata: Json;
+            };
+            Insert: {
+            id?: string;
+            actor_id?: string | null;
+            actor_role?: string | null;
+            action: string;
+            resource_type: string;
+            resource_id?: string | null;
+            created_at?: string;
+            request_id?: string | null;
+            source?: string;
+            metadata?: Json;
+            };
+            Update: {
+            id?: string | null;
+            actor_id?: string | null;
+            actor_role?: string | null;
+            action?: string | null;
+            resource_type?: string | null;
+            resource_id?: string | null;
+            created_at?: string | null;
+            request_id?: string | null;
+            source?: string | null;
+            metadata?: Json | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_audit_events_actor_id_fkey",
+                    columns: ["actor_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
         backup_jobs: {
             Row: {
             job_name: string;
@@ -612,6 +864,219 @@ export type Database = {
             updated_at?: string | null;
             };
             Relationships: [];
+        }
+        brand_asset_usage: {
+            Row: {
+            id: string;
+            asset_id: string;
+            theme_id: string;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            asset_id: string;
+            theme_id: string;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            asset_id?: string | null;
+            theme_id?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_brand_asset_usage_asset_id_fkey",
+                    columns: ["asset_id"],
+                    isOneToOne: false,
+                    referencedRelation: "brand_assets",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_brand_asset_usage_theme_id_fkey",
+                    columns: ["theme_id"],
+                    isOneToOne: false,
+                    referencedRelation: "brand_themes",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        brand_assets: {
+            Row: {
+            id: string;
+            name: string;
+            type: string;
+            file_url: string;
+            provider: string;
+            storage_key: string | null;
+            dimensions: Json;
+            format: string | null;
+            size_bytes: number | null;
+            version: number;
+            owner_id: string | null;
+            usage_restrictions: string | null;
+            is_active: boolean;
+            replaced_by_id: string | null;
+            created_at: string;
+            updated_at: string;
+            };
+            Insert: {
+            id?: string;
+            name: string;
+            type?: string;
+            file_url: string;
+            provider?: string;
+            storage_key?: string | null;
+            dimensions?: Json;
+            format?: string | null;
+            size_bytes?: number | null;
+            version?: number;
+            owner_id?: string | null;
+            usage_restrictions?: string | null;
+            is_active?: boolean;
+            replaced_by_id?: string | null;
+            created_at?: string;
+            updated_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            name?: string | null;
+            type?: string | null;
+            file_url?: string | null;
+            provider?: string | null;
+            storage_key?: string | null;
+            dimensions?: Json | null;
+            format?: string | null;
+            size_bytes?: number | null;
+            version?: number | null;
+            owner_id?: string | null;
+            usage_restrictions?: string | null;
+            is_active?: boolean | null;
+            replaced_by_id?: string | null;
+            created_at?: string | null;
+            updated_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_brand_assets_owner_id_fkey",
+                    columns: ["owner_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_brand_assets_replaced_by_id_fkey",
+                    columns: ["replaced_by_id"],
+                    isOneToOne: false,
+                    referencedRelation: "brand_assets",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        brand_theme_versions: {
+            Row: {
+            id: string;
+            theme_id: string;
+            version: string;
+            tokens: Json;
+            change_summary: string | null;
+            created_by: string | null;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            theme_id: string;
+            version: string;
+            tokens?: Json;
+            change_summary?: string | null;
+            created_by?: string | null;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            theme_id?: string | null;
+            version?: string | null;
+            tokens?: Json | null;
+            change_summary?: string | null;
+            created_by?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_brand_theme_versions_theme_id_fkey",
+                    columns: ["theme_id"],
+                    isOneToOne: false,
+                    referencedRelation: "brand_themes",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_brand_theme_versions_created_by_fkey",
+                    columns: ["created_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        brand_themes: {
+            Row: {
+            id: string;
+            name: string;
+            version: string;
+            tokens: Json;
+            status: string;
+            created_by: string | null;
+            created_at: string;
+            updated_at: string;
+            approved_by: string | null;
+            approved_at: string | null;
+            preview_token: string | null;
+            is_active: boolean;
+            };
+            Insert: {
+            id?: string;
+            name: string;
+            version?: string;
+            tokens?: Json;
+            status?: string;
+            created_by?: string | null;
+            created_at?: string;
+            updated_at?: string;
+            approved_by?: string | null;
+            approved_at?: string | null;
+            preview_token?: string | null;
+            is_active?: boolean;
+            };
+            Update: {
+            id?: string | null;
+            name?: string | null;
+            version?: string | null;
+            tokens?: Json | null;
+            status?: string | null;
+            created_by?: string | null;
+            created_at?: string | null;
+            updated_at?: string | null;
+            approved_by?: string | null;
+            approved_at?: string | null;
+            preview_token?: string | null;
+            is_active?: boolean | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_brand_themes_created_by_fkey",
+                    columns: ["created_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_brand_themes_approved_by_fkey",
+                    columns: ["approved_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
         }
         business_categories: {
             Row: {
@@ -1273,6 +1738,51 @@ export type Database = {
                 },
             ];
         }
+        credential_events: {
+            Row: {
+            id: string;
+            credential_id: string;
+            action: string;
+            actor_id: string | null;
+            created_at: string;
+            request_id: string | null;
+            source: string;
+            };
+            Insert: {
+            id?: string;
+            credential_id: string;
+            action: string;
+            actor_id?: string | null;
+            created_at?: string;
+            request_id?: string | null;
+            source?: string;
+            };
+            Update: {
+            id?: string | null;
+            credential_id?: string | null;
+            action?: string | null;
+            actor_id?: string | null;
+            created_at?: string | null;
+            request_id?: string | null;
+            source?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_credential_events_credential_id_fkey",
+                    columns: ["credential_id"],
+                    isOneToOne: false,
+                    referencedRelation: "api_credentials",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_credential_events_actor_id_fkey",
+                    columns: ["actor_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
         daily_brief_items: {
             Row: {
             brief_id: string;
@@ -1501,6 +2011,103 @@ export type Database = {
             };
             Relationships: [];
         }
+        emergency_publish_events: {
+            Row: {
+            id: string;
+            preset_id: string | null;
+            content_item_id: string;
+            actor_id: string;
+            approval_id: string | null;
+            severity: string;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            preset_id?: string | null;
+            content_item_id: string;
+            actor_id: string;
+            approval_id?: string | null;
+            severity: string;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            preset_id?: string | null;
+            content_item_id?: string | null;
+            actor_id?: string | null;
+            approval_id?: string | null;
+            severity?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "emergency_publish_events_preset_id_fkey";
+                    columns: ["preset_id"];
+                    isOneToOne: false;
+                    referencedRelation: "emergency_publishing_presets";
+                    referencedColumns: ["id"];
+                },
+                {
+                    foreignKeyName: "emergency_publish_events_content_item_id_fkey";
+                    columns: ["content_item_id"];
+                    isOneToOne: false;
+                    referencedRelation: "content_items";
+                    referencedColumns: ["id"];
+                },
+                {
+                    foreignKeyName: "emergency_publish_events_actor_id_fkey";
+                    columns: ["actor_id"];
+                    isOneToOne: false;
+                    referencedRelation: "profiles";
+                    referencedColumns: ["id"];
+                },
+                {
+                    foreignKeyName: "emergency_publish_events_approval_id_fkey";
+                    columns: ["approval_id"];
+                    isOneToOne: false;
+                    referencedRelation: "two_person_approvals";
+                    referencedColumns: ["id"];
+                },
+            ];
+        }
+        emergency_publishing_presets: {
+            Row: {
+            id: string;
+            name: string;
+            content_type: string;
+            template: Json;
+            requires_two_person: boolean;
+            created_by: string | null;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            name: string;
+            content_type?: string;
+            template?: Json;
+            requires_two_person?: boolean;
+            created_by?: string | null;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            name?: string | null;
+            content_type?: string | null;
+            template?: Json | null;
+            requires_two_person?: boolean | null;
+            created_by?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "emergency_publishing_presets_created_by_fkey";
+                    columns: ["created_by"];
+                    isOneToOne: false;
+                    referencedRelation: "profiles";
+                    referencedColumns: ["id"];
+                },
+            ];
+        }
         event_reminders: {
             Row: {
             id: string;
@@ -1684,6 +2291,116 @@ export type Database = {
                 },
                 {
                     foreignKeyName: "public_homepage_slots_created_by_fkey",
+                    columns: ["created_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        incident_events: {
+            Row: {
+            id: string;
+            incident_id: string;
+            from_status: string | null;
+            to_status: string | null;
+            note: string | null;
+            actor_id: string | null;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            incident_id: string;
+            from_status?: string | null;
+            to_status?: string | null;
+            note?: string | null;
+            actor_id?: string | null;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            incident_id?: string | null;
+            from_status?: string | null;
+            to_status?: string | null;
+            note?: string | null;
+            actor_id?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_incident_events_incident_id_fkey",
+                    columns: ["incident_id"],
+                    isOneToOne: false,
+                    referencedRelation: "incidents",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_incident_events_actor_id_fkey",
+                    columns: ["actor_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        incidents: {
+            Row: {
+            id: string;
+            title: string;
+            severity: string;
+            description: string | null;
+            affected_services: string[];
+            start_time: string;
+            current_status: string;
+            incident_owner: string | null;
+            internal_notes: string | null;
+            public_status_message: string | null;
+            timeline: Json;
+            resolution_notes: string | null;
+            resolved_at: string | null;
+            created_by: string | null;
+            created_at: string;
+            updated_at: string;
+            };
+            Insert: {
+            id?: string;
+            title: string;
+            severity?: string;
+            description?: string | null;
+            affected_services?: string[];
+            start_time?: string;
+            current_status?: string;
+            incident_owner?: string | null;
+            internal_notes?: string | null;
+            public_status_message?: string | null;
+            timeline?: Json;
+            resolution_notes?: string | null;
+            resolved_at?: string | null;
+            created_by?: string | null;
+            created_at?: string;
+            updated_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            title?: string | null;
+            severity?: string | null;
+            description?: string | null;
+            affected_services?: string[] | null;
+            start_time?: string | null;
+            current_status?: string | null;
+            incident_owner?: string | null;
+            internal_notes?: string | null;
+            public_status_message?: string | null;
+            timeline?: Json | null;
+            resolution_notes?: string | null;
+            resolved_at?: string | null;
+            created_by?: string | null;
+            created_at?: string | null;
+            updated_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_incidents_created_by_fkey",
                     columns: ["created_by"],
                     isOneToOne: false,
                     referencedRelation: "profiles",
@@ -2007,6 +2724,19 @@ export type Database = {
             verification_error: string | null;
             backup_sha256: string | null;
             backup_verified_at: string | null;
+            archived_at: string | null;
+            archived_by: string | null;
+            crop: Json | null;
+            resize_width: number | null;
+            resize_height: number | null;
+            resized_at: string | null;
+            captured_at: string | null;
+            location_text: string | null;
+            creator: string | null;
+            copyright_holder: string | null;
+            license: string | null;
+            usage_permission: string | null;
+            consent_status: string | null;
             };
             Insert: {
             id?: string;
@@ -2039,6 +2769,19 @@ export type Database = {
             verification_error?: string | null;
             backup_sha256?: string | null;
             backup_verified_at?: string | null;
+            archived_at?: string | null;
+            archived_by?: string | null;
+            crop?: Json | null;
+            resize_width?: number | null;
+            resize_height?: number | null;
+            resized_at?: string | null;
+            captured_at?: string | null;
+            location_text?: string | null;
+            creator?: string | null;
+            copyright_holder?: string | null;
+            license?: string | null;
+            usage_permission?: string | null;
+            consent_status?: string | null;
             };
             Update: {
             id?: string | null;
@@ -2071,6 +2814,19 @@ export type Database = {
             verification_error?: string | null;
             backup_sha256?: string | null;
             backup_verified_at?: string | null;
+            archived_at?: string | null;
+            archived_by?: string | null;
+            crop?: Json | null;
+            resize_width?: number | null;
+            resize_height?: number | null;
+            resized_at?: string | null;
+            captured_at?: string | null;
+            location_text?: string | null;
+            creator?: string | null;
+            copyright_holder?: string | null;
+            license?: string | null;
+            usage_permission?: string | null;
+            consent_status?: string | null;
             };
             Relationships: [
                 {
@@ -2083,6 +2839,13 @@ export type Database = {
                 {
                     foreignKeyName: "public_media_assets_uploaded_by_fkey",
                     columns: ["uploaded_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_media_assets_archived_by_fkey",
+                    columns: ["archived_by"],
                     isOneToOne: false,
                     referencedRelation: "profiles",
                     referencedColumns: ["id"],
@@ -2937,6 +3700,69 @@ export type Database = {
             };
             Relationships: [];
         }
+        state_schedules: {
+            Row: {
+            id: string;
+            state_id: string;
+            label: string;
+            start_month: number;
+            start_day: number;
+            end_month: number;
+            end_day: number;
+            enabled: boolean;
+            last_action: string | null;
+            last_run_at: string | null;
+            created_by: string | null;
+            created_at: string;
+            updated_at: string;
+            };
+            Insert: {
+            id?: string;
+            state_id: string;
+            label: string;
+            start_month: number;
+            start_day: number;
+            end_month: number;
+            end_day: number;
+            enabled?: boolean;
+            last_action?: string | null;
+            last_run_at?: string | null;
+            created_by?: string | null;
+            created_at?: string;
+            updated_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            state_id?: string | null;
+            label?: string | null;
+            start_month?: number | null;
+            start_day?: number | null;
+            end_month?: number | null;
+            end_day?: number | null;
+            enabled?: boolean | null;
+            last_action?: string | null;
+            last_run_at?: string | null;
+            created_by?: string | null;
+            created_at?: string | null;
+            updated_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_state_schedules_state_id_fkey",
+                    columns: ["state_id"],
+                    isOneToOne: false,
+                    referencedRelation: "system_states",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_state_schedules_created_by_fkey",
+                    columns: ["created_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
         storage_tasks: {
             Row: {
             id: string;
@@ -3008,6 +3834,106 @@ export type Database = {
                 },
             ];
         }
+        submission_escalations: {
+            Row: {
+            id: string;
+            submission_id: string;
+            reason: string;
+            escalated_by: string;
+            assigned_to: string | null;
+            created_at: string;
+            resolved_at: string | null;
+            };
+            Insert: {
+            id?: string;
+            submission_id: string;
+            reason: string;
+            escalated_by: string;
+            assigned_to?: string | null;
+            created_at?: string;
+            resolved_at?: string | null;
+            };
+            Update: {
+            id?: string | null;
+            submission_id?: string | null;
+            reason?: string | null;
+            escalated_by?: string | null;
+            assigned_to?: string | null;
+            created_at?: string | null;
+            resolved_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "submission_escalations_submission_id_fkey";
+                    columns: ["submission_id"];
+                    isOneToOne: false;
+                    referencedRelation: "submissions";
+                    referencedColumns: ["id"];
+                },
+                {
+                    foreignKeyName: "submission_escalations_escalated_by_fkey";
+                    columns: ["escalated_by"];
+                    isOneToOne: false;
+                    referencedRelation: "profiles";
+                    referencedColumns: ["id"];
+                },
+                {
+                    foreignKeyName: "submission_escalations_assigned_to_fkey";
+                    columns: ["assigned_to"];
+                    isOneToOne: false;
+                    referencedRelation: "profiles";
+                    referencedColumns: ["id"];
+                },
+            ];
+        }
+        submission_reviews: {
+            Row: {
+            id: string;
+            submission_id: string;
+            reviewer_id: string | null;
+            status_from: string | null;
+            status_to: string;
+            notes: string | null;
+            review_type: string;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            submission_id: string;
+            reviewer_id?: string | null;
+            status_from?: string | null;
+            status_to: string;
+            notes?: string | null;
+            review_type: string;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            submission_id?: string | null;
+            reviewer_id?: string | null;
+            status_from?: string | null;
+            status_to?: string | null;
+            notes?: string | null;
+            review_type?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "submission_reviews_submission_id_fkey";
+                    columns: ["submission_id"];
+                    isOneToOne: false;
+                    referencedRelation: "submissions";
+                    referencedColumns: ["id"];
+                },
+                {
+                    foreignKeyName: "submission_reviews_reviewer_id_fkey";
+                    columns: ["reviewer_id"];
+                    isOneToOne: false;
+                    referencedRelation: "profiles";
+                    referencedColumns: ["id"];
+                },
+            ];
+        }
         submissions: {
             Row: {
             id: string;
@@ -3026,6 +3952,7 @@ export type Database = {
             reviewed_by: string | null;
             rejection_reason: string | null;
             internal_notes: string | null;
+            assigned_editor_id: string | null;
             };
             Insert: {
             id?: string;
@@ -3044,6 +3971,7 @@ export type Database = {
             reviewed_by?: string | null;
             rejection_reason?: string | null;
             internal_notes?: string | null;
+            assigned_editor_id?: string | null;
             };
             Update: {
             id?: string | null;
@@ -3062,6 +3990,7 @@ export type Database = {
             reviewed_by?: string | null;
             rejection_reason?: string | null;
             internal_notes?: string | null;
+            assigned_editor_id?: string | null;
             };
             Relationships: [
                 {
@@ -3081,6 +4010,160 @@ export type Database = {
                 {
                     foreignKeyName: "public_submissions_reviewed_by_fkey",
                     columns: ["reviewed_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_submissions_assigned_editor_id_fkey",
+                    columns: ["assigned_editor_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        system_state_events: {
+            Row: {
+            id: string;
+            state_id: string;
+            action: string;
+            previous_state_id: string | null;
+            reason: string | null;
+            actor_id: string | null;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            state_id: string;
+            action: string;
+            previous_state_id?: string | null;
+            reason?: string | null;
+            actor_id?: string | null;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            state_id?: string | null;
+            action?: string | null;
+            previous_state_id?: string | null;
+            reason?: string | null;
+            actor_id?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_system_state_events_state_id_fkey",
+                    columns: ["state_id"],
+                    isOneToOne: false,
+                    referencedRelation: "system_states",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_system_state_events_actor_id_fkey",
+                    columns: ["actor_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        system_state_themes: {
+            Row: {
+            state_id: string;
+            theme_id: string;
+            created_at: string;
+            created_by: string | null;
+            };
+            Insert: {
+            state_id: string;
+            theme_id: string;
+            created_at?: string;
+            created_by?: string | null;
+            };
+            Update: {
+            state_id?: string | null;
+            theme_id?: string | null;
+            created_at?: string | null;
+            created_by?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_system_state_themes_state_id_fkey",
+                    columns: ["state_id"],
+                    isOneToOne: false,
+                    referencedRelation: "system_states",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_system_state_themes_theme_id_fkey",
+                    columns: ["theme_id"],
+                    isOneToOne: false,
+                    referencedRelation: "brand_themes",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_system_state_themes_created_by_fkey",
+                    columns: ["created_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        system_states: {
+            Row: {
+            id: string;
+            name: string;
+            severity: string;
+            active: boolean;
+            precedence: number;
+            visual_profile: string;
+            affected_modules: string[];
+            behavior_profile: Json;
+            accessibility_profile: string;
+            activated_at: string | null;
+            activated_by: string | null;
+            expires_at: string | null;
+            created_at: string;
+            updated_at: string;
+            };
+            Insert: {
+            id: string;
+            name: string;
+            severity?: string;
+            active?: boolean;
+            precedence?: number;
+            visual_profile?: string;
+            affected_modules?: string[];
+            behavior_profile?: Json;
+            accessibility_profile?: string;
+            activated_at?: string | null;
+            activated_by?: string | null;
+            expires_at?: string | null;
+            created_at?: string;
+            updated_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            name?: string | null;
+            severity?: string | null;
+            active?: boolean | null;
+            precedence?: number | null;
+            visual_profile?: string | null;
+            affected_modules?: string[] | null;
+            behavior_profile?: Json | null;
+            accessibility_profile?: string | null;
+            activated_at?: string | null;
+            activated_by?: string | null;
+            expires_at?: string | null;
+            created_at?: string | null;
+            updated_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_system_states_activated_by_fkey",
+                    columns: ["activated_by"],
                     isOneToOne: false,
                     referencedRelation: "profiles",
                     referencedColumns: ["id"],
@@ -3253,6 +4336,196 @@ export type Database = {
                     columns: ["content_item_id"],
                     isOneToOne: false,
                     referencedRelation: "content_items",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        translation_jobs: {
+            Row: {
+            id: string;
+            content_item_id: string;
+            target_locale: string;
+            source_locale: string;
+            status: string;
+            translator_id: string | null;
+            reviewer_id: string | null;
+            error_message: string | null;
+            created_at: string;
+            completed_at: string | null;
+            };
+            Insert: {
+            id?: string;
+            content_item_id: string;
+            target_locale: string;
+            source_locale: string;
+            status?: string;
+            translator_id?: string | null;
+            reviewer_id?: string | null;
+            error_message?: string | null;
+            created_at?: string;
+            completed_at?: string | null;
+            };
+            Update: {
+            id?: string | null;
+            content_item_id?: string | null;
+            target_locale?: string | null;
+            source_locale?: string | null;
+            status?: string | null;
+            translator_id?: string | null;
+            reviewer_id?: string | null;
+            error_message?: string | null;
+            created_at?: string | null;
+            completed_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "translation_jobs_content_item_id_fkey";
+                    columns: ["content_item_id"];
+                    isOneToOne: false;
+                    referencedRelation: "content_items";
+                    referencedColumns: ["id"];
+                },
+                {
+                    foreignKeyName: "translation_jobs_translator_id_fkey";
+                    columns: ["translator_id"];
+                    isOneToOne: false;
+                    referencedRelation: "profiles";
+                    referencedColumns: ["id"];
+                },
+                {
+                    foreignKeyName: "translation_jobs_reviewer_id_fkey";
+                    columns: ["reviewer_id"];
+                    isOneToOne: false;
+                    referencedRelation: "profiles";
+                    referencedColumns: ["id"];
+                },
+            ];
+        }
+        translation_memory: {
+            Row: {
+            id: string;
+            source_text_hash: string;
+            source_locale: string;
+            target_locale: string;
+            source_text: string;
+            target_text: string;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            source_text_hash: string;
+            source_locale: string;
+            target_locale: string;
+            source_text: string;
+            target_text: string;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            source_text_hash?: string | null;
+            source_locale?: string | null;
+            target_locale?: string | null;
+            source_text?: string | null;
+            target_text?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [];
+        }
+        two_person_approvals: {
+            Row: {
+            id: string;
+            action: string;
+            actor_id: string;
+            resource_type: string;
+            resource_id: string | null;
+            reason: string | null;
+            approver_id: string | null;
+            status: string;
+            created_at: string;
+            expires_at: string;
+            responded_at: string | null;
+            };
+            Insert: {
+            id?: string;
+            action: string;
+            actor_id: string;
+            resource_type: string;
+            resource_id?: string | null;
+            reason?: string | null;
+            approver_id?: string | null;
+            status?: string;
+            created_at?: string;
+            expires_at: string;
+            responded_at?: string | null;
+            };
+            Update: {
+            id?: string | null;
+            action?: string | null;
+            actor_id?: string | null;
+            resource_type?: string | null;
+            resource_id?: string | null;
+            reason?: string | null;
+            approver_id?: string | null;
+            status?: string | null;
+            created_at?: string | null;
+            expires_at?: string | null;
+            responded_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_two_person_approvals_actor_id_fkey",
+                    columns: ["actor_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_two_person_approvals_approver_id_fkey",
+                    columns: ["approver_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        user_admin_roles: {
+            Row: {
+            id: string;
+            user_id: string;
+            role: string;
+            assigned_by: string | null;
+            assigned_at: string;
+            expires_at: string | null;
+            };
+            Insert: {
+            id?: string;
+            user_id: string;
+            role: string;
+            assigned_by?: string | null;
+            assigned_at?: string;
+            expires_at?: string | null;
+            };
+            Update: {
+            id?: string | null;
+            user_id?: string | null;
+            role?: string | null;
+            assigned_by?: string | null;
+            assigned_at?: string | null;
+            expires_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_user_admin_roles_user_id_fkey",
+                    columns: ["user_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_user_admin_roles_assigned_by_fkey",
+                    columns: ["assigned_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
                     referencedColumns: ["id"],
                 },
             ];

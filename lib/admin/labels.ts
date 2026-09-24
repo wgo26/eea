@@ -2,6 +2,14 @@ import type { Dictionary } from '@/lib/i18n'
 
 type Common = Dictionary['admin']['common']
 
+/**
+ * Severity names, reused by every surface that ranks urgency (the state
+ * ladder's table, the dashboard's operational alerts). One alias so the
+ * dashboard components can take a narrow copy prop without repeating the
+ * dictionary path.
+ */
+export type SeverityCopy = Dictionary['admin']['statesPage']['severity']
+
 /** Localized admin status label — falls back to the raw DB value. */
 export function localizeStatus(status: string | null | undefined, common: Common): string {
   const s = (status ?? '').toLowerCase()

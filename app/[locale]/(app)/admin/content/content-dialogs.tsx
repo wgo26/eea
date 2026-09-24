@@ -39,6 +39,12 @@ import {
 } from "@/components/admin/media-uploader";
 import type { UploadedPhoto } from "@/components/admin/media-uploader";
 import { ui, Field } from "@/lib/admin/ui-constants";
+import {
+  BilingualBody,
+  BilingualExcerpts,
+  BilingualHeadings,
+  BilingualSeo,
+} from "./bilingual-fields";
 import type { Dictionary } from "@/lib/i18n";
 import type { ContentRow } from "@/lib/admin/queries";
 
@@ -442,24 +448,14 @@ export function ContentCreateDialog({
               </select>
             </Field>
 
-            <Field label={copy.enTitle}>
-              <input
-                value={enTitle}
-                onChange={(e) => setEnTitle(e.target.value)}
-                className={inputCls}
-                required
-              />
-            </Field>
-            <Field
-              label={copy.frTitle}
-              hint={publish !== "draft" ? copy.bilingualHint : undefined}
-            >
-              <input
-                value={frTitle}
-                onChange={(e) => setFrTitle(e.target.value)}
-                className={inputCls}
-              />
-            </Field>
+            <BilingualHeadings
+              copy={copy}
+              enTitle={enTitle}
+              frTitle={frTitle}
+              onTitle={(locale, v) => (locale === "en" ? setEnTitle(v) : setFrTitle(v))}
+              required
+              showHint={publish !== "draft"}
+            />
             <TranslateButtons
               copy={copy}
               translate={translate}
@@ -514,42 +510,18 @@ export function ContentCreateDialog({
                 addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
               }}
             />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label={copy.enExcerpt}>
-                <textarea
-                  value={enExcerpt}
-                  onChange={(e) => setEnExcerpt(e.target.value)}
-                  rows={2}
-                  className={inputCls}
-                />
-              </Field>
-              <Field label={copy.frExcerpt}>
-                <textarea
-                  value={frExcerpt}
-                  onChange={(e) => setFrExcerpt(e.target.value)}
-                  rows={2}
-                  className={inputCls}
-                />
-              </Field>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label={copy.enBody}>
-                <textarea
-                  value={enBody}
-                  onChange={(e) => setEnBody(e.target.value)}
-                  rows={4}
-                  className={inputCls}
-                />
-              </Field>
-              <Field label={copy.frBody}>
-                <textarea
-                  value={frBody}
-                  onChange={(e) => setFrBody(e.target.value)}
-                  rows={4}
-                  className={inputCls}
-                />
-              </Field>
-            </div>
+            <BilingualExcerpts
+              copy={copy}
+              enExcerpt={enExcerpt}
+              frExcerpt={frExcerpt}
+              onExcerpt={(locale, v) => (locale === "en" ? setEnExcerpt(v) : setFrExcerpt(v))}
+            />
+            <BilingualBody
+              copy={copy}
+              enBody={enBody}
+              frBody={frBody}
+              onBody={(locale, v) => (locale === "en" ? setEnBody(v) : setFrBody(v))}
+            />
             <StoryBlocksEditor
               copy={{
                 sectionTitle: copy.blocksTitle,
@@ -1637,21 +1609,12 @@ function ContentEditForm({
 
   return (
     <form onSubmit={handleSave} className="grid gap-3">
-      <Field label={copy.enTitle}>
-        <input
-          value={enTitle}
-          onChange={(e) => setEnTitle(e.target.value)}
-          className={inputCls}
-          required
-        />
-      </Field>
-      <Field label={copy.frTitle} hint={copy.bilingualHint}>
-        <input
-          value={frTitle}
-          onChange={(e) => setFrTitle(e.target.value)}
-          className={inputCls}
-        />
-      </Field>
+      <BilingualHeadings
+        copy={copy}
+        enTitle={enTitle}
+        frTitle={frTitle}
+        onTitle={(locale, v) => (locale === "en" ? setEnTitle(v) : setFrTitle(v))}
+      />
       <TranslateButtons
         copy={copy}
         translate={translate}
@@ -1706,42 +1669,18 @@ function ContentEditForm({
           addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
         }}
       />
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label={copy.enExcerpt}>
-          <textarea
-            value={enExcerpt}
-            onChange={(e) => setEnExcerpt(e.target.value)}
-            rows={2}
-            className={inputCls}
-          />
-        </Field>
-        <Field label={copy.frExcerpt}>
-          <textarea
-            value={frExcerpt}
-            onChange={(e) => setFrExcerpt(e.target.value)}
-            rows={2}
-            className={inputCls}
-          />
-        </Field>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label={copy.enBody}>
-          <textarea
-            value={enBody}
-            onChange={(e) => setEnBody(e.target.value)}
-            rows={8}
-            className={inputCls}
-          />
-        </Field>
-        <Field label={copy.frBody}>
-          <textarea
-            value={frBody}
-            onChange={(e) => setFrBody(e.target.value)}
-            rows={8}
-            className={inputCls}
-          />
-        </Field>
-      </div>
+      <BilingualExcerpts
+        copy={copy}
+        enExcerpt={enExcerpt}
+        frExcerpt={frExcerpt}
+        onExcerpt={(locale, v) => (locale === "en" ? setEnExcerpt(v) : setFrExcerpt(v))}
+      />
+      <BilingualBody
+        copy={copy}
+        enBody={enBody}
+        frBody={frBody}
+        onBody={(locale, v) => (locale === "en" ? setEnBody(v) : setFrBody(v))}
+      />
       <StoryBlocksEditor
         copy={{
           sectionTitle: copy.blocksTitle,

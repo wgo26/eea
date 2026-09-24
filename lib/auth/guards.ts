@@ -2,8 +2,9 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { localePath, safeNextPath } from '@/lib/i18n/urls'
-import { getUserRoles, isStaffRoles, isAdminRoles } from './roles'
-import { hasCapability, type Capability } from './capabilities'
+import { getUserRoles, getAdminRoles, isStaffRoles, isAdminRoles } from './roles'
+import { effectiveCapabilities, resolveAdminRoles } from './admin-roles'
+import { type Capability } from './capabilities'
 import type { AppRole } from './types'
 
 /**
@@ -76,9 +77,26 @@ export async function requireAdmin(nextPath = '/admin/users') {
  * for capabilities, never hardcoded roles). The admin layout already ran
  * requireStaff for the whole tree; this adds the fine-grained check for
  * areas like managePolls / manageFundraisers.
+ *
+ * Phase 2.1: the check unions both layers — the legacy `app_role` map and the
+ * fine-grained admin roles (`user_admin_roles`), the same set
+ * `assertCapability` evaluates — so a `platform_admin` whose coarse role is
+ * `editor` can reach the page for an action the server would let them run.
  */
 export async function requireCapability(capability: Capability, nextPath = '/admin/dashboard') {
   const { supabase, user, roles } = await requireStaff(nextPath)
-  if (!hasCapability(roles, capability)) await denyAccess(nextPath)
-  return { supabase, user, roles }
+  const adminRoles = await getAdminRoles(supabase, user.id)
+  if (!effectiveCapabilities(roles, adminRoles).has(capability)) await denyAccess(nextPath)
+  return { supabase, user, roles, adminRoles: resolveAdminRoles(roles, adminRoles) }
+}
+
+export async function requireAnyCapability(
+  capabilities: Capability[],
+  nextPath = '/admin/dashboard',
+) {
+  const { supabase, user, roles } = await requireStaff(nextPath)
+  const adminRoles = await getAdminRoles(supabase, user.id)
+  const caps = effectiveCapabilities(roles, adminRoles)
+  if (!capabilities.some((c) => caps.has(c))) await denyAccess(nextPath)
+  return { supabase, user, roles, adminRoles: resolveAdminRoles(roles, adminRoles) }
 }

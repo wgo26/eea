@@ -28,7 +28,7 @@ export function AdminCommandPalette({ items }: { items: AdminNavItem[] }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<AdminSearchResults>({ content: [], users: [] })
+  const [results, setResults] = useState<AdminSearchResults>({ content: [], users: [], locations: [], media: [], auditEvents: [] })
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export function AdminCommandPalette({ items }: { items: AdminNavItem[] }) {
     item.label.toLowerCase().includes(query.trim().toLowerCase()),
   )
   // Stale results from a longer query never show for a short one.
-  const liveResults = query.trim().length >= 2 ? results : { content: [], users: [] }
+  const liveResults = query.trim().length >= 2 ? results : { content: [], users: [], locations: [], media: [], auditEvents: [] }
   const common = dict.admin.common
 
   return (
@@ -124,6 +124,47 @@ export function AdminCommandPalette({ items }: { items: AdminNavItem[] }) {
                 >
                   <span className="min-w-0 flex-1 truncate">{u.name}</span>
                   <span className="shrink-0 truncate text-xs text-muted-foreground">{u.email}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ) : null}
+          {liveResults.locations.length > 0 ? (
+            <CommandGroup heading={common.searchGroupLocations}>
+              {liveResults.locations.map((l) => (
+                <CommandItem
+                  key={l.id}
+                  value={`${l.name} ${l.slug}`}
+                  onSelect={() => go(`${localePath(locale, '/admin/taxonomy')}?search=${encodeURIComponent(l.name)}`)}
+                >
+                  <span className="min-w-0 flex-1 truncate">{l.name}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ) : null}
+          {liveResults.media.length > 0 ? (
+            <CommandGroup heading={common.searchGroupMedia}>
+              {liveResults.media.map((m) => (
+                <CommandItem
+                  key={m.id}
+                  value={`${m.caption} ${m.id}`}
+                  onSelect={() => go(`${localePath(locale, '/admin/content')}?media=${m.id}`)}
+                >
+                  <span className="min-w-0 flex-1 truncate">{m.caption}</span>
+                  <span className="shrink-0 truncate text-xs text-muted-foreground">{m.mimeType}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ) : null}
+          {liveResults.auditEvents.length > 0 ? (
+            <CommandGroup heading={common.searchGroupAudit}>
+              {liveResults.auditEvents.map((a) => (
+                <CommandItem
+                  key={a.id}
+                  value={`${a.action} ${a.resourceType}`}
+                  onSelect={() => go(`${localePath(locale, '/admin/audit-log')}?search=${encodeURIComponent(a.action)}`)}
+                >
+                  <span className="min-w-0 flex-1 truncate">{a.action}</span>
+                  <span className="shrink-0 truncate text-xs text-muted-foreground">{a.resourceType}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

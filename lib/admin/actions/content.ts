@@ -341,24 +341,57 @@ export async function getContentHistoryData(contentItemId: string) {
 export type AdminSearchResults = {
   content: { id: string; title: string; type: string; status: string }[]
   users: { id: string; name: string; email: string }[]
+  locations: { id: string; name: string; slug: string }[]
+  media: { id: string; caption: string; mimeType: string }[]
+  auditEvents: { id: string; action: string; resourceType: string }[]
 }
 
 /**
  * Admin global search (staff command palette): top content matches by
- * title/slug plus top user matches by name/email. Staff-only; empty query
- * returns empty groups.
+ * title/slug, user matches by name/email, location matches by name, media
+ * matches by metadata and audit-event matches by action/resource (spec §36).
+ * Staff-only; empty query returns empty groups. Results respect permissions:
+ * the staff gate plus the same RLS the list pages read through.
  */
 export async function adminGlobalSearch(query: string): Promise<AdminSearchResults> {
-  await assertStaff()
+  const { supabase } = await assertStaff()
   const q = query.trim().slice(0, 80)
-  if (q.length < 2) return { content: [], users: [] }
-  const [content, users] = await Promise.all([
+  if (q.length < 2) return { content: [], users: [], locations: [], media: [], auditEvents: [] }
+  const like = `%${q.replace(/[%_,]/g, '')}%`
+  const [content, users, locations, media, auditEvents] = await Promise.all([
     getContentItems({ search: q, limit: 6, offset: 0 }),
     getUsers({ search: q, limit: 6, page: 1 }),
+    supabase.from('locations').select('id, name, slug').ilike('name', like).limit(6),
+    supabase
+      .from('media_assets')
+      .select('id, caption, mime_type')
+      .or(`caption.ilike.${like},photographer_credit.ilike.${like},creator.ilike.${like}`)
+      .limit(6),
+    supabase
+      .from('audit_events')
+      .select('id, action, resource_type')
+      .or(`action.ilike.${like},resource_type.ilike.${like}`)
+      .order('created_at', { ascending: false })
+      .limit(6),
   ])
   return {
     content: content.rows.map((r) => ({ id: r.id, title: r.title ?? 'Untitled', type: r.type, status: r.status })),
     users: users.rows.map((u) => ({ id: u.id, name: u.displayName ?? u.fullName ?? u.email ?? 'User', email: u.email ?? '' })),
+    locations: ((locations.data ?? []) as { id: string; name: string; slug: string }[]).map((l) => ({
+      id: l.id,
+      name: l.name,
+      slug: l.slug,
+    })),
+    media: ((media.data ?? []) as { id: string; caption: string | null; mime_type: string | null }[]).map((m) => ({
+      id: m.id,
+      caption: m.caption ?? 'Untitled media',
+      mimeType: m.mime_type ?? '',
+    })),
+    auditEvents: ((auditEvents.data ?? []) as { id: string; action: string; resource_type: string }[]).map((a) => ({
+      id: a.id,
+      action: a.action,
+      resourceType: a.resource_type,
+    })),
   }
 }
 

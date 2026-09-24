@@ -107,6 +107,9 @@ function errMessage(body: unknown, fallback: string): string {
     if (body && typeof body === "object" && "error" in body && typeof body.error === "string") {
         return body.error;
     }
+    if (body && typeof body === "object" && "message" in body && typeof body.message === "string") {
+        return body.message;
+    }
     return fallback;
 }
 

@@ -1,52 +1,90 @@
 import { assertCapability } from '@/lib/admin/auth'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { resolveLocale } from '@/lib/i18n/config'
+import { exportAuditTrail, type AuditOrigin, type AuditTrailRow } from '@/lib/admin/queries'
+
+const CSV_COLUMNS = [
+  'id',
+  'origin',
+  'action',
+  'resource_type',
+  'resource_id',
+  'actor_id',
+  'actor_name',
+  'actor_role',
+  'source',
+  'request_id',
+  'from_status',
+  'to_status',
+  'notes',
+  'created_at',
+] as const
 
 function csv(value: unknown): string {
   const text = value == null ? '' : String(value)
   return `"${text.replace(/"/g, '""')}"`
 }
 
-export async function GET(request: Request) {
+function rowToCsv(row: AuditTrailRow): string {
+  return [
+    row.id,
+    row.origin,
+    row.action,
+    row.resourceType,
+    row.resourceId,
+    row.actorId,
+    row.actorName,
+    row.actorRole,
+    row.source,
+    row.requestId,
+    row.fromStatus,
+    row.toStatus,
+    row.notes,
+    row.createdAt,
+  ]
+    .map(csv)
+    .join(',')
+}
+
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ locale: string }> },
+) {
   try {
     await assertCapability('viewAuditLog')
   } catch {
     return new Response('Forbidden', { status: 403 })
   }
 
+  const { locale: rawLocale } = await params
+  const locale = resolveLocale(rawLocale)
+
   const { searchParams } = new URL(request.url)
-  const action = searchParams.get('action') || undefined
-  const entityType = searchParams.get('entity') || undefined
-  const from = searchParams.get('from') || undefined
-  const to = searchParams.get('to') || undefined
+  const originParam = searchParams.get('origin')
+  const origin: AuditOrigin | 'all' =
+    originParam === 'system' || originParam === 'moderation' ? originParam : 'all'
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const encoder = new TextEncoder()
-      controller.enqueue(encoder.encode('id,action,entity_type,entity_id,actor_id,from_status,to_status,notes,created_at\n'))
-      const client = createAdminClient()
-      const pageSize = 500
-      for (let offset = 0; ; offset += pageSize) {
-        let query = client
-          .from('moderation_log')
-          .select('id, action, entity_type, entity_id, actor_id, from_status, to_status, notes, created_at')
-          .order('created_at', { ascending: false })
-          .range(offset, offset + pageSize - 1)
-        if (action) query = query.eq('action', action)
-        if (entityType) query = query.eq('entity_type', entityType)
-        if (from) query = query.gte('created_at', from)
-        if (to) query = query.lte('created_at', `${to}T23:59:59.999Z`)
-        const { data, error } = await query
-        if (error) {
-          controller.error(error)
-          return
+      controller.enqueue(encoder.encode(`${CSV_COLUMNS.join(',')}\n`))
+      try {
+        for await (const rows of exportAuditTrail({
+          action: searchParams.get('action') || undefined,
+          resourceType: searchParams.get('resource') || undefined,
+          origin,
+          search: searchParams.get('q') || undefined,
+          from: searchParams.get('from') || undefined,
+          to: searchParams.get('to') || undefined,
+          order: 'newest',
+          locale,
+        })) {
+          for (const row of rows) {
+            controller.enqueue(encoder.encode(`${rowToCsv(row)}\n`))
+          }
         }
-        for (const row of data ?? []) {
-          controller.enqueue(encoder.encode([
-            row.id, row.action, row.entity_type, row.entity_id, row.actor_id,
-            row.from_status, row.to_status, row.notes, row.created_at,
-          ].map(csv).join(',') + '\n'))
-        }
-        if (!data || data.length < pageSize) break
+      } catch (error) {
+        controller.error(error)
+        return
       }
       controller.close()
     },

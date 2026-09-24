@@ -4,7 +4,7 @@ import { assertAdmin, assertCapability, assertReauth } from '@/lib/admin/auth'
 import { type AppRole } from '@/lib/admin/queries'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { type UpdateOf } from '@/lib/supabase/admin'
-import { type ActionResult, audit, fail, revalidateLocalized } from './_shared'
+import { type ActionResult, audit, auditEvent, fail, revalidateLocalized } from './_shared'
 
 /* ------------------------------------------------------------------ */
 /* User roles (admin only)                                             */
@@ -37,6 +37,15 @@ export async function setUserRole(
     await audit(supabase, user.id, {
       action: assign ? 'user:role:assign' : 'user:role:remove',
       notes: `user=${userId} role=${role}`,
+    })
+    // §53 privilege escalation: role grants are the escalation signal itself,
+    // so they land in the system trail the security view reads (moderation_log
+    // above stays the editorial record).
+    await auditEvent(user.id, {
+      action: assign ? 'user:role:assign' : 'user:role:remove',
+      resourceType: 'profile',
+      resourceId: userId,
+      metadata: { role },
     })
     revalidateLocalized('/admin/users')
     return { ok: true }
@@ -74,6 +83,8 @@ export async function setUserStatus(
     })
     if (authError) return { ok: false, error: authError.message }
     await audit(supabase, user.id, { action: `user:${status}`, entityType: 'profile', entityId: userId })
+    // §53: suspension/ban is an access-cutting decision — system-trail it too.
+    await auditEvent(user.id, { action: `user:${status}`, resourceType: 'profile', resourceId: userId })
     revalidateLocalized('/admin/users')
     return { ok: true }
   } catch (e) { return fail(e) }
@@ -95,6 +106,7 @@ export async function deleteUser(userId: string, confirmPassword?: string): Prom
     const { error } = await createAdminClient().auth.admin.deleteUser(userId)
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'user:delete', entityType: 'profile', entityId: userId })
+    await auditEvent(user.id, { action: 'user:delete', resourceType: 'profile', resourceId: userId })
     revalidateLocalized('/admin/users')
     return { ok: true }
   } catch (e) { return fail(e) }

@@ -1,8 +1,6 @@
 import type { ComponentType } from 'react'
-import {
-  capabilitiesFor,
-  type Capability,
-} from '@/lib/auth/capabilities'
+import { type Capability } from '@/lib/auth/capabilities'
+import { effectiveCapabilities, type AdminRole } from '@/lib/auth/admin-roles'
 import type { AppRole } from '@/lib/auth/types'
 import { localePath } from '@/lib/i18n/urls'
 import type { Dictionary, Locale } from '@/lib/i18n'
@@ -30,8 +28,15 @@ export type AdminNavItem = {
 type AdminNavItemSpec = {
   key: SidebarKey
   path: string
-  capability: Capability
+  /** A single capability, or any-of a set (e.g. approvals: any gated action). */
+  capability: Capability | Capability[]
   icon: ComponentType
+}
+
+function hasSpecCapability(spec: AdminNavItemSpec, caps: Set<Capability>): boolean {
+  return Array.isArray(spec.capability)
+    ? spec.capability.some((c) => caps.has(c))
+    : caps.has(spec.capability)
 }
 
 function DashboardIcon() {
@@ -79,6 +84,31 @@ function AdsIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
       <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+    </svg>
+  )
+}
+
+function IncidentIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  )
+}
+
+function KeyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4" />
+    </svg>
+  )
+}
+
+function ApprovalsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><polyline points="17 11 19 13 23 9" />
     </svg>
   )
 }
@@ -157,6 +187,26 @@ function TaxonomyIcon() {
   )
 }
 
+function BrandingIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="8.5" cy="9" r="1.2" /><circle cx="15.5" cy="9" r="1.2" /><circle cx="12" cy="16" r="1.2" />
+    </svg>
+  )
+}
+
+function StatesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+      <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+      <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+      <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+    </svg>
+  )
+}
+
 function NotificationsIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
@@ -165,23 +215,72 @@ function NotificationsIcon() {
   )
 }
 
+function InboxIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+      <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+    </svg>
+  )
+}
+
+function SecurityIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+      <circle cx="12" cy="11" r="1" /><path d="M12 12v3" />
+    </svg>
+  )
+}
+
+function EmergencyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+    </svg>
+  )
+}
+
+function TranslationsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <path d="m5 8 6 6" /><path d="m4 14 6-6 2-3" /><path d="M2 5h12" /><path d="M7 2h1" />
+      <path d="m22 22-5-10-5 10" /><path d="M14 18h6" />
+    </svg>
+  )
+}
+
 const ADMIN_NAV_SPECS: AdminNavItemSpec[] = [
   { key: 'dashboard', path: '/admin/dashboard', capability: 'viewDashboard', icon: DashboardIcon },
+  { key: 'inbox', path: '/admin/inbox', capability: 'viewDashboard', icon: InboxIcon },
   { key: 'insights', path: '/admin/insights', capability: 'viewDashboard', icon: InsightsIcon },
   { key: 'moderation', path: '/admin/moderation', capability: 'moderate', icon: ModerationIcon },
   { key: 'trustSafety', path: '/admin/trust-safety', capability: 'moderate', icon: TrustSafetyIcon },
+  { key: 'incidents', path: '/admin/incidents', capability: 'incidents.manage', icon: IncidentIcon },
+  { key: 'states', path: '/admin/states', capability: 'system.configure', icon: StatesIcon },
+  { key: 'secrets', path: '/admin/secrets', capability: 'secrets.read_metadata', icon: KeyIcon },
+  {
+    key: 'approvals',
+    path: '/admin/approvals',
+    capability: ['secrets.revoke', 'incidents.manage', 'branding.publish', 'system.configure', 'manageUsers'],
+    icon: ApprovalsIcon,
+  },
   { key: 'content', path: '/admin/content', capability: 'manageContent', icon: ContentIcon },
+  { key: 'emergency', path: '/admin/emergency', capability: 'manageContent', icon: EmergencyIcon },
+  { key: 'translations', path: '/admin/translations', capability: 'manageContent', icon: TranslationsIcon },
   { key: 'listings', path: '/admin/listings', capability: 'manageContent', icon: ListingsIcon },
   { key: 'taxonomy', path: '/admin/taxonomy', capability: 'manageContent', icon: TaxonomyIcon },
   { key: 'polls', path: '/admin/polls', capability: 'managePolls', icon: PollIcon },
   { key: 'fundraisers', path: '/admin/fundraisers', capability: 'manageFundraisers', icon: FundraiserIcon },
   { key: 'policies', path: '/admin/policies', capability: 'managePolicies', icon: PolicyIcon },
   { key: 'siteContent', path: '/admin/site-content', capability: 'manageSiteContent', icon: SiteContentIcon },
+  { key: 'branding', path: '/admin/branding', capability: 'branding.publish', icon: BrandingIcon },
   { key: 'users', path: '/admin/users', capability: 'manageUsers', icon: UsersIcon },
   { key: 'ads', path: '/admin/ads', capability: 'manageAds', icon: AdsIcon },
   { key: 'notifications', path: '/admin/notifications', capability: 'manageNotifications', icon: NotificationsIcon },
   { key: 'storage', path: '/admin/storage-backup', capability: 'manageStorage', icon: StorageIcon },
   { key: 'audit', path: '/admin/audit-log', capability: 'viewAuditLog', icon: AuditIcon },
+  { key: 'security', path: '/admin/security', capability: 'viewAuditLog', icon: SecurityIcon },
 ]
 
 /** Locale-prefixed admin entries the given roles may see. */
@@ -190,15 +289,18 @@ export function buildAdminNavItems(
   dict: Dictionary,
   roles: AppRole[],
   pendingCount = 0,
+  adminRoles: AdminRole[] = [],
+  unreadNotifications = 0,
 ): AdminNavItem[] {
-  const caps = capabilitiesFor(roles)
-  return ADMIN_NAV_SPECS.filter((spec) => caps.has(spec.capability)).map((spec) => ({
+  const caps = effectiveCapabilities(roles, adminRoles)
+  return ADMIN_NAV_SPECS.filter((spec) => hasSpecCapability(spec, caps)).map((spec) => ({
     key: spec.key,
     path: spec.path,
     href: localePath(locale, spec.path),
     label: dict.admin.sidebar[spec.key],
     icon: spec.icon,
-    badge: spec.key === 'moderation' ? pendingCount : undefined,
+    badge:
+      spec.key === 'moderation' ? pendingCount : spec.key === 'inbox' ? unreadNotifications : undefined,
   }))
 }
 
