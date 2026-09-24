@@ -11,6 +11,7 @@ export type UserRow = {
   id: string
   displayName: string | null
   fullName: string | null
+  bio: string | null
   email: string | null
   phone: string | null
   avatarUrl: string | null
@@ -20,12 +21,60 @@ export type UserRow = {
   isBanned: boolean
   contributorFeatured: boolean
   contributorBioOverride: string | null
+  contributorHandle: string | null
+  locationId: string | null
   locationName: string | null
+  preferredLocale: string
+  preferredVoice: string
   roles: AppRole[]
   createdAt: string | null
+  updatedAt: string | null
 }
 
-export async function getUsers(options?: { search?: string; role?: AppRole | 'all'; status?: 'all' | 'active' | 'suspended' | 'banned'; limit?: number; page?: number }): Promise<{ rows: UserRow[]; total: number }> {
+const USER_SELECT = `id, display_name, full_name, bio, email, phone, avatar_url, is_verified, is_public, is_suspended, is_banned, contributor_featured, contributor_bio_override, contributor_handle, location_id, preferred_locale, preferred_voice, created_at, updated_at,
+      location:locations(name),
+      roles:user_roles(role)`
+
+function mapUserRow(row: Record<string, unknown>): UserRow {
+  const roles = Array.isArray(row.roles) ? row.roles : row.roles ? [row.roles] : []
+  const location = Array.isArray(row.location) ? row.location[0] : row.location
+  return {
+    id: row.id as string,
+    displayName: row.display_name as string | null,
+    fullName: row.full_name as string | null,
+    bio: (row.bio as string | null) ?? null,
+    email: row.email as string | null,
+    phone: row.phone as string | null,
+    avatarUrl: row.avatar_url as string | null,
+    isVerified: !!row.is_verified,
+    isPublic: !!row.is_public,
+    isSuspended: !!row.is_suspended,
+    isBanned: !!row.is_banned,
+    contributorFeatured: !!row.contributor_featured,
+    contributorBioOverride: row.contributor_bio_override as string | null,
+    contributorHandle: (row.contributor_handle as string | null) ?? null,
+    locationId: (row.location_id as string | null) ?? null,
+    locationName: (location as { name: string } | undefined)?.name ?? null,
+    preferredLocale: (row.preferred_locale as string | null) ?? 'en',
+    preferredVoice: (row.preferred_voice as string | null) ?? 'formal',
+    roles: (roles as { role: string }[]).map((r) => r.role).filter(isRole),
+    createdAt: row.created_at as string | null,
+    updatedAt: (row.updated_at as string | null) ?? null,
+  }
+}
+
+/** Shared profile-completeness score (0-100) used by admin + account UIs. */
+export function profileCompleteness(u: Pick<UserRow, 'displayName' | 'fullName' | 'bio' | 'avatarUrl' | 'phone' | 'locationName' | 'locationId'>): number {
+  let score = 0
+  if (u.displayName?.trim() || u.fullName?.trim()) score += 25
+  if (u.bio?.trim()) score += 20
+  if (u.avatarUrl?.trim()) score += 20
+  if (u.phone?.trim()) score += 15
+  if (u.locationName?.trim() || u.locationId?.trim()) score += 20
+  return Math.min(100, score)
+}
+
+export async function getUsers(options?: { search?: string; role?: AppRole | 'all'; status?: 'all' | 'active' | 'suspended' | 'banned'; verified?: 'all' | 'verified' | 'unverified'; limit?: number; page?: number }): Promise<{ rows: UserRow[]; total: number }> {
   if (!hasDatabase()) return { rows: [], total: 0 }
   const search = options?.search?.trim()
   const role = options?.role ?? 'all'
@@ -35,40 +84,20 @@ export async function getUsers(options?: { search?: string; role?: AppRole | 'al
 
   let query = db()
     .from('profiles')
-    .select(`id, display_name, full_name, email, phone, avatar_url, is_verified, is_public, is_suspended, is_banned, contributor_featured, contributor_bio_override, created_at,
-      location:locations(name),
-      roles:user_roles(role)`, { count: 'exact' })
+    .select(USER_SELECT, { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
 
-  if (search) query = query.or(`display_name.ilike.%${search}%,full_name.ilike.%${search}%,email.ilike.%${search}%`)
+  if (search) query = query.or(`display_name.ilike.%${search}%,full_name.ilike.%${search}%,email.ilike.%${search}%,bio.ilike.%${search}%`)
   if (role !== 'all') query = query.eq('roles.role', role)
   if (options?.status === 'suspended') query = query.eq('is_suspended', true)
   if (options?.status === 'banned') query = query.eq('is_banned', true)
   if (options?.status === 'active') query = query.eq('is_suspended', false).eq('is_banned', false)
+  if (options?.verified === 'verified') query = query.eq('is_verified', true)
+  if (options?.verified === 'unverified') query = query.eq('is_verified', false)
 
   const { data, count } = await safe(query)
-  const rows = ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
-    const roles = Array.isArray(row.roles) ? row.roles : row.roles ? [row.roles] : []
-    const location = Array.isArray(row.location) ? row.location[0] : row.location
-    return {
-      id: row.id as string,
-      displayName: row.display_name as string | null,
-      fullName: row.full_name as string | null,
-      email: row.email as string | null,
-      phone: row.phone as string | null,
-      avatarUrl: row.avatar_url as string | null,
-      isVerified: !!row.is_verified,
-      isPublic: !!row.is_public,
-      isSuspended: !!row.is_suspended,
-      isBanned: !!row.is_banned,
-      contributorFeatured: !!row.contributor_featured,
-      contributorBioOverride: row.contributor_bio_override as string | null,
-      locationName: (location as { name: string } | undefined)?.name ?? null,
-      roles: (roles as { role: string }[]).map((r) => r.role).filter(isRole),
-      createdAt: row.created_at as string | null,
-    }
-  })
+  const rows = ((data ?? []) as unknown as Record<string, unknown>[]).map(mapUserRow)
   return { rows, total: count ?? 0 }
 }
 
@@ -105,34 +134,14 @@ export async function getUserDetail(userId: string): Promise<UserDetail | null> 
   const profileRes = await safe(
     db()
       .from('profiles')
-      .select(`id, display_name, full_name, email, phone, avatar_url, is_verified, is_public, is_suspended, is_banned, contributor_featured, contributor_bio_override, created_at,
-        location:locations(name),
-        roles:user_roles(role)`)
+      .select(USER_SELECT)
       .eq('id', userId)
       .maybeSingle(),
   )
   const profile = profileRes.data as Record<string, unknown> | null
   if (!profile) return null
 
-  const rolesRaw = Array.isArray(profile.roles) ? profile.roles : profile.roles ? [profile.roles] : []
-  const location = Array.isArray(profile.location) ? profile.location[0] : profile.location
-  const user: UserRow = {
-    id: profile.id as string,
-    displayName: profile.display_name as string | null,
-    fullName: profile.full_name as string | null,
-    email: profile.email as string | null,
-    phone: profile.phone as string | null,
-    avatarUrl: profile.avatar_url as string | null,
-    isVerified: !!profile.is_verified,
-    isPublic: !!profile.is_public,
-    isSuspended: !!profile.is_suspended,
-    isBanned: !!profile.is_banned,
-    contributorFeatured: !!profile.contributor_featured,
-    contributorBioOverride: profile.contributor_bio_override as string | null,
-    locationName: (location as { name: string } | undefined)?.name ?? null,
-    roles: (rolesRaw as { role: string }[]).map((r) => r.role).filter(isRole),
-    createdAt: profile.created_at as string | null,
-  }
+  const user = mapUserRow(profile)
 
   const [subsRes, contentRes] = await Promise.all([
     safe(

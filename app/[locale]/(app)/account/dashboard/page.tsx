@@ -331,6 +331,9 @@ export default async function Page() {
                             <p>{dict.admin.dashboard.communityNews}: {stats.totalNews}</p>
                             <p>{dict.admin.dashboard.buySell}: {stats.totalListings}</p>
                         </div>
+                        <div className="mt-5">
+                            <ActionLink href={p("/account/profile")} label={dict.account.profile.title} />
+                        </div>
                     </div>
                 </section>
             </div>
@@ -481,6 +484,7 @@ export default async function Page() {
                         <h2 className="text-xl font-semibold">{t.contributorTools}</h2>
                         <div className="mt-5 space-y-3">
                             <ActionLink href={p("/submit")} label={t.linkSubmit} />
+                            <ActionLink href={p("/account/profile")} label={dict.account.profile.title} />
                             <ActionLink href={p("/account/listings")} label={dict.buySell.myListings} />
                             <ActionLink href={p("/contributors")} label={t.linkBrowseContributors} />
                             <ActionLink href={p("/")} label={t.linkExploreCommunity} />
@@ -556,6 +560,7 @@ export default async function Page() {
                     <h2 className="text-xl font-semibold">{t.recommendedActions}</h2>
                     <div className="mt-5 space-y-3">
                         <ActionLink href={p("/submit")} label={t.linkSubmit} />
+                        <ActionLink href={p("/account/profile")} label={dict.account.profile.title} />
                         <ActionLink href={p("/")} label={t.linkExploreHome} />
                         <ProfileEditDialog copy={t} common={common} initial={profileInitial} />
                     </div>

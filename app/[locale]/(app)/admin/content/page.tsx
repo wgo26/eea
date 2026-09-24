@@ -80,7 +80,12 @@ export default async function Page({
   const listQuery = `tab=content&status=${status}&type=${type}${search ? `&q=${encodeURIComponent(search)}` : ''}`
   const statusHref = (key: string) => `${base}?tab=content&status=${key}&type=${type}${search ? `&q=${encodeURIComponent(search)}` : ''}`
   const searchAction = `${base}?tab=content&status=${status}&type=${type}`
-  const editHrefFor = (id: string) => `${base}?${listQuery}${page > 1 ? `&page=${page}` : ''}&edit=${id}`
+  // The row-title edit deep-link travels to ContentTable (a Client Component)
+  // as a plain STRING prefix; the table appends the row id. Closures cannot
+  // cross the server → client boundary — React throws "Functions cannot be
+  // passed directly to Client Components" and the whole page falls to the
+  // error boundary (same rule documented on Tabs/Pager).
+  const editHrefPrefix = `${base}?${listQuery}${page > 1 ? `&page=${page}` : ''}&edit=`
 
   const createDialog = (
     <ContentCreateDialog
@@ -166,7 +171,7 @@ export default async function Page({
               locations={locationOptions}
               categoriesByType={categoriesByType}
               editId={params.edit}
-              editHrefFor={editHrefFor}
+              editHrefPrefix={editHrefPrefix}
             />
             <Pager
               page={page}

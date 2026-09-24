@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { deleteUser, setUserRole, setUserStatus, updateContributorCuration } from '@/lib/admin/actions/users'
+import { deleteUser, setUserRole, setUserStatus, setUserVerified, updateContributorCuration } from '@/lib/admin/actions/users'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { StatusBadge } from '@/components/admin/status-badge'
@@ -200,11 +200,26 @@ export function StatusControls({ user, copy, common }: { user: UserRow; copy: Co
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground">{copy.statusHeading}:</span>
         <StatusBadge status={statusKey} label={statusLabel} />
+        <StatusBadge status={user.isVerified ? 'verified' : 'unverified'} label={user.isVerified ? copy.verified : copy.unverified} />
       </div>
       <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={loading}
+          onClick={async () => {
+            setLoading(true)
+            const result = await setUserVerified(user.id, !user.isVerified)
+            setLoading(false)
+            addToast(result.ok ? (user.isVerified ? copy.toastUnverified : copy.toastVerified) : result.error, result.ok ? 'success' : 'error')
+            if (result.ok) router.refresh()
+          }}
+          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50"
+        >
+          {user.isVerified ? copy.unverify : copy.verify}
+        </button>
         {!user.isSuspended && !user.isBanned && (
           <button
             type="button"

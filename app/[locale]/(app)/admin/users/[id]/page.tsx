@@ -5,7 +5,7 @@ import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
 import { requireCapability } from '@/lib/auth/guards'
-import { getUserDetail } from '@/lib/admin/queries'
+import { getLocations, getUserDetail, profileCompleteness } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { EmptyState } from '@/components/admin/empty-state'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
@@ -13,6 +13,7 @@ import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { formatDateTime } from '@/lib/admin/format'
 import { UserActions } from '../user-actions'
 import { DangerZone, CurationControls, RoleManager, StatusControls } from './user-detail-client'
+import { ProfileEditor } from './profile-editor'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<{ title: string }> {
   const { id } = await params
@@ -24,9 +25,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 }
 
 /**
- * User detail (preview) page: clicking a row in /admin/users lands here.
- * Profile header, role manager (add/remove with admin reauth), account
- * status controls, recent activity with moderation deep-links, and the
+ * User detail: full professional profile workspace. Header with avatar,
+ * completeness, status + verification; identity editor (every profile
+ * field); roles, account status, contributor spotlight, activity and the
  * delete danger zone. The row ⋯ menu stays available as overflow actions.
  */
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
@@ -36,13 +37,15 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const dict = getDictionary(locale)
   const t = dict.admin.users
 
-  const detail = await getUserDetail(id)
+  const [detail, locations] = await Promise.all([getUserDetail(id), getLocations()])
   if (!detail) notFound()
   const { user, submissions, submissionCount, content, contentCount } = detail
 
   const displayName = user.displayName ?? user.fullName ?? user.email ?? t.unnamed
   const statusKey = user.isBanned ? 'banned' : user.isSuspended ? 'suspended' : 'active'
   const statusLabel = statusKey === 'banned' ? t.statusBanned : statusKey === 'suspended' ? t.statusSuspended : t.statusActive
+  const score = profileCompleteness(user)
+  const prefs = `${(user.preferredLocale || 'en').toUpperCase()} · ${user.preferredVoice || 'formal'}`
 
   return (
     <div className="space-y-5">
@@ -56,13 +59,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         actions={<UserActions user={user} copy={t} common={dict.admin.common} />}
       />
 
-      {/* Profile preview */}
+      {/* Profile header */}
       <section aria-label={t.profileHeading} className="rounded-lg border border-border bg-card p-4">
         <div className="flex flex-wrap items-start gap-4">
           {user.avatarUrl ? (
-            <Image src={user.avatarUrl} alt="" width={64} height={64} className="h-16 w-16 rounded-full object-cover bg-muted shrink-0" />
+            <Image src={user.avatarUrl} alt="" width={72} height={72} className="h-[72px] w-[72px] shrink-0 rounded-full bg-muted object-cover" />
           ) : (
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-muted text-2xl font-medium text-muted-foreground">
+            <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-full bg-muted text-3xl font-medium text-muted-foreground">
               {displayName.charAt(0).toUpperCase()}
             </div>
           )}
@@ -73,8 +76,18 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 status={user.isVerified ? 'verified' : 'unverified'}
                 label={user.isVerified ? t.verified : t.unverified}
               />
+              <StatusBadge
+                status={user.isPublic ? 'active' : 'inactive'}
+                label={user.isPublic ? t.detailPublic : t.detailPrivate}
+              />
+              {user.roles.length === 0 ? (
+                <span className="rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs text-muted-foreground">{t.memberRole}</span>
+              ) : (
+                user.roles.map((r) => <StatusBadge key={r} status={r} />)
+              )}
             </div>
-            <dl className="mt-3 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
+            {user.bio && <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{user.bio}</p>}
+            <dl className="mt-3 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
               <div className="flex gap-2">
                 <dt className="w-20 shrink-0 text-muted-foreground">{t.detailEmail}</dt>
                 <dd className="min-w-0 truncate font-medium">{user.email ?? '—'}</dd>
@@ -84,34 +97,70 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 <dd className="font-medium">{user.phone ?? '—'}</dd>
               </div>
               <div className="flex gap-2">
+                <dt className="w-20 shrink-0 text-muted-foreground">{t.detailHandle}</dt>
+                <dd className="font-medium">{user.contributorHandle ? `@${user.contributorHandle}` : '—'}</dd>
+              </div>
+              <div className="flex gap-2">
                 <dt className="w-20 shrink-0 text-muted-foreground">{t.detailLocation}</dt>
                 <dd className="font-medium">{user.locationName ?? '—'}</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="w-20 shrink-0 text-muted-foreground">{t.detailVisibility}</dt>
+                <dd className="font-medium">{user.isPublic ? t.detailPublic : t.detailPrivate}</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="w-20 shrink-0 text-muted-foreground">{t.detailPreferences}</dt>
+                <dd className="font-medium">{prefs}</dd>
               </div>
               <div className="flex gap-2">
                 <dt className="w-20 shrink-0 text-muted-foreground">{t.detailJoined}</dt>
                 <dd className="font-medium">{user.createdAt ? formatDateTime(user.createdAt) : '—'}</dd>
               </div>
+              <div className="flex gap-2">
+                <dt className="w-20 shrink-0 text-muted-foreground">{t.detailUpdated}</dt>
+                <dd className="font-medium">{user.updatedAt ? formatDateTime(user.updatedAt) : '—'}</dd>
+              </div>
             </dl>
+            <div className="mt-3 max-w-xs">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{t.profileCompleteness}</span>
+                <span className="tabular-nums">{score}%</span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${score}%` }} />
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        {/* Roles — add/remove with reauth for admin */}
-        <section aria-label={t.rolesHeading} className="rounded-lg border border-border bg-card p-4">
-          <h2 className="text-sm font-medium">{t.rolesHeading}</h2>
+        {/* Full identity editor — every profile field */}
+        <section aria-label={t.identityHeading} className="rounded-lg border border-border bg-card p-4">
+          <h2 className="text-sm font-medium">{t.identityHeading}</h2>
+          <p className="mt-1 text-xs text-muted-foreground">{t.profileEmailNote}</p>
           <div className="mt-3">
-            <RoleManager user={user} copy={t} common={dict.admin.common} />
+            <ProfileEditor user={user} copy={t} common={dict.admin.common} locations={locations} />
           </div>
         </section>
 
-        {/* Account status */}
-        <section aria-label={t.statusHeading} className="rounded-lg border border-border bg-card p-4">
-          <h2 className="text-sm font-medium">{t.statusHeading}</h2>
-          <div className="mt-3">
-            <StatusControls user={user} copy={t} common={dict.admin.common} />
-          </div>
-        </section>
+        <div className="space-y-5">
+          {/* Roles */}
+          <section aria-label={t.rolesHeading} className="rounded-lg border border-border bg-card p-4">
+            <h2 className="text-sm font-medium">{t.rolesHeading}</h2>
+            <div className="mt-3">
+              <RoleManager user={user} copy={t} common={dict.admin.common} />
+            </div>
+          </section>
+
+          {/* Account status + verification */}
+          <section aria-label={t.statusHeading} className="rounded-lg border border-border bg-card p-4">
+            <h2 className="text-sm font-medium">{t.statusHeading}</h2>
+            <div className="mt-3">
+              <StatusControls user={user} copy={t} common={dict.admin.common} />
+            </div>
+          </section>
+        </div>
       </div>
 
       {/* Contributor spotlight */}

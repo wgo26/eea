@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { deleteUser, setUserRole, setUserStatus, updateUserProfile } from '@/lib/admin/actions/users'
+import { useRouter } from 'next/navigation'
+import { deleteUser, setUserRole, setUserStatus, setUserVerified, updateUserProfile } from '@/lib/admin/actions/users'
 import { useToast } from '@/components/admin/toast'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { ActionMenu, ActionMenuTrigger } from '@/components/admin/action-menu'
@@ -87,8 +88,19 @@ export function ReauthDialog({
   )
 }
 
-export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy; common: CommonCopy }) {
+export function UserActions({
+  user,
+  copy,
+  common,
+  detailHref,
+}: {
+  user: UserRow
+  copy: Copy
+  common: CommonCopy
+  detailHref?: string
+}) {
   const { addToast } = useToast()
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [pendingRemoval, setPendingRemoval] = useState<AppRole | null>(null)
   const [restoreConfirm, setRestoreConfirm] = useState(false)
@@ -99,26 +111,45 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
     run: (password: string) => Promise<void>
   } | null>(null)
 
-  // Edit profile dialog — display/full name + phone; email is auth-managed and read-only here.
+  // Quick edit-profile dialog — identity + contact + visibility basics.
+  // Full editing (avatar upload, location picker, locale/voice) lives on the
+  // user detail page; the dialog footer links there.
   const [profileOpen, setProfileOpen] = useState(false)
   const [profileDisplayName, setProfileDisplayName] = useState(user.displayName ?? '')
   const [profileFullName, setProfileFullName] = useState(user.fullName ?? '')
+  const [profileBio, setProfileBio] = useState(user.bio ?? '')
+  const [profileHandle, setProfileHandle] = useState(user.contributorHandle ?? '')
   const [profilePhone, setProfilePhone] = useState(user.phone ?? '')
+  const [profileAvatar, setProfileAvatar] = useState(user.avatarUrl ?? '')
+  const [profilePublic, setProfilePublic] = useState(user.isPublic)
 
   function openProfile() {
     setProfileDisplayName(user.displayName ?? '')
     setProfileFullName(user.fullName ?? '')
+    setProfileBio(user.bio ?? '')
+    setProfileHandle(user.contributorHandle ?? '')
     setProfilePhone(user.phone ?? '')
+    setProfileAvatar(user.avatarUrl ?? '')
+    setProfilePublic(user.isPublic)
     setProfileOpen(true)
   }
 
   async function handleProfileSave() {
     setLoading(true)
-    const result = await updateUserProfile(user.id, { displayName: profileDisplayName, fullName: profileFullName, phone: profilePhone })
+    const result = await updateUserProfile(user.id, {
+      displayName: profileDisplayName,
+      fullName: profileFullName,
+      bio: profileBio,
+      contributorHandle: profileHandle,
+      phone: profilePhone,
+      avatarUrl: profileAvatar.trim() || null,
+      isPublic: profilePublic,
+    })
     setLoading(false)
     if (result.ok) {
       addToast(copy.saved, 'success')
       setProfileOpen(false)
+      router.refresh()
     } else {
       addToast(result.error, 'error')
     }
@@ -134,6 +165,7 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
         assign ? copy.toastRoleAssigned.replace('{role}', label) : copy.toastRoleRemoved.replace('{role}', label),
         'success',
       )
+      router.refresh()
       return true
     }
     addToast(result.error, 'error')
@@ -175,12 +207,20 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
     const result = await setUserStatus(user.id, status, password)
     setLoading(false)
     addToast(result.ok ? copy.saved : result.error, result.ok ? 'success' : 'error')
+    if (result.ok) router.refresh()
     return result.ok
+  }
+
+  async function handleVerify() {
+    setLoading(true)
+    const result = await setUserVerified(user.id, !user.isVerified)
+    setLoading(false)
+    addToast(result.ok ? (user.isVerified ? copy.toastUnverified : copy.toastVerified) : result.error, result.ok ? 'success' : 'error')
+    if (result.ok) router.refresh()
   }
 
   function handleStatus(status: 'active' | 'suspended' | 'banned') {
     if (status === 'active') {
-      // Restore uses ConfirmDialog instead of window.confirm
       setRestoreConfirm(true)
       return
     }
@@ -206,25 +246,34 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
         const result = await deleteUser(user.id, password)
         setLoading(false)
         addToast(result.ok ? copy.deleted : result.error, result.ok ? 'success' : 'error')
-        if (result.ok) setReauth(null)
+        if (result.ok) {
+          setReauth(null)
+          router.refresh()
+        }
       },
     })
   }
 
   const pendingLabel = pendingRemoval ? String(copy[ROLE_LABEL_KEY[pendingRemoval]]) : ''
 
-  // Build action menu items using the shared ActionMenu (replaces hand-rolled dropdown)
-  const menuItems: ActionMenuEntry[] = [
-    { label: copy.editProfile, onSelect: openProfile, disabled: loading },
-    { separator: true },
-    ...ALL_ROLES.map((role) => ({
-      label: String(copy[ROLE_LABEL_KEY[role]]),
+  const menuItems: ActionMenuEntry[] = []
+  if (detailHref) {
+    menuItems.push({ label: `↗ ${copy.openProfile}`, onSelect: () => router.push(detailHref), disabled: loading })
+  }
+  menuItems.push({ label: copy.editProfile, onSelect: openProfile, disabled: loading })
+  menuItems.push({ separator: true })
+  for (const role of ALL_ROLES) {
+    const has = user.roles.includes(role)
+    menuItems.push({
+      label: `${has ? '✓ ' : ''}${String(copy[ROLE_LABEL_KEY[role]])}`,
       onSelect: () => handleToggleRole(role),
       disabled: loading,
-    })),
-  ]
+    })
+  }
+  menuItems.push({ separator: true })
+  menuItems.push({ label: user.isVerified ? copy.unverify : copy.verify, onSelect: handleVerify, disabled: loading })
 
-  if (user.isSuspended) {
+  if (user.isSuspended || user.isBanned) {
     menuItems.push({ label: copy.restore, onSelect: () => handleStatus('active'), disabled: loading })
   }
   if (!user.isSuspended && !user.isBanned) {
@@ -233,15 +282,15 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
   if (!user.isBanned) {
     menuItems.push({ label: copy.ban, onSelect: () => handleStatus('banned'), disabled: loading, tone: 'danger' })
   }
+  menuItems.push({ separator: true })
   menuItems.push({ label: copy.deleteUser, onSelect: handleDelete, disabled: loading, tone: 'danger' })
 
   return (
-    <div className="relative inline-block">
+    <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>
       <ActionMenu trigger={<ActionMenuTrigger label={copy.manageRoles} />} items={menuItems} />
 
-      {/* Edit profile — replaces the missing profile/name edit (audit matrix #6) */}
       <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{copy.editProfile}</DialogTitle>
           </DialogHeader>
@@ -249,47 +298,105 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
             <div className="space-y-1.5">
               <Label htmlFor="profile-email">{copy.inviteEmailLabel}</Label>
               <Input id="profile-email" value={user.email ?? ''} readOnly disabled />
+              <p className="text-xs text-muted-foreground">{copy.profileEmailNote}</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-display-name">{copy.profileDisplayName}</Label>
+                <Input
+                  id="profile-display-name"
+                  value={profileDisplayName}
+                  maxLength={80}
+                  onChange={(e) => setProfileDisplayName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-full-name">{copy.profileFullName}</Label>
+                <Input
+                  id="profile-full-name"
+                  value={profileFullName}
+                  maxLength={80}
+                  onChange={(e) => setProfileFullName(e.target.value)}
+                />
+              </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="profile-display-name">{copy.profileDisplayName}</Label>
-              <Input
-                id="profile-display-name"
-                value={profileDisplayName}
-                maxLength={80}
-                onChange={(e) => setProfileDisplayName(e.target.value)}
+              <Label htmlFor="profile-bio">{copy.profileBio}</Label>
+              <textarea
+                id="profile-bio"
+                value={profileBio}
+                maxLength={500}
+                rows={2}
+                placeholder={copy.profileBioPlaceholder}
+                onChange={(e) => setProfileBio(e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-handle">{copy.profileHandle}</Label>
+                <Input
+                  id="profile-handle"
+                  value={profileHandle}
+                  maxLength={40}
+                  onChange={(e) => setProfileHandle(e.target.value.replace(/^@/, ''))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-phone">{copy.profilePhone}</Label>
+                <Input
+                  id="profile-phone"
+                  value={profilePhone}
+                  maxLength={30}
+                  placeholder="+237 …"
+                  onChange={(e) => setProfilePhone(e.target.value)}
+                />
+              </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="profile-full-name">{copy.profileFullName}</Label>
+              <Label htmlFor="profile-avatar">{copy.profileAvatar}</Label>
               <Input
-                id="profile-full-name"
-                value={profileFullName}
-                maxLength={80}
-                onChange={(e) => setProfileFullName(e.target.value)}
+                id="profile-avatar"
+                value={profileAvatar}
+                placeholder="https://…"
+                inputMode="url"
+                onChange={(e) => setProfileAvatar(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground">{copy.profileAvatarHint}</p>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="profile-phone">{copy.profilePhone}</Label>
-              <Input
-                id="profile-phone"
-                value={profilePhone}
-                maxLength={30}
-                placeholder="+237 …"
-                onChange={(e) => setProfilePhone(e.target.value)}
+            <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border p-3">
+              <input
+                type="checkbox"
+                checked={profilePublic}
+                onChange={(e) => setProfilePublic(e.target.checked)}
+                className="mt-0.5 h-4 w-4"
               />
-            </div>
+              <span>
+                <span className="block text-sm font-medium">{copy.profilePublic}</span>
+                <span className="block text-xs text-muted-foreground">{copy.profilePublicHint}</span>
+              </span>
+            </label>
           </div>
-          <DialogFooter>
-            <button type="button" onClick={() => setProfileOpen(false)} disabled={loading} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent transition-colors disabled:opacity-50">
+          <DialogFooter className="flex-wrap gap-2">
+            {detailHref && (
+              <button
+                type="button"
+                onClick={() => router.push(detailHref)}
+                className="mr-auto rounded-md px-3 py-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                {`↗ ${copy.openProfile}`}
+              </button>
+            )}
+            <button type="button" onClick={() => setProfileOpen(false)} disabled={loading} className="rounded-md border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent disabled:opacity-50">
               {common.cancel}
             </button>
             <button
               type="button"
               onClick={handleProfileSave}
-              disabled={loading || (!profileDisplayName.trim() && !profileFullName.trim())}
-              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              disabled={loading}
+              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
-              {loading ? '…' : copy.saved}
+              {loading ? '…' : common.save}
             </button>
           </DialogFooter>
         </DialogContent>
@@ -306,7 +413,6 @@ export function UserActions({ user, copy, common }: { user: UserRow; copy: Copy;
         onConfirm={handleConfirmRemoval}
       />
 
-      {/* Restore confirmation — replaces window.confirm */}
       <ConfirmDialog
         open={restoreConfirm}
         onOpenChange={setRestoreConfirm}

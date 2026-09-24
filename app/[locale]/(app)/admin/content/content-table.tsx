@@ -27,8 +27,13 @@ type Props = {
   locations: { id: string; name: string }[]
   categoriesByType: Record<string, { id: string; name: string }[]>
   editId?: string
-  /** Deep-link href for the row-title edit trigger (`?edit=` preserved). */
-  editHrefFor: (id: string) => string
+  /**
+   * Locale-prefixed edit deep-link PREFIX for the row-title edit trigger — the
+   * table appends the row id (`?edit=<id>` preserved). A plain string, never a
+   * closure: functions cannot cross the server → client boundary (React throws
+   * "Functions cannot be passed directly to Client Components").
+   */
+  editHrefPrefix: string
 }
 
 /**
@@ -50,7 +55,7 @@ export function ContentTable({
   locations,
   categoriesByType,
   editId,
-  editHrefFor,
+  editHrefPrefix,
 }: Props) {
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -132,7 +137,7 @@ export function ContentTable({
           )}
           <div className="min-w-0">
             <Link
-              href={editHrefFor(r.id)}
+              href={`${editHrefPrefix}${r.id}`}
               className="block text-sm font-medium truncate text-primary hover:underline"
               title={copy.editContent}
             >

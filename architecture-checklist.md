@@ -503,6 +503,19 @@ below.*
 
 ## Changelog
 
+- 2026-09-24 — **Fix: admin Content page crashed on render** (`tsc --noEmit`
+  clean, eslint clean, `vitest run lib/admin` 108 green, bare-href +
+  client-dictionary audits zero; every admin route fetched with a real staff
+  session — no RSC error digest, the content table renders with working
+  `?edit=` deep-links in EN and FR). `admin/content/page.tsx` handed a closure
+  (`editHrefFor`) to `ContentTable` — a Client Component — so React aborted the
+  RSC payload with "Functions cannot be passed directly to Client Components"
+  and every view of the page (both locales, all filters) rendered the admin
+  error boundary instead. The table now takes the locale-prefixed
+  `editHrefPrefix` **string** and appends the row id — the same rule `Tabs` and
+  `Pager` already document. Only reproducible with content in the table:
+  `ContentTable` renders solely when `content.total > 0`, so an empty queue
+  looked healthy.
 - 2026-09-24 — **CMS section architecture + media/automation pass** (`tsc --noEmit`
   clean, vitest green, bare-href + background-image audits zero): StoryBlocks
   are now modular sections (`text`/`image`/`video`/`gallery`/`cta`/`divider`

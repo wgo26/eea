@@ -124,26 +124,120 @@ export async function updateContributorCuration(userId: string, input: { feature
   } catch (e) { return fail(e) }
 }
 
-export async function updateUserProfile(
-  userId: string,
-  input: { displayName?: string | null; fullName?: string | null; phone?: string | null },
-): Promise<ActionResult> {
+export type UserProfilePatch = {
+  displayName?: string | null
+  fullName?: string | null
+  bio?: string | null
+  phone?: string | null
+  avatarUrl?: string | null
+  locationId?: string | null
+  isPublic?: boolean
+  isVerified?: boolean
+  preferredLocale?: string | null
+  preferredVoice?: string | null
+  contributorHandle?: string | null
+}
+
+function validateProfilePatch(input: UserProfilePatch): string | null {
+  if (input.displayName !== undefined && (input.displayName?.trim() ?? '').length > 80) return 'Display name is too long.'
+  if (input.fullName !== undefined && (input.fullName?.trim() ?? '').length > 80) return 'Full name is too long.'
+  if (input.bio !== undefined && (input.bio?.trim() ?? '').length > 500) return 'Bio is too long (max 500 characters).'
+  if (input.contributorHandle !== undefined) {
+    const h = input.contributorHandle?.trim() ?? ''
+    if (h && !/^[a-z0-9_.-]{2,40}$/i.test(h)) return 'Handle: 2–40 letters, numbers, . _ -.'
+  }
+  if (input.avatarUrl !== undefined) {
+    const v = input.avatarUrl?.trim() ?? ''
+    if (v && v.length > 2048) return 'Avatar URL is too long.'
+    if (v && !/^https?:\/\/.+\..+/.test(v)) return 'Avatar must be an https:// URL.'
+  }
+  if (input.locationId !== undefined) {
+    const v = input.locationId?.trim() ?? ''
+    if (v && !/^[0-9a-f-]{8,36}$/i.test(v)) return 'Pick a valid location.'
+  }
+  if (input.preferredLocale !== undefined) {
+    const v = input.preferredLocale?.trim() ?? ''
+    if (v && v !== 'en' && v !== 'fr') return 'Language must be English or French.'
+  }
+  if (input.preferredVoice !== undefined) {
+    const v = input.preferredVoice?.trim() ?? ''
+    if (v && !['formal', 'pidgin', 'camfranglais'].includes(v)) return 'Pick a valid voice.'
+  }
+  return null
+}
+
+function buildProfilePatch(input: UserProfilePatch): { patch: Record<string, string | boolean | null>; error?: string } {
+  const err = validateProfilePatch(input)
+  if (err) return { patch: {}, error: err }
+  const patch: Record<string, string | boolean | null> = {}
+  if (input.displayName !== undefined) patch.display_name = input.displayName?.trim() || null
+  if (input.fullName !== undefined) patch.full_name = input.fullName?.trim() || null
+  if (input.bio !== undefined) patch.bio = input.bio?.trim() || null
+  if (input.phone !== undefined) {
+    const phone = input.phone?.trim() || null
+    if (phone && !/^[+\d][\d\s\-().]{5,29}$/.test(phone)) return { patch: {}, error: 'Enter a valid phone number.' }
+    patch.phone = phone
+  }
+  if (input.avatarUrl !== undefined) patch.avatar_url = input.avatarUrl?.trim() || null
+  if (input.locationId !== undefined) patch.location_id = input.locationId?.trim() || null
+  if (input.isPublic !== undefined) patch.is_public = input.isPublic
+  if (input.isVerified !== undefined) patch.is_verified = input.isVerified
+  if (input.preferredLocale !== undefined) patch.preferred_locale = input.preferredLocale?.trim() || 'en'
+  if (input.preferredVoice !== undefined) patch.preferred_voice = input.preferredVoice?.trim() || 'formal'
+  if (input.contributorHandle !== undefined) patch.contributor_handle = input.contributorHandle?.trim() || null
+  return { patch }
+}
+
+export async function updateUserProfile(userId: string, input: UserProfilePatch): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertCapability('manageUsers')
-    const patch: Record<string, string | null> = {}
-    if (input.displayName !== undefined) patch.display_name = input.displayName?.trim() || null
-    if (input.fullName !== undefined) patch.full_name = input.fullName?.trim() || null
-    if (input.phone !== undefined) {
-      const phone = input.phone?.trim() || null
-      if (phone && !/^[+\d][\d\s\-().]{5,29}$/.test(phone)) return { ok: false, error: 'Enter a valid phone number.' }
-      patch.phone = phone
-    }
+    const { patch, error } = buildProfilePatch(input)
+    if (error) return { ok: false, error }
     if (Object.keys(patch).length === 0) return { ok: false, error: 'Nothing to update.' }
-    const { error } = await supabase.from('profiles').update(patch as UpdateOf<'profiles'>).eq('id', userId)
-    if (error) return { ok: false, error: error.message }
+    const { error: updateError } = await supabase.from('profiles').update(patch as UpdateOf<'profiles'>).eq('id', userId)
+    if (updateError) return { ok: false, error: updateError.message }
     await audit(supabase, user.id, { action: 'user:profile:update', entityType: 'profile', entityId: userId })
     revalidateLocalized('/admin/users')
+    revalidateLocalized(`/admin/users/${userId}`)
+    revalidateLocalized('/contributors')
     return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+export async function setUserVerified(userId: string, verified: boolean): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageUsers')
+    const { error } = await supabase.from('profiles').update({ is_verified: verified }).eq('id', userId)
+    if (error) return { ok: false, error: error.message }
+    await audit(supabase, user.id, { action: verified ? 'user:verify' : 'user:unverify', entityType: 'profile', entityId: userId })
+    revalidateLocalized('/admin/users')
+    revalidateLocalized(`/admin/users/${userId}`)
+    return { ok: true }
+  } catch (e) { return fail(e) }
+}
+
+const ADMIN_AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+
+/** Staff upload of any user's avatar (service-role write into the user's folder). */
+export async function uploadUserAvatar(userId: string, formData: FormData): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  try {
+    const { supabase, user } = await assertCapability('manageUsers')
+    const file = formData.get('avatar')
+    if (!(file instanceof File)) return { ok: false, error: 'Choose an image file.' }
+    if (!ADMIN_AVATAR_TYPES.includes(file.type)) return { ok: false, error: 'Avatar must be JPEG, PNG or WebP.' }
+    if (file.size <= 0 || file.size > 5 * 1024 * 1024) return { ok: false, error: 'Avatar must be under 5 MB.' }
+    const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
+    const path = `${userId}/${Date.now()}.${ext}`
+    const bytes = Buffer.from(await file.arrayBuffer())
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, bytes, { contentType: file.type, upsert: true })
+    if (uploadError) return { ok: false, error: uploadError.message }
+    const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+    const { error: updateError } = await supabase.from('profiles').update({ avatar_url: data.publicUrl }).eq('id', userId)
+    if (updateError) return { ok: false, error: updateError.message }
+    await audit(supabase, user.id, { action: 'user:profile:update', entityType: 'profile', entityId: userId, notes: 'avatar upload' })
+    revalidateLocalized('/admin/users')
+    revalidateLocalized(`/admin/users/${userId}`)
+    return { ok: true, url: data.publicUrl }
   } catch (e) { return fail(e) }
 }
 

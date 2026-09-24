@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Bell, BellRing, Bookmark, Eye, History, LayoutDashboard, Lock, LogOut, MessageCircle, PenLine, ShieldCheck } from 'lucide-react'
+import { Bell, BellRing, Bookmark, Eye, History, LayoutDashboard, Lock, LogOut, MessageCircle, PenLine, ShieldCheck, UserRound } from 'lucide-react'
 import { getDictionary } from '@/lib/i18n'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { localePath } from '@/lib/i18n/urls'
@@ -44,6 +44,11 @@ export async function AccountTopbar() {
       href: localePath(locale, '/account/dashboard'),
       label: dict.account.topbar.dashboard,
       icon: LayoutDashboard,
+    },
+    {
+      href: localePath(locale, '/account/profile'),
+      label: dict.account.topbar.profile,
+      icon: UserRound,
     },
     {
       href: localePath(locale, '/account/notifications'),
