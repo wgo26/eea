@@ -8,8 +8,9 @@ import { PageHeader } from '@/components/admin/page-header'
 import { Tabs } from '@/components/admin/tabs'
 import { Pager } from '@/components/admin/pager'
 import { FilterPills, SearchBar } from '@/components/admin/filter-pills'
+import { TypeFilter } from '@/components/admin/type-filter'
 import { EmptyState } from '@/components/admin/empty-state'
-import { ContentTable } from './content-bulk-actions'
+import { ContentTable } from './content-table'
 import Link from 'next/link'
 import { ContentCreateDialog } from './content-dialogs'
 import { HomepageCuration } from './homepage-curation'
@@ -76,9 +77,20 @@ export default async function Page({
   const locationOptions = locations.map((l) => ({ id: l.id, name: l.name }))
 
   const base = localePath(locale, '/admin/content')
+  const listQuery = `tab=content&status=${status}&type=${type}${search ? `&q=${encodeURIComponent(search)}` : ''}`
   const statusHref = (key: string) => `${base}?tab=content&status=${key}&type=${type}${search ? `&q=${encodeURIComponent(search)}` : ''}`
-  const typeHref = (key: string) => `${base}?tab=content&status=${status}&type=${key}${search ? `&q=${encodeURIComponent(search)}` : ''}`
   const searchAction = `${base}?tab=content&status=${status}&type=${type}`
+  const editHrefFor = (id: string) => `${base}?${listQuery}${page > 1 ? `&page=${page}` : ''}&edit=${id}`
+
+  const createDialog = (
+    <ContentCreateDialog
+      copy={t}
+      common={dict.admin.common}
+      typeFilters={tf}
+      locations={locationOptions}
+      categoriesByType={categoriesByType}
+    />
+  )
 
   return (
     <div className="space-y-5">
@@ -87,19 +99,13 @@ export default async function Page({
         description={t.description}
         actions={
           <div className="flex flex-wrap items-center gap-1.5">
+            {createDialog}
             <Link
               href={localePath(locale, '/admin/content/import')}
               className="inline-flex min-h-[32px] items-center rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               {t.importButton}
             </Link>
-            <ContentCreateDialog
-              copy={t}
-              common={dict.admin.common}
-              typeFilters={tf}
-              locations={locationOptions}
-              categoriesByType={categoriesByType}
-            />
           </div>
         }
       />
@@ -125,28 +131,28 @@ export default async function Page({
               }))}
               active={status}
             />
-            <SearchBar
-              name="q"
-              defaultValue={search}
-              placeholder={tc.searchPlaceholder}
-              action={searchAction}
-              className="w-full sm:w-64"
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <TypeFilter
+                value={type}
+                options={TYPE_FILTERS.map((f) => ({ key: f.key, label: tf[f.dictKey] }))}
+                action={base}
+                ariaLabel={t.type}
+                hidden={{ tab: 'content', status, q: search }}
+              />
+              <SearchBar
+                name="q"
+                defaultValue={search}
+                placeholder={tc.searchPlaceholder}
+                action={searchAction}
+                className="w-full sm:w-64"
+              />
+            </div>
           </div>
-
-          <FilterPills
-            pills={TYPE_FILTERS.map((f) => ({
-              key: f.key,
-              label: tf[f.dictKey],
-              href: typeHref(f.key),
-            }))}
-            active={type}
-          />
 
           {content.total === 0 ? (
             <EmptyState
               message={search ? tc.emptyFiltered : t.empty}
-              action={<ContentCreateDialog copy={t} common={dict.admin.common} typeFilters={tf} locations={locationOptions} categoriesByType={categoriesByType} />}
+              action={createDialog}
             />
           ) : (
             <>
@@ -155,11 +161,12 @@ export default async function Page({
               canDelete={canDelete}
               copy={t}
               common={tc}
-              typeLabels={dict.admin.common}
+              typeFilters={tf}
               locale={locale}
               locations={locationOptions}
               categoriesByType={categoriesByType}
               editId={params.edit}
+              editHrefFor={editHrefFor}
             />
             <Pager
               page={page}

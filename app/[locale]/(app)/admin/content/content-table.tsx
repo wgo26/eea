@@ -3,88 +3,55 @@
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { DataTable } from '@/components/admin/data-table'
 import type { Column } from '@/components/admin/data-table'
 import { BulkActionsBar } from '@/components/admin/bulk-actions'
 import type { ContentRow } from '@/lib/admin/queries'
 import { updateContentStatus, archiveContent, unarchiveContent, deleteContentItem } from '@/lib/admin/actions/content'
-import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
+import { TypeBadge } from '@/components/admin/status-badge'
 import { StatusToggleCell } from '@/components/admin/status-toggle-cell'
-import { localizeStatus, localizeType } from '@/lib/admin/labels'
+import { localizeType } from '@/lib/admin/labels'
 import { formatDate, formatRelative } from '@/lib/admin/format'
-import { localePath } from '@/lib/i18n/urls'
 import { ContentActions } from './content-actions'
-import { ContentDeleteButton, ContentEditTrigger } from './content-dialogs'
+import { ContentEditTrigger } from './content-dialogs'
 import type { Dictionary, Locale } from '@/lib/i18n'
-import Image from 'next/image'
-
-type CommonDict = {
-  bulkSelected: string
-  bulkClear: string
-  bulkPublish: string
-  bulkUnpublish: string
-  bulkArchive: string
-  bulkDelete: string
-  bulkUpdated: string
-  confirm: string
-  cancel: string
-  undo: string
-}
-
-type ContentCopy = {
-  colTitle: string
-  colType: string
-  colStatus: string
-  colQuick?: string
-  colPublished: string
-  colAuthor: string
-  colUpdated: string
-  untitled: string
-  unpublish: string
-  unpublishConfirmTitle: string
-  unpublishConfirmBody: string
-  toastUnpublished: string
-  archiveConfirmTitle: string
-  archiveConfirmBody: string
-  toastArchived: string
-  deleteConfirmTitle: string
-  deleteConfirmBody: string
-  toastDeleted: string
-  toastPublished: string
-  toastRestored: string
-}
 
 type Props = {
   rows: ContentRow[]
   canDelete: boolean
-  copy: ContentCopy
-  common: CommonDict
+  copy: Dictionary['admin']['content']
+  common: Dictionary['admin']['common']
+  typeFilters: Dictionary['admin']['typeFilters']
+  locale: Locale
+  locations: { id: string; name: string }[]
+  categoriesByType: Record<string, { id: string; name: string }[]>
+  editId?: string
+  /** Deep-link href for the row-title edit trigger (`?edit=` preserved). */
+  editHrefFor: (id: string) => string
 }
 
 /**
  * Unified content manager: bulk bar + ONE selectable table with the full
  * title/type/status/updated/actions columns. Use this from page.tsx instead
- * of rendering <ContentBulkActions/> plus a second <DataTable/>.
+ * of rendering bulk actions plus a second DataTable.
+ *
+ * The row title is the edit trigger (a `?edit=` deep-link the page turns
+ * into an auto-opened edit dialog); every other row action lives in the one
+ * ActionMenu in the actions column.
  */
 export function ContentTable({
   rows,
   canDelete,
   copy,
   common,
-  typeLabels,
+  typeFilters,
   locale,
   locations,
   categoriesByType,
   editId,
-}: Props & {
-  copy: Props['copy'] & Dictionary['admin']['content']
-  common: CommonDict & Dictionary['admin']['common']
-  typeLabels: Dictionary['admin']['common']
-  locale: Locale
-  locations: { id: string; name: string }[]
-  categoriesByType: Record<string, { id: string; name: string }[]>
-  editId?: string
-}) {
+  editHrefFor,
+}: Props) {
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
@@ -131,9 +98,9 @@ export function ContentTable({
   const handleBulkDelete = async (keys: string[]) => {
     const results = await Promise.all(keys.map((id) => deleteContentItem(id)))
     const failed = results.filter((r) => !r.ok)
-    return failed.length > 0
-      ? { ok: false as const, error: `${failed.length} item(s) failed` }
-      : { ok: true as const }
+    if (failed.length === 0) return { ok: true as const }
+    const firstError = failed.find((r) => !r.ok && 'error' in r && r.error) as { error?: string } | undefined
+    return { ok: false as const, error: firstError?.error ?? `${failed.length} item(s) failed` }
   }
 
   const handleBulkUnpublish = async (keys: string[]) => {
@@ -164,7 +131,13 @@ export function ContentTable({
             <div className="h-10 w-10 rounded bg-muted shrink-0" />
           )}
           <div className="min-w-0">
-            <div className="text-sm font-medium truncate">{r.title ?? copy.untitled}</div>
+            <Link
+              href={editHrefFor(r.id)}
+              className="block text-sm font-medium truncate text-primary hover:underline"
+              title={copy.editContent}
+            >
+              {r.title ?? copy.untitled}
+            </Link>
             {r.excerpt && <div className="text-xs text-muted-foreground truncate">{r.excerpt}</div>}
             {r.missingLocale && (
               <span
@@ -178,36 +151,27 @@ export function ContentTable({
         </div>
       ),
     },
-    { key: 'type', header: copy.colType, render: (r) => <TypeBadge type={r.type} label={localizeType(r.type, typeLabels)} />, className: 'whitespace-nowrap' },
-    { key: 'status', header: copy.colStatus, render: (r) => <StatusBadge status={r.status} label={localizeStatus(r.status, typeLabels)} />, className: 'whitespace-nowrap' },
+    { key: 'type', header: copy.colType, render: (r) => <TypeBadge type={r.type} label={localizeType(r.type, common)} />, className: 'whitespace-nowrap' },
+    { key: 'status', header: copy.colStatus, render: (r) => <StatusToggleCell row={r} copy={copy} common={common} />, className: 'whitespace-nowrap' },
     { key: 'published', header: copy.colPublished, render: (r) => <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(r.publishedAt, locale)}</span>, headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell whitespace-nowrap' },
     { key: 'author', header: copy.colAuthor, render: (r) => <span className="text-xs text-muted-foreground truncate block max-w-[140px]">{r.authorName ?? '—'}</span>, headerClassName: 'hidden xl:table-cell', className: 'hidden xl:table-cell' },
     { key: 'updated', header: copy.colUpdated, render: (r) => <time className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(r.updatedAt ?? r.createdAt)}</time>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
-    { key: 'quick', header: copy.colQuick ?? '', render: (r) => <StatusToggleCell row={r} copy={copy} typeLabels={typeLabels} />, className: 'whitespace-nowrap' },
     {
       key: 'actions',
       header: '',
       stickyRight: true,
       render: (r) => (
         <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
-          {r.type === 'listing' ? (
-            <Link
-              href={localePath(locale, '/admin/listings')}
-              className="text-xs text-primary hover:underline shrink-0"
-            >
-              {copy.openInListings}
-            </Link>
-          ) : null}
+          <ContentActions content={r} copy={copy} common={common} canDelete={canDelete} locale={locale} />
           <ContentEditTrigger
             content={r}
             copy={copy}
             common={common}
+            typeFilters={typeFilters}
             locations={locations}
             categoriesByType={categoriesByType}
             autoOpen={editId === r.id}
           />
-          <ContentActions content={r} copy={copy} common={common} />
-          {canDelete && <ContentDeleteButton content={r} copy={copy} common={common} />}
         </div>
       ),
       className: 'text-right',
@@ -245,9 +209,6 @@ export function ContentTable({
         onToggleAll={toggleAll}
         allSelected={allSelected}
       />
-      {!canDelete ? (
-        <p className="text-xs text-muted-foreground">{copy.deleteHint}</p>
-      ) : null}
     </>
   )
 }

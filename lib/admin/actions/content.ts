@@ -283,18 +283,23 @@ export async function createContentItem(input: {
  * item itself. Cascades handle content_tags, saved_content, etc. but we
  * explicitly clear the SET NULL ref (homepage_slots) and audit the deletion.
  *
- * The destructive work runs on the service-role client (bypassing RLS) after
- * the `assertAdmin` authorization check, so an admin delete can never be
- * blocked by a missing RLS grant/policy on a child table (the exact failure
- * that made seeded "dummy" content undeletable). Defense in depth is kept:
- * page guard → `assertAdmin` here → the RPC's own `is_admin()` check.
+ * The destructive work runs through the `admin_delete_content_item` RPC
+ * (SECURITY DEFINER, so RLS can never veto an admin hard-delete — the exact
+ * failure that made seeded "dummy" content undeletable). Defense in depth is
+ * kept: page guard → `assertAdmin` here → the RPC's own admin check.
+ *
+ * RPC client choice matters: the pre-20261023 RPC guards on `auth.uid()`,
+ * which is NULL under the service-role client, while the fixed RPC guards on
+ * `p_actor_id`. Calling first as the session user satisfies the old guard;
+ * on 'Admin permission required' we retry via the service-role client, which
+ * satisfies the new guard. One of the two always matches the live database.
  */
 export async function deleteContentItem(contentItemId: string): Promise<ActionResult> {
   try {
-    const { user } = await assertAdmin()
-    // Service-role: authorization already happened above; RLS must not be
-    // able to veto an admin hard-delete (missing grants on child tables
-    // previously surfaced as "new row violates row-level security policy").
+    const { supabase, user } = await assertAdmin()
+    // Service-role: storage cleanup + lookup must not be vetoed by RLS
+    // (missing grants on child tables previously surfaced as "new row
+    // violates row-level security policy").
     const admin = createAdminClient()
     const { data: item, error: lookupErr } = await admin.from('content_items').select('id, slug, type').eq('id', contentItemId).limit(1)
     if (lookupErr) return { ok: false, error: lookupErr.message }
@@ -309,11 +314,25 @@ export async function deleteContentItem(contentItemId: string): Promise<ActionRe
       await deleteStoredMedia(admin, media as { provider: string; storage_key: string | null })
     }
 
-    const { error } = await admin.rpc('admin_delete_content_item', {
+    const args = {
       p_content_item_id: contentItemId,
       p_actor_id: user.id,
       p_note: `${row.type}/${row.slug}`,
-    })
+    }
+    // Session client first: carries auth.uid() for the legacy is_admin() RPC.
+    const first = await supabase.rpc('admin_delete_content_item', args)
+    if (!first.error) {
+      revalidatePublicContentCache()
+      revalidateLocalized('/admin/content')
+      revalidateLocalized('/admin/dashboard')
+      revalidateLocalized('/admin/listings')
+      return { ok: true }
+    }
+    if (first.error.message !== 'Admin permission required') {
+      return { ok: false, error: first.error.message }
+    }
+    // Retry privileged: the fixed RPC authorizes p_actor_id instead.
+    const { error } = await admin.rpc('admin_delete_content_item', args)
     if (error) return { ok: false, error: error.message }
 
     revalidatePublicContentCache()

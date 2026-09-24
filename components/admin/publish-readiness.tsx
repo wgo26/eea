@@ -2,7 +2,6 @@
 
 import { Check, X } from 'lucide-react'
 import type { Dictionary } from '@/lib/i18n'
-import type { ContentRow } from '@/lib/admin/queries'
 
 type Copy = Dictionary['admin']['content']
 
@@ -13,24 +12,23 @@ export type ReadinessCheck = {
 };
 
 type Props = {
-    row: ContentRow;
     copy: Copy;
     checks: ReadinessCheck[];
 };
 
 /**
- * Renders a publish-readiness checklist below the content form in create/edit
- * dialogs. Each check is a row with a pass/fail icon; the overall status drives
- * the "Publish" button disabled state and inline warning.
+ * Compact publish-readiness checklist rendered inside the form's Publishing
+ * section. Each check is a row with a pass/fail icon; the overall status
+ * drives the "Publish" button disabled state (computed by the caller).
  */
-export function PublishReadiness({ copy: _copy, checks }: Props) {
+export function PublishReadiness({ copy, checks }: Props) {
     const passed = checks.every((c) => c.passed);
     const failedCount = checks.filter((c) => !c.passed).length;
 
     return (
-        <div className="mb-4 rounded-md border border-border bg-muted/30 p-4">
-            <p className="mb-3 text-sm font-medium">
-                {passed ? _copy.readinessReady : _copy.readinessMissing.replace('{n}', String(failedCount))}
+        <div className="rounded-md border border-border bg-muted/30 p-3">
+            <p className="mb-2 text-sm font-medium">
+                {passed ? copy.readinessReady : copy.readinessMissing.replace('{n}', String(failedCount))}
             </p>
             <ul className="space-y-1.5">
                 {checks.map((check) => (

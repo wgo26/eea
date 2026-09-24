@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { updateContentStatus, setContentFeatured, archiveContent, unarchiveContent } from '@/lib/admin/actions/content'
+import { updateContentStatus, setContentFeatured, archiveContent, unarchiveContent, deleteContentItem } from '@/lib/admin/actions/content'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import { useToast } from '@/components/admin/toast'
 import { ActionMenu, ActionMenuTrigger } from '@/components/admin/action-menu'
 import type { ActionMenuEntry } from '@/components/admin/action-menu'
-import type { Dictionary } from '@/lib/i18n'
+import { localePath } from '@/lib/i18n/urls'
+import type { Dictionary, Locale } from '@/lib/i18n'
 import type { ContentRow } from '@/lib/admin/queries'
 
 type Copy = Dictionary['admin']['content']
@@ -26,12 +27,56 @@ const DURATION_OPTIONS: DurationOption[] = [
   { days: null, labelKey: 'featureDurationIndefinite' },
 ]
 
-export function ContentActions({ content, copy, common }: { content: ContentRow; copy: Copy; common: CommonCopy }) {
+/**
+ * Public URL for a content row (view-live target). Listings and notices use
+ * id routes; stories/news/culture use slug routes; micro stories live on the
+ * street rail. Returns null when the row cannot be addressed publicly.
+ */
+export function contentLivePath(content: ContentRow): string | null {
+  switch (content.type) {
+    case 'photo_story':
+      return content.slug ? `/photo-stories/${content.slug}` : null
+    case 'news':
+      return content.slug ? `/news/${content.slug}` : null
+    case 'listing':
+      return `/buy-sell/${content.slug ?? content.id}`
+    case 'notice':
+      return `/notices/${content.id}`
+    case 'culture':
+      return content.slug ? `/culture/${content.slug}` : null
+    case 'micro_story':
+      return '/street'
+    default:
+      return null
+  }
+}
+
+/**
+ * The single row-action menu for the content table: status transitions,
+ * feature/unfeature, archive/restore, open-in-listings, view live, and delete
+ * (admin-only danger item). The row title itself is the edit trigger (a
+ * `?edit=` deep-link rendered by the table), so there is no separate edit
+ * button, inline Feature button, or standalone Delete here.
+ */
+export function ContentActions({
+  content,
+  copy,
+  common,
+  canDelete,
+  locale,
+}: {
+  content: ContentRow
+  copy: Copy
+  common: CommonCopy
+  canDelete: boolean
+  locale: Locale
+}) {
   const { run, loading } = useAdminMutation()
   const { addToast } = useToast()
   const router = useRouter()
   const [confirmArchive, setConfirmArchive] = useState(false)
   const [confirmUnpublish, setConfirmUnpublish] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [scheduleFor, setScheduleFor] = useState('')
   const [featureOpen, setFeatureOpen] = useState(false)
@@ -52,7 +97,8 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
   )
 
   async function handleStatusChange(status: string, toast: string) {
-    await run(() => updateContentStatus(content.id, status), toast)
+    const ok = await run(() => updateContentStatus(content.id, status), toast)
+    if (ok) router.refresh()
   }
 
   async function handleUnpublish() {
@@ -69,7 +115,10 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
         },
       },
     })
-    if (ok) setConfirmUnpublish(false)
+    if (ok) {
+      setConfirmUnpublish(false)
+      router.refresh()
+    }
   }
 
   async function handleFeature() {
@@ -113,6 +162,11 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
     }
   }
 
+  async function handleRestore() {
+    const ok = await run(() => unarchiveContent(content.id), copy.toastRestored)
+    if (ok) router.refresh()
+  }
+
   async function handleSchedule() {
     if (!scheduleFor) return
     const iso = new Date(scheduleFor).toISOString()
@@ -121,6 +175,14 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
     if (ok) {
       setScheduleOpen(false)
       setScheduleFor('')
+      router.refresh()
+    }
+  }
+
+  async function handleDelete() {
+    const ok = await run(() => deleteContentItem(content.id), copy.toastDeleted)
+    if (ok) {
+      setConfirmDelete(false)
       router.refresh()
     }
   }
@@ -148,47 +210,55 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
         }
   ))
 
-  if (transitions.length > 0) {
-    menuItems.push({ separator: true })
+  if (content.status === 'published') {
     menuItems.push({
-      label: copy.archive,
-      onSelect: () => setConfirmArchive(true),
+      label: content.isFeatured ? copy.featured : copy.feature,
+      onSelect: () => (content.isFeatured ? setUnfeatureOpen(true) : setFeatureOpen(true)),
+      disabled: loading,
+    })
+  }
+
+  if (content.isArchived) {
+    menuItems.push({ label: copy.restore, onSelect: handleRestore, disabled: loading })
+  } else if (transitions.length > 0) {
+    menuItems.push({ label: copy.archive, onSelect: () => setConfirmArchive(true), disabled: loading })
+  }
+
+  if (content.type === 'listing') {
+    menuItems.push({
+      label: copy.openInListings,
+      onSelect: () => router.push(localePath(locale, '/admin/listings')),
+      disabled: loading,
+    })
+  }
+
+  const livePath = contentLivePath(content)
+  if (livePath && content.status === 'published') {
+    menuItems.push({
+      label: copy.viewLive,
+      onSelect: () => router.push(localePath(locale, livePath)),
+      disabled: loading,
+    })
+  }
+
+  if (canDelete) {
+    if (menuItems.length > 0) menuItems.push({ separator: true })
+    menuItems.push({
+      label: copy.delete,
+      onSelect: () => setConfirmDelete(true),
       tone: 'danger',
       disabled: loading,
     })
   }
 
-  return (
-    <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
-      {content.status !== 'published' && !content.isFeatured ? (
-        <span
-          className="inline-flex shrink-0 items-center rounded-md border border-dashed border-border px-2.5 py-1 text-xs font-medium text-muted-foreground"
-          title={copy.featureNeedsPublished}
-        >
-          {copy.feature}
-        </span>
-      ) : (
-      <button
-        type="button"
-        onClick={() => (content.isFeatured ? setUnfeatureOpen(true) : setFeatureOpen(true))}
-        disabled={loading}
-        className={`inline-flex shrink-0 items-center rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-          content.isFeatured
-            ? 'bg-amber-100 border-amber-200 text-amber-800'
-            : 'border-border text-muted-foreground hover:text-foreground'
-        }`}
-        title={content.isFeatured ? copy.featuredTitle : copy.featureTitle}
-      >
-        {content.isFeatured ? copy.featured : copy.feature}
-      </button>
-      )}
+  if (menuItems.length === 0) return null
 
-      {menuItems.length > 0 && (
-        <ActionMenu
-          trigger={<ActionMenuTrigger label={copy.actions} />}
-          items={menuItems}
-        />
-      )}
+  return (
+    <>
+      <ActionMenu
+        trigger={<ActionMenuTrigger label={copy.actions} />}
+        items={menuItems}
+      />
 
       <ConfirmDialog
         open={featureOpen}
@@ -275,6 +345,21 @@ export function ContentActions({ content, copy, common }: { content: ContentRow;
         loading={loading}
         onConfirm={handleArchive}
       />
-    </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={copy.deleteConfirmTitle.replace(
+          '{title}',
+          content.title ?? content.slug ?? content.id.slice(0, 8),
+        )}
+        description={copy.deleteConfirmBody}
+        confirmLabel={copy.delete}
+        cancelLabel={common.cancel}
+        loading={loading}
+        tone="danger"
+        onConfirm={handleDelete}
+      />
+    </>
   )
 }
