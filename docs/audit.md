@@ -1,4 +1,4 @@
-﻿Where the project actually stands
+Where the project actually stands
 Eagle Eye Africa is far past "prototype". Typecheck is clean, 231 tests pass (28 files), 58 migrations are gated,
 CSP/HSTS/COOP headers ship, RLS plus capability guards plus audited Server Functions form a real
 defense-in-depth chain, and the EN/FR parity test makes i18n drift a CI failure. Almost every item in

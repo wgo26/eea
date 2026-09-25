@@ -1,4 +1,4 @@
-﻿import type { en } from './en'
+import type { en } from './en'
 import { appStringsFr } from './fr-app'
 import { chromeFr } from './chrome-fr'
 

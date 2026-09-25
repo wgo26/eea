@@ -58,6 +58,19 @@ const SECTION_TYPES: Record<TemplateSection, string[]> = {
   culture: ['culture'],
 }
 
+/** Content type the compiled DRAFT itself gets. */
+export const DRAFT_TYPE: Record<TemplateSection, string> = {
+  news: 'news',
+  photo: 'photo_story',
+  notice: 'notice',
+  listing: 'listing',
+  culture: 'culture',
+}
+
+export function allowedTypesFor(config: TemplateConfig): string[] {
+  return config.sourceType ? [config.sourceType] : SECTION_TYPES[config.section]
+}
+
 const SECTION_SEGMENT: Record<TemplateSection, string> = {
   news: 'news',
   photo: 'photo-stories',
@@ -99,7 +112,7 @@ export function selectTemplateSources(
   config: TemplateConfig,
   items: TemplateSourceItem[],
 ): TemplateSourceItem[] {
-  const allowedTypes = config.sourceType ? [config.sourceType] : SECTION_TYPES[config.section]
+  const allowedTypes = allowedTypesFor(config)
   const cutoff = config.windowDays * 86_400_000
   const now = Date.now()
   return items
@@ -145,8 +158,15 @@ export function buildTemplateIntro(
   return `${intro} ${windowLabel}`
 }
 
+const READ_LABEL: Record<'en' | 'fr', string> = {
+  en: 'Read the full story',
+  fr: 'Lire l’article complet',
+}
+
 /**
- * One recap section per source item (photo items get their image block).
+ * One recap section per source item. Text items (and the tail of photo
+ * items) are cta blocks so the story link stays clickable through the
+ * sanitizer — block bodies escape HTML, so a raw <a> would render as text.
  * No intro block: prose above is the editor's/`buildTemplateIntro`'s and
  * survives the append-only merge untouched.
  */
@@ -154,20 +174,42 @@ export function buildTemplateBlocks(
   config: TemplateConfig,
   items: TemplateSourceItem[],
   locale: 'en' | 'fr',
+  siteUrl: string,
 ): StoryBlock[] {
   const segment = SECTION_SEGMENT[config.section]
   const blocks: StoryBlock[] = []
   for (const item of items) {
     const tx = pickLocale(item.translations, locale)
     if (!tx) continue
-    const link = `/${segment}/${item.slug}`
+    const link = `${siteUrl.replace(/\/$/, '')}/${locale}/${segment}/${item.slug}`
+    if (item.imageUrl) {
+      blocks.push(
+        createStoryBlock({
+          type: 'image',
+          heading: tx.title.slice(0, 120),
+          body: tx.excerpt ?? '',
+          imageUrl: item.imageUrl,
+          imageAlt: item.imageAlt ?? tx.title,
+          isSummary: true,
+        }),
+      )
+      blocks.push(
+        createStoryBlock({
+          type: 'cta',
+          ctaText: `${READ_LABEL[locale]}: ${tx.title.slice(0, 80)}`,
+          ctaLink: link,
+          isSummary: true,
+        }),
+      )
+      continue
+    }
     blocks.push(
       createStoryBlock({
-        type: item.imageUrl ? 'image' : 'text',
+        type: 'cta',
         heading: tx.title.slice(0, 120),
-        body: [tx.excerpt, link].filter(Boolean).join('\n'),
-        imageUrl: item.imageUrl ?? '',
-        imageAlt: item.imageAlt ?? tx.title,
+        body: tx.excerpt ?? '',
+        ctaText: READ_LABEL[locale],
+        ctaLink: link,
         isSummary: true,
       }),
     )

@@ -22,6 +22,10 @@ export type BriefStory = {
     path: string;
     /** Pidgin/Camfranglais share line (optional). */
     shareText?: string | null;
+    /** Taxonomy snapshot from the digest slot — carried for personalized
+     *  follow-brief filtering, ignored by the renderer. */
+    locationId?: string | null;
+    categoryId?: string | null;
 };
 
 export type BriefSections = {

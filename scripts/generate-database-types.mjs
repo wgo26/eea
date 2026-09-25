@@ -130,12 +130,45 @@ function parseDdlEnums() {
     return enums;
 }
 
-/** Split a comma list at top level (respects nested parens). */
+/** Split a comma list at top level. A mini-scanner tracks line comments
+ * (`--` … newline, stripped) and single-quoted strings (only outside
+ * comments), so neither a prose apostrophe in a comment nor a
+ * `default '{}'::jsonb` literal can split the list at the wrong comma. */
 function splitTopLevel(list) {
     const parts = [];
     let depth = 0;
+    let quote = false;
+    let lineComment = false;
     let current = "";
-    for (const ch of list) {
+    for (let i = 0; i < list.length; i++) {
+        const ch = list[i];
+        if (lineComment) {
+            if (ch === "\n") lineComment = false;
+            continue;
+        }
+        if (quote) {
+            current += ch;
+            if (ch === "'") {
+                // SQL escapes a quote by doubling it — '' stays inside the literal.
+                if (list[i + 1] === "'") {
+                    current += "'";
+                    i++;
+                } else {
+                    quote = false;
+                }
+            }
+            continue;
+        }
+        if (ch === "-" && list[i + 1] === "-") {
+            lineComment = true;
+            i++;
+            continue;
+        }
+        if (ch === "'") {
+            quote = true;
+            current += ch;
+            continue;
+        }
         if (ch === "(") depth++;
         if (ch === ")") depth--;
         if (ch === "," && depth === 0) {

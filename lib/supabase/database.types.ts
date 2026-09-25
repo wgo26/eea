@@ -546,10 +546,10 @@ export type Database = {
             category: string;
             title: string;
             body: string | null;
+            link_path: string | null;
             is_read: boolean;
             created_at: string;
             expires_at: string | null;
-            link_path: string | null;
             };
             Insert: {
             id?: string;
@@ -558,10 +558,10 @@ export type Database = {
             category: string;
             title: string;
             body?: string | null;
+            link_path?: string | null;
             is_read?: boolean;
             created_at?: string;
             expires_at?: string | null;
-            link_path?: string | null;
             };
             Update: {
             id?: string | null;
@@ -570,10 +570,10 @@ export type Database = {
             category?: string | null;
             title?: string | null;
             body?: string | null;
+            link_path?: string | null;
             is_read?: boolean | null;
             created_at?: string | null;
             expires_at?: string | null;
-            link_path?: string | null;
             };
             Relationships: [
                 {
@@ -597,25 +597,25 @@ export type Database = {
             id: string;
             user_id: string;
             role: string;
+            widgets: Json;
             created_at: string;
             updated_at: string;
-            widgets: Json;
             };
             Insert: {
             id?: string;
             user_id: string;
             role: string;
+            widgets?: Json;
             created_at?: string;
             updated_at?: string;
-            widgets?: Json;
             };
             Update: {
             id?: string | null;
             user_id?: string | null;
             role?: string | null;
+            widgets?: Json | null;
             created_at?: string | null;
             updated_at?: string | null;
-            widgets?: Json | null;
             };
             Relationships: [
                 {
@@ -870,18 +870,21 @@ export type Database = {
             id: string;
             asset_id: string;
             theme_id: string;
+            role: string;
             created_at: string;
             };
             Insert: {
             id?: string;
             asset_id: string;
             theme_id: string;
+            role?: string;
             created_at?: string;
             };
             Update: {
             id?: string | null;
             asset_id?: string | null;
             theme_id?: string | null;
+            role?: string | null;
             created_at?: string | null;
             };
             Relationships: [
@@ -1392,6 +1395,8 @@ export type Database = {
             import_source: string | null;
             import_source_id: string | null;
             legacy_path: string | null;
+            template_id: string | null;
+            template_ledger: Json;
             };
             Insert: {
             id?: string;
@@ -1416,6 +1421,8 @@ export type Database = {
             import_source?: string | null;
             import_source_id?: string | null;
             legacy_path?: string | null;
+            template_id?: string | null;
+            template_ledger?: Json;
             };
             Update: {
             id?: string | null;
@@ -1440,6 +1447,8 @@ export type Database = {
             import_source?: string | null;
             import_source_id?: string | null;
             legacy_path?: string | null;
+            template_id?: string | null;
+            template_ledger?: Json | null;
             };
             Relationships: [
                 {
@@ -1569,6 +1578,71 @@ export type Database = {
                     columns: ["tag_id"],
                     isOneToOne: false,
                     referencedRelation: "tags",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        content_templates: {
+            Row: {
+            id: string;
+            name: string;
+            name_fr: string | null;
+            slug_base: string;
+            section: string;
+            source_type: string | null;
+            source_filters: Json;
+            window_days: number;
+            cadence: string;
+            living: boolean;
+            is_active: boolean;
+            last_compiled_at: string | null;
+            last_added_count: number | null;
+            created_by: string | null;
+            created_at: string;
+            updated_at: string;
+            };
+            Insert: {
+            id?: string;
+            name: string;
+            name_fr?: string | null;
+            slug_base: string;
+            section: string;
+            source_type?: string | null;
+            source_filters?: Json;
+            window_days?: number;
+            cadence?: string;
+            living?: boolean;
+            is_active?: boolean;
+            last_compiled_at?: string | null;
+            last_added_count?: number | null;
+            created_by?: string | null;
+            created_at?: string;
+            updated_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            name?: string | null;
+            name_fr?: string | null;
+            slug_base?: string | null;
+            section?: string | null;
+            source_type?: string | null;
+            source_filters?: Json | null;
+            window_days?: number | null;
+            cadence?: string | null;
+            living?: boolean | null;
+            is_active?: boolean | null;
+            last_compiled_at?: string | null;
+            last_added_count?: number | null;
+            created_by?: string | null;
+            created_at?: string | null;
+            updated_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_content_templates_created_by_fkey",
+                    columns: ["created_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
                     referencedColumns: ["id"],
                 },
             ];
@@ -1983,6 +2057,7 @@ export type Database = {
             content_item_id: string;
             item_type: string;
             section: string;
+            path: string;
             title: string;
             share_text: string | null;
             rank_hint: number;
@@ -1990,6 +2065,8 @@ export type Database = {
             removed: boolean;
             sent_at: string | null;
             created_at: string;
+            location_id: string | null;
+            category_id: string | null;
             };
             Insert: {
             id?: string;
@@ -1998,6 +2075,7 @@ export type Database = {
             content_item_id: string;
             item_type: string;
             section: string;
+            path: string;
             title: string;
             share_text?: string | null;
             rank_hint?: number;
@@ -2005,6 +2083,8 @@ export type Database = {
             removed?: boolean;
             sent_at?: string | null;
             created_at?: string;
+            location_id?: string | null;
+            category_id?: string | null;
             };
             Update: {
             id?: string | null;
@@ -2013,6 +2093,7 @@ export type Database = {
             content_item_id?: string | null;
             item_type?: string | null;
             section?: string | null;
+            path?: string | null;
             title?: string | null;
             share_text?: string | null;
             rank_hint?: number | null;
@@ -2020,6 +2101,8 @@ export type Database = {
             removed?: boolean | null;
             sent_at?: string | null;
             created_at?: string | null;
+            location_id?: string | null;
+            category_id?: string | null;
             };
             Relationships: [
                 {
@@ -2027,6 +2110,20 @@ export type Database = {
                     columns: ["content_item_id"],
                     isOneToOne: false,
                     referencedRelation: "content_items",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_digest_slots_location_id_fkey",
+                    columns: ["location_id"],
+                    isOneToOne: false,
+                    referencedRelation: "locations",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_digest_slots_category_id_fkey",
+                    columns: ["category_id"],
+                    isOneToOne: false,
+                    referencedRelation: "categories",
                     referencedColumns: ["id"],
                 },
             ];

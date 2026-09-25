@@ -82,10 +82,56 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
--- 2. Living-recap compiled-id ledger (B2)
+-- 2. Freeze RPC carries the taxonomy ids (personal-brief filter input)
+-- ---------------------------------------------------------------------------
+create or replace function public.digest_freeze(p_issue_date date)
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+    select coalesce(
+        jsonb_object_agg(x.locale, x.stories),
+        '{}'::jsonb
+    )
+    from (
+        select s.locale,
+               jsonb_agg(
+                   jsonb_build_object(
+                       'title', s.title,
+                       'type', s.item_type,
+                       'path', s.path,
+                       'shareText', s.share_text,
+                       'locationId', s.location_id,
+                       'categoryId', s.category_id
+                   )
+                   order by s.pinned desc, s.rank_hint desc, s.created_at asc
+               ) as stories
+          from public.digest_slots s
+         where s.issue_date <= p_issue_date
+           and s.sent_at is null
+           and s.removed = false
+         group by s.locale
+    ) x;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 3. Living-recap compiled-id ledger (B2)
 -- ---------------------------------------------------------------------------
 alter table public.content_items
     add column if not exists template_ledger jsonb not null default '[]'::jsonb;
 
 comment on column public.content_items.template_ledger is
   'Source content ids already compiled into a living recap draft (lib/content/templates-run.ts append-only guard). Empty for every non-draft row.';
+
+-- ---------------------------------------------------------------------------
+-- 3. Backfill taxonomy ids on existing open slots (written before this file)
+-- ---------------------------------------------------------------------------
+update public.digest_slots s
+   set location_id = c.location_id,
+       category_id = c.category_id
+  from public.content_items c
+ where c.id = s.content_item_id
+   and s.location_id is null
+   and s.category_id is null
+   and (c.location_id is not null or c.category_id is not null);

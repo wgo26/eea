@@ -1,4 +1,4 @@
-﻿import { appStringsEn } from './en-app'
+import { appStringsEn } from './en-app'
 import { chromeEn } from './chrome-en'
 
 export const en = {
@@ -1253,6 +1253,7 @@ valuesTitle: 'What we stand for',
     archiveDescription: 'Browse previous daily digests and their top stories.',
     archiveEmpty: 'No digests published yet — check back tomorrow.',
     archiveStories: '{count} stories',
+    weeklyBadge: 'This week',
     viewArchive: 'Browse past digests',
     intro:
       'One short email or WhatsApp message with the day’s verified stories. Opt in with either contact — unsubscribe any time, no marketing list.',

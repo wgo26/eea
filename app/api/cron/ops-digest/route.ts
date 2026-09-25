@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
 import { requireCronSecret } from '@/lib/security/cron-auth'
-import { sendEmail, sendWhatsAppProactive } from '@/lib/notify/channels'
-import { SITE } from '@/lib/constants'
+import { compileTemplatesForCadence } from '@/lib/content/templates-run'
+import { deliverDigest, sendPersonalBriefs, type DigestDelivery } from '@/lib/digest/deliver'
+import { parseDigestFreeze, hasFrozenStories, type FrozenDigest } from '@/lib/digest/freeze'
+import type { BriefStory } from '@/lib/digest/brief'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +26,11 @@ export const dynamic = 'force-dynamic'
  * Auth: CRON_SECRET bearer — same fail-closed pattern as db-maintenance
  * (missing secret = 500 in production, wrong secret = 401). No-op (200) when
  * DIGEST_WEBHOOK_URL is unset so the schedule is harmless until configured.
+ *
+ * Public duties beyond the webhook: deliver the daily subscriber digest
+ * (accumulated digest_slots), compile daily-cadence recap templates into
+ * drafts (Stream B), and send personalized follow briefs (A6). All
+ * best-effort after the webhook.
  */
 
 const count = async (fn: (db: ReturnType<typeof createAdminClient>) => Promise<number>): Promise<number> => {
@@ -33,8 +40,6 @@ const count = async (fn: (db: ReturnType<typeof createAdminClient>) => Promise<n
     return -1
   }
 }
-
-type DigestStory = { title: string; path: string };
 
 const BRIEF_SEGMENT: Record<string, string> = {
   news: 'news',
@@ -60,29 +65,24 @@ const BRIEF_SEGMENT: Record<string, string> = {
  * editor) ranked pinned → featured → oldest, per locale. legacyBriefStories
  * below is the pre-A fallback for when the slots migration is not applied
  * yet (rpc error), so deploys stay green either way.
+ *
+ * After delivery: daily-cadence recap templates are compiled (Stream B) and
+ * personalized follow briefs go out (A6) — both best-effort, neither can
+ * fail the nightly job.
  */
-async function frozenBriefStories(): Promise<Record<'en' | 'fr', import('@/lib/digest/brief').BriefStory[]> | null> {
+async function frozenBriefStories(): Promise<import('@/lib/digest/freeze').FrozenDigest | null> {
   try {
     const db = createAdminClient();
     const issueDate = new Date().toISOString().slice(0, 10);
     const { data, error } = await db.rpc('digest_freeze', { p_issue_date: issueDate });
     if (error) throw new Error(error.message);
-    const map = (data ?? {}) as Record<string, { title: string; type: string; path: string; shareText: string | null }[]>;
-    if (!Array.isArray(map.en) && !Array.isArray(map.fr)) return null;
-    const toStories = (rows: { title: string; type: string; path: string; shareText: string | null }[] | undefined) =>
-      (rows ?? []).map((r) => ({
-        title: String(r.title ?? '').slice(0, 120),
-        type: String(r.type ?? 'news'),
-        path: String(r.path ?? '/news'),
-        shareText: r.shareText ?? null,
-      }));
-    return { en: toStories(map.en), fr: toStories(map.fr) };
+    return parseDigestFreeze(data);
   } catch {
     return null;
   }
 }
 
-async function legacyBriefStories(): Promise<import('@/lib/digest/brief').BriefStory[]> {
+async function legacyBriefStories(): Promise<BriefStory[]> {
   try {
     const db = createAdminClient();
     const { data } = await db
@@ -129,129 +129,46 @@ async function markSlotsSent(): Promise<void> {
 }
 
 /** Send the day's stories to active digest_subscribers (email + WhatsApp). */
-async function deliverPublicDigest(correlationId: string): Promise<{ emailed: number; whatsapped: number; skipped: number }> {
-  const out = { emailed: 0, whatsapped: 0, skipped: 0 };
+async function deliverPublicDigest(correlationId: string): Promise<DigestDelivery & { personal?: { sent: number; considered: number } }> {
   try {
-    const db = createAdminClient();
-    const { data, error } = await db
-      .from('digest_subscribers')
-      .select('email, phone, whatsapp, locale, diaspora_mode')
-      .eq('is_active', true)
-      .limit(500);
-    if (error) {
-      logger.error('cron/ops-digest', 'subscriber fetch failed', { correlationId, error: error.message });
-      return out;
-    }
-    const subs = (data ?? []) as { email: string | null; phone: string | null; whatsapp: string | null; locale: string | null; diaspora_mode: boolean | null }[];
-    if (subs.length === 0) return out;
-
-    const { groupBriefStories } = await import('@/lib/digest/brief');
     const frozen = await frozenBriefStories();
-    if (frozen && (frozen.en.length > 0 || frozen.fr.length > 0)) {
-      // Stream A path: per-locale snapshots; an empty locale borrows the
-      // other one's list (same cross-locale fallback the legacy path had).
-      const sectionsFor = (locale: 'en' | 'fr') =>
-        groupBriefStories(
-          frozen[locale].length > 0
-            ? frozen[locale]
-            : (locale === 'en' ? frozen.fr : frozen.en),
-        );
-      const storiesOf = (locale: 'en' | 'fr') => {
-        const s = sectionsFor(locale);
-        return [...s.visual, ...s.community, ...s.notices, ...s.listings, ...s.culture].map(
-          (story) => ({ title: story.title, path: story.path }),
-        );
-      };
-      await fanOut(subs, (fr) => ({ sectionsFor: sectionsFor(fr ? 'fr' : 'en'), stories: storiesOf(fr ? 'fr' : 'en') }), correlationId, out, db);
-      await markSlotsSent();
-      return out;
+    let storiesByLocale: FrozenDigest
+    let fromSlots = false
+    if (frozen && hasFrozenStories(frozen)) {
+      storiesByLocale = frozen
+      fromSlots = true
+    } else {
+      const briefStories = await legacyBriefStories()
+      storiesByLocale = { en: briefStories }
     }
-
-    const briefStories = await legacyBriefStories();
-    if (briefStories.length === 0) {
-      out.skipped = subs.length;
-      return out;
+    const today = new Date().toISOString().slice(0, 10)
+    const delivery = await deliverDigest({
+      storiesByLocale,
+      dateLabel: today,
+      sentOn: today,
+      cadence: 'daily',
+      subject: {
+        en: 'Eagle Eye Africa — daily digest',
+        fr: 'Eagle Eye Africa — résumé du jour',
+      },
+    })
+    // Only stamp slots when delivery actually went out — an all-failed run
+    // leaves the day's accumulation open for tonight's retry.
+    if (fromSlots && delivery.emailed + delivery.whatsapped > 0) {
+      await markSlotsSent()
     }
-    const sections = groupBriefStories(briefStories);
-    const stories: DigestStory[] = [...sections.visual, ...sections.community, ...sections.notices, ...sections.listings, ...sections.culture].map(
-      (s) => ({ title: s.title, path: s.path }),
-    );
-    await fanOut(subs, () => ({ sectionsFor: sections, stories }), correlationId, out, db);
+    let personal: { sent: number; considered: number } | undefined
+    if (fromSlots) {
+      // A6 — account holders with content follows get a filtered variant.
+      personal = await sendPersonalBriefs(storiesByLocale, today)
+    }
+    return { ...delivery, personal }
   } catch (err) {
     logger.error('cron/ops-digest', 'public fan-out exception', {
       correlationId,
       error: err instanceof Error ? err.message : String(err),
-    });
-  }
-  return out;
-}
-
-type FanoutDb = ReturnType<typeof createAdminClient>;
-
-async function fanOut(
-  subs: { email: string | null; phone: string | null; whatsapp: string | null; locale: string | null; diaspora_mode: boolean | null }[],
-  forLocale: (fr: boolean) => { sectionsFor: import('@/lib/digest/brief').BriefSections; stories: DigestStory[] },
-  correlationId: string,
-  out: { emailed: number; whatsapped: number; skipped: number },
-  db: FanoutDb,
-): Promise<void> {
-  const { buildDailyBrief } = await import('@/lib/digest/brief');
-  const dateLabel = new Date().toISOString().slice(0, 10);
-  const perLocale: Record<string, { emailed: number; whatsapped: number }> = {};
-  for (const s of subs) {
-    const fr = /^fr/i.test(s.locale ?? '');
-    const { sectionsFor } = forLocale(fr);
-    // W18 — diaspora framing: same stories, "home, today" heading for
-    // readers following home from abroad. Timezone-aware send times are a
-    // recorded follow-up (the cron fires once nightly for everyone).
-    const { title, body } = buildDailyBrief(sectionsFor, {
-      locale: fr ? 'fr' : 'en',
-      dateLabel,
-      siteUrl: SITE.url,
-      digestPath: fr ? '/fr/digest' : '/en/digest',
-      framing: s.diaspora_mode ? 'diaspora' : 'standard',
-    });
-    const url = `${SITE.url}/${fr ? 'fr' : 'en'}/digest`;
-    const bucket = perLocale[fr ? 'fr' : 'en'] ?? { emailed: 0, whatsapped: 0 };
-    perLocale[fr ? 'fr' : 'en'] = bucket;
-    if (s.email && /^\S+@\S+\.\S+$/.test(s.email)) {
-      const res = await sendEmail(s.email, title, title, body, url);
-      if (res.delivered) {
-        out.emailed += 1;
-        bucket.emailed += 1;
-      } else out.skipped += 1;
-    }
-    const phone = s.whatsapp ?? s.phone;
-    if (phone) {
-      // Digest recipients are never in the 24h window: template first when
-      // WHATSAPP_TEMPLATE is configured (per-subscriber locale), else
-      // best-effort free text.
-      const res = await sendWhatsAppProactive(phone, `${title}\n${body}`, s.locale);
-      if (res.delivered) {
-        out.whatsapped += 1;
-        bucket.whatsapped += 1;
-      }
-    }
-  }
-  // Archive one issue per served locale for the public /digest/archive page.
-  const today = new Date().toISOString().slice(0, 10);
-  for (const [issueLocale, counts] of Object.entries(perLocale)) {
-    if (counts.emailed + counts.whatsapped === 0) continue;
-    const { stories } = forLocale(issueLocale === 'fr');
-    const { error: archiveError } = await db.from('digest_issues').upsert(
-      {
-        sent_on: today,
-        locale: issueLocale,
-        cadence: 'daily',
-        subject:
-          issueLocale === 'fr' ? 'Eagle Eye Africa — résumé du jour' : 'Eagle Eye Africa — daily digest',
-        stories,
-        emailed: counts.emailed,
-        whatsapped: counts.whatsapped,
-      },
-      { onConflict: 'sent_on,locale' },
-    );
-    if (archiveError) logger.error('cron/ops-digest', 'archive insert failed', { error: archiveError.message, correlationId });
+    })
+    return { emailed: 0, whatsapped: 0, skipped: 0 }
   }
 }
 
@@ -266,8 +183,9 @@ async function runDigest(request: Request) {
     // Ops webhook unset — still deliver the public subscriber digest so the
     // user-facing loop never depends on staff webhook config.
     const fanout = await deliverPublicDigest(correlationId);
-    logger.info('cron/ops-digest', 'DIGEST_WEBHOOK_URL unset — ops skipped, public fan-out ran', { correlationId, fanout })
-    return NextResponse.json({ ok: true, skipped: true, reason: 'DIGEST_WEBHOOK_URL not configured', fanout })
+    const templates = await compileTemplatesForCadence('daily');
+    logger.info('cron/ops-digest', 'DIGEST_WEBHOOK_URL unset — ops skipped, public fan-out ran', { correlationId, fanout, templates })
+    return NextResponse.json({ ok: true, skipped: true, reason: 'DIGEST_WEBHOOK_URL not configured', fanout, templates })
   }
 
   const moderationPending = await count(async (db) => {
@@ -385,13 +303,18 @@ async function runDigest(request: Request) {
   // failure never fails the ops webhook above.
   const fanout = await deliverPublicDigest(correlationId)
 
+  // Stream B: compile daily-cadence recap templates into drafts. Also
+  // best-effort — template errors are reported in the response, never thrown.
+  const templates = await compileTemplatesForCadence('daily')
+
   logger.info('cron/ops-digest', 'digest delivered', {
     correlationId,
     durationMs: Date.now() - startedAt,
     counts,
     fanout,
+    templates,
   })
-  return NextResponse.json({ ok: true, correlationId, counts, fanout })
+  return NextResponse.json({ ok: true, correlationId, counts, fanout, templates })
 }
 
 export async function POST(request: Request) {

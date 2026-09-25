@@ -30,7 +30,7 @@ export default async function DigestArchivePage({ params }: { params: Promise<{ 
 
   const locale = resolveLocale(rawLocale);
   const dict = getDictionary(locale);
-  const issues = await getDigestArchive(locale);
+  const issues = await getDigestArchive(locale, 60, "all");
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8 md:px-6 lg:px-8">
@@ -59,6 +59,11 @@ export default async function DigestArchivePage({ params }: { params: Promise<{ 
                 <h2 className="flex items-center gap-2 text-sm font-bold">
                   <Mail className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
                   {issue.subject}
+                  {issue.cadence === "weekly" ? (
+                    <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                      {dict.digest.weeklyBadge}
+                    </span>
+                  ) : null}
                 </h2>
                 <time dateTime={issue.sentOn} className="text-xs text-muted-foreground">
                   {formatDate(issue.sentOn, locale)}

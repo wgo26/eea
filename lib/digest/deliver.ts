@@ -159,6 +159,78 @@ const WEEKDAY_LABELS: Record<'en' | 'fr', string> = {
   fr: 'Eagle Eye Africa — résumé hebdomadaire',
 }
 
+/* ------------------------------------------------------------------ */
+/* Personalized follow briefs (A6)                                    */
+/* ------------------------------------------------------------------ */
+
+type FollowRow = { user_id: string; content_type: string; category_id: string | null; location_id: string | null }
+type ProfileRow = { id: string; email: string | null; phone: string | null; preferred_locale: string }
+
+/** Does one frozen story match one follow row (type / location / category)? */
+export function matchesFollow(story: BriefStory, follow: FollowRow): boolean {
+  if (follow.location_id) return story.locationId === follow.location_id
+  if (follow.category_id) return story.categoryId === follow.category_id
+  return story.type === follow.content_type || (follow.content_type === 'news' && story.type === 'micro_story')
+}
+
+/**
+ * Personal daily briefs for account holders with content follows: same
+ * frozen slot pool as the site-wide digest, filtered to what they follow.
+ * Email-only (profile email), min two matches — a one-story personal brief
+ * is noise the site-wide send already covers. Never archived (personal
+ * variants belong to the recipient, not the public /digest/archive page).
+ */
+export async function sendPersonalBriefs(
+  storiesByLocale: Partial<Record<'en' | 'fr', BriefStory[]>>,
+  dateLabel: string,
+): Promise<{ sent: number; considered: number }> {
+  const result = { sent: 0, considered: 0 }
+  try {
+    const db = createAdminClient()
+    const { data: follows } = await db
+      .from('content_follows')
+      .select('user_id, content_type, category_id, location_id')
+      .limit(5000)
+    const rows = (follows ?? []) as FollowRow[]
+    if (rows.length === 0) return result
+    const userIds = [...new Set(rows.map((f) => f.user_id))].slice(0, 200)
+    const { data: profiles } = await db
+      .from('profiles')
+      .select('id, email, phone, preferred_locale')
+      .in('id', userIds)
+    const profileById = new Map(((profiles ?? []) as ProfileRow[]).map((p) => [p.id, p]))
+    const followsByUser = new Map<string, FollowRow[]>()
+    for (const f of rows) {
+      const list = followsByUser.get(f.user_id) ?? []
+      list.push(f)
+      followsByUser.set(f.user_id, list)
+    }
+    for (const userId of userIds) {
+      const profile = profileById.get(userId)
+      if (!profile?.email || !/^\S+@\S+\.\S+$/.test(profile.email)) continue
+      const userFollows = followsByUser.get(userId) ?? []
+      if (userFollows.length === 0) continue
+      result.considered += 1
+      const fr = /^fr/i.test(profile.preferred_locale ?? '')
+      const pool = (fr ? storiesByLocale.fr : storiesByLocale.en) ?? storiesByLocale.en ?? []
+      const personal = pool.filter((story) => userFollows.some((f) => matchesFollow(story, f)))
+      if (personal.length < 2) continue
+      const { title, body } = buildDailyBrief(groupBriefStories(personal), {
+        locale: fr ? 'fr' : 'en',
+        dateLabel,
+        siteUrl: SITE.url,
+        digestPath: fr ? '/fr/digest' : '/en/digest',
+        framing: 'standard',
+      })
+      const res = await sendEmail(profile.email, title, title, body, `${SITE.url}/${fr ? 'fr' : 'en'}/digest`)
+      if (res.delivered) result.sent += 1
+    }
+  } catch (e) {
+    logger.error('digest/personal', 'personal briefs failed', { error: e instanceof Error ? e.message : String(e) })
+  }
+  return result
+}
+
 /**
  * Weekly recap (A5): aggregate the last `windowDays` of published items into
  * one issue sent Mondays. Reads published content directly (slots roll on),

@@ -1,0 +1,42 @@
+﻿
+> eea@0.1.0 build
+> next build
+
+Γû▓ Next.js 16.3.4 (Turbopack)
+- Environments: .env
+node.exe : [@sentry/nextjs] DEPRECATION WARNING: disableLogger is 
+deprecated and will be removed in a future version. Use 
+webpack.treeshake.removeDebugLogging instead. (Not supported with 
+Turbopack.)
+At C:\Program Files\nodejs\npm.ps1:29 char:3
++   & $NODE_EXE $NPM_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([@sentry/nextjs...ith  
+   Turbopack.):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[@sentry/nextjs] DEPRECATION WARNING: automaticVercelMonitors is 
+deprecated and will be removed in a future version. Use 
+webpack.automaticVercelMonitors instead. (Not supported with 
+Turbopack.)
+Γ£ô Running next.config.ts took 15.0s
+- Experiments (use with caution):
+  ┬╖ clientTraceMetadata
+
+  Creating an optimized production build ...
+[@sentry/nextjs] DEPRECATION WARNING: disableLogger is deprecated 
+and will be removed in a future version. Use 
+webpack.treeshake.removeDebugLogging instead. (Not supported with 
+Turbopack.)
+[@sentry/nextjs] DEPRECATION WARNING: automaticVercelMonitors is 
+deprecated and will be removed in a future version. Use 
+webpack.automaticVercelMonitors instead. (Not supported with 
+Turbopack.)
+Γ£ô Compiled successfully in 2.3min
+  Running next.config.js provided runAfterProductionCompile ...
+Γ£ô Finished writing to filesystem cache in 16.7s
+Γ£ô Completed runAfterProductionCompile in 31.5s
+  Running TypeScript ...
+lib/i18n/en-app.ts(3082,1): error TS1128: Declaration or statement expected.
+Failed to type check.
+

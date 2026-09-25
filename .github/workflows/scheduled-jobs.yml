@@ -5,10 +5,11 @@
 # secrets: CRON_SECRET (Bearer token). Optional repo variable: PRODUCTION_URL
 # (defaults to the production domain below).
 #
-# All SEVEN cron endpoints are covered here (the vercel.json entries never fire
+# All EIGHT cron endpoints are covered here (the vercel.json entries never fire
 # off Vercel):
 #   storage-backup 02:00 · db-maintenance 02:30 · db-dump 02:45
 #   ops-digest 06:00 · notify */15 · reminders hourly · state-schedules 00:00
+#   weekly-digest Mon 07:00
 # plus an hourly WATCHDOG that fails (→ GitHub failure email) when no run of
 # this workflow has succeeded in the last 3 hours — that is the missed-run
 # alert for the */15 notify worker.
@@ -29,6 +30,7 @@ on:
     - cron: "*/15 * * * *"  # every 15 min — notification outbox worker
     - cron: "0 * * * *"   # hourly — event reminders
     - cron: "0 0 * * *"   # 00:00 UTC — contextual state schedules
+    - cron: "0 7 * * 1"   # Mondays 07:00 UTC — weekly recap digest
     - cron: "10 * * * *"  # hourly (offset) — scheduler watchdog
   workflow_dispatch:
     inputs:
@@ -45,6 +47,7 @@ on:
           - notify
           - reminders
           - state-schedules
+          - weekly-digest
           - watchdog
           - both
 
@@ -184,6 +187,27 @@ jobs:
           cat /tmp/out.txt
           # Activates/deactivates scheduled states (e.g. Back to School 1–30 Sep).
           # 200 with {transitions:[...]} — a no-op run is still a success.
+          test "$code" = "200"
+
+  # Stream A (A5): the weekly recap. Aggregates the last 7 days into one
+  # digest_issues row per locale (cadence='weekly') and compiles weekly-cadence
+  # recap templates into drafts. Runs after ops-digest on Mondays.
+  weekly-digest:
+    name: Weekly recap digest (Mondays)
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '0 7 * * 1')
+      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'weekly-digest' || inputs.job == 'both'))
+    steps:
+      - name: Call weekly-digest endpoint
+        run: |
+          set -euo pipefail
+          url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/weekly-digest"
+          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "$url")
+          echo "HTTP $code from $url"
+          cat /tmp/out.txt
           test "$code" = "200"
 
   # Missed-run alert. Every 15 minutes the notify worker should succeed, so a
