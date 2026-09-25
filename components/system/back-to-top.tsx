@@ -29,7 +29,7 @@ export function BackToTop({ label }: { label: string }) {
             title={label}
             tabIndex={visible ? 0 : -1}
             className={cn(
-                "fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur transition-all hover:bg-accent hover:text-accent-foreground no-print",
+                "fixed right-6 bottom-[max(1.5rem,env(safe-area-inset-bottom))] z-40 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur transition-all hover:bg-accent hover:text-accent-foreground no-print",
                 visible
                     ? "translate-y-0 opacity-100"
                     : "pointer-events-none translate-y-4 opacity-0",

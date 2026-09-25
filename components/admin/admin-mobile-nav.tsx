@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ArrowLeft, ChevronRight, Eye, Menu } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Menu } from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -11,6 +11,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
+import { SiteMark } from '@/components/site-mark'
 import type { AdminNavGroup } from './nav-items'
 import {
   ADMIN_NAV_ACTIVE_BAR_CLASS,
@@ -37,10 +38,12 @@ export function AdminMobileNav({
   groups,
   backToSiteHref,
   labels,
+  logoUrl = null,
 }: {
   groups: AdminNavGroup[]
   backToSiteHref: string
   labels: { menu: string; backToSite: string; brand: string; consoleLabel: string }
+  logoUrl?: string | null
 }) {
   const [open, setOpen] = useState(false)
   const { collapsed, toggleDomain } = useCollapsedDomains()
@@ -67,9 +70,13 @@ export function AdminMobileNav({
         {/* Brand lockup. `pr-14` reserves the sheet's own close button, so the
             wordmark can never slide underneath it. */}
         <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-sidebar-border px-3 pr-14">
-          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Eye className="h-5 w-5" aria-hidden />
-          </span>
+          <SiteMark
+            logoUrl={logoUrl}
+            alt={labels.brand}
+            badgeClassName="h-9 w-9 rounded-xl"
+            iconClassName="h-5 w-5"
+            imgClassName="h-9 w-auto max-w-14 rounded-lg object-contain"
+          />
           <span className="flex min-w-0 flex-col">
             <span className="truncate text-sm font-semibold leading-5">{labels.brand}</span>
             <span className="truncate text-xs leading-4 text-muted-foreground">{labels.consoleLabel}</span>

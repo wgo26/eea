@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireCronSecret } from '@/lib/security/cron-auth'
+import { stampHeartbeat } from '@/lib/automation/heartbeat'
 import { generateCorrelationId, logger } from '@/lib/observability/logger'
 import { sendWeeklyDigest } from '@/lib/digest/deliver'
 import { compileTemplatesForCadence } from '@/lib/content/templates-run'
@@ -51,7 +52,7 @@ async function run(request: Request) {
 }
 
 export async function POST(request: Request) {
-  return run(request)
+  return stampHeartbeat('weekly-digest', run(request))
 }
 
 export async function GET(request: Request) {

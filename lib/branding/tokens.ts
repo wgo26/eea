@@ -16,11 +16,16 @@ export interface ColorTokens {
   foreground: string
   card: string
   cardForeground: string
+  popover: string
+  popoverForeground: string
   muted: string
   mutedForeground: string
   accent: string
   accentForeground: string
+  secondary: string
+  secondaryForeground: string
   border: string
+  input: string
   ring: string
   link: string
   destructive: string
@@ -34,14 +39,56 @@ export const COLOR_VARIABLES: Record<keyof ColorTokens, string> = {
   foreground: '--foreground',
   card: '--card',
   cardForeground: '--card-foreground',
+  popover: '--popover',
+  popoverForeground: '--popover-foreground',
   muted: '--muted',
   mutedForeground: '--muted-foreground',
   accent: '--accent',
   accentForeground: '--accent-foreground',
+  secondary: '--secondary',
+  secondaryForeground: '--secondary-foreground',
   border: '--border',
+  input: '--input',
   ring: '--ring',
   link: '--link',
   destructive: '--destructive',
+}
+
+/**
+ * The colour variables app/globals.css declares that the token engine does NOT
+ * yet own. Each is deferred for a reason, and `tokens.test.ts` asserts this map
+ * plus COLOR_VARIABLES covers every colour var in the stylesheet — so the day
+ * one of these gains a consumer, the test names it instead of the site quietly
+ * rendering half-rebranded.
+ *
+ *   - chart-1..5   — `components/admin/viz.tsx` paints with the Tailwind
+ *                    palette (`bg-emerald-500/85`), not these vars; nothing in
+ *                    app/ or components/ reads them. A future charting surface
+ *                    should claim them here.
+ *   - sidebar-*    — `components/ui/sidebar.tsx` is the sole consumer of the
+ *                    sidebar ramp and has zero importers today; the admin shell
+ *                    uses its own `AppShell`/`AdminSidebar` styling. Wiring these
+ *                    is a decision to adopt the shadcn sidebar, not a branding
+ *                    gap.
+ *
+ * Unlike the mapped tokens, a deferred var is NOT theme-overridable: it keeps
+ * whatever globals.css ships, so a rebrand cannot leave it stranded on the old
+ * palette by accident — it simply is not part of the brand vocabulary yet.
+ */
+export const DEFERRED_COLOR_VARIABLES: Record<string, string> = {
+  chart1: '--chart-1',
+  chart2: '--chart-2',
+  chart3: '--chart-3',
+  chart4: '--chart-4',
+  chart5: '--chart-5',
+  sidebar: '--sidebar',
+  sidebarForeground: '--sidebar-foreground',
+  sidebarPrimary: '--sidebar-primary',
+  sidebarPrimaryForeground: '--sidebar-primary-foreground',
+  sidebarAccent: '--sidebar-accent',
+  sidebarAccentForeground: '--sidebar-accent-foreground',
+  sidebarBorder: '--sidebar-border',
+  sidebarRing: '--sidebar-ring',
 }
 
 const COLOR_KEYS = Object.keys(COLOR_VARIABLES) as (keyof ColorTokens)[]
@@ -151,11 +198,16 @@ export const DEFAULT_BRAND_THEME: BrandTheme = {
     foreground: 'oklch(0.145 0 0)',
     card: 'oklch(1 0 0)',
     cardForeground: 'oklch(0.145 0 0)',
+    popover: 'oklch(1 0 0)',
+    popoverForeground: 'oklch(0.145 0 0)',
     muted: 'oklch(0.97 0 0)',
     mutedForeground: 'oklch(0.556 0 0)',
     accent: 'oklch(0.97 0 0)',
     accentForeground: 'oklch(0.205 0 0)',
+    secondary: 'oklch(0.97 0 0)',
+    secondaryForeground: 'oklch(0.205 0 0)',
     border: 'oklch(0.922 0 0)',
+    input: 'oklch(0.922 0 0)',
     ring: 'oklch(0.75 0.14 85)',
     link: 'oklch(0.555 0.163 48.998)',
     destructive: 'oklch(0.577 0.245 27.325)',
@@ -196,11 +248,16 @@ export const DARK_RAMP_COLORS: ColorTokens = {
   foreground: 'oklch(0.975 0.008 75)',
   card: 'oklch(0.225 0.022 75)',
   cardForeground: 'oklch(0.975 0.008 75)',
+  popover: 'oklch(0.225 0.022 75)',
+  popoverForeground: 'oklch(0.975 0.008 75)',
   muted: 'oklch(0.285 0.02 75)',
   mutedForeground: 'oklch(0.74 0.02 75)',
   accent: 'oklch(0.285 0.02 75)',
   accentForeground: 'oklch(0.975 0.008 75)',
+  secondary: 'oklch(0.285 0.02 75)',
+  secondaryForeground: 'oklch(0.975 0.008 75)',
   border: 'oklch(1 0 0 / 10%)',
+  input: 'oklch(1 0 0 / 15%)',
   ring: 'oklch(0.8 0.16 85)',
   link: 'oklch(0.86 0.19 87)',
   destructive: 'oklch(0.704 0.191 22.216)',
@@ -278,11 +335,16 @@ export function parseBrandTheme(value: unknown, fallback: BrandTheme = DEFAULT_B
       foreground: color('foreground'),
       card: color('card'),
       cardForeground: color('cardForeground'),
+      popover: color('popover'),
+      popoverForeground: color('popoverForeground'),
       muted: color('muted'),
       mutedForeground: color('mutedForeground'),
       accent: color('accent'),
       accentForeground: color('accentForeground'),
+      secondary: color('secondary'),
+      secondaryForeground: color('secondaryForeground'),
       border: color('border'),
+      input: color('input'),
       ring: color('ring'),
       link: color('link'),
       destructive: color('destructive'),
@@ -487,9 +549,44 @@ export function themeToDarkCssVariables(theme: BrandTheme): Record<string, strin
   return vars
 }
 
+/**
+ * A CSS declaration value must never be able to terminate its own declaration
+ * or block. Brand tokens are authored by admins and stored as jsonb, and
+ * `updateThemeDraft` saves a draft whether or not it validates (only publish
+ * gates), so an injected `<style>` block cannot trust the string it was handed.
+ * CSP is not a backstop here: style-src carries 'unsafe-inline' on purpose
+ * (a nonce would opt every public page out of ISR — see lib/security/csp.ts).
+ *
+ * The allowlist covers everything the design system actually ships — oklch()
+ * with alpha, hex, rgb(), comma-separated shadow stacks, cubic-bezier() and
+ * bare lengths — and refuses `;`, braces, angle brackets, quotes, backslashes
+ * and `@`, any of which is needed to break out of `property: value`.
+ */
+const SAFE_CSS_VALUE_RE = /^[a-zA-Z0-9 ,.()%/#+-]*$/
+const MAX_CSS_VALUE_LENGTH = 512
+/**
+ * Refused explicitly rather than incidentally. The charset above lets `url(`
+ * through on its own characters, and a token consumed as an image could reach
+ * an arbitrary host — img-src is allowlisted precisely to stop image-beacon
+ * exfiltration (see lib/security/csp.ts), so the brand filter must not become
+ * the way back in. No shipped token is a url().
+ */
+const CSS_URL_RE = /url\s*\(/i
+
+export function isSafeCssValue(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.length > MAX_CSS_VALUE_LENGTH) return false
+  if (CSS_URL_RE.test(trimmed)) return false
+  return SAFE_CSS_VALUE_RE.test(trimmed)
+}
+
 /** Custom properties as a CSS rule, for `<style>` injection ahead of paint. */
 export function cssBlock(selector: string, variables: Record<string, string>): string {
+  // A declaration with no braces or semicolons cannot escape its block, so the
+  // unsafe ones are dropped rather than rewritten: the property simply keeps the
+  // value app/globals.css ships for it, which is a stale brand, not a broken page.
   const declarations = Object.entries(variables)
+    .filter(([, value]) => isSafeCssValue(value))
     .map(([property, value]) => `  ${property}: ${value};`)
     .join('\n')
   return `${selector} {\n${declarations}\n}`

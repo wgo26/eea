@@ -267,6 +267,22 @@ export async function compileTemplate(templateId: string): Promise<CompileResult
     }
     await db.from('content_templates').update({ last_compiled_at: new Date().toISOString(), last_added_count: windowItems.length }).eq('id', templateId)
     logger.info('content/templates', 'recap draft created', { templateId, draftId: created.id, items: windowItems.length })
+
+    // B5 — approval-to-suggestion hook (Stream A + B): a new recap draft means
+    // editors should review it for the digest. Enqueuing a digest.ready_for_review
+    // staff alert so the templates page and the digest page both surface it.
+    // Best-effort: a failed courtesy copy never fails the compile.
+    try {
+      const { enqueueStaff } = await import('@/lib/notify/queue')
+      await enqueueStaff(
+        'digest.ready_for_review',
+        { template: row.name, count: String(windowItems.length) },
+        '/admin/templates',
+      )
+    } catch {
+      /* swallow — the compile already succeeded */
+    }
+
     return { ok: true, draftId: created.id, added: windowItems.length }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Compile failed' }
@@ -276,7 +292,39 @@ export async function compileTemplate(templateId: string): Promise<CompileResult
 /** Compile every active template whose cadence matches. Best-effort per template. */
 export async function compileTemplatesForCadence(cadence: 'daily' | 'weekly'): Promise<{ compiled: number; drafted: number; errors: string[] }> {
   const db = createAdminClient()
-  const { data, error } = await db.from('content_templates').select('id').eq('is_active', true).eq('cadence', cadence)
+  const { data, error } = await db.from('content_templates').select('id').eq('is_active', true).eq('cadence', cadence).is('state_id', null)
+  if (error || !data) return { compiled: 0, drafted: 0, errors: [error?.message ?? 'template fetch failed'] }
+  let compiled = 0
+  let drafted = 0
+  const errors: string[] = []
+  for (const t of data as { id: string }[]) {
+    const res = await compileTemplate(t.id)
+    if (!res.ok) {
+      errors.push(`${t.id}: ${res.error}`)
+      continue
+    }
+    compiled += 1
+    if (res.added && res.added > 0) drafted += 1
+  }
+  return { compiled, drafted, errors }
+}
+
+/**
+ * Compile templates for a specific state_id and cadence.
+ * Used by the state-schedules cron when a state activates/deactivates.
+ * Templates with state_id=NULL are global and handled by compileTemplatesForCadence.
+ */
+export async function compileTemplatesForState(
+  stateId: string,
+  cadence: 'daily' | 'weekly',
+): Promise<{ compiled: number; drafted: number; errors: string[] }> {
+  const db = createAdminClient()
+  const { data, error } = await db
+    .from('content_templates')
+    .select('id')
+    .eq('is_active', true)
+    .eq('cadence', cadence)
+    .eq('state_id', stateId)
   if (error || !data) return { compiled: 0, drafted: 0, errors: [error?.message ?? 'template fetch failed'] }
   let compiled = 0
   let drafted = 0

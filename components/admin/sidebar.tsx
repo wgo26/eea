@@ -3,10 +3,11 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect } from 'react'
-import { ArrowLeft, ChevronRight, Eye, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { ArrowLeft, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getDictionary, type Locale } from '@/lib/i18n'
 import { useLocaleFromPath } from '@/components/site-header'
+import { SiteMark } from '@/components/site-mark'
 import type { AppRole } from '@/lib/auth/types'
 import type { AdminRole } from '@/lib/auth/admin-roles'
 import { Kbd } from '@/components/ui/kbd'
@@ -149,11 +150,13 @@ export function AdminSidebar({
   roles,
   adminRoles = [],
   unreadNotifications = 0,
+  logoUrl = null,
 }: {
   pendingCount?: number
   roles: AppRole[]
   adminRoles?: AdminRole[]
   unreadNotifications?: number
+  logoUrl?: string | null
 }) {
   const pathname = usePathname() ?? ''
   const locale: Locale = useLocaleFromPath()
@@ -204,11 +207,17 @@ export function AdminSidebar({
                 <Link
                   href={adminHomeHref(locale)}
                   aria-label={t.consoleLabel}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               }
             >
-              <Eye className="h-5 w-5" aria-hidden />
+              <SiteMark
+                logoUrl={logoUrl}
+                alt={t.brand}
+                badgeClassName="h-9 w-9 rounded-xl"
+                iconClassName="h-5 w-5"
+                imgClassName="h-9 w-auto max-w-12 rounded-lg object-contain"
+              />
             </TooltipTrigger>
             <TooltipContent side="right">{t.consoleLabel}</TooltipContent>
           </Tooltip>
@@ -279,9 +288,13 @@ export function AdminSidebar({
           href={adminHomeHref(locale)}
           className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Eye className="h-5 w-5" aria-hidden />
-          </span>
+          <SiteMark
+            logoUrl={logoUrl}
+            alt={t.brand}
+            badgeClassName="h-9 w-9 rounded-xl"
+            iconClassName="h-5 w-5"
+            imgClassName="h-9 w-auto max-w-14 rounded-lg object-contain"
+          />
           <span className="flex min-w-0 flex-col">
             <span className="truncate text-sm font-semibold leading-5">{t.brand}</span>
             <span className="truncate text-xs leading-4 text-muted-foreground">{t.consoleLabel}</span>

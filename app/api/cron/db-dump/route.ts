@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger, generateCorrelationId } from "@/lib/observability/logger";
 import { requireCronSecret } from "@/lib/security/cron-auth";
+import { stampHeartbeat } from '@/lib/automation/heartbeat'
 import { storageConfig } from "@/lib/storage/config";
 import { uploadToB2 } from "@/lib/storage/providers/b2";
 import { createHash } from "node:crypto";
@@ -160,7 +161,7 @@ async function runDbDump(request: Request) {
 }
 
 export async function POST(request: Request) {
-  return runDbDump(request);
+  return stampHeartbeat('db-dump', runDbDump(request));
 }
 
 export async function GET(request: Request) {

@@ -20,6 +20,8 @@ export type DigestSlotRow = {
   rankHint: number
   pinned: boolean
   removed: boolean
+  /** True when the story came from a community submission (B5 visibility). */
+  fromSubmission: boolean
   createdAt: string
 }
 
@@ -35,7 +37,7 @@ export async function getOpenDigestSlots(): Promise<{ slots: DigestSlotRow[]; co
   const { data, error } = await safe(
     db()
       .from('digest_slots')
-      .select('id, issue_date, locale, content_item_id, item_type, section, path, title, share_text, rank_hint, pinned, removed, created_at')
+      .select('id, issue_date, locale, content_item_id, item_type, section, path, title, share_text, rank_hint, pinned, removed, created_at, content_items(submitted_by)')
       .is('sent_at', null)
       .gte('issue_date', since)
       .order('issue_date', { ascending: false })
@@ -57,6 +59,9 @@ export async function getOpenDigestSlots(): Promise<{ slots: DigestSlotRow[]; co
     rankHint: (row.rank_hint as number) ?? 0,
     pinned: Boolean(row.pinned),
     removed: Boolean(row.removed),
+    fromSubmission:
+      !!row.content_items && typeof row.content_items === 'object' &&
+      (row.content_items as { submitted_by?: string | null }).submitted_by != null,
     createdAt: row.created_at as string,
   }))
   const counts = {

@@ -195,6 +195,8 @@ export const THEME_CONTRAST_PAIRS: ContrastPair[] = [
   { foreground: 'foreground', background: 'background', required: 4.5, level: 'error', usage: 'Body text' },
   { foreground: 'foreground', background: 'card', required: 4.5, level: 'error', usage: 'Text on cards' },
   { foreground: 'cardForeground', background: 'card', required: 4.5, level: 'error', usage: 'Card body text' },
+  { foreground: 'popoverForeground', background: 'popover', required: 4.5, level: 'error', usage: 'Text in menus and popovers' },
+  { foreground: 'secondaryForeground', background: 'secondary', required: 4.5, level: 'error', usage: 'Secondary button label' },
   { foreground: 'mutedForeground', background: 'background', required: 4.5, level: 'error', usage: 'Secondary text' },
   { foreground: 'primaryForeground', background: 'primary', required: 4.5, level: 'error', usage: 'Primary button label' },
   { foreground: 'accentForeground', background: 'accent', required: 4.5, level: 'error', usage: 'Accent surfaces' },
@@ -202,6 +204,7 @@ export const THEME_CONTRAST_PAIRS: ContrastPair[] = [
   { foreground: 'destructive', background: 'background', required: 4.5, level: 'error', usage: 'Destructive actions' },
   { foreground: 'destructive', background: 'card', required: 4.5, level: 'error', usage: 'Destructive actions on cards' },
   { foreground: 'border', background: 'background', required: 3, level: 'warning', usage: 'Borders / dividers' },
+  { foreground: 'input', background: 'background', required: 3, level: 'warning', usage: 'Field outlines' },
   { foreground: 'ring', background: 'background', required: 3, level: 'warning', usage: 'Focus ring' },
   { foreground: 'mutedForeground', background: 'muted', required: 4.5, level: 'warning', usage: 'Secondary text on muted surfaces' },
 ]

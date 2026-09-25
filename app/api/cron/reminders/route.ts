@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
 import { requireCronSecret } from '@/lib/security/cron-auth'
+import { stampHeartbeat } from '@/lib/automation/heartbeat'
 import { processDueReminders } from '@/lib/reminders/worker'
 
 export const dynamic = 'force-dynamic'
@@ -35,7 +36,7 @@ async function runReminders(request: Request) {
 }
 
 export async function GET(request: Request) {
-  return runReminders(request)
+  return stampHeartbeat('reminders', runReminders(request))
 }
 
 export async function POST(request: Request) {

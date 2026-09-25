@@ -443,6 +443,14 @@ export async function archiveTheme(themeId: string): Promise<ActionResult> {
       resourceId: themeId,
     })
     revalidateAdminTheme(themeId)
+    // Defense in depth, not a live bug: `archiveThemeRow` refuses to archive the
+    // live row, so the active theme cannot change here and the brand cache is
+    // already correct. Invalidating anyway keeps the public paint from depending
+    // on a guard two layers down — if that guard is ever relaxed (archive the
+    // live theme, fall back to the baseline), the site repaints on the next
+    // request instead of serving a stale brand for the length of the cache
+    // window. Idempotent and cheap; a publish already pairs these two calls.
+    revalidateBrandCache()
     return { ok: true }
   } catch (e) {
     return fail(e)

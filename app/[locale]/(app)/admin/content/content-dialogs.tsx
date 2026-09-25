@@ -63,6 +63,15 @@ export function ContentCreateDialog({
   const [maximized, setMaximized] = useState(false)
   const [tab, setTab] = useState<'editor' | 'preview'>('editor')
 
+  // Same deep-link mirror as ContentEditTrigger: picking "New content" in the
+  // ⌘K palette while already on /admin/content pushes `?create=new`, which
+  // re-renders with autoOpen=true. Without this the URL changes and nothing
+  // opens. The header button still opens it manually (autoOpen stays false,
+  // so this effect does not fight it).
+  useEffect(() => {
+    setOpen(autoOpen)
+  }, [autoOpen])
+
   function handleOpenChange(next: boolean) {
     setOpen(next)
     if (!next) setTab('editor')
@@ -155,6 +164,7 @@ export function ContentEditTrigger({
   autoOpen?: boolean
 }) {
   const { addToast } = useToast()
+  const router = useRouter()
   const localeFromPath = useLocaleFromPath()
   const [open, setOpen] = useState(autoOpen)
   const [maximized, setMaximized] = useState(false)
@@ -164,6 +174,29 @@ export function ContentEditTrigger({
   > | null>(null)
   const [fetching, setFetching] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
+
+  // Deep-link sync. The row title is a `?edit=<id>` Link and this trigger has
+  // no button of its own, so the URL param is the only thing that can open it.
+  // useState(autoOpen) seeds the FIRST value only: clicking a row moved the URL
+  // and re-rendered with autoOpen=true, but nothing ever touched `open`, so the
+  // UI appeared dead. Mirror the param in both directions — open on arrival,
+  // close when the URL moves away (back/forward included).
+  useEffect(() => {
+    setOpen(autoOpen)
+  }, [autoOpen])
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next)
+    if (!next) setTab('editor')
+    // Strip `?edit=` so autoOpen returns to false. Without this the mirror
+    // above would snap the dialog straight back open, and the row could never
+    // be edited again after closing. Only this row's own deep link is removed.
+    if (!next && autoOpen) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('edit')
+      router.replace(`${url.pathname}${url.search}`)
+    }
+  }
 
   // Data fetch on dialog open — mirrors moderation review pattern.
   // Reloads on every open so switching rows (or reopening after an edit)
@@ -202,9 +235,9 @@ export function ContentEditTrigger({
       .then((loaded) => {
         if (cancelled) return
         if (!loaded) {
-          const message = copy.editLoadMissing ?? 'Content not found — it may have been deleted.'
-          setFetchError(message)
-          addToast(message, 'error')
+          // The dialog's own retry panel carries this message. Toasting it as
+          // well stacks a second copy of the same failure in the corner.
+          setFetchError(copy.editLoadMissing ?? 'Content not found — it may have been deleted.')
         } else {
           setData(loaded)
         }
@@ -228,13 +261,7 @@ export function ContentEditTrigger({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (!next) setTab('editor')
-      }}
-    >
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         maximized={maximized}
         showCloseButton={false}
@@ -294,7 +321,7 @@ export function ContentEditTrigger({
               <button type="button" onClick={handleRetry} className={ui.btnPrimary}>
                 {copy.editRetry ?? 'Retry'}
               </button>
-              <button type="button" onClick={() => setOpen(false)} className={ui.btnSecondary}>
+              <button type="button" onClick={() => handleOpenChange(false)} className={ui.btnSecondary}>
                 {common.cancel}
               </button>
             </div>
@@ -310,7 +337,7 @@ export function ContentEditTrigger({
             categoriesByType={categoriesByType}
             data={data}
             tab={tab}
-            onDone={() => setOpen(false)}
+            onDone={() => handleOpenChange(false)}
           >
             <ContentHistory contentItemId={data.id} copy={copy} />
           </ContentForm>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
 import { requireCronSecret } from '@/lib/security/cron-auth'
+import { stampHeartbeat } from '@/lib/automation/heartbeat'
 
 export const dynamic = 'force-dynamic'
 
@@ -104,7 +105,7 @@ async function runMaintenance(request: Request) {
 }
 
 export async function POST(request: Request) {
-  return runMaintenance(request)
+  return stampHeartbeat('db-maintenance', runMaintenance(request))
 }
 
 // Vercel Cron invokes scheduled jobs with GET — same auth semantics as POST

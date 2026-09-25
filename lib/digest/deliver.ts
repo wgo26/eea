@@ -154,7 +154,7 @@ export async function deliverDigest(options: DigestDeliverOptions): Promise<Dige
   return out
 }
 
-const WEEKDAY_LABELS: Record<'en' | 'fr', string> = {
+const WEEKLY_SUBJECT: Record<'en' | 'fr', string> = {
   en: 'Eagle Eye Africa — weekly recap',
   fr: 'Eagle Eye Africa — résumé hebdomadaire',
 }
@@ -292,7 +292,7 @@ export async function sendWeeklyDigest(windowDays = 7): Promise<DigestDelivery &
     dateLabel: `week of ${label}`,
     sentOn: today,
     cadence: 'weekly',
-    subject: WEEKDAY_LABELS,
+    subject: WEEKLY_SUBJECT,
   })
   return { ...result, stories: byLocale.en.length + byLocale.fr.length }
 }

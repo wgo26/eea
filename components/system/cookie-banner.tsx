@@ -72,7 +72,7 @@ export function CookieBanner({ locale, dict }: { locale: Locale; dict: Dictionar
             role="dialog"
             aria-live="polite"
             aria-label={dict.footer.privacy}
-            className="no-print fixed inset-x-3 bottom-3 z-50 mx-auto max-w-2xl rounded-2xl border bg-card p-4 shadow-lg md:p-5"
+            className="no-print fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 mx-auto max-w-2xl rounded-2xl border bg-card p-4 shadow-lg md:p-5"
         >
             <p className="text-sm leading-relaxed text-muted-foreground">{dict.about.cookie.body}</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">

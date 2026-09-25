@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Eye, Mail } from "lucide-react";
+import { Mail } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { SmartImage } from "@/components/media/smart-image";
+import { SiteMark } from "@/components/site-mark";
+import { resolveSiteIconUrl } from "@/lib/site-icon";
 import type { ChromeStrings } from "@/lib/i18n/chrome";
 import { localeHref, useLocaleFromPath } from "@/components/site-header";
 
@@ -22,21 +23,6 @@ function safeSocialHref(value: string | null): string | null {
     }
 }
 
-/** Only an absolute http(s) logo or site-relative path renders. */
-function safeLogoSrc(value: string | null): string | null {
-    if (!value) return null;
-    if (value.startsWith("/")) {
-        if (value.includes("..") || /[\s<>"]/.test(value)) return null;
-        return value;
-    }
-    try {
-        const url = new URL(value);
-        return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
-    } catch {
-        return null;
-    }
-}
-
 /**
  * A2: strings arrive via the `chrome` prop from the server shell — this
  * component must not import getDictionary (see
@@ -47,7 +33,7 @@ export function SiteFooter({ socialLinks, branding, chrome }: { socialLinks?: So
     const dict = chrome;
     const facebookHref = safeSocialHref(socialLinks?.facebook ?? null);
     const youtubeHref = safeSocialHref(socialLinks?.youtube ?? null);
-    const logoSrc = safeLogoSrc(branding?.logoUrl ?? null);
+    const logoSrc = resolveSiteIconUrl(branding?.logoUrl ?? null);
     const siteName =
       locale === 'fr'
         ? branding?.siteNameFr?.trim() || branding?.siteName?.trim() || "Eagle Eye Africa"
@@ -82,21 +68,16 @@ export function SiteFooter({ socialLinks, branding, chrome }: { socialLinks?: So
                 <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
                     <div>
                         <p className="flex items-center gap-2 text-lg font-extrabold tracking-tight">
-                            {logoSrc ? (
-                                <SmartImage
-                                    src={logoSrc}
-                                    alt={siteName}
-                                    fill={false}
-                                    width={128}
-                                    height={32}
-                                    className="h-8 w-auto max-w-32 rounded object-contain"
-                                />
-                            ) : (
-                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                                    <Eye className="h-4 w-4" aria-hidden />
-                                </span>
-                            )}
-                            {dict.footer.aboutTitle}
+                            <SiteMark
+                                logoUrl={branding?.logoUrl ?? null}
+                                alt={siteName}
+                                badgeClassName="h-8 w-8 rounded-lg"
+                                iconClassName="h-4 w-4"
+                                imgClassName="h-8 w-auto max-w-32 rounded object-contain"
+                            />
+                            <span className={logoSrc ? "hidden text-lg sm:inline" : undefined}>
+                                {dict.footer.aboutTitle}
+                            </span>
                         </p>
                         <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
                             {dict.footer.aboutText}

@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
 import { requireCronSecret } from '@/lib/security/cron-auth'
+import { stampHeartbeat } from '@/lib/automation/heartbeat'
 import { compileTemplatesForCadence } from '@/lib/content/templates-run'
+import { buildTomorrowQueue, runAutoOpsSweep } from '@/lib/automation/ops-sweep'
 import { deliverDigest, sendPersonalBriefs, type DigestDelivery } from '@/lib/digest/deliver'
 import { parseDigestFreeze, hasFrozenStories, type FrozenDigest } from '@/lib/digest/freeze'
 import type { BriefStory } from '@/lib/digest/brief'
@@ -184,8 +186,9 @@ async function runDigest(request: Request) {
     // user-facing loop never depends on staff webhook config.
     const fanout = await deliverPublicDigest(correlationId);
     const templates = await compileTemplatesForCadence('daily');
-    logger.info('cron/ops-digest', 'DIGEST_WEBHOOK_URL unset — ops skipped, public fan-out ran', { correlationId, fanout, templates })
-    return NextResponse.json({ ok: true, skipped: true, reason: 'DIGEST_WEBHOOK_URL not configured', fanout, templates })
+    const ops = await runAutoOpsSweep();
+    logger.info('cron/ops-digest', 'DIGEST_WEBHOOK_URL unset — ops skipped, public fan-out ran', { correlationId, fanout, templates, ops })
+    return NextResponse.json({ ok: true, skipped: true, reason: 'DIGEST_WEBHOOK_URL not configured', fanout, templates, ops })
   }
 
   const moderationPending = await count(async (db) => {
@@ -245,6 +248,10 @@ async function runDigest(request: Request) {
   })
   const abuseHits24h = abuseRaw < 0 ? null : abuseRaw
 
+  // D5 — "tomorrow's queue" so staff plan once from this message instead of
+  // polling four admin pages through the day. Best-effort like every stat.
+  const tomorrow = await buildTomorrowQueue().catch(() => null)
+
   const payload = JSON.stringify({
     content: `**Eagle Eye Africa — ops digest** (${new Date().toISOString()})`,
     embeds: [
@@ -258,6 +265,14 @@ async function runDigest(request: Request) {
           { name: 'Pending verification', value: String(storagePendingVerification), inline: true },
           { name: 'Staff', value: String(staffCount), inline: true },
           { name: 'Abuse hits 24h', value: abuseHits24h == null ? 'n/a' : String(abuseHits24h), inline: true },
+          ...(tomorrow
+            ? [
+                { name: 'Due to publish', value: String(tomorrow.dueScheduled), inline: true },
+                { name: 'Idle drafts 7d+', value: String(tomorrow.idleDrafts), inline: true },
+                { name: 'Expiring ≤14d', value: String(tomorrow.expiring), inline: true },
+                { name: 'Translation queue', value: String(tomorrow.translationGaps), inline: true },
+              ]
+            : []),
         ],
       },
     ],
@@ -307,20 +322,28 @@ async function runDigest(request: Request) {
   // best-effort — template errors are reported in the response, never thrown.
   const templates = await compileTemplatesForCadence('daily')
 
+  // Stream E: the nightly auto-ops sweep (pitch winner, stale slots, feature
+  // ladder, translation gaps, poll/fundraiser/contributor loops, expiry
+  // batch, stuck-scheduled detector). Every routine is independently guarded
+  // so one failure cannot break the digest or the others.
+  const ops = await runAutoOpsSweep()
+
   logger.info('cron/ops-digest', 'digest delivered', {
     correlationId,
     durationMs: Date.now() - startedAt,
     counts,
+    tomorrow,
     fanout,
     templates,
+    ops,
   })
-  return NextResponse.json({ ok: true, correlationId, counts, fanout, templates })
+  return NextResponse.json({ ok: true, correlationId, counts, tomorrow, fanout, templates, ops })
 }
 
 export async function POST(request: Request) {
-  return runDigest(request)
+  return stampHeartbeat('ops-digest', runDigest(request))
 }
 
 export async function GET(request: Request) {
-  return runDigest(request)
+  return stampHeartbeat('ops-digest', runDigest(request))
 }

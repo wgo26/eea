@@ -104,10 +104,57 @@ export async function resolveCorrection(
       actor_id: user.id,
     })
 
+    // D3 — close the correction loop: bring the people who engaged with the
+    // article (saved it) and the reader who reported it back to the fixed
+    // version. Best-effort: the resolution is already durable above.
+    if (status === 'resolved' && correction.content_item_id) {
+      await notifyCorrectionResolved(correction.content_item_id).catch(() => {
+        /* courtesy copies must never fail the resolution */
+      })
+    }
+
     revalidateLocalized('/admin/trust-safety')
     return { ok: true }
   } catch (e) {
     return fail(e)
+  }
+}
+
+const CORRECTION_NOTIFY_CAP = 50
+
+/** D3 — enqueue `correction.resolved` to the reporter + up to 50 savers. */
+async function notifyCorrectionResolved(contentItemId: string): Promise<void> {
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const { enqueueUser } = await import('@/lib/notify/queue')
+  const admin = createAdminClient()
+  const { data: item } = await admin
+    .from('content_items')
+    .select('translations:content_translations(locale, title)')
+    .eq('id', contentItemId)
+    .maybeSingle()
+  const trs = (item as { translations?: { locale: string; title: string }[] } | null)?.translations ?? []
+  const title = (trs.find((t) => t.locale === 'en')?.title ?? trs[0]?.title ?? 'The article').slice(0, 120)
+
+  const recipients = new Set<string>()
+  const { data: savers } = await admin
+    .from('saved_content')
+    .select('user_id')
+    .eq('content_item_id', contentItemId)
+    .limit(CORRECTION_NOTIFY_CAP)
+  for (const row of (savers ?? []) as { user_id: string }[]) recipients.add(row.user_id)
+  // Reactors are anonymous (token-only) and cannot be notified; the reporter
+  // is the other engaged party the loop must close with.
+  const { data: reports } = await admin
+    .from('corrections')
+    .select('reporter_id')
+    .eq('content_item_id', contentItemId)
+    .eq('status', 'resolved')
+    .not('reporter_id', 'is', null)
+    .limit(CORRECTION_NOTIFY_CAP)
+  for (const row of (reports ?? []) as { reporter_id: string }[]) recipients.add(row.reporter_id)
+
+  for (const userId of [...recipients].slice(0, CORRECTION_NOTIFY_CAP)) {
+    await enqueueUser('correction.resolved', userId, { title }, '/')
   }
 }
 

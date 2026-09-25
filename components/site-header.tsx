@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SiteMark } from "@/components/site-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { MobileNav } from "@/components/mobile-nav";
@@ -71,21 +71,6 @@ export type SiteBranding = {
     siteTaglineFr?: string | null
 }
 
-/** Only an absolute http(s) URL or site-relative path renders as a logo. */
-function safeLogoSrc(value: string | null): string | null {
-    if (!value) return null
-    if (value.startsWith('/')) {
-        if (value.includes('..') || /[\s<>"]/.test(value)) return null
-        return value
-    }
-    try {
-        const url = new URL(value)
-        return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null
-    } catch {
-        return null
-    }
-}
-
 /**
  * A2: all user-visible strings arrive via the `chrome` prop from the server
  * shell — this component must not import getDictionary (see
@@ -96,7 +81,6 @@ export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chro
     const dict = chrome;
     const items = useNavItems(chrome.nav);
     const pathname = usePathname() ?? "/";
-    const logoSrc = safeLogoSrc(branding?.logoUrl ?? null);
     const siteName =
       locale === 'fr'
         ? branding?.siteNameFr?.trim() || branding?.siteName?.trim() || SITE_NAME
@@ -114,18 +98,13 @@ export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chro
                     className="flex shrink-0 items-center gap-2"
                     aria-label={siteName}
                 >
-                    {logoSrc ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                            src={logoSrc}
-                            alt={siteName}
-                            className="h-9 w-auto max-w-36 rounded-lg object-contain"
-                        />
-                    ) : (
-                        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                            <Eye className="h-5 w-5" aria-hidden />
-                        </span>
-                    )}
+                    <SiteMark
+                        logoUrl={branding?.logoUrl ?? null}
+                        alt={siteName}
+                        badgeClassName="h-9 w-9 rounded-xl"
+                        iconClassName="h-5 w-5"
+                        imgClassName="h-9 w-auto max-w-36 rounded-lg object-contain"
+                    />
                     <span className="hidden flex-col leading-tight sm:flex">
                         <span className="text-sm font-extrabold tracking-tight">{siteName}</span>
                         <span className="text-xs font-medium text-muted-foreground">
@@ -161,13 +140,15 @@ export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chro
                 <div className="ml-auto flex items-center gap-1.5">
                     <PlaceSelector locale={locale} dict={chrome.locations} />
                     <PlacePrompt locale={locale} dict={chrome.locations} />
-                    <CommandPaletteButton locale={locale} chrome={{ nav: chrome.nav, command: chrome.command }} />
+                    <span className="hidden sm:inline-flex">
+                        <CommandPaletteButton locale={locale} chrome={{ nav: chrome.nav, command: chrome.command }} />
+                    </span>
                     <LanguageSwitcher locale={locale} />
                     <ThemeToggle labels={chrome.theme} />
-                    <ContrastToggle label={dict.theme.contrast} />
+                    <span className="hidden lg:inline-flex"><ContrastToggle label={dict.theme.contrast} /></span>
                     <Button
                         size="sm"
-                        className="hidden md:inline-flex"
+                        className="hidden lg:inline-flex"
                         render={<Link href={localeHref(locale, "/submit")} />}
                     >
                         {dict.nav.submit}

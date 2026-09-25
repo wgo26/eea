@@ -21,8 +21,16 @@ export type NotifyEvent =
   | 'legal.contact'
   | 'legal.data_request'
   | 'content.correction'
+  | 'content.updated'
   | 'listing.update'
-  | 'event.reminder';
+  | 'event.reminder'
+  | 'poll.closed'
+  | 'plan.failed'
+  | 'translation.gap'
+  | 'content.milestone'
+  | 'contributor.milestone'
+  | 'correction.resolved'
+  | 'digest.ready_for_review';
 
 export type NotifyPayload = {
   event: NotifyEvent;
@@ -38,6 +46,52 @@ export type RenderedNotify = { title: string; titleFr: string; body: string; bod
 
 const S = (v: string | number | null | undefined, fallback = '—') =>
   v == null || v === '' ? fallback : String(v);
+
+/**
+ * E8 — turn a moderator's rejection reason into one actionable next step.
+ * Keyword matching (not exact strings) because reasons are free text typed by
+ * humans; the first match wins. Returns null when nothing applies, so the
+ * rejected body stays exactly as written.
+ */
+const REJECTION_TIPS: { match: RegExp; en: string; fr: string }[] = [
+  {
+    match: /photo|image|picture|blurry|quality|visual/i,
+    en: 'You can resubmit with sharper, well-lit photos and a short caption for each.',
+    fr: 'Vous pouvez resoumettre avec des photos plus nettes et bien éclairées, légendées.',
+  },
+  {
+    match: /source|evidence|link|verify|prove/i,
+    en: 'You can resubmit and include links or documents that confirm the facts.',
+    fr: 'Vous pouvez resoumettre en joignant des liens ou documents qui confirment les faits.',
+  },
+  {
+    match: /duplicate|already|exists|repost/i,
+    en: 'This story is already on the site — consider an update with new details instead.',
+    fr: 'Cette histoire est déjà sur le site — proposez plutôt une mise à jour avec de nouveaux détails.',
+  },
+  {
+    match: /off.?topic|not relevant|wrong|category|section/i,
+    en: 'You can resubmit it to the section that fits the story.',
+    fr: 'Vous pouvez la resoumettre dans la rubrique qui correspond au sujet.',
+  },
+  {
+    match: /short|incomplete|detail|context|too little/i,
+    en: 'Add who, where, when and what happened next so editors can publish it as is.',
+    fr: 'Précisez qui, où, quand et la suite des faits pour que la rédaction puisse publier tel quel.',
+  },
+  {
+    match: /language|english|french|translat|grammar/i,
+    en: 'Write in English or French, or ask a friend to help with the wording.',
+    fr: 'Écrivez en anglais ou en français, ou faites-vous aider pour la rédaction.',
+  },
+];
+
+export function rejectionTip(reason: string): { en: string; fr: string } | null {
+  for (const tip of REJECTION_TIPS) {
+    if (tip.match.test(reason)) return { en: tip.en, fr: tip.fr };
+  }
+  return null;
+}
 
 export function renderEvent(payload: NotifyPayload): RenderedNotify {
   const d = payload.data ?? {};
@@ -63,13 +117,16 @@ export function renderEvent(payload: NotifyPayload): RenderedNotify {
         body: `${S(d.title)} is now live on Eagle Eye Africa. Thank you for contributing — share it on WhatsApp!`,
         bodyFr: `${S(d.title)} est maintenant en ligne sur Eagle Eye Africa. Merci pour votre contribution — partagez-la sur WhatsApp !`,
       };
-    case 'submission.rejected':
+    case 'submission.rejected': {
+      // E8 — actionable next step derived from the moderator's free-text reason.
+      const tip = typeof d.reason === 'string' ? rejectionTip(d.reason) : null;
       return {
         title: 'Update on your submission',
         titleFr: 'Nouvelles de votre soumission',
-        body: `${S(d.title)} could not be published${d.reason ? `: ${d.reason}` : '.'} You are welcome to submit again.`,
-        bodyFr: `${S(d.title)} n’a pas pu être publiée${d.reason ? ` : ${d.reason}` : '.'} N’hésitez pas à soumettre à nouveau.`,
+        body: `${S(d.title)} could not be published${d.reason ? `: ${d.reason}` : '.'} You are welcome to submit again.${tip ? `\n\nTip: ${tip.en}` : ''}`,
+        bodyFr: `${S(d.title)} n’a pas pu être publiée${d.reason ? ` : ${d.reason}` : '.'} N’hésitez pas à soumettre à nouveau.${tip ? `\n\nConseil : ${tip.fr}` : ''}`,
       };
+    }
     case 'submission.clarification':
       return {
         title: 'We need a detail on your submission',
@@ -133,11 +190,68 @@ export function renderEvent(payload: NotifyPayload): RenderedNotify {
         body: `${S(d.title)} starts ${S(d.when)}. Don't miss it!`,
         bodyFr: `${S(d.title)} commence ${S(d.when)}. Ne le manquez pas !`,
       };
+    case 'plan.failed':
+      return {
+        title: 'Release plan failed',
+        titleFr: 'Échec d’un plan de publication',
+        body: `The plan ${S(d.name)} failed to compile${d.error ? `: ${d.error}` : '.'} Check the automations panel.`,
+        bodyFr: `Le plan ${S(d.name)} n’a pas pu compiler${d.error ? ` : ${d.error}` : '.'} Vérifiez le panneau d’automatisations.`,
+      };
+    case 'translation.gap':
+      return {
+        title: 'French translation needed',
+        titleFr: 'Traduction française nécessaire',
+        body: `${S(d.count)} published ${Number(d.count) === 1 ? 'story' : 'stories'} lack a French version. Filed in the translation queue.`,
+        bodyFr: `${S(d.count)} histoire(s) publiée(s) manquent de version française. Placées dans la file de traduction.`,
+      };
+    case 'content.milestone':
+      return {
+        title: 'Community milestone',
+        titleFr: 'Palier communautaire',
+        body: `${S(d.title)} reached ${S(d.pct)}% of its goal — worth amplifying today.`,
+        bodyFr: `${S(d.title)} a atteint ${S(d.pct)} % de son objectif — à relayer aujourd’hui.`,
+      };
+    case 'contributor.milestone':
+      return {
+        title: 'A publishing milestone',
+        titleFr: 'Un cap de publication',
+        body: `You have published ${S(d.count)} stories on Eagle Eye Africa. Thank you for keeping the community informed!`,
+        bodyFr: `Vous avez publié ${S(d.count)} histoires sur Eagle Eye Africa. Merci de tenir la communauté informée !`,
+      };
+    case 'correction.resolved':
+      return {
+        title: 'An article you engaged with was updated',
+        titleFr: 'Un article que vous avez suivi a été mis à jour',
+        body: `${S(d.title)} was corrected after a reader report. Read the current version.`,
+        bodyFr: `${S(d.title)} a été corrigé après le signalement d’un lecteur. Lisez la version actuelle.`,
+      };
+    case 'content.updated':
+      return {
+        title: 'An article you engaged with was updated',
+        titleFr: 'Un article que vous avez suivi a été mis à jour',
+        body: `${S(d.title)} was updated${d.reason ? `: ${d.reason}` : '.'} Read the latest version.`,
+        bodyFr: `${S(d.title)} a été mis à jour${d.reason ? ` : ${d.reason}` : '.'} Lisez la version la plus récente.`,
+      };
+    case 'digest.ready_for_review':
+      return {
+        title: 'A recap draft is ready for review',
+        titleFr: 'Un brouillon de récapitulatif est prêt à être relu',
+        body: `${S(d.template)} compiled ${S(d.count, '999')} new item(s) into a draft. Open the templates page to review and publish.`,
+        bodyFr: `${S(d.template)} a compilé ${S(d.count, '999')} nouvel(x) élément(s) dans un brouillon. Ouvrez la page des modèles pour relire et publier.`,
+      };
+    case 'poll.closed':
+      return {
+        title: 'A community poll has closed',
+        titleFr: 'Un sondage communautaire est clos',
+        body: `${S(d.question)} — ${S(d.count, '999')} votes recorded. Review the results in the polls panel.`,
+        bodyFr: `${S(d.question)} — ${S(d.count, '999')} vote(s) enregistré(s). Consultez les résultats dans le panneau des sondages.`,
+      };
   }
 }
 
 /** Staff deep-link defaults per event (admin paths, locale-prefixed at render). */
-export function defaultStaffPath(event: NotifyEvent): string {  switch (event) {
+export function defaultStaffPath(event: NotifyEvent): string {
+  switch (event) {
     case 'submission.received':
       return '/admin/moderation';
     case 'advertise.inquiry':
@@ -148,7 +262,20 @@ export function defaultStaffPath(event: NotifyEvent): string {  switch (event) {
     case 'legal.data_request':
       return '/admin/policies';
     case 'content.correction':
+    case 'correction.resolved':
       return '/admin/trust-safety';
+    case 'plan.failed':
+      return '/admin/automations';
+    case 'digest.ready_for_review':
+      return '/admin/templates';
+    case 'poll.closed':
+      return '/admin/polls';
+    case 'content.updated':
+      return '/admin/trust-safety';
+    case 'translation.gap':
+      return '/admin/translations';
+    case 'content.milestone':
+      return '/admin/fundraisers';
     default:
       return '/admin/dashboard';
   }

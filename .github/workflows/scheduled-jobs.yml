@@ -31,6 +31,7 @@ on:
     - cron: "0 * * * *"   # hourly — event reminders
     - cron: "0 0 * * *"   # 00:00 UTC — contextual state schedules
     - cron: "0 7 * * 1"   # Mondays 07:00 UTC — weekly recap digest
+    - cron: "15,45 * * * *"  # every 30 min (offset) — publish-plan worker
     - cron: "10 * * * *"  # hourly (offset) — scheduler watchdog
   workflow_dispatch:
     inputs:
@@ -48,6 +49,7 @@ on:
           - reminders
           - state-schedules
           - weekly-digest
+          - publish-plans
           - watchdog
           - both
 
@@ -203,6 +205,27 @@ jobs:
         run: |
           set -euo pipefail
           url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/weekly-digest"
+          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "$url")
+          echo "HTTP $code from $url"
+          cat /tmp/out.txt
+          test "$code" = "200"
+
+  # Stream C: the publish-plan worker. Runs due release plans — compiles
+  # recap drafts and, for two-person-approved auto-schedule plans, queues
+  # them for the pg_cron publisher. Offset 15/45 marks from the notify */15.
+  publish-plans:
+    name: Publish-plan worker
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '15,45 * * * *')
+      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'publish-plans' || inputs.job == 'both'))
+    steps:
+      - name: Call publish-plans endpoint
+        run: |
+          set -euo pipefail
+          url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/publish-plans"
           code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             "$url")

@@ -42,18 +42,18 @@ export function MobileNav({
   const [open, setOpen] = useState(false);
   const pathname = usePathname() ?? "/";
   return (
-    <div className="md:hidden">
+    <div className="lg:hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={menuLabel}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
         {open ? <X className="h-5 w-5" aria-hidden /> : <Menu className="h-5 w-5" aria-hidden />}
       </button>
       {open ? (
-        <div className="absolute inset-x-0 top-full border-b bg-background p-4 shadow-lg md:hidden">
+        <div className="absolute inset-x-0 top-full border-b bg-background p-4 shadow-lg lg:hidden">
           <form action={searchAction} className="relative" role="search" aria-label={searchLabel}>
             <Search
               className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"

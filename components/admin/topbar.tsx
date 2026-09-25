@@ -49,6 +49,7 @@ export function AdminTopbar({
   displayName,
   email,
   unreadNotifications = 0,
+  logoUrl = null,
 }: {
   pendingCount: number
   roles: AppRole[]
@@ -56,6 +57,7 @@ export function AdminTopbar({
   displayName: string
   email: string
   unreadNotifications?: number
+  logoUrl?: string | null
 }) {
   const locale = useLocaleFromPath()
   const dict = getDictionary(locale)
@@ -83,6 +85,7 @@ export function AdminTopbar({
         <AdminMobileNav
           groups={groups}
           backToSiteHref={localePath(locale, '/')}
+          logoUrl={logoUrl}
           labels={{
             menu: dict.admin.topbar.menu,
             backToSite: dict.admin.sidebar.backToSite,

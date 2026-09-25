@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
 import { requireCronSecret } from '@/lib/security/cron-auth'
+import { stampHeartbeat } from '@/lib/automation/heartbeat'
 import { processOutbox } from '@/lib/notify/worker'
 
 export const dynamic = 'force-dynamic'
@@ -26,12 +27,27 @@ async function runNotify(request: Request) {
 
   try {
     const summary = await processOutbox()
+    // D2 — criticals nobody read within the window escalate once (see
+    // lib/admin/notification-writes.ts). Runs on the same 15-minute tick so
+    // the acknowledgement loop shares the worker's heartbeat.
+    let escalations = { escalated: 0, acknowledged: 0 }
+    try {
+      const { escalateUnacknowledged } = await import('@/lib/admin/notification-writes')
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      escalations = await escalateUnacknowledged(createAdminClient())
+    } catch (escErr) {
+      logger.error('cron/notify', 'escalation pass failed', {
+        error: escErr instanceof Error ? escErr.message : String(escErr),
+        correlationId,
+      })
+    }
     return NextResponse.json({
       ok: true,
       timestamp: new Date().toISOString(),
       durationMs: Date.now() - startedAt,
       correlationId,
       ...summary,
+      escalations,
     })
   } catch (err) {
     logger.error('cron/notify', 'worker exception', {
@@ -43,7 +59,7 @@ async function runNotify(request: Request) {
 }
 
 export async function GET(request: Request) {
-  return runNotify(request)
+  return stampHeartbeat('notify', runNotify(request))
 }
 
 export async function POST(request: Request) {

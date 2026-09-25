@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Bell, Eye } from 'lucide-react'
+import { Bell } from 'lucide-react'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
 import { useLocaleFromPath } from '@/components/site-header'
+import { SiteMark } from '@/components/site-mark'
 import type { AppRole } from '@/lib/auth/types'
 import { AccountTopbarNav } from './account-topbar-nav'
 import { AccountMobileNav } from './account-mobile-nav'
@@ -33,6 +34,7 @@ export function AccountTopbar({
   avatarUrl,
   publicProfileHref,
   unreadNotifications = 0,
+  logoUrl = null,
 }: {
   displayName: string
   email: string
@@ -41,6 +43,7 @@ export function AccountTopbar({
   avatarUrl?: string | null
   publicProfileHref?: string
   unreadNotifications?: number
+  logoUrl?: string | null
 }) {
   const locale = useLocaleFromPath()
   const dict = getDictionary(locale)
@@ -68,9 +71,13 @@ export function AccountTopbar({
           className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg md:inline-flex"
           aria-label={t.accountHome}
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Eye className="h-4 w-4" aria-hidden />
-          </span>
+          <SiteMark
+            logoUrl={logoUrl}
+            alt={t.portal}
+            badgeClassName="h-8 w-8 rounded-lg"
+            iconClassName="h-4 w-4"
+            imgClassName="h-8 w-auto max-w-12 rounded-lg object-contain"
+          />
         </Link>
 
         <nav aria-label={t.portal} className="flex min-w-0 items-center gap-1.5 text-sm">

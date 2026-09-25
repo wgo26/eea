@@ -27,6 +27,7 @@ import {
   Tags,
   Users,
   Vote,
+  Zap,
 } from 'lucide-react'
 import { type Capability } from '@/lib/auth/capabilities'
 import { effectiveCapabilities, type AdminRole } from '@/lib/auth/admin-roles'
@@ -107,6 +108,7 @@ const ADMIN_NAV_SPECS: AdminNavItemSpec[] = [
   { key: 'emergency', path: '/admin/emergency', capability: 'manageContent', icon: Radio, domain: 'editorial' },
   { key: 'digest', path: '/admin/digest', capability: 'manageContent', icon: CalendarClock, domain: 'editorial' },
   { key: 'templates', path: '/admin/templates', capability: 'manageContent', icon: FileStack, domain: 'editorial' },
+  { key: 'automations', path: '/admin/automations', capability: 'manageContent', icon: Zap, domain: 'editorial' },
   { key: 'translations', path: '/admin/translations', capability: 'manageContent', icon: Languages, domain: 'editorial' },
   { key: 'listings', path: '/admin/listings', capability: 'manageContent', icon: Store, domain: 'editorial' },
   { key: 'taxonomy', path: '/admin/taxonomy', capability: 'manageContent', icon: Tags, domain: 'editorial' },

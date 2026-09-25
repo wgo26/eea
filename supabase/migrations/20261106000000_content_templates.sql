@@ -106,7 +106,7 @@ insert into public.content_templates (name, name_fr, slug_base, section, source_
 select s.* from (values
     ('This week in pictures',   'La semaine en images',        'this-week-in-pictures',  'photo',   'photo_story', 7::int, 'weekly'::text, true),
     ('Community stories recap', 'Rappel des histoires',        'community-recap',        'news',    'news',        7::int, 'weekly'::text, true),
-    ('This week on the board',  "La semaine sur le tableau",   'board-weekly',           'notice',  'notice',      7::int, 'weekly'::text, true),
+    ('This week on the board',  'La semaine sur le tableau',   'board-weekly',           'notice',  'notice',      7::int, 'weekly'::text, true),
     ('Marketplace highlights',  'Annonces de la semaine',      'marketplace-weekly',     'listing', 'listing',     7::int, 'weekly'::text, true),
     ('Culture this week',       'La culture de la semaine',    'culture-this-week',      'culture', 'culture',     7::int, 'weekly'::text, true)
 ) as s(name, name_fr, slug_base, section, source_type, window_days, cadence, living)

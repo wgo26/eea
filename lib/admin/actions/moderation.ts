@@ -3,7 +3,7 @@
 import { assertStaff, assertAdmin, assertCapability } from '@/lib/admin/auth'
 import { validateContentDraft, type ContentDraftInput } from '../content-validation'
 import { type UpdateOf } from '@/lib/supabase/admin'
-import { enqueueUser, submissionNotifyTarget } from '@/lib/notify/queue'
+import { enqueueUser, enqueueStaff, submissionNotifyTarget } from '@/lib/notify/queue'
 import { type ActionResult, audit, auditBulkOperation, fail, revalidateLocalized, revalidatePublicContentCache, SUBMISSION_TO_CONTENT, uniqueSlug, syncPhotos, upsertTranslations } from './_shared'
 import { deleteReport, resolveReport } from './safety'
 
@@ -177,6 +177,14 @@ export async function approveSubmissionWithContent(input: {
     if (input.publish !== 'draft') {
       const enTitle = input.draft.translations.find((t) => t.locale === 'en')?.title?.trim() || 'your submission'
       void enqueueUser('submission.approved', sub.submitted_by, { title: enTitle.slice(0, 140) }, '/account/submissions')
+
+      // B5 — approval-to-suggestion hook: when content goes live the publish
+      // trigger (digest_slot_on_publish) creates digest_slots for it; fire a
+      // ready-for-review staff alert so editors see the new item surfaced in
+      // the digest panel and can pin/drop it before the next send. Best-effort.
+      if (input.publish === 'now' && created.id) {
+        void enqueueStaff('digest.ready_for_review', { template: enTitle.slice(0, 80), count: '1' }, '/admin/digest').catch(() => {})
+      }
     }
     return { ok: true }
   } catch (e) {

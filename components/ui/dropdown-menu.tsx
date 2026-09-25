@@ -53,15 +53,28 @@ function DropdownMenuGroup({ ...props }: MenuPrimitive.Group.Props) {
   return <MenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />
 }
 
+/**
+ * A label inside a menu.
+ *
+ * Deliberately a plain `<div>` rather than Base UI's `Menu.GroupLabel`:
+ * GroupLabel reads `MenuGroupContext` and *throws* ("MenuGroupContext is
+ * missing") unless it is nested inside `<Menu.Group>`/`<Menu.RadioGroup>`.
+ * Every label in this app is used standalone — the identity block in the
+ * user menus, the bell's alerts heading, the "More" nav headings — which is
+ * the Radix semantics this wrapper was originally written against. Keeping the
+ * wrapper as a div preserves that API for all callers instead of forcing a
+ * `<DropdownMenuGroup>` wrapper around every label, and keeps the text
+ * reachable to assistive tech as part of the popup's contents.
+ */
 function DropdownMenuLabel({
   className,
   inset,
   ...props
-}: MenuPrimitive.GroupLabel.Props & {
+}: React.ComponentProps<"div"> & {
   inset?: boolean
 }) {
   return (
-    <MenuPrimitive.GroupLabel
+    <div
       data-slot="dropdown-menu-label"
       data-inset={inset}
       className={cn(

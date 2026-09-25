@@ -9,6 +9,7 @@ import {
 } from '@/lib/storage/backup'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
 import { requireCronSecret } from '@/lib/security/cron-auth'
+import { stampHeartbeat } from '@/lib/automation/heartbeat'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,7 +77,7 @@ async function runBackup(request: Request) {
 }
 
 export async function POST(request: Request) {
-  return runBackup(request)
+  return stampHeartbeat('storage-backup', runBackup(request))
 }
 
 // Vercel Cron invokes scheduled jobs with GET — same auth + lease semantics

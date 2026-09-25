@@ -94,6 +94,7 @@ export default async function Page() {
                           {slot.itemType}
                           {' · '}
                           {t[SECTION_LABEL_KEYS[slot.section as keyof typeof SECTION_LABEL_KEYS] as 'sectionVisual'] ?? slot.section}
+                          {slot.fromSubmission ? ` · ${t.fromSubmission}` : ''}
                           {slot.pinned ? ` · ${t.pinned}` : ''}
                           {' · '}
                           {formatRelative(slot.createdAt, locale)}

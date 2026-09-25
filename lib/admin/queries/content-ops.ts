@@ -448,16 +448,88 @@ export type ContentEditData = ContentRow & {
   event: { startsAt: string | null; endsAt: string | null; venueName: string | null; ticketUrl: string | null; organizerName: string | null; organizerPhone: string | null; organizerEmail: string | null } | null
 }
 
+/**
+ * Translation columns the edit drawer selects. `share_text` + `voice_type`
+ * arrive from the Phase 4 migration; a database that has not applied it must
+ * still open the editor (see getContentItemEditData).
+ */
+const TRANSLATION_COLUMNS = [
+  'locale',
+  'title',
+  'excerpt',
+  'body',
+  'seo_description',
+  'byline',
+  'share_text',
+  'voice_type',
+] as const
+
+/**
+ * The subset allowed to drop out of the select when the database has not
+ * caught up. `locale`/`title`/`excerpt`/`body` are load-bearing for the form,
+ * and a failure on those is a real outage rather than drift — so they are
+ * never retried away.
+ */
+const DRIFTABLE_TRANSLATION_COLUMNS: readonly string[] = ['seo_description', 'byline', 'share_text', 'voice_type']
+
+/** The edit-drawer select, with the translation columns assembled from above. */
+function contentEditSelect(columns: readonly string[]): string {
+  return `id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by, location_id, category_id, translations:content_translations(${columns.join(', ')}), tags:content_tags(tag:tags(id, tag_translations(locale, name))), location:locations(name), category:categories!category_id(category_translations(locale, name)), media:media_assets(id, public_url, caption, alt_text, photographer_credit, sort_order), author:profiles!content_items_author_id_fkey(display_name), listing:listings(price, currency, contact_phone, contact_email, whatsapp_number, seller_name, listing_status, seller_is_verified), notice:notices(notice_type, organization_name, contact_phone, is_official, notice_date, expiry_date), event:events(starts_at, ends_at, venue_name, ticket_url, organizer_name, organizer_phone, organizer_email)`
+}
+
+/**
+ * Postgres 42703 message → the offending content_translations column names.
+ * PostgREST phrases it as `column content_translations.share_text does not
+ * exist` (or, for an embedded resource, `content_translations_1.share_text`),
+ * and reports only the first offender per attempt.
+ */
+function driftedTranslationColumns(message: string): string[] {
+  const names = new Set<string>()
+  for (const match of message.matchAll(/content_translations(?:_\d+)?\.(\w+) does not exist/g)) {
+    const col = match[1]
+    if (DRIFTABLE_TRANSLATION_COLUMNS.includes(col)) names.add(col)
+  }
+  return [...names]
+}
+
 /** Full content item for the admin edit drawer (service-role read, all locales + type rows). */
 export async function getContentItemEditData(contentItemId: string): Promise<ContentEditData | null> {
-  const { data } = await safe(
+  let columns: string[] = [...TRANSLATION_COLUMNS]
+  let result = await safe(
     db()
       .from('content_items')
-      .select('id, type, slug, status, verification, is_featured, is_archived, published_at, scheduled_for, expires_at, created_at, author_id, submitted_by, location_id, category_id, translations:content_translations(locale, title, excerpt, body, seo_description, byline, share_text, voice_type), tags:content_tags(tag:tags(id, tag_translations(locale, name))), location:locations(name), category:categories!category_id(category_translations(locale, name)), media:media_assets(id, public_url, caption, alt_text, photographer_credit, sort_order), author:profiles!content_items_author_id_fkey(display_name), listing:listings(price, currency, contact_phone, contact_email, whatsapp_number, seller_name, listing_status, seller_is_verified), notice:notices(notice_type, organization_name, contact_phone, is_official, notice_date, expiry_date), event:events(starts_at, ends_at, venue_name, ticket_url, organizer_name, organizer_phone, organizer_email)')
+      .select(contentEditSelect(columns))
       .eq('id', contentItemId)
       .limit(1),
   )
-  const row = ((data ?? []) as unknown as Record<string, unknown>[])[0] ?? null
+  // A failed select is NOT the same as a missing row. PostgREST rejects the
+  // WHOLE embedded resource when one named column is absent, so a database
+  // that has not applied the Phase 4 migration reported live items as
+  // "Content not found — it may have been deleted". Drop only the columns the
+  // server names as missing and retry, so the editor still opens. PostgREST
+  // reports one offender per attempt, hence the loop; it is bounded by the
+  // number of droppable columns and stops at the first row, the first
+  // non-drift error, or once nothing droppable is left in the select.
+  while (!result.data && result.error) {
+    const drifted = driftedTranslationColumns(result.error).filter((c) => columns.includes(c))
+    if (drifted.length === 0) break
+    columns = columns.filter((c) => !drifted.includes(c))
+    logger.warn('admin', 'content_translations column missing — retrying the edit select without it', {
+      contentItemId,
+      missing: drifted,
+    })
+    result = await safe(
+      db()
+        .from('content_items')
+        .select(contentEditSelect(columns))
+        .eq('id', contentItemId)
+        .limit(1),
+    )
+  }
+  if (!result.data && result.error) {
+    logger.error('admin', 'getContentItemEditData query failed', { contentItemId, error: result.error })
+  }
+  const row = ((result.data ?? []) as unknown as Record<string, unknown>[])[0] ?? null
   if (!row) return null
   const base = mapContentRow(row, 'en')
   const translations = (Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []) as { locale: string; title: string | null; excerpt: string | null; body: string | null; seo_description: string | null; byline: string | null; share_text: string | null; voice_type: string | null }[]

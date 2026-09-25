@@ -550,6 +550,8 @@ export type Database = {
             is_read: boolean;
             created_at: string;
             expires_at: string | null;
+            escalation_key: string | null;
+            escalated_at: string | null;
             };
             Insert: {
             id?: string;
@@ -562,6 +564,8 @@ export type Database = {
             is_read?: boolean;
             created_at?: string;
             expires_at?: string | null;
+            escalation_key?: string | null;
+            escalated_at?: string | null;
             };
             Update: {
             id?: string | null;
@@ -574,6 +578,8 @@ export type Database = {
             is_read?: boolean | null;
             created_at?: string | null;
             expires_at?: string | null;
+            escalation_key?: string | null;
+            escalated_at?: string | null;
             };
             Relationships: [
                 {
@@ -784,6 +790,24 @@ export type Database = {
                     referencedColumns: ["id"],
                 },
             ];
+        }
+        app_flags: {
+            Row: {
+            key: string;
+            value: Json;
+            updated_at: string;
+            };
+            Insert: {
+            key: string;
+            value: Json;
+            updated_at?: string;
+            };
+            Update: {
+            key?: string | null;
+            value?: Json | null;
+            updated_at?: string | null;
+            };
+            Relationships: [];
         }
         audit_events: {
             Row: {
@@ -1600,6 +1624,7 @@ export type Database = {
             created_by: string | null;
             created_at: string;
             updated_at: string;
+            state_id: string | null;
             };
             Insert: {
             id?: string;
@@ -1618,6 +1643,7 @@ export type Database = {
             created_by?: string | null;
             created_at?: string;
             updated_at?: string;
+            state_id?: string | null;
             };
             Update: {
             id?: string | null;
@@ -1636,6 +1662,7 @@ export type Database = {
             created_by?: string | null;
             created_at?: string | null;
             updated_at?: string | null;
+            state_id?: string | null;
             };
             Relationships: [
                 {
@@ -1643,6 +1670,13 @@ export type Database = {
                     columns: ["created_by"],
                     isOneToOne: false,
                     referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_content_templates_state_id_fkey",
+                    columns: ["state_id"],
+                    isOneToOne: false,
+                    referencedRelation: "system_states",
                     referencedColumns: ["id"],
                 },
             ];
@@ -1856,6 +1890,33 @@ export type Database = {
                     referencedColumns: ["id"],
                 },
             ];
+        }
+        cron_heartbeats: {
+            Row: {
+            job: string;
+            last_success: string | null;
+            last_run_at: string;
+            last_status: string;
+            last_error: string | null;
+            runs: number;
+            };
+            Insert: {
+            job: string;
+            last_success?: string | null;
+            last_run_at?: string;
+            last_status?: string;
+            last_error?: string | null;
+            runs?: number;
+            };
+            Update: {
+            job?: string | null;
+            last_success?: string | null;
+            last_run_at?: string | null;
+            last_status?: string | null;
+            last_error?: string | null;
+            runs?: number | null;
+            };
+            Relationships: [];
         }
         daily_brief_items: {
             Row: {
@@ -2362,6 +2423,7 @@ export type Database = {
             payout_method: string | null;
             payout_account: string | null;
             payout_account_name: string | null;
+            milestones_reached: string[];
             };
             Insert: {
             content_item_id: string;
@@ -2377,6 +2439,7 @@ export type Database = {
             payout_method?: string | null;
             payout_account?: string | null;
             payout_account_name?: string | null;
+            milestones_reached?: string[];
             };
             Update: {
             content_item_id?: string | null;
@@ -2392,6 +2455,7 @@ export type Database = {
             payout_method?: string | null;
             payout_account?: string | null;
             payout_account_name?: string | null;
+            milestones_reached?: string[] | null;
             };
             Relationships: [
                 {
@@ -3665,6 +3729,81 @@ export type Database = {
                 },
             ];
         }
+        publish_plans: {
+            Row: {
+            id: string;
+            name: string;
+            template_id: string;
+            horizon: string;
+            day_of_week: number | null;
+            run_time: string;
+            lead_minutes: number;
+            review_mode: string;
+            enabled: boolean;
+            next_run_at: string;
+            last_run_at: string | null;
+            last_status: string | null;
+            last_error: string | null;
+            failure_count: number;
+            created_by: string | null;
+            created_at: string;
+            updated_at: string;
+            };
+            Insert: {
+            id?: string;
+            name: string;
+            template_id: string;
+            horizon: string;
+            day_of_week?: number | null;
+            run_time: string;
+            lead_minutes?: number;
+            review_mode?: string;
+            enabled?: boolean;
+            next_run_at: string;
+            last_run_at?: string | null;
+            last_status?: string | null;
+            last_error?: string | null;
+            failure_count?: number;
+            created_by?: string | null;
+            created_at?: string;
+            updated_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            name?: string | null;
+            template_id?: string | null;
+            horizon?: string | null;
+            day_of_week?: number | null;
+            run_time?: string | null;
+            lead_minutes?: number | null;
+            review_mode?: string | null;
+            enabled?: boolean | null;
+            next_run_at?: string | null;
+            last_run_at?: string | null;
+            last_status?: string | null;
+            last_error?: string | null;
+            failure_count?: number | null;
+            created_by?: string | null;
+            created_at?: string | null;
+            updated_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_publish_plans_template_id_fkey",
+                    columns: ["template_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_templates",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_publish_plans_created_by_fkey",
+                    columns: ["created_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
         rate_limit_hits: {
             Row: {
             key: string;
@@ -4855,6 +4994,14 @@ export type Database = {
         content_view_bump: {
             Args: {
                 p_id: string;
+            };
+            Returns: undefined;
+        }
+        cron_heartbeat: {
+            Args: {
+                p_job: string;
+                p_ok: boolean;
+                p_error?: string | null;
             };
             Returns: undefined;
         }

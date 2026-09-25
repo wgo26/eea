@@ -31,18 +31,21 @@ export async function enqueueNotification(payload: NotifyPayload): Promise<void>
   }
 }
 
-/** Staff alert shorthand (moderation queue, ad inquiries, legal inbox). */
+/** Staff alert shorthand (moderation queue, ad inquiries, legal inbox, automation). */
 export function enqueueStaffAlert(
-  event: Extract<NotifyPayload['event'], 'submission.received' | 'advertise.inquiry' | 'legal.takedown' | 'legal.contact' | 'legal.data_request' | 'content.correction'>,
+  event: Extract<NotifyPayload['event'], 'submission.received' | 'advertise.inquiry' | 'legal.takedown' | 'legal.contact' | 'legal.data_request' | 'content.correction' | 'content.updated' | 'poll.closed' | 'plan.failed' | 'translation.gap' | 'content.milestone' | 'digest.ready_for_review'>,
   data?: Record<string, string | number | null>,
   path?: string,
 ): Promise<void> {
   return enqueueNotification({ event, audience: 'staff', data, path });
 }
 
+/** Alias kept for call-site readability inside the automation sweep. */
+export const enqueueStaff = enqueueStaffAlert;
+
 /** Direct user nudge (receipts, publish decisions, campaign live). No-op without a user id. */
 export function enqueueUser(
-  event: Extract<NotifyPayload['event'], 'submission.confirmation' | 'submission.approved' | 'submission.rejected' | 'submission.clarification' | 'advertise.approved' | 'listing.update'>,
+  event: Extract<NotifyPayload['event'], 'submission.confirmation' | 'submission.approved' | 'submission.rejected' | 'submission.clarification' | 'advertise.approved' | 'listing.update' | 'contributor.milestone' | 'correction.resolved' | 'content.updated'>,
   userId: string | null | undefined,
   data?: Record<string, string | number | null>,
   path?: string,

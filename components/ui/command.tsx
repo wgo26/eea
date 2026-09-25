@@ -60,7 +60,11 @@ function CommandDialog({
         )}
         showCloseButton={showCloseButton}
       >
-        {children}
+        {/* The cmdk store must exist above every Command* part: CommandInput,
+            CommandList and CommandItem each read it through context, and
+            without the root they crash the boundary with
+            "Cannot read properties of undefined (reading 'subscribe')". */}
+        <Command>{children}</Command>
       </DialogContent>
     </Dialog>
   )

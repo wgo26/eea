@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
 import { requireStaff } from '@/lib/auth/guards'
+import { getAdminDisplayName } from '@/lib/admin/identity'
 import { getAdminRoles } from '@/lib/auth/roles'
 import { effectiveCapabilities } from '@/lib/auth/admin-roles'
-import { getPendingSubmissionCount, getActiveStates, getActiveIncident, getUnreadNotificationTotal } from '@/lib/admin/queries'
+import { getPendingSubmissionCount, getActiveStates, getActiveIncident, getUnreadNotificationTotal, getPublicSiteSettings } from '@/lib/admin/queries'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
@@ -75,10 +76,10 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       ? localePath(locale, '/admin/incidents')
       : undefined
 
-  const displayName =
-    (user.user_metadata?.full_name as string | undefined) ??
-    user.email?.split('@')[0] ??
-    'Staff'
+  // The edited name lives in `profiles.display_name`; auth metadata is only
+  // the signup-time fallback (see lib/admin/identity.ts).
+  const displayName = await getAdminDisplayName(user)
+  const siteSettings = await getPublicSiteSettings()
 
   return (
     <AdminClientWrapper>
@@ -92,7 +93,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         }}
         tokens={stateTokenStyle(effectiveState.id)}
         reduceMotion={stateProfile.reduceMotion}
-        className={`flex min-h-screen bg-muted/30 ${appMono.variable}`}
+        className={`flex min-h-dvh overflow-x-clip bg-muted/30 ${appMono.variable}`}
       >
         <div className="hidden lg:block">
           <div className="sticky top-0 h-screen">
@@ -101,6 +102,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               roles={roles}
               adminRoles={adminRoles}
               unreadNotifications={unreadNotifications}
+              logoUrl={siteSettings.logoUrl}
             />
           </div>
         </div>
@@ -112,6 +114,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             displayName={displayName}
             email={user.email ?? ''}
             unreadNotifications={unreadNotifications}
+            logoUrl={siteSettings.logoUrl}
           />
           {!isNormal && (
             <StateBanner

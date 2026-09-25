@@ -15,7 +15,7 @@ import type { Dictionary, Locale } from "@/lib/i18n";
 type State = { ok: true } | { ok: false; error: string };
 
 /** Public daily-digest opt-in + opt-out (gap B). Dictionary-driven, no hardcoded copy. */
-export function DigestForm({ dict, locale }: { dict: Dictionary; locale: Locale }) {
+export function DigestForm({ dict, locale, promotedPitch = null }: { dict: Dictionary; locale: Locale; promotedPitch?: 'standard' | 'diaspora' | null }) {
   const t = dict.digest;
   const [state, formAction, pending] = useActionState<State, FormData>(
     subscribeDigest,
@@ -28,8 +28,10 @@ export function DigestForm({ dict, locale }: { dict: Dictionary; locale: Locale 
   // W18 (H6) — diaspora pitch experiment: copy-only variant for readers
   // abroad. The submitted fields are identical; the hidden pitch_variant
   // attributes the signup for measurement (signups/day by variant).
+  // E2 — once the nightly auto-winner promotes a variant, everyone sees the
+  // winner and the 50/50 split stops (null = still experimenting).
   const pitch = useExperiment('digest-diaspora-pitch');
-  const isDiasporaPitch = pitch === 'diaspora-pitch';
+  const isDiasporaPitch = promotedPitch ? promotedPitch === 'diaspora' : pitch === 'diaspora-pitch';
 
   if (state.ok) {
     return (

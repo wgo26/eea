@@ -35,7 +35,7 @@ import type { AppRole } from '@/lib/auth/types'
 
 export type AdminDb = ReturnType<typeof createAdminClient>
 
-export type NotificationSource = 'system' | 'incidents' | 'credentials' | 'approvals'
+export type NotificationSource = 'system' | 'incidents' | 'credentials' | 'approvals' | 'automation'
 
 export type NotificationInput = {
   source: NotificationSource
@@ -45,6 +45,12 @@ export type NotificationInput = {
   /** Locale-free in-app path; dropped when it fails validation. */
   linkPath?: string | null
   expiresAt?: string | null
+  /**
+   * Groups copies of one critical alert (D2). When a whole group goes unread
+   * for ESCALATION_WINDOW_HOURS, escalateUnacknowledged() files one follow-up.
+   * Only meaningful for `critical`.
+   */
+  escalationKey?: string | null
 }
 
 export type NotificationWriteResult = { ok: true; delivered: number } | { ok: false; error: string }
@@ -67,6 +73,10 @@ function normalize(input: NotificationInput): { row: Omit<InsertOf<'admin_notifi
       body: body || null,
       link_path: safeNotificationPath(input.linkPath ?? null),
       expires_at: input.expiresAt ?? null,
+      // Only criticals carry an escalation group; anything else is stripped so
+      // a lower-priority alert can never ride the ack-timeout loop (D2).
+      escalation_key:
+        input.category === 'critical' && input.escalationKey ? input.escalationKey.slice(0, 120) : null,
     },
   }
 }
@@ -127,4 +137,104 @@ export async function sendNotificationToRole(
     return { ok: false, error: insertError.message }
   }
   return { ok: true, delivered: recipients.length }
+}
+
+/* ------------------------------------------------------------------ */
+/* D2 — unacknowledged critical escalation                             */
+/* ------------------------------------------------------------------ */
+
+/** How long a critical alert may sit fully unread before it escalates. */
+export const ESCALATION_WINDOW_HOURS = 4
+const MAX_ESCALATION_GROUPS = 20
+
+/**
+ * Critical alerts are the ones where silence costs something (a takedown
+ * request, a disabled release plan, a broken scheduler). This pass groups
+ * unread critical rows by escalation_key; a group where at least one admin
+ * read a copy counts as acknowledged (the group is stamped and left alone).
+ * A group still fully unread after the window gets exactly one follow-up
+ * broadcast — no repeat spam, because the stamp removes it from the scan.
+ *
+ * Pure enough to test: the grouping decision lives in `groupsToEscalate`,
+ * the DB plumbing below just applies it. Called by /api/cron/notify (every
+ * 15 minutes), so the window is only ever overshot by one tick.
+ */
+export function groupsToEscalate(
+  rows: { escalation_key: string | null; is_read: boolean; created_at: string }[],
+  now: Date,
+  windowHours = ESCALATION_WINDOW_HOURS,
+): { escalate: string[]; acknowledge: string[] } {
+  const cutoff = now.getTime() - windowHours * 3_600_000
+  const byKey = new Map<string, { read: boolean; old: boolean }>()
+  for (const row of rows) {
+    if (!row.escalation_key) continue
+    const entry = byKey.get(row.escalation_key) ?? { read: false, old: false }
+    entry.read = entry.read || row.is_read
+    entry.old = entry.old || Date.parse(row.created_at) <= cutoff
+    byKey.set(row.escalation_key, entry)
+  }
+  const escalate: string[] = []
+  const acknowledge: string[] = []
+  for (const [key, entry] of byKey) {
+    if (!entry.old) continue
+    ;(entry.read ? acknowledge : escalate).push(key)
+  }
+  return { escalate, acknowledge }
+}
+
+export type EscalationSummary = { escalated: number; acknowledged: number }
+
+export async function escalateUnacknowledged(admin: AdminDb): Promise<EscalationSummary> {
+  const summary: EscalationSummary = { escalated: 0, acknowledged: 0 }
+  const cutoff = new Date(Date.now() - ESCALATION_WINDOW_HOURS * 3_600_000).toISOString()
+  const { data, error } = await admin
+    .from('admin_notifications')
+    .select('escalation_key, is_read, created_at, title, link_path')
+    .eq('category', 'critical')
+    .not('escalation_key', 'is', null)
+    .is('escalated_at', null)
+    .lte('created_at', cutoff)
+    .limit(200)
+  if (error) {
+    logger.warn('admin', 'escalation scan failed', { error: error.message })
+    return summary
+  }
+  const rows = (data ?? []) as {
+    escalation_key: string | null
+    is_read: boolean
+    created_at: string
+    title: string
+    link_path: string | null
+  }[]
+  if (rows.length === 0) return summary
+
+  const { escalate, acknowledge } = groupsToEscalate(rows, new Date())
+  if (acknowledge.length > 0) {
+    const { error: stampError } = await admin
+      .from('admin_notifications')
+      .update({ escalated_at: new Date().toISOString() })
+      .in('escalation_key', acknowledge)
+      .is('escalated_at', null)
+    if (!stampError) summary.acknowledged = acknowledge.length
+  }
+
+  for (const key of escalate.slice(0, MAX_ESCALATION_GROUPS)) {
+    const source = rows.find((r) => r.escalation_key === key)
+    const result = await sendNotificationToRole(admin, 'admin', {
+      source: 'automation',
+      category: 'critical',
+      title: `No response yet: ${(source?.title ?? 'a critical alert').slice(0, 120)}`,
+      body: `The alert below has gone unread by every admin for ${ESCALATION_WINDOW_HOURS} hours. Whoever picks it up owns it — acknowledge by opening it.`,
+      linkPath: source?.link_path ?? '/admin/notifications',
+    })
+    // Stamp regardless of delivery: a notification failure must not create a
+    // re-escalation loop every 15 minutes.
+    await admin
+      .from('admin_notifications')
+      .update({ escalated_at: new Date().toISOString() })
+      .eq('escalation_key', key)
+      .is('escalated_at', null)
+    if (result.ok) summary.escalated += 1
+  }
+  return summary
 }

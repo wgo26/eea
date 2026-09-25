@@ -141,7 +141,7 @@ export function PlacePrompt({
 
     return (
         <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : dismiss())}>
-            <DialogContent className="w-[380px]">
+            <DialogContent className="w-[min(380px,calc(100vw-2rem))]">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-primary" aria-hidden />

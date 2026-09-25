@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -7,6 +7,7 @@ import { themeInitScript } from "@/lib/theme";
 import { localeInitScript } from "@/lib/i18n/locale-init";
 import { SITE } from "@/lib/constants";
 import { DEFAULT_OG_IMAGE, TWITTER_CARD } from "@/lib/seo/og";
+import { BrandThemeStyle } from "@/components/brand-theme-style";
 
 // Self-hosted via next/font/local (app/fonts/*.woff2) so dev/build never
 // hits fonts.googleapis.com — no network dependency, no proxy config needed.
@@ -39,12 +40,18 @@ const newsreader = localFont({
 // admin/account-only — loaded by appFonts in app/[locale]/(app)/fonts.ts so
 // anonymous public pages never download it.
 
+export const viewport: Viewport = {
+    width: 'device-width',
+    initialScale: 1,
+    themeColor: '#0f172a',
+    colorScheme: 'light dark',
+};
+
 export const metadata: Metadata = {
     title: {
         default: SITE.name,
         template: `%s · ${SITE.shortName}`,
-    },
-    description: SITE.description,
+    },    description: SITE.description,
     metadataBase: new URL(SITE.url),
     // Default social-share card (1200×630): inherited by every route that
     // does not define its own openGraph (homepage, section indexes,
@@ -97,7 +104,7 @@ export const metadata: Metadata = {
  */
 type RootLayoutProps = Readonly<{ children: React.ReactNode }>
 
-export default function RootLayout({ children }: RootLayoutProps) {
+export default async function RootLayout({ children }: RootLayoutProps) {
 
     // Phase 1 font budget: anonymous public readers get Inter only. The
     // GeistMono variable is NOT attached here (it was 58 KB of unused font
@@ -118,6 +125,10 @@ export default function RootLayout({ children }: RootLayoutProps) {
             )}
         >
             <body className="flex min-h-full flex-col">
+                {/* Published brand tokens, ahead of the pre-paint bootstrap so a
+                    theme is applied before the .dark class lands. See
+                    components/brand-theme-style.tsx for why this sits in body. */}
+                <BrandThemeStyle />
                 {/* Pre-paint bootstrap scripts — theme + lang before first render. */}
                 <Script
                     id="theme-init"

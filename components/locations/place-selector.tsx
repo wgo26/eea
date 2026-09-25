@@ -109,17 +109,17 @@ export function PlaceSelector({ locale, dict, initialPlace, onPlaceChange }: Pla
                 <Button
                     variant={selectedPlace ? "default" : "outline"}
                     size="sm"
-                    className="gap-2 h-9 px-3"
+                    className="gap-2 h-9 px-2.5 sm:px-3"
                     aria-label={dict.yourPlace ?? "Your place"}
                 >
                     <MapPin className="h-4 w-4" aria-hidden />
-                    <span className="truncate max-w-[160px] font-medium">
+                    <span className="hidden max-w-[160px] truncate font-medium sm:inline">
                         {selectedPlace?.name ?? dict.selectPlace ?? "Your place"}
                     </span>
-                    <ChevronDown className="h-4 w-4 opacity-60" aria-hidden />
+                    <ChevronDown className="hidden h-4 w-4 opacity-60 sm:inline-block" aria-hidden />
                 </Button>
             </DialogTrigger>
-            <DialogContent className="w-[380px] p-0">
+            <DialogContent className="w-[min(380px,calc(100vw-2rem))] p-0">
                 <Command>
                     <CommandInput
                         placeholder={dict.searchPlaces ?? "Search places…"}

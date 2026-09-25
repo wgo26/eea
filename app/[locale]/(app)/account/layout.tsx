@@ -2,7 +2,9 @@ import type { ReactNode } from 'react'
 import { requireUser } from '@/lib/auth/guards'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getAccountIdentity } from '@/lib/account/identity'
+import { getPublicSiteSettings } from '@/lib/admin/queries'
 import { AccountTopbar } from '@/components/account/account-topbar'
+import { ToastProvider } from '@/components/admin/toast'
 import { appMono } from '../fonts'
 
 /**
@@ -22,21 +24,29 @@ export default async function AccountLayout({ children }: { children: ReactNode 
   const { user } = await requireUser('/account/dashboard')
   const locale = await getRequestLocale()
   const identity = await getAccountIdentity(user, locale)
+  const siteSettings = await getPublicSiteSettings()
 
   return (
-    <div className={`min-h-screen bg-muted/30 ${appMono.variable}`}>
-      <AccountTopbar
-        displayName={identity.displayName}
-        email={identity.email}
-        roleLabel={identity.roleLabel}
-        roles={identity.roles}
-        avatarUrl={identity.avatarUrl}
-        publicProfileHref={identity.publicProfileHref}
-        unreadNotifications={identity.unreadNotifications}
-      />
-      <main id="main-content" tabIndex={-1} className="flex-1">
-        {children}
-      </main>
+    <div className={`min-h-dvh overflow-x-clip bg-muted/30 ${appMono.variable}`}>
+      {/* ProfileForm posts success/failure through the shared admin toast host,
+          which has to exist in this tree — /account/profile crashed straight
+          into the error boundary with "useToast must be used within
+          ToastProvider". Same wrapper the admin shell uses. */}
+      <ToastProvider>
+        <AccountTopbar
+          displayName={identity.displayName}
+          email={identity.email}
+          roleLabel={identity.roleLabel}
+          roles={identity.roles}
+          avatarUrl={identity.avatarUrl}
+          publicProfileHref={identity.publicProfileHref}
+          unreadNotifications={identity.unreadNotifications}
+          logoUrl={siteSettings.logoUrl}
+        />
+        <main id="main-content" tabIndex={-1} className="flex-1">
+          {children}
+        </main>
+      </ToastProvider>
     </div>
   )
 }

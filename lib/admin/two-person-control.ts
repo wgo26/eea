@@ -43,6 +43,10 @@ export const TWO_PERSON_ACTIONS = {
     label: 'Emergency publishing',
     capability: 'manageContent',
   },
+  'content.autopublish': {
+    label: 'Automatic release plans (publish without per-item review)',
+    capability: 'manageContent',
+  },
   'branding.publish': {
     label: 'Global branding changes',
     capability: 'branding.publish',

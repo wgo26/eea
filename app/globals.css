@@ -167,6 +167,11 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Mobile guard: one wide child (unclamped headline, long URL, fixed-size
+       ad creative) must never create a horizontal page scroll. Clip (not
+       hidden) so sticky positioning keeps working. Wide widgets scroll in
+       their own overflow-x-auto rails. */
+    overflow-x: clip;
   }
   html {
     @apply font-sans;

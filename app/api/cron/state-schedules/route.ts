@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
 import { requireCronSecret } from '@/lib/security/cron-auth'
+import { stampHeartbeat } from '@/lib/automation/heartbeat'
 import { logStateEvent, setStateActive } from '@/lib/admin/state-writes'
 import { isWithinWindow, type SeasonalWindow } from '@/lib/platform/seasonal-window'
 import { getEffectiveState, resolveActiveStates, toSystemState } from '@/lib/platform/state-engine'
+import { compileTemplatesForState } from '@/lib/content/templates-run'
 
 export const dynamic = 'force-dynamic'
 
@@ -129,6 +131,34 @@ async function runStateSchedules(request: Request) {
           label: schedule.label,
           action: 'activated',
         })
+
+        // E6 — state-schedules compile hook: compile templates tagged with
+        // this state_id. The cadence is inferred from today (daily) or if the
+        // state activation is on a Monday (weekly). For simplicity we try both
+        // and log results; template self-guards (cadence match) prevent double-
+        // compilation. Best-effort so a template failure never breaks the
+        // state transition.
+        try {
+          const dayOfWeek = new Date().getUTCDay()
+          const cadences: ('daily' | 'weekly')[] = dayOfWeek === 1 ? ['daily', 'weekly'] : ['daily']
+          for (const cadence of cadences) {
+            const res = await compileTemplatesForState(state.id, cadence)
+            if (res.compiled > 0) {
+              logger.info('cron/state-schedules', 'state templates compiled', {
+                stateId: state.id,
+                cadence,
+                compiled: res.compiled,
+                drafted: res.drafted,
+                errors: res.errors,
+              })
+            }
+          }
+        } catch (compileErr) {
+          logger.warn('cron/state-schedules', 'state template compile failed', {
+            stateId: state.id,
+            error: compileErr instanceof Error ? compileErr.message : String(compileErr),
+          })
+        }
       } else if (!inWindow && state.active && schedule.last_action === 'activated') {
         const previousState = getEffectiveState(await activeStates(admin))
         const written = await setStateActive(admin, state.id, false, null)
@@ -196,10 +226,10 @@ async function runStateSchedules(request: Request) {
 }
 
 export async function POST(request: Request) {
-  return runStateSchedules(request)
+  return stampHeartbeat('state-schedules', runStateSchedules(request))
 }
 
 // Vercel Cron invokes scheduled jobs with GET — same auth semantics as POST.
 export async function GET(request: Request) {
-  return runStateSchedules(request)
+  return stampHeartbeat('state-schedules', runStateSchedules(request))
 }
