@@ -59,6 +59,7 @@ eea-read-build.cjs
 
 # local AI-agent worktrees / scratch (never repo content)
 .kilo/
+.kombai/
 
 # vercel
 .vercel

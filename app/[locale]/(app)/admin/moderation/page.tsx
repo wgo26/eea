@@ -6,7 +6,7 @@ import { requireCapability } from '@/lib/auth/guards'
 import { getSubmissions, getSubmissionCounts } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { EmptyState } from '@/components/admin/empty-state'
-import { FilterPills, SearchBar } from '@/components/admin/filter-pills'
+import { FilterPills, SearchBar, ActiveFilters } from '@/components/admin/filter-pills'
 import { Tabs } from '@/components/admin/tabs'
 import { Pager } from '@/components/admin/pager'
 import { ModerationBulkTable } from './moderation-bulk-actions'
@@ -151,6 +151,30 @@ export default async function Page({
           />
         </div>
       </div>
+
+      {/* Active filters as removable chips (Phase D) — same rationale as the
+          content library: a filtered queue must announce itself. The tab
+          (status) is not a chip: it is the queue identity, always visible. */}
+      <ActiveFilters
+        chips={[
+          ...(type !== 'all'
+            ? [{
+                key: 'type',
+                label: `${t.typeLabel}: ${tf[TYPE_FILTERS.find((f) => f.key === type)!.dictKey]}`,
+                removeHref: typeHref('all'),
+              }]
+            : []),
+          ...(search
+            ? [{
+                key: 'q',
+                label: `${tc.search}: ${search}`,
+                removeHref: `${localePath(locale, '/admin/moderation')}?status=${status}&type=${type}&sort=${sort}`,
+              }]
+            : []),
+        ]}
+        clearAllHref={localePath(locale, '/admin/moderation')}
+        labels={tc}
+      />
 
       {submissions.length === 0 ? (
         <EmptyState

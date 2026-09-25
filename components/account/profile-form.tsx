@@ -2,12 +2,13 @@
 
 import { useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Camera, Globe, MapPin, UserRound } from 'lucide-react'
 import { removeOwnAvatar, updateOwnProfile, uploadOwnAvatar } from '@/lib/account/actions'
 import { useToast } from '@/components/admin/toast'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Dictionary } from '@/lib/i18n'
 
 type Copy = Dictionary['account']['profile']
@@ -27,6 +28,25 @@ export type ProfileInitial = {
   contributorHandle: string
 }
 
+/**
+ * The one profile editor (Account audit §2.2). Previously the dashboard held
+ * a lightweight Name/Bio/Phone dialog while this page held everything else —
+ * two sources of truth for one row. The dialog is gone; the page keeps every
+ * field and groups them into three tabs.
+ *
+ * Tab state lives in the URL (`?tab=`) so the dashboard "Edit profile" button
+ * can deep-link straight to Contact or Preferences, and so a refresh or a
+ * shared link lands where the member expected. One sticky dock saves the
+ * whole record regardless of the visible tab, because `updateOwnProfile`
+ * writes all fields at once.
+ */
+const PROFILE_TABS = ['identity', 'contact', 'preferences'] as const
+type ProfileTab = (typeof PROFILE_TABS)[number]
+
+function tabFromParam(raw: string | null): ProfileTab {
+  return PROFILE_TABS.includes(raw as ProfileTab) ? (raw as ProfileTab) : 'identity'
+}
+
 export function ProfileForm({
   copy,
   initial,
@@ -38,7 +58,13 @@ export function ProfileForm({
 }) {
   const { addToast } = useToast()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const pathname = usePathname() ?? ''
   const fileRef = useRef<HTMLInputElement>(null)
+  // The URL is the single source of truth for the visible tab — no mirror
+  // state, so a deep link, a back gesture and a tab tap all resolve the same
+  // way during render instead of chasing each other through an effect.
+  const tab = tabFromParam(searchParams.get('tab'))
   const [displayName, setDisplayName] = useState(initial.displayName)
   const [fullName, setFullName] = useState(initial.fullName)
   const [bio, setBio] = useState(initial.bio)
@@ -51,6 +77,16 @@ export function ProfileForm({
   const [voice, setVoice] = useState(initial.preferredVoice || 'formal')
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+
+  function handleTabChange(value: ProfileTab) {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', value)
+    // Keep the tab in the URL only — `tab` derives from it, so this is the
+    // whole update, and back/forward works without extra state. The base is
+    // the current localized path with any previous tab param stripped.
+    const base = pathname.replace(/[?#].*$/, '')
+    router.replace(`${base}?${params.toString()}`, { scroll: false })
+  }
 
   const dirty = useMemo(
     () =>
@@ -146,6 +182,14 @@ export function ProfileForm({
         <p className="mt-2 text-xs text-muted-foreground">{copy.completenessHint}</p>
       </section>
 
+      <Tabs value={tab} onValueChange={(value) => handleTabChange(value as ProfileTab)} className="space-y-4">
+        <TabsList className="w-full justify-start sm:w-auto" aria-label={copy.title}>
+          <TabsTrigger value="identity">{copy.tabIdentity}</TabsTrigger>
+          <TabsTrigger value="contact">{copy.tabContact}</TabsTrigger>
+          <TabsTrigger value="preferences">{copy.tabPreferences}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="identity" className="space-y-6">
       {/* Photo */}
       <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
         <h2 className="flex items-center gap-2 text-sm font-bold">
@@ -242,7 +286,9 @@ export function ProfileForm({
           <p className="text-xs text-muted-foreground">{copy.bioHint.replace('{count}', String(bio.trim().length))}</p>
         </div>
       </section>
+        </TabsContent>
 
+        <TabsContent value="contact" className="space-y-6">
       {/* Contact & place */}
       <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
         <h2 className="flex items-center gap-2 text-sm font-bold">
@@ -288,7 +334,9 @@ export function ProfileForm({
           <p className="text-xs text-muted-foreground">{copy.locationHint}</p>
         </div>
       </section>
+        </TabsContent>
 
+        <TabsContent value="preferences" className="space-y-6">
       {/* Visibility */}
       <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
         <h2 className="flex items-center gap-2 text-sm font-bold">
@@ -350,6 +398,8 @@ export function ProfileForm({
           </div>
         </div>
       </section>
+        </TabsContent>
+      </Tabs>
 
       <div className="sticky bottom-4 flex justify-end">
         <button

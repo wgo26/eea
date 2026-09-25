@@ -200,7 +200,7 @@ export function ContentTable({
             { label: common.bulkPublish, action: handleBulkPublish, successToast: common.bulkUpdated },
             { label: common.bulkUnpublish, action: handleBulkUnpublish, successToast: copy.toastUnpublished, confirmTitle: copy.unpublishConfirmTitle, confirmBody: copy.unpublishConfirmBody, confirmLabel: copy.unpublish, undoAction: handleBulkPublish, undoToast: copy.toastPublished },
             { label: common.bulkArchive, action: handleBulkArchive, successToast: copy.toastArchived, tone: 'danger', confirmTitle: copy.archiveConfirmTitle, confirmBody: copy.archiveConfirmBody, undoAction: handleBulkUnarchive, undoToast: copy.toastRestored },
-            ...(canDelete ? [{ label: common.bulkDelete, action: handleBulkDelete, successToast: copy.toastDeleted, tone: 'danger' as const, confirmTitle: copy.deleteConfirmTitle, confirmBody: copy.deleteConfirmBody }] : []),
+            ...(canDelete ? [{ label: common.bulkDelete, action: handleBulkDelete, successToast: copy.toastDeleted, tone: 'danger' as const, confirmTitle: copy.deleteConfirmTitle, confirmBody: copy.deleteConfirmBody, requirePhrase: 'DELETE', phraseLabel: common.confirmPhrase }] : []),
           ]}
         />
       )}

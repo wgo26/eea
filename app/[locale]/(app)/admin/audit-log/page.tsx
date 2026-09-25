@@ -3,11 +3,10 @@ import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
 import { requireCapability } from '@/lib/auth/guards'
 import { getAuditTrail, getAuditFilterOptions } from '@/lib/admin/queries'
-import { localizeStatus, localizeType } from '@/lib/admin/labels'
 import { PageHeader } from '@/components/admin/page-header'
-import { DataTable } from '@/components/admin/data-table'
+import { ActiveFilters } from '@/components/admin/filter-pills'
 import { Pager } from '@/components/admin/pager'
-import { formatDateTime, formatRelative } from '@/lib/admin/format'
+import { AuditTable } from './audit-table'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -74,6 +73,16 @@ export default async function Page({
     return `${localePath(locale, '/admin/audit-log')}?${sp.toString()}`
   }
 
+  // Removing one chip keeps the other filters; the page resets to 1 because
+  // the result set changes. `range` removes both date bounds at once.
+  const hrefWithout = (...drop: string[]) => {
+    const sp = filterParams()
+    for (const k of drop) sp.delete(k)
+    sp.delete('page')
+    const qs = sp.toString()
+    return `${localePath(locale, '/admin/audit-log')}${qs ? `?${qs}` : ''}`
+  }
+
   const selectCls = 'rounded-md border border-border bg-background px-2.5 py-1.5 text-xs'
   const inputCls = `${selectCls} min-w-[180px] flex-1`
 
@@ -132,68 +141,31 @@ export default async function Page({
         <button type="submit" className="rounded-md border border-border px-2.5 py-1.5 text-xs font-medium">{t.filter}</button>
       </form>
 
-      <DataTable
-        rows={entries}
-        rowKey={(r) => `${r.origin}-${r.id}`}
-        emptyMessage={t.empty}
-        columns={[
-          { key: 'time', header: t.colWhen, render: (r) => (
-            <div className="text-xs whitespace-nowrap">
-              <div className="font-medium">{formatDateTime(r.createdAt)}</div>
-              <div className="text-muted-foreground">{formatRelative(r.createdAt)}</div>
-            </div>
-          ), className: 'whitespace-nowrap' },
-          { key: 'action', header: t.colAction, render: (r) => (
-            <div className="flex flex-col items-start gap-1">
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground whitespace-nowrap" title={r.action}>
-                {humanize(r.action)}
-              </span>
-              <span
-                className={
-                  r.origin === 'system'
-                    ? 'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-primary/10 text-primary whitespace-nowrap'
-                    : 'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground whitespace-nowrap'
-                }
-              >
-                {r.origin === 'system' ? t.system : t.originModeration}
-              </span>
-            </div>
-          ), className: 'whitespace-nowrap' },
-          { key: 'resource', header: t.colResource, render: (r) => (
-            <div className="min-w-[140px] max-w-[240px]">
-              {r.contentTitle ? (
-                <div className="text-sm font-medium truncate">{r.contentTitle}</div>
-              ) : r.resourceId ? (
-                <div className="text-xs font-mono truncate" title={r.resourceId}>{r.resourceId}</div>
-              ) : (
-                <span className="text-xs text-muted-foreground">—</span>
-              )}
-              {r.resourceType && (
-                <div className="text-xs text-muted-foreground truncate">{localizeType(r.resourceType, dict.admin.common)}</div>
-              )}
-              {r.requestId && (
-                <div className="text-xs text-muted-foreground/70 truncate font-mono" title={r.requestId}>
-                  {r.requestId.slice(0, 8)}
-                </div>
-              )}
-            </div>
-          ) },
-          { key: 'transition', header: t.colTransition, render: (r) => (
-            <div className="text-xs text-muted-foreground whitespace-nowrap">
-              {r.fromStatus && <span>{localizeStatus(r.fromStatus, dict.admin.common)}</span>}
-              {r.fromStatus && r.toStatus && <span> → </span>}
-              {r.toStatus && <span className="font-medium text-foreground">{localizeStatus(r.toStatus, dict.admin.common)}</span>}
-              {!r.fromStatus && !r.toStatus && <span>—</span>}
-            </div>
-          ), headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell whitespace-nowrap' },
-          { key: 'actor', header: t.colActor, render: (r) => (
-            <span className="text-xs truncate block max-w-[140px]">{r.actorName ?? (r.actorId ? t.deletedUser : t.system)}</span>
-          ), headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell' },
-          { key: 'notes', header: t.colNotes, render: (r) => (
-            <span className="text-xs text-muted-foreground truncate max-w-[200px] block">{r.notes ?? '—'}</span>
-          ), headerClassName: 'hidden xl:table-cell', className: 'hidden xl:table-cell' },
+      {/* Active filters as removable chips (Phase D) — this trail usually runs
+          filtered, so the applied state sits directly above the rows. */}
+      <ActiveFilters
+        chips={[
+          ...(origin
+            ? [{ key: 'origin', label: `${t.colOrigin}: ${origin === 'system' ? t.system : t.originModeration}`, removeHref: hrefWithout('origin') }]
+            : []),
+          ...(params.action
+            ? [{ key: 'action', label: `${t.colAction}: ${humanize(params.action)}`, removeHref: hrefWithout('action') }]
+            : []),
+          ...(params.resource
+            ? [{ key: 'resource', label: `${t.entityPlaceholder}: ${humanize(params.resource)}`, removeHref: hrefWithout('resource') }]
+            : []),
+          ...(params.from || params.to
+            ? [{ key: 'range', label: `${t.fromLabel} ${params.from ?? '…'} → ${t.toLabel} ${params.to ?? '…'}`, removeHref: hrefWithout('from', 'to') }]
+            : []),
+          ...(params.q
+            ? [{ key: 'q', label: `${dict.admin.common.search}: ${params.q}`, removeHref: hrefWithout('q') }]
+            : []),
         ]}
+        clearAllHref={localePath(locale, '/admin/audit-log')}
+        labels={dict.admin.common}
       />
+
+      <AuditTable rows={entries} copy={t} common={dict.admin.common} locale={locale} />
 
       <Pager page={page} pageSize={PAGE_SIZE} total={total} hrefFor={pageHref} copy={dict.admin.common} />
     </div>

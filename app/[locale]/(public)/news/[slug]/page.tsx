@@ -49,7 +49,7 @@ import { getAdForSlot } from "@/lib/queries/ads";
 import { isFeatureEnabled } from "@/lib/features";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { sanitizeBodyHtml, escapeJsonForLd } from "@/lib/security/html";
-import { extractHeadings, extractPullQuote, hasDropCapLead, withHeadingAnchors } from "@/lib/news/article-body";
+import { extractHeadings, extractPullQuote, hasDropCapLead, isHtmlBody, withHeadingAnchors } from "@/lib/news/article-body";
 
 type NewsPageProps = { params: Promise<{ locale: string; slug: string }> };
 
@@ -116,20 +116,20 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
     // Blogger imports store the body as HTML — render it as sanitized rich
     // text. Native drafts are plain text and keep the blank-line split.
     const rawBody = article.body ?? "";
-    const isHtmlBody = /<(p|div|br|h[1-6]|img|ul|ol|li|blockquote|figure|table|a)\b/i.test(rawBody);
-    const sanitized = isHtmlBody ? sanitizeBodyHtml(rawBody) : null;
+    const isHtml = isHtmlBody(rawBody);
+    const sanitized = isHtml ? sanitizeBodyHtml(rawBody) : null;
     // Enrichment: TOC anchors + pull quote are derived from the sanitized
     // HTML server-side — no new markup sources, only ids/classes.
     const headings = sanitized ? extractHeadings(sanitized) : [];
     const bodyHtml = sanitized ? withHeadingAnchors(sanitized, headings) : null;
     const pullQuote = sanitized ? extractPullQuote(sanitized, article.excerpt) : null;
-    const paragraphs = isHtmlBody
+    const paragraphs = isHtml
         ? []
         : rawBody
               .split(/\n\n+/)
               .map((p) => p.trim())
               .filter(Boolean);
-    const dropCap = !isHtmlBody && hasDropCapLead(paragraphs);
+    const dropCap = !isHtml && hasDropCapLead(paragraphs);
     const authorInitials = (article.authorName ?? article.byline ?? "?")
         .split(" ")
         .map((w) => w.charAt(0))

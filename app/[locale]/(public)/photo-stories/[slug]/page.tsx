@@ -22,6 +22,8 @@ import { StoryCard } from "@/components/home/story-card";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { GalleryGrid } from "@/components/photo-stories/gallery-grid";
 import { StoryBody } from "@/components/photo-stories/story-body";
+import { isHtmlBody } from "@/lib/news/article-body";
+import { sanitizeBodyHtml } from "@/lib/security/html";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -94,6 +96,11 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
         getAdForSlot("photo-story-rail"),
     ]);
     const shareUrl = `${SITE.url}${localePath(locale, `/photo-stories/${story.slug}`)}`;
+    // Section-built stories and Blogger imports store the body as markup; plain
+    // drafts stay plain text. Same contract as the news detail page, so a
+    // built-with-sections story never renders literal `<h2>`/`<figure>` source.
+    const rawBody = story.body ?? "";
+    const bodyHtml = isHtmlBody(rawBody) ? sanitizeBodyHtml(rawBody) : null;
     // Phase 3 — ImageGallery + breadcrumb structured data (rich results).
     const jsonLd = renderJsonLd([
         imageGalleryJsonLd({
@@ -213,9 +220,10 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
             </section>
 
             {/* Essay prose */}
+            {/* Essay prose (plain drafts) or sanitized sections (built/imports). */}
             {story.body ? (
                 <section className="mt-12" aria-label={story.title}>
-                    <StoryBody body={story.body} />
+                    <StoryBody body={story.body} bodyHtml={bodyHtml} />
                 </section>
             ) : null}
 

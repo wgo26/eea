@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect -- debounced author search mirrors the existing dialogs */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createContentItem,
   saveContentItem,
@@ -15,12 +15,26 @@ import { ContentAssistButtons } from "@/components/admin/content-assist-buttons"
 import { StoryBlocksEditor } from "@/components/admin/story-blocks-editor";
 import type { StoryBlocksCopy } from "@/components/admin/story-blocks-editor";
 import {
+  draftRemainingFields,
+  suggestAltFromCaption,
+  suggestCategory,
+  suggestCredit,
   suggestExcerpt,
+  suggestLocation,
   suggestSeoDescription,
   suggestShareText,
   suggestSlug,
   suggestTags,
-} from "@/lib/admin/content-assist";
+  type AutoFillField,
+} from "@/lib/content/auto-fill";
+import { mergeStoryBlocksIntoBody } from "@/lib/content/blocks";
+import {
+  clearDraft,
+  draftKey,
+  isDraftWorthRestoring,
+  readDraft,
+  writeDraft,
+} from "@/lib/content/draft-autosave";
 import { useAdminMutation } from "@/components/admin/confirm-dialog";
 import { useToast } from "@/components/admin/toast";
 import {
@@ -34,6 +48,8 @@ import {
 } from "@/components/admin/media-uploader";
 import type { UploadedPhoto } from "@/components/admin/media-uploader";
 import { ui, Field } from "@/lib/admin/ui-constants";
+import { useLocaleFromPath } from "@/components/site-header";
+import { ContentPreview } from "./content-preview";
 import {
   BilingualBody,
   BilingualExcerpts,
@@ -74,6 +90,7 @@ const TYPE_DICT_KEYS: Record<ContentType, keyof TypeFilters> = {
 const inputCls = ui.input;
 const btnPrimary = ui.btnPrimary;
 const btnSecondary = ui.btnSecondary;
+const btnGhost = ui.btnGhost;
 
 /** One attachment URL per line, optional " - caption" suffix. */
 function attachmentList(raw: string, kind: "video" | "audio" | "document") {
@@ -120,6 +137,7 @@ function storyBlocksCopy(copy: Copy): StoryBlocksCopy {
     removeBlock: copy.blocksRemove,
     blockTitle: copy.blocksBlock,
     pickFromPhotos: copy.blocksPickPhotos,
+    pickManyPhotos: copy.blocksPickManyPhotos,
     videoUrlLabel: copy.blocksVideoUrl,
     videoUrlPlaceholder: copy.blocksVideoUrlPh,
     videoThumbnailLabel: copy.blocksVideoThumbnail,
@@ -350,14 +368,95 @@ export function formFromRow(
 /**
  * Grouped form state shared by create + edit. Returns the values object and
  * a partial `patch` updater so the 40+ fields stay in one useState.
+ * `baseline` is the serialized form the dialog opened with — the sticky dock
+ * compares it against the current values to show the unsaved-changes state.
+ *
+ * `markTouched` records the derived fields the editor typed into by hand. The
+ * auto-fill pass never overwrites a touched field, which is what makes it
+ * honest to run repeatedly: the boring fields are derived, so they re-derive —
+ * but only while nobody has claimed one.
  */
 export function useContentForm(data?: NonNullable<ContentEditData>) {
   const [values, setValues] = useState<FormValues>(() => formFromRow(data));
-  const patch = (p: Partial<FormValues>) =>
+  const [baseline, setBaseline] = useState<string>(() => JSON.stringify(formFromRow(data)));
+  const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set());
+  // Stable identity so the memoized field/media/section subtrees below can
+  // actually skip their re-render: with `setValues` being the only dependency,
+  // `patch` is created once and never changes.
+  const patch = useCallback((p: Partial<FormValues>) => {
     setValues((prev) => ({ ...prev, ...p }));
-  const reset = () => setValues(formFromRow(data));
-  return { values, patch, reset, setValues };
+  }, []);
+
+  const markTouched = useCallback((field: string) => {
+    setTouched((prev) => (prev.has(field) ? prev : new Set(prev).add(field)));
+  }, []);
+  const reset = () => {
+    const next = formFromRow(data);
+    setValues(next);
+    setBaseline(JSON.stringify(next));
+    setTouched(new Set());
+  };
+  const dirty = baseline !== JSON.stringify(values);
+  return { values, patch, reset, setValues, dirty, touched, markTouched };
 }
+
+/**
+ * Debounced local autosave for an unsaved form (see lib/content/draft-autosave).
+ *
+ * Returns the banner state plus restore/discard actions. A draft is offered,
+ * never applied, and writing is skipped until the first change after mount —
+ * otherwise merely opening a post would create a "newer" draft that shadows the
+ * saved row on next open.
+ */
+function useDraftAutosave(opts: {
+  keyName: string;
+  values: FormValues;
+  dirty: boolean;
+  /** Row's own last-update time in epoch ms (0 for create mode). */
+  savedAtMs: number;
+  setValues: (next: FormValues) => void;
+}) {
+  const { keyName, values, dirty, savedAtMs, setValues } = opts;
+  const [pending, setPending] = useState<StoredDraftView | null>(null);
+  const skipFirstWrite = useRef(true);
+
+  // Offer a recoverable draft exactly once per mount.
+  useEffect(() => {
+    const stored = readDraft<FormValues>(keyName);
+    if (isDraftWorthRestoring(stored, savedAtMs)) {
+      setPending({ savedAt: stored.savedAt, values: stored.values });
+    }
+    // Deliberately mount-only: re-reading on every keyName change would fight
+    // the editor's own typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (skipFirstWrite.current) {
+      skipFirstWrite.current = false;
+      return;
+    }
+    if (!dirty) return;
+    const t = setTimeout(() => writeDraft(keyName, values), 800);
+    return () => clearTimeout(t);
+  }, [values, dirty, keyName]);
+
+  const restore = useCallback(() => {
+    if (!pending) return;
+    setValues(pending.values);
+    setPending(null);
+  }, [pending, setValues]);
+
+  const discard = useCallback(() => {
+    clearDraft(keyName);
+    setPending(null);
+  }, [keyName]);
+
+  return { pending, restore, discard };
+}
+
+type StoredDraftView = { savedAt: number; values: FormValues };
+
 
 export type SavePayload = Parameters<typeof saveContentItem>[1];
 export type CreatePayload = Parameters<typeof createContentItem>[0];
@@ -365,6 +464,23 @@ export type CreatePayload = Parameters<typeof createContentItem>[0];
 export type FormPayload =
   | { kind: "save"; contentItemId: string; draft: SavePayload }
   | { kind: "create"; input: CreatePayload };
+
+/**
+ * Human "saved 12 min ago" for the draft-recovery banner. The copy is
+ * dictionary-driven so the phrasing is localised rather than assembled here.
+ */
+function formatDraftAge(
+  savedAtMs: number,
+  copy: Copy,
+  now = Date.now(),
+): string {
+  const mins = Math.max(0, Math.round((now - savedAtMs) / 60000));
+  if (mins < 1) return copy.draftSavedAgo;
+  if (mins < 60) return copy.draftSavedMinutesAgo.replace("{n}", String(mins));
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return copy.draftSavedHoursAgo.replace("{n}", String(hours));
+  return copy.draftSavedDaysAgo.replace("{n}", String(Math.round(hours / 24)));
+}
 
 /**
  * Form values → server-action payload. Byte-compatible with the payloads the
@@ -556,6 +672,9 @@ export type ContentFormProps = {
   data?: NonNullable<ContentEditData>;
   /** Edit mode appends a children slot (ContentHistory) above the footer. */
   children?: React.ReactNode;
+  /** Editor vs live-preview pane. State lives in the dialog shell (its tabs
+   *  render in the sticky header); the form stays mounted either way. */
+  tab?: "editor" | "preview";
   /** Called after a successful save (the dialog closes itself). */
   onDone: () => void;
 };
@@ -576,13 +695,47 @@ export function ContentForm({
   categoriesByType,
   data,
   children,
+  tab = "editor",
   onDone,
 }: ContentFormProps) {
   const { run, loading } = useAdminMutation();
   const { addToast } = useToast();
   const isEdit = mode === "edit" && !!data;
+  const locale = useLocaleFromPath();
 
-  const { values: v, patch } = useContentForm(data);
+  const { values: v, patch, dirty, reset, setValues, touched, markTouched } =
+    useContentForm(data);
+
+  // Taxonomy options for the current type, shared by the selects and the
+  // auto-fill pass. `categoriesByType` is already loaded for the dialog, so
+  // drafting a category costs no query.
+  const categoryOptions = useMemo(
+    () => categoriesByType[v.type] ?? [],
+    [categoriesByType, v.type],
+  );
+  const localDraft = useDraftAutosave({
+    keyName: draftKey(isEdit && data ? data.id : null),
+    values: v,
+    dirty,
+    savedAtMs: isEdit && data?.updatedAt ? Date.parse(data.updatedAt) : 0,
+    setValues,
+  });
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Ctrl/Cmd+S saves from anywhere in the dialog — the sticky dock advertises
+  // the shortcut, so the handler must be real (Phase B action dock).
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (!loading) form.requestSubmit();
+      }
+    };
+    form.addEventListener("keydown", onKey);
+    return () => form.removeEventListener("keydown", onKey);
+  }, [loading]);
 
   // Author search (profile author picker) — debounced, shared by both modes.
   const [authorQuery, setAuthorQuery] = useState("");
@@ -733,7 +886,132 @@ export function ContentForm({
       patch({ shareText: s });
       addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
     },
+    /**
+     * One pass over every derived field the editor left empty — the collapse of
+     * the five ✨ buttons above. Category / location are included, which is what
+     * deletes two of the publish-readiness gates entirely.
+     */
+    onDraftAll: () => {
+      const result = draftRemainingFields({
+        type: v.type,
+        enTitle: v.enTitle,
+        frTitle: v.frTitle,
+        enBody: v.enBody,
+        frBody: v.frBody,
+        enExcerpt: v.enExcerpt,
+        frExcerpt: v.frExcerpt,
+        enSeo: v.enSeo,
+        frSeo: v.frSeo,
+        slug: v.slug,
+        tags: v.tags,
+        shareText: v.shareText,
+        categoryId: v.categoryId,
+        locationId: v.locationId,
+        authorName: v.authorName,
+        categories: categoryOptions,
+        locations,
+        touched: touched as ReadonlySet<AutoFillField>,
+      });
+      if (result.applied.length === 0) {
+        addToast(
+          result.unresolved.length > 0 ? copy.assistUnsure : copy.assistNothingToDo,
+          result.unresolved.length > 0 ? "error" : "success",
+        );
+        return;
+      }
+      patch(result.patch);
+      addToast(
+        result.unresolved.length > 0
+          ? copy.assistUnsure
+          : copy.assistDraftedCount.replace("{n}", String(result.applied.length)),
+        result.unresolved.length > 0 ? "error" : "success",
+      );
+    },
+    onCategory: () => {
+      const s = suggestCategory(v.enTitle || v.frTitle, v.enBody || v.frBody, categoryOptions);
+      if (!s) {
+        addToast(copy.assistUnsure, "error");
+        return;
+      }
+      patch({ categoryId: s.id });
+      markTouched("categoryId");
+      addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
+    },
+    onLocation: () => {
+      const s = suggestLocation(v.enTitle || v.frTitle, v.enBody || v.frBody, locations);
+      if (!s) {
+        addToast(copy.assistUnsure, "error");
+        return;
+      }
+      patch({ locationId: s.id });
+      markTouched("locationId");
+      addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
+    },
+    /**
+     * Fills alt text on every photo that lacks it, and the post credit from the
+     * byline. These were the two fields the form collected but never drafted,
+     * so an image-first story could publish with blank accessibility metadata.
+     */
+    onAlt: () => {
+      const title = v.enTitle || v.frTitle;
+      let changed = 0;
+      const newPhotos = v.newPhotos.map((p) => {
+        if (p.alt?.trim() || p.kind === "video" || p.kind === "audio") return p;
+        const alt = suggestAltFromCaption(p.caption, title, p.url);
+        if (!alt) return p;
+        changed += 1;
+        return { ...p, alt };
+      });
+      const credit = v.credit.trim() ? v.credit : suggestCredit("", v.authorName || v.byline);
+      if (changed === 0 && credit === v.credit.trim()) {
+        addToast(copy.assistNothingToDo, "success");
+        return;
+      }
+      patch({ newPhotos, ...(credit !== v.credit.trim() ? { credit } : {}) });
+      addToast(copy.assistDraftedCount.replace("{n}", String(changed || 1)), "success");
+    },
   };
+
+  /**
+   * Derived fields re-derive while untouched. The two fields an editor actually
+   * writes are the title and the body; everything else is a byproduct, so it
+   * should follow them instead of waiting for a button press. `touched` is what
+   * keeps this honest — the moment a field is edited by hand it stops being
+   * rewritten, and a create-mode form never overwrites a stored row.
+   */
+  useEffect(() => {
+    if (isEdit) return;
+    const title = v.enTitle || v.frTitle;
+    if (!title.trim()) return;
+    const t = setTimeout(() => {
+      const result = draftRemainingFields({
+        type: v.type,
+        enTitle: v.enTitle,
+        frTitle: v.frTitle,
+        enBody: v.enBody,
+        frBody: v.frBody,
+        enExcerpt: v.enExcerpt,
+        frExcerpt: v.frExcerpt,
+        enSeo: v.enSeo,
+        frSeo: v.frSeo,
+        slug: v.slug,
+        tags: v.tags,
+        shareText: v.shareText,
+        categoryId: v.categoryId,
+        locationId: v.locationId,
+        authorName: v.authorName,
+        categories: categoryOptions,
+        locations,
+        touched: touched as ReadonlySet<AutoFillField>,
+      });
+      if (result.applied.length > 0) patch(result.patch);
+    }, 400);
+    return () => clearTimeout(t);
+    // Intentionally not re-running on every value it reads: `patch` above
+    // changes `v`, which would loop. It keys on the two source fields plus the
+    // taxonomy list, which is everything a suggestion can legitimately depend on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v.enTitle, v.frTitle, v.enBody, v.frBody, v.type, categoryOptions, locations, touched, isEdit]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -750,6 +1028,9 @@ export function ContentForm({
         () => saveContentItem(payload.contentItemId, payload.draft),
         copy.toastUpdated ?? "Saved.",
       );
+      // The row now holds everything the autosave held, so the local copy is
+      // stale by definition — leaving it would offer it back on next open.
+      if (ok) clearDraft(draftKey(payload.contentItemId));
       if (ok) onDone();
       return;
     }
@@ -777,14 +1058,86 @@ export function ContentForm({
           ? copy.toastScheduled
           : (copy.toastCreated ?? copy.toastPublished);
     const ok = await run(() => createContentItem(created.input), toast);
+    // A created row supersedes the local draft it was written from; for a new
+    // item the key is the shared "new" slot, so clearing it also stops a blank
+    // template being offered back as a recovery on the next post.
+    if (ok) clearDraft(draftKey(null));
     if (ok) onDone();
   }
 
   const blocksCopy = storyBlocksCopy(copy);
-  const mediaCopy = mediaUploaderCopy(common, copy);
+  const mediaCopy = useMemo(() => mediaUploaderCopy(common, copy), [common, copy]);
+
+  // Stable identities for the media subtree's props. `MediaUploader` renders one
+  // DOM node per photo, and the form re-renders on every keystroke of an
+  // unrelated field; rebuilding these arrays/objects inline defeated any
+  // memoization at that boundary, so a 60-photo story reconciled 60 tiles per
+  // character typed.
+  const mediaExistingPhotos = useMemo(
+    () =>
+      isEdit && data
+        ? data.photos.map((p) => ({
+            id: p.id,
+            url: p.url,
+            alt: p.alt,
+            caption: p.caption,
+            credit: p.credit,
+            isCover: false,
+          }))
+        : undefined,
+    [isEdit, data],
+  );
+  const onMediaChange = useCallback(
+    (next: { keepIds: string[]; newPhotos: UploadedPhoto[] }) =>
+      patch({ keepIds: next.keepIds, newPhotos: next.newPhotos }),
+    [patch],
+  );
+  const mediaItemId = isEdit && data ? data.id : undefined;
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4">
+    <form ref={formRef} onSubmit={handleSubmit} className="grid gap-4">
+      {tab === "editor" ? (
+        <>
+      {/* Recovery affordance: a local autosave is offered, never applied, so
+          two dialogs open at once can never silently overwrite each other. */}
+      {localDraft.pending ? (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2.5"
+        >
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+              {copy.draftFoundTitle}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {copy.draftFoundHint.replace(
+                "{when}",
+                formatDraftAge(localDraft.pending.savedAt, copy),
+              )}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                localDraft.restore();
+                addToast(copy.draftToastRestored, "success");
+              }}
+              className={btnSecondary}
+            >
+              {copy.draftRestore}
+            </button>
+            <button
+              type="button"
+              onClick={localDraft.discard}
+              className="rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              {copy.draftDiscard}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {/* 1 — Details: type, bilingual titles + excerpts, translate/assist. */}
       <Section title={copy.sectionDetails}>
         {!isEdit && (
@@ -848,6 +1201,7 @@ export function ContentForm({
         />
         <StoryBlocksEditor
           copy={blocksCopy}
+          initialBody={v.enBody}
           photoUrls={
             isEdit && data
               ? [
@@ -857,11 +1211,9 @@ export function ContentForm({
               : v.newPhotos.map((p) => p.url).filter(Boolean)
           }
           onInsert={(html) =>
-            patch({
-              enBody: v.enBody.trim()
-                ? `${v.enBody.trim()}\n\n${html}`
-                : html,
-            })
+            // Idempotent: re-inserting replaces the previously inserted
+            // sections instead of appending a second copy of every picture.
+            patch({ enBody: mergeStoryBlocksIntoBody(v.enBody, html) })
           }
           onToast={addToast}
           contentItemId={isEdit && data ? data.id : undefined}
@@ -891,24 +1243,11 @@ export function ContentForm({
       {/* 3 — Media: uploads/picks, credit, supporting links. */}
       <Section title={copy.sectionMedia}>
         <MediaUploader
-          existingPhotos={
-            isEdit && data
-              ? data.photos.map((p) => ({
-                  id: p.id,
-                  url: p.url,
-                  alt: p.alt,
-                  caption: p.caption,
-                  credit: p.credit,
-                  isCover: false,
-                }))
-              : undefined
-          }
+          existingPhotos={mediaExistingPhotos}
           keepIds={v.keepIds}
           newPhotos={v.newPhotos}
-          onChange={(next) =>
-            patch({ keepIds: next.keepIds, newPhotos: next.newPhotos })
-          }
-          contentItemId={isEdit && data ? data.id : undefined}
+          onChange={onMediaChange}
+          contentItemId={mediaItemId}
           destination="public_photo"
           acceptedTypes={CONTENT_MEDIA_ACCEPTS}
           maxSizeBytes={50 * 1024 * 1024}
@@ -1253,7 +1592,12 @@ export function ContentForm({
         <Field label={copy.slugLabel} hint={copy.slugHint}>
           <input
             value={v.slug}
-            onChange={(e) => patch({ slug: e.target.value })}
+            onChange={(e) => {
+              // Claiming the slug stops the title from re-deriving it; the
+              // auto-fill only ever fills a slug nobody has touched.
+              markTouched("slug");
+              patch({ slug: e.target.value });
+            }}
             className={inputCls}
             placeholder={isEdit ? undefined : "my-story-slug"}
           />
@@ -1359,36 +1703,63 @@ export function ContentForm({
         {needsReadiness && <PublishReadiness copy={copy} checks={readinessChecks} />}
       </Section>
 
-      {children}
+          {children}
+        </>
+      ) : (
+        <ContentPreview
+          v={v}
+          dataPhotos={data?.photos ?? []}
+          copy={copy}
+          common={common}
+          locale={locale}
+        />
+      )}
 
       <DialogFooter className="sticky bottom-0 z-10 -mx-6 -mb-6 mt-1 border-t border-border bg-popover px-6 pb-6 pt-3">
-        <button
-          type="button"
-          onClick={onDone}
-          className={btnSecondary}
-          disabled={loading}
-        >
-          {common.cancel}
-        </button>
-        <button
-          type="submit"
-          className={btnPrimary}
-          disabled={
-            loading ||
-            !v.enTitle.trim() ||
-            (needsReadiness && readinessChecks.some((c) => !c.passed))
-          }
-        >
-          {loading
-            ? common.working
-            : isEdit
-              ? copy.saveChanges
-              : v.publish === "now"
-                ? copy.createPublish
-                : v.publish === "schedule"
-                  ? copy.createSchedule
-                  : copy.createDraft}
-        </button>
+        <div className="flex w-full items-center justify-between gap-3">
+          <span className="flex items-center gap-2" aria-live="polite">
+            {loading ? (
+              <span className="text-xs text-muted-foreground">{common.working}</span>
+            ) : dirty ? (
+              <>
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
+                <span className="text-xs text-muted-foreground">{common.dirty}</span>
+              </>
+            ) : isEdit ? (
+              <span className="text-xs text-muted-foreground">{common.dockSaved}</span>
+            ) : null}
+          </span>
+          <span className="flex items-center gap-2">
+            {dirty && (
+              <button type="button" onClick={reset} disabled={loading} className={btnGhost}>
+                {common.discard}
+              </button>
+            )}
+            <button type="button" onClick={onDone} className={btnSecondary} disabled={loading}>
+              {common.cancel}
+            </button>
+            <button
+              type="submit"
+              className={btnPrimary}
+              disabled={
+                loading ||
+                !v.enTitle.trim() ||
+                (needsReadiness && readinessChecks.some((c) => !c.passed))
+              }
+              title={common.shortcutsHint}
+            >
+              {loading
+                ? common.working
+                : isEdit
+                  ? copy.saveChanges
+                  : v.publish === "now"
+                    ? copy.createPublish
+                    : v.publish === "schedule"
+                      ? copy.createSchedule
+                      : copy.createDraft}
+            </button>
+          </span>
+        </div>
       </DialogFooter>
     </form>
   );

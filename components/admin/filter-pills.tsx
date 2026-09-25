@@ -53,6 +53,64 @@ export function FilterPills({
 }
 
 /**
+ * Active-filter summary chips (Phase D): every non-default filter/search the
+ * current listing view applies, each removable with one click (the href drops
+ * just that param), plus a Clear-all chip when more than one is active.
+ * Server-rendered like the pills — pages already build locale-prefixed hrefs
+ * for every state combination.
+ */
+export type ActiveFilterChip = {
+  key: string
+  /** Localized "Field: value" label, e.g. "Type: Notices". */
+  label: string
+  /** Listing URL with just this filter dropped — the chip's one-click undo. */
+  removeHref: string
+}
+
+export function ActiveFilters({
+  chips,
+  clearAllHref,
+  labels,
+}: {
+  chips: ActiveFilterChip[]
+  clearAllHref?: string
+  labels: { activeFilters: string; removeFilter: string; clearAll: string }
+}) {
+  if (chips.length === 0) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={labels.activeFilters}>
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {labels.activeFilters}
+      </span>
+      {chips.map((chip) => (
+        <a
+          key={chip.key}
+          href={chip.removeHref}
+          aria-label={`${labels.removeFilter}: ${chip.label}`}
+          title={chip.label}
+          className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 py-0.5 pr-1 pl-2.5 text-xs font-medium text-foreground transition-colors hover:bg-primary/20"
+        >
+          <span className="max-w-[14rem] truncate">{chip.label}</span>
+          <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary-foreground" aria-hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="h-2.5 w-2.5">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </span>
+        </a>
+      ))}
+      {chips.length > 1 && clearAllHref && (
+        <a
+          href={clearAllHref}
+          className="text-xs font-medium text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+        >
+          {labels.clearAll}
+        </a>
+      )}
+    </div>
+  )
+}
+
+/**
  * Server-rendered search form. GET-method so it deep-links and
  * crawls. Uses a debounced auto-submit on input (no client component
  * needed — the browser submits on Enter or when the debounce fires

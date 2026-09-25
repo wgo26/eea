@@ -6,17 +6,13 @@ import { requireCapability } from '@/lib/auth/guards'
 import { getUsers, profileCompleteness } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { EmptyState } from '@/components/admin/empty-state'
-import { FilterPills, SearchBar } from '@/components/admin/filter-pills'
-import { StatusBadge } from '@/components/admin/status-badge'
-import { DataTable } from '@/components/admin/data-table'
+import { FilterPills, SearchBar, ActiveFilters } from '@/components/admin/filter-pills'
 import { Pager } from '@/components/admin/pager'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
-import { formatDateTime } from '@/lib/admin/format'
-import { UserActions } from './user-actions'
+import { UsersTable } from './users-table'
 import { InviteForm } from './invite-form'
 import { BulkInviteForm } from './bulk-invite-form'
-import type { AppRole, UserRow } from '@/lib/admin/queries'
-import Image from 'next/image'
+import type { AppRole } from '@/lib/admin/queries'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -151,6 +147,27 @@ export default async function Page({
         />
       </div>
 
+      {/* Active filters as removable chips (Phase D): three independent
+          filters can stack here, so the applied set is easy to lose track of. */}
+      <ActiveFilters
+        chips={[
+          ...(role !== 'all'
+            ? [{ key: 'role', label: `${t.colRoles}: ${t[ROLE_FILTERS.find((f) => f.key === role)!.dictKey]}`, removeHref: withParams(locale, base, { role: undefined, page: undefined }) }]
+            : []),
+          ...(status !== 'all'
+            ? [{ key: 'status', label: `${t.colStatus}: ${t[STATUS_FILTERS.find((f) => f.key === status)!.dictKey]}`, removeHref: withParams(locale, base, { status: undefined, page: undefined }) }]
+            : []),
+          ...(verified !== 'all'
+            ? [{ key: 'verified', label: `${t.verifiedAll}: ${t[VERIFIED_FILTERS.find((f) => f.key === verified)!.dictKey]}`, removeHref: withParams(locale, base, { verified: undefined, page: undefined }) }]
+            : []),
+          ...(search
+            ? [{ key: 'q', label: `${dict.admin.common.search}: ${search}`, removeHref: withParams(locale, base, { q: undefined, page: undefined }) }]
+            : []),
+        ]}
+        clearAllHref={localePath(locale, '/admin/users')}
+        labels={dict.admin.common}
+      />
+
       {users.length === 0 ? (
         <EmptyState
           message={t.empty}
@@ -166,70 +183,16 @@ export default async function Page({
           }
         />
       ) : (
-        <DataTable
-          rows={users}
-          rowKey={(r) => r.id}
-          columns={[
-            { key: 'user', header: t.colUser, render: (r) => <UserCell row={r} copy={t} href={localePath(locale, `/admin/users/${r.id}`)} />, className: 'min-w-[200px] max-w-[300px]' },
-            { key: 'status', header: t.colStatus, render: (r) => <StatusCell row={r} copy={t} /> },
-            { key: 'location', header: t.colLocation, render: (r) => <span className="whitespace-nowrap text-xs text-muted-foreground">{r.locationName ?? '—'}</span>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
-            { key: 'roles', header: t.colRoles, render: (r) => <RolesCell roles={r.roles} copy={t} />, className: 'max-w-[160px]' },
-            { key: 'joined', header: t.colJoined, render: (r) => <time className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(r.createdAt)}</time>, headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell whitespace-nowrap' },
-            { key: 'actions', header: '', stickyRight: true, render: (r) => <UserActions user={r} copy={t} common={dict.admin.common} detailHref={localePath(locale, `/admin/users/${r.id}`)} />, className: 'text-right' },
-          ]}
+        <UsersTable
+          rows={users.map((r) => ({ ...r, completeness: profileCompleteness(r) }))}
+          copy={t}
+          common={dict.admin.common}
+          locale={locale}
+          baseHref={localePath(locale, '/admin/users')}
         />
       )}
 
       <Pager page={page} pageSize={PAGE_SIZE} total={total} hrefFor={pageHref} copy={dict.admin.common} />
-    </div>
-  )
-}
-
-function UserCell({ row, copy, href }: { row: UserRow; copy: ReturnType<typeof getDictionary>['admin']['users']; href: string }) {
-  const score = profileCompleteness(row)
-  return (
-    <div className="flex min-w-0 items-center gap-3">
-      {row.avatarUrl ? (
-        <Image src={row.avatarUrl} alt="" width={36} height={36} className="h-9 w-9 shrink-0 rounded-full bg-muted object-cover" />
-      ) : (
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-muted-foreground">
-          {(row.displayName ?? row.fullName ?? row.email ?? 'U').charAt(0).toUpperCase()}
-        </div>
-      )}
-      <div className="min-w-0 flex-1">
-        <Link href={href} className="block truncate text-sm font-medium transition-colors hover:text-primary hover:underline">
-          {row.displayName ?? row.fullName ?? copy.unnamed}
-        </Link>
-        {row.email && <div className="truncate text-xs text-muted-foreground">{row.email}</div>}
-        <div className="mt-1 flex items-center gap-1.5" title={copy.completeness.replace('{score}', String(score))}>
-          <div className="h-1 w-16 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-primary" style={{ width: `${score}%` }} />
-          </div>
-          <span className="text-[10px] tabular-nums text-muted-foreground">{score}%</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function StatusCell({ row, copy }: { row: UserRow; copy: ReturnType<typeof getDictionary>['admin']['users'] }) {
-  const statusKey = row.isBanned ? 'banned' : row.isSuspended ? 'suspended' : 'active'
-  const statusLabel = statusKey === 'banned' ? copy.statusBanned : statusKey === 'suspended' ? copy.statusSuspended : copy.statusActive
-  return (
-    <div className="flex flex-wrap items-center gap-1">
-      <StatusBadge status={statusKey} label={statusLabel} />
-      {row.isVerified && <StatusBadge status="verified" label={copy.verified} />}
-    </div>
-  )
-}
-
-function RolesCell({ roles, copy }: { roles: AppRole[]; copy: ReturnType<typeof getDictionary>['admin']['users'] }) {
-  if (roles.length === 0) return <span className="text-xs text-muted-foreground">{copy.memberRole}</span>
-  return (
-    <div className="flex flex-wrap gap-1">
-      {roles.map((r) => (
-        <StatusBadge key={r} status={r} />
-      ))}
     </div>
   )
 }

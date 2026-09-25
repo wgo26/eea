@@ -2,18 +2,26 @@
 /* eslint-disable react-hooks/set-state-in-effect -- edit dialog fetches on open by design */
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { X } from 'lucide-react'
 import { deleteContentItem, getContentItemEditData as fetchEditDataAction, getContentHistoryData } from '@/lib/admin/actions/content'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import { useToast } from '@/components/admin/toast'
 import { formatRelative } from '@/lib/admin/format'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ui } from '@/lib/admin/ui-constants'
+import { DialogMaximizeToggle, DialogTabSwitcher } from '@/components/admin/dialog-maximize-toggle'
 import { ContentForm } from './content-form'
+import { contentLivePath } from './content-actions'
+import { ui } from '@/lib/admin/ui-constants'
+import { localePath } from '@/lib/i18n/urls'
+import { useLocaleFromPath } from '@/components/site-header'
 import type { Dictionary } from '@/lib/i18n'
 import type { ContentRow } from '@/lib/admin/queries'
 
@@ -38,7 +46,9 @@ type DialogShellProps = {
 /**
  * Thin shell over the shared ContentForm: primary "New content" trigger +
  * a max-w-3xl dialog with sticky header/footer. All field state and payload
- * construction live in content-form.tsx.
+ * construction live in content-form.tsx. `autoOpen` is the ⌘K "New content"
+ * deep-link (`?create=new`) — the page passes it from the search params and
+ * the URL is cleaned up when the dialog closes.
  */
 export function ContentCreateDialog({
   copy,
@@ -46,8 +56,23 @@ export function ContentCreateDialog({
   typeFilters,
   locations,
   categoriesByType,
-}: DialogShellProps) {
-  const [open, setOpen] = useState(false)
+  autoOpen = false,
+}: DialogShellProps & { autoOpen?: boolean }) {
+  const router = useRouter()
+  const [open, setOpen] = useState(autoOpen)
+  const [maximized, setMaximized] = useState(false)
+  const [tab, setTab] = useState<'editor' | 'preview'>('editor')
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next)
+    if (!next) setTab('editor')
+    if (!next && autoOpen) {
+      // Strip only `create` — the list filters in the URL survive.
+      const url = new URL(window.location.href)
+      url.searchParams.delete('create')
+      router.replace(`${url.pathname}${url.search}`)
+    }
+  }
 
   return (
     <>
@@ -58,13 +83,38 @@ export function ContentCreateDialog({
       >
         {copy.newContent}
       </button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-          <DialogHeader className="sticky top-0 z-10 -mx-6 -mt-6 border-b border-border bg-background px-6 pb-3 pt-6">
-            <DialogTitle>{copy.newContentTitle}</DialogTitle>
-            <p className="text-sm text-muted-foreground">
-              {copy.newContentBody}
-            </p>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent
+          maximized={maximized}
+          showCloseButton={false}
+          className={maximized ? 'gap-4 overflow-y-auto p-6' : 'max-h-[90vh] overflow-y-auto sm:max-w-3xl'}
+        >
+          <DialogHeader className="sticky top-0 z-10 -mx-6 -mt-6 flex-row items-start justify-between gap-3 border-b border-border bg-background px-6 pb-3 pt-6">
+            <div className="min-w-0">
+              <DialogTitle>{copy.newContentTitle}</DialogTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {copy.newContentBody}
+              </p>
+            </div>
+            <span className="flex shrink-0 items-center gap-2">
+              <DialogTabSwitcher tab={tab} onTabChange={setTab} labels={common} />
+              <DialogMaximizeToggle
+                maximized={maximized}
+                onToggle={() => setMaximized((v) => !v)}
+                labels={common}
+              />
+              <DialogClose
+                render={
+                  <button
+                    type="button"
+                    aria-label={common.close}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <X className="h-4 w-4" aria-hidden />
+                  </button>
+                }
+              />
+            </span>
           </DialogHeader>
           {open && (
             <ContentForm
@@ -74,7 +124,8 @@ export function ContentCreateDialog({
               typeFilters={typeFilters}
               locations={locations}
               categoriesByType={categoriesByType}
-              onDone={() => setOpen(false)}
+              tab={tab}
+              onDone={() => handleOpenChange(false)}
             />
           )}
         </DialogContent>
@@ -104,7 +155,10 @@ export function ContentEditTrigger({
   autoOpen?: boolean
 }) {
   const { addToast } = useToast()
+  const localeFromPath = useLocaleFromPath()
   const [open, setOpen] = useState(autoOpen)
+  const [maximized, setMaximized] = useState(false)
+  const [tab, setTab] = useState<'editor' | 'preview'>('editor')
   const [data, setData] = useState<Awaited<
     ReturnType<typeof fetchEditData>
   > | null>(null)
@@ -174,16 +228,57 @@ export function ContentEditTrigger({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-        <DialogHeader className="sticky top-0 z-10 -mx-6 -mt-6 border-b border-border bg-background px-6 pb-3 pt-6">
-          <DialogTitle>{copy.editContent}</DialogTitle>
-          {data ? (
-            <p className="text-sm text-muted-foreground">
-              {data.enTitle ?? data.title ?? content.title ?? content.slug ?? content.id.slice(0, 8)}
-              {data.status ? ` · ${data.status}` : ''}
-            </p>
-          ) : null}
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) setTab('editor')
+      }}
+    >
+      <DialogContent
+        maximized={maximized}
+        showCloseButton={false}
+        className={maximized ? 'gap-4 overflow-y-auto p-6' : 'max-h-[90vh] overflow-y-auto sm:max-w-3xl'}
+      >
+        <DialogHeader className="sticky top-0 z-10 -mx-6 -mt-6 flex-row items-start justify-between gap-3 border-b border-border bg-background px-6 pb-3 pt-6">
+          <div className="min-w-0">
+            <DialogTitle>{copy.editContent}</DialogTitle>
+            {data ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                {data.enTitle ?? data.title ?? content.title ?? content.slug ?? content.id.slice(0, 8)}
+                {data.status ? ` · ${data.status}` : ''}
+              </p>
+            ) : null}
+          </div>
+          <span className="flex shrink-0 items-center gap-2">
+            <DialogTabSwitcher tab={tab} onTabChange={setTab} labels={common} />
+            {contentLivePath(content) && (
+              <Link
+                href={localePath(localeFromPath, contentLivePath(content)!)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-8 items-center rounded-md px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {copy.viewLive}
+              </Link>
+            )}
+            <DialogMaximizeToggle
+              maximized={maximized}
+              onToggle={() => setMaximized((v) => !v)}
+              labels={common}
+            />
+            <DialogClose
+              render={
+                <button
+                  type="button"
+                  aria-label={common.close}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              }
+            />
+          </span>
         </DialogHeader>
         {fetching ? (
           <div className="grid gap-2" aria-live="polite">
@@ -214,6 +309,7 @@ export function ContentEditTrigger({
             locations={locations}
             categoriesByType={categoriesByType}
             data={data}
+            tab={tab}
             onDone={() => setOpen(false)}
           >
             <ContentHistory contentItemId={data.id} copy={copy} />
@@ -339,6 +435,8 @@ export function ContentDeleteButton({
         confirmLabel={copy.delete}
         cancelLabel={common.cancel}
         loading={loading}
+        requirePhrase="DELETE"
+        phraseLabel={common.confirmPhrase}
         onConfirm={handleDelete}
       />
     </>

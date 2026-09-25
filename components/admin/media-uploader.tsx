@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/admin/toast'
 import { MediaPicker } from '@/components/admin/media-picker'
@@ -142,10 +142,23 @@ function probeDuration(file: File): Promise<number | null> {
   })
 }
 
+/** Concurrency for a batch upload: enough to saturate the link, low enough to
+ *  keep per-file progress readable and avoid tripping storage rate limits. */
+const UPLOAD_CONCURRENCY = 3;
+
 /**
  * Phase 3 — single-file upload worker (module-level pure: no hook deps).
  * Returns successes plus the failed File refs so callers can offer a
  * per-file retry instead of dropping the batch on a flaky connection.
+ *
+ * Files are sent through a small worker pool rather than one at a time: a
+ * 20-photo story used to be 20 sequential round-trips, which on a mobile
+ * connection is the difference between seconds and minutes for the same bytes.
+ *
+ * Results are written into input-indexed slots, NOT pushed as they settle:
+ * `MediaUploader` treats `allPhotos[0]` as the cover, so completion order would
+ * otherwise decide which of twenty dropped photos the cover is. Keeping the
+ * array in drop order preserves that contract exactly.
  */
 async function uploadFiles(
   fileArr: File[],
@@ -156,9 +169,11 @@ async function uploadFiles(
     onFileProgress?: (fileName: string, uploadedBytes: number, totalBytes: number) => void;
   },
 ): Promise<{ uploaded: UploadedPhoto[]; failed: { file: File; error: string }[] }> {
-  const uploaded: UploadedPhoto[] = []
-  const failed: { file: File; error: string }[] = []
-  for (const file of fileArr) {
+  // Sparse, input-indexed slots so the returned order is the drop order.
+  const slots: (UploadedPhoto | null)[] = new Array(fileArr.length).fill(null)
+  const failedSlots: ({ file: File; error: string } | null)[] = new Array(fileArr.length).fill(null)
+
+  const uploadOne = async (file: File, index: number) => {
     // Advisory duration for video/audio (browser metadata probe — the
     // server has no transcoder, so this fills duration_seconds for
     // moderation triage). Probe failure is non-fatal.
@@ -174,18 +189,32 @@ async function uploadFiles(
         durationSeconds: duration,
         onProgress: (p) => opts.onFileProgress?.(file.name, p.uploadedBytes, p.totalBytes),
       })
-      uploaded.push({
+      slots[index] = {
         url: result.url,
         kind: result.kind,
         mimeType: result.mimeType,
         durationSeconds: result.durationSeconds ?? null,
         assetId: result.assetId,
-      })
+      }
     } catch (err) {
-      failed.push({ file, error: err instanceof Error ? err.message : opts.errorLabel })
+      failedSlots[index] = { file, error: err instanceof Error ? err.message : opts.errorLabel }
     }
   }
-  return { uploaded, failed }
+
+  let cursor = 0
+  const worker = async () => {
+    while (cursor < fileArr.length) {
+      const i = cursor++
+      await uploadOne(fileArr[i]!, i)
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(UPLOAD_CONCURRENCY, fileArr.length) }, () => worker()),
+  )
+  return {
+    uploaded: slots.filter((s): s is UploadedPhoto => s !== null),
+    failed: failedSlots.filter((f): f is { file: File; error: string } => f !== null),
+  }
 }
 
 const DEFAULT_COPY: Required<NonNullable<MediaUploaderProps['copy']>> = {  label: 'Media',
@@ -217,7 +246,7 @@ const DEFAULT_COPY: Required<NonNullable<MediaUploaderProps['copy']>> = {  label
   empty: 'No media yet. Upload or paste URLs above.',
 }
 
-export function MediaUploader({
+export const MediaUploader = memo(function MediaUploader({
   existingPhotos = [],
   keepIds = [],
   newPhotos = [],
@@ -656,4 +685,4 @@ export function MediaUploader({
       )}
     </div>
   )
-}
+})

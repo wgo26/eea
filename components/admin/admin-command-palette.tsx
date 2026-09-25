@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search } from 'lucide-react'
+import { CornerDownLeft, Search } from 'lucide-react'
 import {
   CommandDialog,
   CommandEmpty,
@@ -10,19 +10,36 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
+  CommandShortcut,
 } from '@/components/ui/command'
 import { adminGlobalSearch, type AdminSearchResults } from '@/lib/admin/actions/content'
 import { localePath } from '@/lib/i18n/urls'
 import { getDictionary } from '@/lib/i18n'
 import { useLocaleFromPath } from '@/components/site-header'
-import type { AdminNavItem } from './nav-items'
+import { type AdminNavGroup, type SidebarKey } from './nav-items'
 
 /**
- * Staff command palette (Cmd/Ctrl+K): jump to admin sections plus live
- * content/user search (top matches link to the edit drawer / user detail).
- * Mounted in the admin topbar — every command-center page gets it.
+ * Keyboard-first shortcuts (Phase A): the subset of the nav that starts work
+ * rather than merely navigating. `?create=new` auto-opens the content dialog;
+ * the others land on pages whose primary form is already above the fold. Each
+ * entry keys off a nav item, so visibility follows the same capability filter
+ * as the sidebar — a contributor never sees the emergency broadcast.
  */
-export function AdminCommandPalette({ items }: { items: AdminNavItem[] }) {
+const QUICK_ACTIONS: { key: SidebarKey; href: string }[] = [
+  { key: 'content', href: '/admin/content?create=new' },
+  { key: 'moderation', href: '/admin/moderation' },
+  { key: 'emergency', href: '/admin/emergency' },
+]
+
+/**
+ * Staff command palette (Cmd/Ctrl+K): capability-filtered quick actions, then
+ * deep-link jumps grouped by operational domain — one CommandGroup per domain,
+ * so results carry the same mental map as the sidebar — plus live content/user
+ * search (top matches link to the edit dialog / user detail). Mounted in the
+ * admin topbar, so every command-center page gets it.
+ */
+export function AdminCommandPalette({ groups }: { groups: AdminNavGroup[] }) {
   const locale = useLocaleFromPath()
   const dict = getDictionary(locale)
   const router = useRouter()
@@ -60,12 +77,16 @@ export function AdminCommandPalette({ items }: { items: AdminNavItem[] }) {
     router.push(href)
   }
 
-  const matchingSections = items.filter((item) =>
-    item.label.toLowerCase().includes(query.trim().toLowerCase()),
-  )
   // Stale results from a longer query never show for a short one.
   const liveResults = query.trim().length >= 2 ? results : { content: [], users: [], locations: [], media: [], auditEvents: [] }
   const common = dict.admin.common
+
+  const visibleKeys = new Set(groups.flatMap((group) => group.items.map((item) => item.key)))
+  const quickActions = QUICK_ACTIONS.flatMap((action) =>
+    visibleKeys.has(action.key)
+      ? [{ label: dict.admin.sidebar[action.key], href: localePath(locale, action.href) }]
+      : [],
+  )
 
   return (
     <>
@@ -74,32 +95,46 @@ export function AdminCommandPalette({ items }: { items: AdminNavItem[] }) {
         onClick={() => setOpen(true)}
         aria-label={common.search}
         title={common.search}
-        className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:w-[220px] lg:w-[280px]"
       >
-        <Search className="h-3.5 w-3.5" aria-hidden />
-        <kbd className="hidden rounded border border-border bg-background px-1 py-0.5 text-xs font-semibold sm:inline">
-          ⌘K
-        </kbd>
+        <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <span className="hidden flex-1 truncate text-left md:inline">{common.searchPlaceholder}</span>
+        <kbd className="ml-auto hidden rounded border border-border bg-background px-1 py-0.5 text-xs font-semibold lg:inline">⌘K</kbd>
       </button>
-      <CommandDialog open={open} onOpenChange={setOpen} title={common.search} description={common.search}>
-        <CommandInput
-          placeholder={common.search}
-          value={query}
-          onValueChange={setQuery}
-        />
+      <CommandDialog open={open} onOpenChange={setOpen} title={common.search} description={common.search} className="sm:max-w-xl">
+        <CommandInput placeholder={common.search} value={query} onValueChange={setQuery} />
         <CommandList>
           <CommandEmpty>{common.noResults}</CommandEmpty>
-          <CommandGroup heading={dict.admin.sidebar.dashboard}>
-            {(query.trim() ? matchingSections : items).map((item) => (
-              <CommandItem
-                key={item.path}
-                value={`${item.label} ${item.path}`}
-                onSelect={() => go(item.href)}
-              >
-                {item.label}
-              </CommandItem>
-            ))}
-          </CommandGroup>
+          {quickActions.length > 0 && (
+            <CommandGroup heading={dict.admin.dashboard.quickActions}>
+              {quickActions.map((action) => (
+                <CommandItem key={action.href} value={`action ${action.label}`} onSelect={() => go(action.href)}>
+                  {action.label}
+                  <CommandShortcut><CornerDownLeft className="h-3 w-3" /></CommandShortcut>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+          {groups.map((group) => (
+            <CommandGroup key={group.domain} heading={group.label}>
+              {group.items.map((item) => (
+                <CommandItem
+                  key={item.path}
+                  value={`${item.label} ${item.path}`}
+                  onSelect={() => go(item.href)}
+                >
+                  <item.icon />
+                  {item.label}
+                  {item.badge != null && item.badge > 0 && (
+                    <span className="ml-auto rounded-full bg-destructive px-1.5 text-xs font-medium text-destructive-foreground">
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </span>
+                  )}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ))}
+          <CommandSeparator />
           {liveResults.content.length > 0 ? (
             <CommandGroup heading={dict.admin.sidebar.content}>
               {liveResults.content.map((c) => (

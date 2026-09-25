@@ -204,6 +204,8 @@ export function TrustSafetyReportsBulk({
               confirmBody: copy.deleteReportConfirmBody,
               confirmLabel: copy.deleteReport,
               cancelLabel: common.cancel,
+              requirePhrase: 'DELETE',
+              phraseLabel: common.confirmPhrase,
             },
           ]}
         />
@@ -386,6 +388,8 @@ export function TrustSafetyCorrectionsBulk({
               confirmBody: copy.deleteReportConfirmBody,
               confirmLabel: copy.deleteReport,
               cancelLabel: common.cancel,
+              requirePhrase: 'DELETE',
+              phraseLabel: common.confirmPhrase,
             },
           ]}
         />

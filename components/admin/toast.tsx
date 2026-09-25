@@ -71,7 +71,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ addToast, dismissToast }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none" role="status" aria-live="polite">
+      {/* Lifted above the bulk-action floating pill (bottom-4, Phase D) so an
+          undo toast never lands on top of the selection dock. */}
+      <div className="fixed bottom-20 right-4 z-50 flex flex-col gap-2 pointer-events-none" role="status" aria-live="polite">
         {toasts.map((toast) => (
           <div
             key={toast.id}

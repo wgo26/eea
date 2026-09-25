@@ -71,7 +71,18 @@ describe('sanitizeBodyHtml exploit regression (mXSS + smuggling)', () => {
 
   it('strips srcset and other non-allowlisted attributes', () => {
     expect(sanitizeBodyHtml('<img src="https://a/b.png" srcset="https://evil/x 2x" loading="lazy">')).toBe(
-      '<img src="https://a/b.png" />',
+      // `loading` is allowlisted (value-restricted) so the block builder's
+      // lazy images survive; `srcset` is not, so it never reaches the DOM.
+      '<img src="https://a/b.png" loading="lazy" />',
+    )
+  })
+
+  it('neutralises a loading value outside the allowlist', () => {
+    // sanitize-html keeps the attribute name but empties a value that fails the
+    // allowlist, so an injected value can never reach the DOM. An empty
+    // `loading` is the browser default (auto), which is inert.
+    expect(sanitizeBodyHtml('<img src="https://a/b.png" loading="surprise">')).toBe(
+      '<img src="https://a/b.png" loading />',
     )
   })
 

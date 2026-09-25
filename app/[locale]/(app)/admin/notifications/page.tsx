@@ -5,30 +5,14 @@ import { PageHeader } from '@/components/admin/page-header'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
 import { EmptyState } from '@/components/admin/empty-state'
 import { DataTable } from '@/components/admin/data-table'
-import { formatRelative } from '@/lib/admin/format'
 import { channelStatus } from '@/lib/notify/channels'
 import { getDigestPitchStats, getDigestSubscribers, getOutboxQueue, getOutboxStats } from '@/lib/notify/queries'
-import { NotificationQueueActions, OutboxRowActions, SubscriberToggle } from './queue-actions'
+import { NotificationQueueActions, SubscriberToggle } from './queue-actions'
+import { OutboxTable } from './outbox-table'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
   return { title: getDictionary(locale).admin.notifications.title }
-}
-
-function StatusPill({ status }: { status: string }) {
-  const tone =
-    status === 'sent'
-      ? 'bg-emerald-500/15 text-emerald-600'
-      : status === 'failed'
-        ? 'bg-destructive/10 text-destructive'
-        : status === 'skipped'
-          ? 'bg-muted text-muted-foreground'
-          : 'bg-amber-500/15 text-amber-600'
-  return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${tone}`}>
-      {status}
-    </span>
-  )
 }
 
 export default async function Page() {
@@ -88,18 +72,7 @@ export default async function Page() {
         {queue.length === 0 ? (
           <EmptyState message={t.emptyQueue} />
         ) : (
-          <DataTable
-            rows={queue}
-            rowKey={(r) => r.id}
-            columns={[
-              { key: 'event', header: t.colEvent, render: (r) => <div className="min-w-[140px] max-w-[240px]"><div className="font-mono text-xs truncate">{r.event}</div><div className="max-w-64 truncate text-xs text-muted-foreground">{r.title}</div>{r.error ? <div className="max-w-64 truncate text-xs text-destructive">{r.error}</div> : null}</div> },
-              { key: 'audience', header: t.colAudience, render: (r) => <span className="text-xs whitespace-nowrap">{r.audience === 'staff' ? t.staff : t.user}{r.recipientEmail ? <span className="block max-w-40 truncate text-xs text-muted-foreground">{r.recipientEmail}</span> : null}</span>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell' },
-              { key: 'status', header: t.colStatus, render: (r) => <StatusPill status={r.status} />, className: 'whitespace-nowrap' },
-              { key: 'channels', header: t.colChannels, render: (r) => <span className="text-xs text-muted-foreground whitespace-nowrap">{r.channels.length > 0 ? r.channels.join(' · ') : '—'}</span>, headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell whitespace-nowrap' },
-              { key: 'when', header: t.colWhen, render: (r) => <span className="text-xs text-muted-foreground whitespace-nowrap">{r.createdAt ? formatRelative(r.createdAt, locale) : '—'}</span>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },
-              { key: 'actions', header: t.colActions, stickyRight: true, render: (r) => <OutboxRowActions row={r} copy={t} />, className: 'text-right', headerClassName: 'whitespace-nowrap' },
-            ]}
-          />
+          <OutboxTable rows={queue} copy={t} common={dict.admin.common} locale={locale} />
         )}
       </section>
 

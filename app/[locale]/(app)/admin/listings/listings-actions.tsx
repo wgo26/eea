@@ -209,6 +209,8 @@ export function ListingActions({ listing, copy, common, locale, canDelete }: { l
         confirmLabel={copy.deletePermanent}
         cancelLabel={common.cancel}
         loading={busy}
+        requirePhrase="DELETE"
+        phraseLabel={common.confirmPhrase}
         onConfirm={handlePermanentDelete}
       />
 

@@ -2,21 +2,39 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BellOff, MapPin, Tag } from "lucide-react";
+import { BellOff, BellRing, MapPin, Tag } from "lucide-react";
 
 import { toggleContentFollow, type OwnFollow } from "@/lib/follows/actions";
+import { AccountEmptyState } from "@/components/account/account-page-shell";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import { localePath } from "@/lib/i18n/urls";
 
-/** Phase 3 — own follows manager: unfollow places/topics in one tap. */
+/**
+ * Phase 3 — own follows manager: unfollow places/topics in one tap.
+ * Empty copy is passed in so the client can render the same warm empty state
+ * as the page after the member unfollows their last item (Account audit §2.4)
+ * — without the client importing the full app dictionary.
+ */
 export function FollowsClient({
     initial,
     dict,
     locale,
+    emptyTitle,
+    emptyBody,
+    browseLabel,
+    browseHref,
+    secondaryLabel,
+    secondaryHref,
 }: {
     initial: OwnFollow[];
     dict: Dictionary;
     locale: Locale;
+    emptyTitle?: string;
+    emptyBody?: string;
+    browseLabel?: string;
+    browseHref?: string;
+    secondaryLabel?: string;
+    secondaryHref?: string;
 }) {
     const [rows, setRows] = React.useState(initial);
     const [busy, setBusy] = React.useState<string | null>(null);
@@ -33,7 +51,17 @@ export function FollowsClient({
     }
 
     if (rows.length === 0) {
-        return <p className="text-sm text-muted-foreground">{dict.follow.manageEmpty}</p>;
+        return (
+            <AccountEmptyState
+                icon={BellRing}
+                title={emptyTitle ?? dict.follow.manageEmpty}
+                body={emptyBody}
+                actionLabel={browseLabel}
+                actionHref={browseHref}
+                secondaryLabel={secondaryLabel}
+                secondaryHref={secondaryHref}
+            />
+        );
     }
 
     return (

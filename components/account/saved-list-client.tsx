@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { BookmarkX } from 'lucide-react';
+import { BookmarkPlus, BookmarkX } from 'lucide-react';
 import { removeSaved, type SavedItem } from '@/lib/saves/actions';
+import { AccountEmptyState } from '@/components/account/account-page-shell';
 import { localePath } from '@/lib/i18n/urls';
 import type { Dictionary, Locale } from '@/lib/i18n';
 
@@ -49,16 +50,17 @@ export function SavedListClient({
   }
 
   if (items.length === 0) {
+    const e = dict.account.empty;
     return (
-      <div className="rounded-2xl border border-dashed p-8 text-center">
-        <p className="text-sm text-muted-foreground">{t.empty}</p>
-        <Link
-          href={localePath(locale, '/')}
-          className="mt-3 inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          {t.browse}
-        </Link>
-      </div>
+      <AccountEmptyState
+        icon={BookmarkPlus}
+        title={e.savedTitle}
+        body={e.savedBody}
+        actionLabel={e.savedCta}
+        actionHref={localePath(locale, "/photo-stories")}
+        secondaryLabel={e.savedSecondary}
+        secondaryHref={localePath(locale, "/buy-sell")}
+      />
     );
   }
 

@@ -7,7 +7,7 @@ import { getContentItems, getHomepageSlots, getCategoriesAdmin, getLocations } f
 import { PageHeader } from '@/components/admin/page-header'
 import { Tabs } from '@/components/admin/tabs'
 import { Pager } from '@/components/admin/pager'
-import { FilterPills, SearchBar } from '@/components/admin/filter-pills'
+import { FilterPills, SearchBar, ActiveFilters } from '@/components/admin/filter-pills'
 import { TypeFilter } from '@/components/admin/type-filter'
 import { EmptyState } from '@/components/admin/empty-state'
 import { ContentTable } from './content-table'
@@ -40,7 +40,7 @@ const TYPE_FILTERS = [
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; type?: string; tab?: string; page?: string; q?: string; edit?: string }>
+  searchParams: Promise<{ status?: string; type?: string; tab?: string; page?: string; q?: string; edit?: string; create?: string }>
 }) {
   const { roles } = await requireCapability('manageContent', '/admin/content')
   const canDelete = isAdminRoles(roles)
@@ -94,6 +94,7 @@ export default async function Page({
       typeFilters={tf}
       locations={locationOptions}
       categoriesByType={categoriesByType}
+      autoOpen={params.create === 'new'}
     />
   )
 
@@ -151,7 +152,39 @@ export default async function Page({
                 action={searchAction}
                 className="w-full sm:w-64"
               />
-            </div>
+          </div>
+
+          {/* Progressive disclosure (Phase D): the applied filters are the
+              exception, not the chrome — surface them as removable chips so
+              an editor never wonders whether the list is filtered. */}
+          <ActiveFilters
+            chips={[
+              ...(status !== 'all'
+                ? [{
+                    key: 'status',
+                    label: `${t.colStatus}: ${t[STATUS_TABS.find((s) => s.key === status)!.dictKey]}`,
+                    removeHref: `${base}?tab=content&type=${type}${search ? `&q=${encodeURIComponent(search)}` : ''}`,
+                  }]
+                : []),
+              ...(type !== 'all'
+                ? [{
+                    key: 'type',
+                    label: tf[TYPE_FILTERS.find((f) => f.key === type)!.dictKey],
+                    removeHref: `${base}?tab=content&status=${status}${search ? `&q=${encodeURIComponent(search)}` : ''}`,
+                  }]
+                : []),
+              ...(search
+                ? [{
+                    key: 'q',
+                    label: `${tc.search}: ${search}`,
+                    removeHref: `${base}?tab=content&status=${status}&type=${type}`,
+                  }]
+                : []),
+            ]}
+            clearAllHref={`${base}?tab=content`}
+            labels={tc}
+          />
+
           </div>
 
           {content.total === 0 ? (

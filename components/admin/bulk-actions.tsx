@@ -23,6 +23,14 @@ type BulkAction = {
   undoAction?: (keys: string[]) => Promise<MutationResult>
   /** Success toast copy after the undo completes (falls back to successToast). */
   undoToast?: string
+  /**
+   * Double-confirmation (Phase C): confirm unlocks only when this exact
+   * phrase is typed in the dialog (e.g. "DELETE"). Reserve for unrecoverable
+   * actions; reversible ones keep the toast Undo affordance instead.
+   */
+  requirePhrase?: string
+  /** Localized prompt around `{phrase}` — pass `common.confirmPhrase`. */
+  phraseLabel?: string
 }
 
 /**
@@ -106,40 +114,46 @@ export function BulkActionsBar({
 
   return (
     <>
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
-        <span className="text-sm font-medium text-foreground">
-          {selectedCount} {selectedLabel}
-        </span>
-        <div className="flex items-center gap-2">
-          {actions.map((action) => (
-            <button
-              key={action.label}
-              disabled={loading}
-              onClick={() => {
-                if (action.confirmTitle) {
-                  setPendingAction(action)
-                } else {
-                  void runAction(action, getKeys())
-                }
-              }}
-              className={cn(
-                'inline-flex items-center rounded-md px-3 py-1 text-xs font-medium border transition-colors disabled:opacity-50',
-                action.tone === 'danger'
-                  ? 'border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10'
-                  : 'border-border bg-background text-foreground hover:bg-accent',
-              )}
-            >
-              {action.label}
-            </button>
-          ))}
+      {/* Floating pill (Phase D): fixed bottom-center so the bulk bar stays
+          reachable no matter how far the table has scrolled; translucent
+          backdrop-blur keeps the table beneath readable. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
+        <div className="pointer-events-auto flex flex-wrap items-center gap-x-3 gap-y-2 rounded-full border border-border/70 bg-background/95 px-4 py-2 shadow-lg backdrop-blur">
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">
+            {selectedCount}
+          </span>
+          <span className="text-xs font-medium text-foreground">{selectedLabel}</span>
+          <div className="flex items-center gap-2">
+            {actions.map((action) => (
+              <button
+                key={action.label}
+                disabled={loading}
+                onClick={() => {
+                  if (action.confirmTitle) {
+                    setPendingAction(action)
+                  } else {
+                    void runAction(action, getKeys())
+                  }
+                }}
+                className={cn(
+                  'inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border transition-colors disabled:opacity-50',
+                  action.tone === 'danger'
+                    ? 'border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10'
+                    : 'border-border bg-background text-foreground hover:bg-accent',
+                )}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={onClear}
+            disabled={loading}
+            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {clearLabel}
+          </button>
         </div>
-        <button
-          onClick={onClear}
-          disabled={loading}
-          className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {clearLabel}
-        </button>
       </div>
 
       <ConfirmDialog
@@ -151,6 +165,8 @@ export function BulkActionsBar({
         cancelLabel={pendingAction?.cancelLabel ?? cancelLabel}
         loading={loading}
         tone={pendingAction?.tone === 'danger' ? 'danger' : 'default'}
+        requirePhrase={pendingAction?.requirePhrase}
+        phraseLabel={pendingAction?.phraseLabel}
         onConfirm={() => {
           if (pendingAction) void runAction(pendingAction, getKeys())
         }}

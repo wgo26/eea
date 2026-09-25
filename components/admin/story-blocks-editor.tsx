@@ -2,12 +2,15 @@
 
 import { useRef, useState } from "react";
 import {
+  blocksFromBody,
   createStoryBlock,
   extractYouTubeThumbnail,
   serializeStoryBlocks,
-  suggestExcerptFromBlocks,
   type StoryBlock,
-} from "@/lib/admin/content-assist";
+} from "@/lib/content/blocks";
+// `suggestExcerptFromBlocks` drafts prose from the section list, so it stays
+// with the other suggest* helpers until the auto-fill module lands.
+import { suggestExcerptFromBlocks } from "@/lib/admin/content-assist";
 import { uploadResumable } from "@/lib/uploads/resumable";
 
 export type StoryBlocksCopy = {
@@ -41,6 +44,7 @@ export type StoryBlocksCopy = {
   removeBlock: string;
   blockTitle: string;
   pickFromPhotos: string;
+  pickManyPhotos: string;
   videoUrlLabel: string;
   videoUrlPlaceholder: string;
   videoThumbnailLabel: string;
@@ -64,13 +68,24 @@ type Props = {
   onBlockAdded?: () => boolean;
   /** Optional content-item id so direct uploads associate with the item. */
   contentItemId?: string | null;
+  /**
+   * The current English body. Sections previously inserted into it are parsed
+   * back into the editor on open, so an existing story is editable instead of
+   * looking empty (serialization used to be one-way).
+   */
+  initialBody?: string;
 };
 
 const inputCls =
   "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary";
 
-export function StoryBlocksEditor({ copy, photoUrls, onInsert, onToast, onExcerptPreview, onBlockAdded, contentItemId }: Props) {
-  const [blocks, setBlocks] = useState<StoryBlock[]>([]);
+export function StoryBlocksEditor({ copy, photoUrls, onInsert, onToast, onExcerptPreview, onBlockAdded, contentItemId, initialBody = "" }: Props) {
+  // Parsed once on mount: `blocksFromBody` short-circuits unless the body
+  // carries the section marker, so a prose-only or Blogger-imported body costs
+  // nothing and is never rewritten. Re-hydrating on every keystroke is
+  // deliberately avoided - it would clobber unsaved edits in this list.
+  const [blocks, setBlocks] = useState<StoryBlock[]>(() => blocksFromBody(initialBody));
+
   const [open, setOpen] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
@@ -144,6 +159,23 @@ export function StoryBlocksEditor({ copy, photoUrls, onInsert, onToast, onExcerp
 
   function removeBlock(id: string) {
     setBlocksAndPreview(blocks.filter((b) => b.id !== id));
+  }
+
+  /**
+   * Click a post photo to use it: a single image for an image/text section, or
+   * toggle membership for a gallery, so a gallery is built by selecting
+   * pictures rather than by pasting one URL per line.
+   */
+  function togglePickedPhoto(b: StoryBlock, url: string) {
+    if (b.type !== "gallery") {
+      patch(b.id, { imageUrl: b.imageUrl === url ? "" : url });
+      return;
+    }
+    const current = b.galleryImages ?? [];
+    const next = current.some((g) => g.url === url)
+      ? current.filter((g) => g.url !== url)
+      : [...current, { url }];
+    patch(b.id, { galleryImages: next });
   }
 
   function handleInsert() {
@@ -384,23 +416,32 @@ export function StoryBlocksEditor({ copy, photoUrls, onInsert, onToast, onExcerp
                     ) : null}
                   </>
                 ) : null}
-                {b.type === "image" && photoUrls.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="w-full text-xs text-muted-foreground">{copy.pickFromPhotos}</span>
-                    {photoUrls.slice(0, 8).map((url) => (
-                      <button
-                        key={url}
-                        type="button"
-                        onClick={() => patch(b.id, { imageUrl: url })}
-                        className={`overflow-hidden rounded border-2 transition-colors ${
-                          b.imageUrl === url ? "border-primary" : "border-border hover:border-muted-foreground"
-                        }`}
-                        title={url}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={url} alt="" className="h-10 w-14 object-cover" loading="lazy" />
-                      </button>
-                    ))}
+                {(b.type === "image" || b.type === "gallery") && photoUrls.length > 0 ? (
+                  <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
+                    <span className="w-full text-xs text-muted-foreground">
+                      {b.type === "gallery" ? copy.pickManyPhotos : copy.pickFromPhotos}
+                    </span>
+                    {photoUrls.map((url) => {
+                      const picked =
+                        b.type === "gallery"
+                          ? (b.galleryImages ?? []).some((g) => g.url === url)
+                          : b.imageUrl === url;
+                      return (
+                        <button
+                          key={url}
+                          type="button"
+                          onClick={() => togglePickedPhoto(b, url)}
+                          aria-pressed={picked}
+                          className={`overflow-hidden rounded border-2 transition-colors ${
+                            picked ? "border-primary" : "border-border hover:border-muted-foreground"
+                          }`}
+                          title={url}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={url} alt="" className="h-10 w-14 object-cover" loading="lazy" />
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : null}
                 {(b.type === "image" || b.type === "text") && b.imageUrl ? (

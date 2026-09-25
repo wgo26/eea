@@ -1,9 +1,9 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
 /* Tailwind v4 scans every text file under the project root for class-like
-   tokens — including scripts/, docs, and .mjs audit helpers. Never write a
+   tokens â€” including scripts/, docs, and .mjs audit helpers. Never write a
    literal arbitrary-value background-URL example anywhere in repo text: the
    scanner emits a broken background-image rule that breaks `next build`
    with "Module not found: Can't resolve ''". (This bit us via a comment in
@@ -14,9 +14,9 @@
 @custom-variant dark (&:is(.dark *));
 
 /**
- * Phase 3 — editorial design tokens.
+ * Phase 3 â€” editorial design tokens.
  * - `text-floor` (0.75rem / 12px): the legibility floor for anything that
- *   carries meaning (U1). Pills/badges/metadata use this, never smaller —
+ *   carries meaning (U1). Pills/badges/metadata use this, never smaller â€”
  *   enforced by scripts/find-tiny-text.mjs in `npm run check`. Hierarchy
  *   comes from uppercase + tracking, not shrinking type.
  * - `shadow-card` / `shadow-lift`: the two elevation steps for editorial
@@ -38,7 +38,7 @@
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   /**
-   * Display serif (Newsreader, self-hosted static 700/800 — see
+   * Display serif (Newsreader, self-hosted static 700/800 â€” see
    * app/layout.tsx). Generates the `font-display` utility, used ONLY for
    * editorial headlines (detail h1s, section heroes); UI/body text stays
    * Inter so the serif never becomes a second body face.
@@ -90,7 +90,7 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  /* Brand gold — the Eagle Eye Africa accent (hero sample: TOP STORY pill,
+  /* Brand gold â€” the Eagle Eye Africa accent (hero sample: TOP STORY pill,
      CTAs, highlights). Ink foreground keeps AA contrast on the bright gold. */
   --primary: oklch(0.83 0.19 85);
   --primary-foreground: oklch(0.205 0 0);
@@ -123,7 +123,7 @@
 }
 
 .dark {
-  /* Phase 3 — warm ink/paper dark mode: surfaces carry a faint gold-hue
+  /* Phase 3 â€” warm ink/paper dark mode: surfaces carry a faint gold-hue
      chroma (hue ~75) instead of pure neutral grey, echoing the brand gold
      without hurting contrast (foregrounds stay near-white). */
   --background: oklch(0.165 0.018 75);
@@ -132,7 +132,7 @@
   --card-foreground: oklch(0.975 0.008 75);
   --popover: oklch(0.225 0.022 75);
   --popover-foreground: oklch(0.975 0.008 75);
-  /* Same brand gold in dark mode — the vivid accent from the hero sample. */
+  /* Same brand gold in dark mode â€” the vivid accent from the hero sample. */
   --primary: oklch(0.83 0.19 85);
   --primary-foreground: oklch(0.205 0.02 75);
   --link: oklch(0.86 0.19 87);
@@ -177,7 +177,7 @@
   }
 }
 
-/* Editorial article body — agency-grade reading surface.
+/* Editorial article body â€” agency-grade reading surface.
    Blogger bodies arrive as raw HTML (sanitized by lib/security/html.ts);
    native drafts arrive as paragraph lists. This class gives both the same
    typographic system: generous measure, calm rhythm, clear hierarchy. */
@@ -313,8 +313,173 @@
     font-size: 1.65rem;
   }
 }
+/* Story-block sections written by the admin block builder
+   (lib/admin/content-assist.ts -> serializeStoryBlocks), which wraps its output
+   in <div class="story-blocks">. The builder cannot carry any of this as inline
+   styles - display/gap/grid-template-columns are not in the sanitizer's
+   allowedStyles list and would be dropped on save - so `class` is the only
+   channel that survives, and the styling has to live here. Scoped on the
+   wrapper rather than on .article-body because the surfaces that render a body
+   differ: news and photo stories use .article-body, culture and notices use
+   Tailwind typography's .prose. */
+.story-blocks {
+  display: grid;
+  gap: 1.5rem;
+}
 
-/* Blogger import artifacts inside article prose — lib/security/html.ts keeps
+/* Gallery: the post's own pictures, laid out for a photo-first platform. */
+.story-blocks .gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.75rem;
+  align-items: start;
+}
+/* Gallery tiles keep their own rhythm, not the article figure margin. */
+.story-blocks .gallery-grid figure {
+  margin-block: 0;
+  min-width: 0;
+}
+.story-blocks .gallery-grid img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 0.75rem;
+}
+.story-blocks .gallery-grid figcaption {
+  margin-top: 0.35em;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  text-align: left;
+}
+@media (min-width: 1024px) {
+  .story-blocks .gallery-grid {
+    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    gap: 1rem;
+  }
+}
+
+/* Video/audio sections: a hosted player (YouTube/Vimeo) is stored as a real
+   <iframe> and an uploaded clip as a native <video>/<audio>. lib/security/html
+   .ts allowlists those tags under an origin + path check (`isAllowedEmbedUrl`),
+   so the player survives the save. Hosts outside that allowlist (SoundCloud,
+   Spotify, ...) serialize to a thumbnail + explicit "Watch:" link instead,
+   because an iframe pointing at them would be deleted with its content. */
+.story-blocks figure.story-video {
+  margin-block: 0;
+}
+/* Only the link variant needs the play affordance; a real player already has
+   its own controls, so the overlay is scoped to figures that carry an <a>. */
+.story-blocks figure.story-video > a {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  text-decoration: none;
+}
+.story-blocks figure.story-video img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+.story-blocks figure.story-video iframe,
+.story-blocks figure.story-video video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 1rem;
+  background-color: var(--muted);
+}
+/* CSS escape for U+25B6 so this file stays ASCII on every checkout. */
+.story-blocks figure.story-video > a::after {
+  content: "\25B6";
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 9999px;
+  background-color: color-mix(in oklch, var(--foreground) 72%, transparent);
+  color: var(--background);
+  font-size: 1.1rem;
+}
+.story-blocks figure.story-video figcaption a {
+  font-weight: 700;
+}
+
+/* Call to action. */
+.story-blocks .content-cta {
+  margin-block: 0;
+  padding: 1.25rem 1.35rem;
+  border: 1px solid var(--border);
+  border-inline-start: 4px solid var(--primary);
+  border-radius: 0.9rem;
+  background-color: color-mix(in oklch, var(--muted) 45%, var(--card));
+}
+.story-blocks .content-cta > h2 {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+  font-size: 1.2rem;
+}
+.story-blocks .content-cta > :last-child {
+  margin-bottom: 0;
+}
+.story-blocks a.cta-button {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.75em;
+  padding: 0.6rem 1.1rem;
+  border-radius: 0.7rem;
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: none;
+  min-height: 2.75rem;
+}
+.story-blocks a.cta-button:hover {
+  background-color: color-mix(in oklch, var(--primary) 86%, var(--foreground));
+  text-decoration: none;
+}
+/* A CTA label with no usable link degrades to text, never a dead anchor. */
+.story-blocks p.cta-text {
+  margin-top: 0.75em;
+  font-weight: 700;
+}
+
+/* Voice notes / interview recordings: the native control is the whole point,
+   so give it the figure rhythm without the 16/9 video frame. */
+.story-blocks figure.story-audio {
+  margin-block: 0;
+}
+.story-blocks figure.story-audio audio {
+  display: block;
+  width: 100%;
+}
+.story-blocks figure.story-audio figcaption {
+  margin-top: 0.35em;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+}
+
+/* Divider fallback: surfaces that render a body outside .article-body (culture
+   and notices use Tailwind typography's .prose) have no hr rule for the
+   generated region, so the section separator is styled here. */
+.story-blocks hr.content-divider {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin-block: 0;
+}
+
+
+
+
+/* Blogger import artifacts inside article prose â€” lib/security/html.ts keeps
    static markup + inline CSS, so Blogger's own classes survive; these rules
    give them sane spacing/alignment inside the article container. */
 .article-body :where(.separator) {
@@ -330,7 +495,7 @@
 .article-body :where([imageanchor="1"] img) {
   margin-inline: auto;
 }
-/* Reader text-size preference — TextSizeControl mirrors the choice onto
+/* Reader text-size preference â€” TextSizeControl mirrors the choice onto
    documentElement[data-article-size]; "md" is the .article-body default. */
 html[data-article-size="sm"] .article-body {
   font-size: 0.9375rem;
@@ -341,7 +506,7 @@ html[data-article-size="lg"] .article-body {
   line-height: 1.9;
 }
 
-/* Reading mode — hide sidebars/rails, center the article column. */
+/* Reading mode â€” hide sidebars/rails, center the article column. */
 body.reading-mode aside {
   display: none !important;
 }
@@ -385,7 +550,7 @@ html.high-contrast *:focus-visible {
   outline-offset: 2px;
 }
 
-/* Reduced motion — honor the OS setting globally: kill CSS animations and
+/* Reduced motion â€” honor the OS setting globally: kill CSS animations and
    transitions, drop smooth scrolling. JS-driven loops (hero carousel)
    check matchMedia("(prefers-reduced-motion: reduce)") themselves. */
 @media (prefers-reduced-motion: reduce) {
@@ -399,7 +564,7 @@ html.high-contrast *:focus-visible {
   }
 }
 
-/* Spec §25/§30 — a state whose visual profile declares reduced motion
+/* Spec Â§25/Â§30 â€” a state whose visual profile declares reduced motion
    (maintenance, degraded, incident, critical) sets data-state-motion on the
    admin shell; nonessential animation is zeroed exactly as the OS preference
    does, without touching the user's own setting. */
@@ -412,7 +577,7 @@ html.high-contrast *:focus-visible {
   scroll-behavior: auto !important;
 }
 
-/* Print — clean article layout: chrome (marked .no-print) drops out, prose
+/* Print â€” clean article layout: chrome (marked .no-print) drops out, prose
    goes black-on-white at a readable measure. `.print-only` is the inverse:
    hidden on screen, visible on paper (detail-page attribution headers). */
 .print-only {
@@ -442,4 +607,42 @@ html.high-contrast *:focus-visible {
   .article-body img {
     break-inside: avoid;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Admin data tables — density + row states (Phase D). Density is driven by
+   the `data-table-density` attribute on the admin shell
+   (components/admin/admin-client-wrapper.tsx), so one topbar control rescales
+   every ops table at once. Compact tightens vertical rhythm and gutters ONLY:
+   type size never drops, so the 12px legibility floor
+   (scripts/find-tiny-text.mjs) holds in both modes. Cells opt in via
+   `py-(--table-pad-y)` / `px-(--table-pad-x)` on DataTable.
+--------------------------------------------------------------------------- */
+.admin-table {
+  --table-pad-y: 0.6875rem;
+  --table-pad-x: 1rem;
+}
+[data-table-density='compact'] .admin-table {
+  --table-pad-y: 0.3125rem;
+  --table-pad-x: 0.75rem;
+}
+.admin-table tbody tr {
+  background-color: var(--card);
+  transition: background-color 120ms var(--ease-standard);
+}
+.admin-table tbody tr:nth-child(even) {
+  background-color: color-mix(in oklch, var(--muted) 45%, var(--card));
+}
+.admin-table tbody tr:hover {
+  background-color: color-mix(in oklch, var(--accent) 70%, var(--card));
+}
+/* Selection wins over stripe/hover: same specificity, declared last. */
+.admin-table tbody tr[data-selected='true'] {
+  background-color: color-mix(in oklch, var(--primary) 8%, var(--card));
+}
+/* Sticky edge cells (select column, actions column) inherit the ROW background
+   so striping and hover read continuously under horizontally-scrolled content
+   instead of showing a flat card gap. */
+.admin-table .table-sticky-cell {
+  background-color: inherit;
 }

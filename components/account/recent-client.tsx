@@ -5,10 +5,27 @@ import Link from "next/link";
 import { History } from "lucide-react";
 
 import { readRecentViews, type RecentView } from "@/components/system/record-recent-view";
+import { AccountEmptyState } from "@/components/account/account-page-shell";
 import type { Dictionary } from "@/lib/i18n";
 
-/** Phase 3 — recently viewed, rendered from device-local history. */
-export function RecentClient({ dict }: { dict: Dictionary }) {
+/**
+ * Phase 3 — recently viewed, rendered from device-local history.
+ * `emptyTitle`/`emptyBody` let the account page supply the warm empty state
+ * (Account audit §2.4) instead of a bare "Nothing here yet" line.
+ */
+export function RecentClient({
+    dict,
+    emptyTitle,
+    emptyBody,
+    browseLabel,
+    browseHref,
+}: {
+    dict: Dictionary;
+    emptyTitle?: string;
+    emptyBody?: string;
+    browseLabel?: string;
+    browseHref?: string;
+}) {
     const [views, setViews] = React.useState<RecentView[] | null>(() =>
         typeof window === "undefined" ? null : readRecentViews(),
     );
@@ -25,7 +42,15 @@ export function RecentClient({ dict }: { dict: Dictionary }) {
     }
 
     if (views.length === 0) {
-        return <p className="text-sm text-muted-foreground">{dict.follow.recentEmpty}</p>;
+        return (
+            <AccountEmptyState
+                icon={History}
+                title={emptyTitle ?? dict.follow.recentEmpty}
+                body={emptyBody}
+                actionLabel={browseLabel}
+                actionHref={browseHref}
+            />
+        );
     }
 
     return (

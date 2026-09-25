@@ -17,6 +17,23 @@
 
 export type TocHeading = { id: string; text: string; level: 2 | 3 };
 
+/**
+ * True when a stored `content_translations.body` carries real markup rather
+ * than plain prose. Blogger imports and admin story-block sections are HTML;
+ * native drafts are plain text with blank-line paragraph breaks, and the two
+ * need different renderers (raw text would leak `<h2>` source to readers,
+ * while treating prose as HTML would swallow its line breaks).
+ *
+ * Shared so every detail page agrees on the detection — the tag list is
+ * deliberately anchored (`<\s*` … `\b` … `[^>]*>`) so ordinary prose such as
+ * "revenue grew, p<1% of GDP" does not trip it.
+ */
+export function isHtmlBody(raw: string): boolean {
+    return /<\s*(p|div|br|h[1-6]|img|ul|ol|li|blockquote|figure|table|a|hr|span|em|strong|iframe|video|audio|source)\b[^>]*>/i.test(
+        raw,
+    );
+}
+
 function slugifyHeading(text: string, used: Set<string>): string {
     const base =
         text

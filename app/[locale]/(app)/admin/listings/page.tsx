@@ -6,7 +6,7 @@ import { getListingsAdmin } from '@/lib/admin/queries'
 import { requireCapability } from '@/lib/auth/guards'
 import { isAdminRoles } from '@/lib/auth/roles'
 import { PageHeader } from '@/components/admin/page-header'
-import { FilterPills, SearchBar } from '@/components/admin/filter-pills'
+import { FilterPills, SearchBar, ActiveFilters } from '@/components/admin/filter-pills'
 import { Pager } from '@/components/admin/pager'
 import { EmptyState } from '@/components/admin/empty-state'
 import { ListingsBulkTable } from './listings-bulk-actions'
@@ -108,6 +108,19 @@ export default async function Page({
           className="w-full sm:w-64"
         />
       </div>
+
+      <ActiveFilters
+        chips={[
+          ...(status !== 'all'
+            ? [{ key: 'status', label: `${t.colStatus}: ${t[STATUS_LABELS[status]]}`, removeHref: `${base}?sort=${sort}${search ? `&q=${encodeURIComponent(search)}` : ''}` }]
+            : []),
+          ...(search
+            ? [{ key: 'q', label: `${tc.search}: ${search}`, removeHref: `${base}?status=${status}&sort=${sort}` }]
+            : []),
+        ]}
+        clearAllHref={base}
+        labels={tc}
+      />
 
       {listings.length === 0 ? (
         <EmptyState

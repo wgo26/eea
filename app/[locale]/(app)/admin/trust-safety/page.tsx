@@ -6,7 +6,7 @@ import { getReports, getCorrections, getTrustSafetyCounts, getTrustSafetyFiltere
 import { requireCapability } from '@/lib/auth/guards'
 import { PageHeader } from '@/components/admin/page-header'
 import { Tabs } from '@/components/admin/tabs'
-import { FilterPills, SearchBar } from '@/components/admin/filter-pills'
+import { FilterPills, SearchBar, ActiveFilters } from '@/components/admin/filter-pills'
 import { EmptyState } from '@/components/admin/empty-state'
 import { Pager } from '@/components/admin/pager'
 import { TrustSafetyReportsBulk, TrustSafetyCorrectionsBulk } from './trust-safety-bulk-actions'
@@ -96,6 +96,19 @@ export default async function Page({
           action={`${base}?tab=${tab}&status=${status}`}
         />
       </div>
+
+      <ActiveFilters
+        chips={[
+          ...(status !== 'all'
+            ? [{ key: 'status', label: `${t.colStatus}: ${t[STATUS_LABELS[status]]}`, removeHref: `${base}?tab=${tab}${qs}` }]
+            : []),
+          ...(search
+            ? [{ key: 'q', label: `${tc.search}: ${search}`, removeHref: `${base}?tab=${tab}&status=${status}` }]
+            : []),
+        ]}
+        clearAllHref={base}
+        labels={tc}
+      />
 
       {tab === 'reports' ? (
         reports.length === 0 ? (

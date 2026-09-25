@@ -546,10 +546,10 @@ export type Database = {
             category: string;
             title: string;
             body: string | null;
-            link_path: string | null;
             is_read: boolean;
             created_at: string;
             expires_at: string | null;
+            link_path: string | null;
             };
             Insert: {
             id?: string;
@@ -558,10 +558,10 @@ export type Database = {
             category: string;
             title: string;
             body?: string | null;
-            link_path?: string | null;
             is_read?: boolean;
             created_at?: string;
             expires_at?: string | null;
+            link_path?: string | null;
             };
             Update: {
             id?: string | null;
@@ -570,10 +570,10 @@ export type Database = {
             category?: string | null;
             title?: string | null;
             body?: string | null;
-            link_path?: string | null;
             is_read?: boolean | null;
             created_at?: string | null;
             expires_at?: string | null;
+            link_path?: string | null;
             };
             Relationships: [
                 {
@@ -597,25 +597,25 @@ export type Database = {
             id: string;
             user_id: string;
             role: string;
-            widgets: Json;
             created_at: string;
             updated_at: string;
+            widgets: Json;
             };
             Insert: {
             id?: string;
             user_id: string;
             role: string;
-            widgets?: Json;
             created_at?: string;
             updated_at?: string;
+            widgets?: Json;
             };
             Update: {
             id?: string | null;
             user_id?: string | null;
             role?: string | null;
-            widgets?: Json;
             created_at?: string | null;
             updated_at?: string | null;
+            widgets?: Json | null;
             };
             Relationships: [
                 {
@@ -1949,6 +1949,7 @@ export type Database = {
             emailed: number;
             whatsapped: number;
             created_at: string;
+            cadence: string;
             };
             Insert: {
             id?: string;
@@ -1959,6 +1960,7 @@ export type Database = {
             emailed?: number;
             whatsapped?: number;
             created_at?: string;
+            cadence?: string;
             };
             Update: {
             id?: string | null;
@@ -1969,8 +1971,65 @@ export type Database = {
             emailed?: number | null;
             whatsapped?: number | null;
             created_at?: string | null;
+            cadence?: string | null;
             };
             Relationships: [];
+        }
+        digest_slots: {
+            Row: {
+            id: string;
+            issue_date: string;
+            locale: string;
+            content_item_id: string;
+            item_type: string;
+            section: string;
+            title: string;
+            share_text: string | null;
+            rank_hint: number;
+            pinned: boolean;
+            removed: boolean;
+            sent_at: string | null;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            issue_date: string;
+            locale: string;
+            content_item_id: string;
+            item_type: string;
+            section: string;
+            title: string;
+            share_text?: string | null;
+            rank_hint?: number;
+            pinned?: boolean;
+            removed?: boolean;
+            sent_at?: string | null;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            issue_date?: string | null;
+            locale?: string | null;
+            content_item_id?: string | null;
+            item_type?: string | null;
+            section?: string | null;
+            title?: string | null;
+            share_text?: string | null;
+            rank_hint?: number | null;
+            pinned?: boolean | null;
+            removed?: boolean | null;
+            sent_at?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_digest_slots_content_item_id_fkey",
+                    columns: ["content_item_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_items",
+                    referencedColumns: ["id"],
+                },
+            ];
         }
         digest_subscribers: {
             Row: {
@@ -2041,32 +2100,32 @@ export type Database = {
             };
             Relationships: [
                 {
-                    foreignKeyName: "emergency_publish_events_preset_id_fkey";
-                    columns: ["preset_id"];
-                    isOneToOne: false;
-                    referencedRelation: "emergency_publishing_presets";
-                    referencedColumns: ["id"];
+                    foreignKeyName: "public_emergency_publish_events_preset_id_fkey",
+                    columns: ["preset_id"],
+                    isOneToOne: false,
+                    referencedRelation: "emergency_publishing_presets",
+                    referencedColumns: ["id"],
                 },
                 {
-                    foreignKeyName: "emergency_publish_events_content_item_id_fkey";
-                    columns: ["content_item_id"];
-                    isOneToOne: false;
-                    referencedRelation: "content_items";
-                    referencedColumns: ["id"];
+                    foreignKeyName: "public_emergency_publish_events_content_item_id_fkey",
+                    columns: ["content_item_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_items",
+                    referencedColumns: ["id"],
                 },
                 {
-                    foreignKeyName: "emergency_publish_events_actor_id_fkey";
-                    columns: ["actor_id"];
-                    isOneToOne: false;
-                    referencedRelation: "profiles";
-                    referencedColumns: ["id"];
+                    foreignKeyName: "public_emergency_publish_events_actor_id_fkey",
+                    columns: ["actor_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
                 },
                 {
-                    foreignKeyName: "emergency_publish_events_approval_id_fkey";
-                    columns: ["approval_id"];
-                    isOneToOne: false;
-                    referencedRelation: "two_person_approvals";
-                    referencedColumns: ["id"];
+                    foreignKeyName: "public_emergency_publish_events_approval_id_fkey",
+                    columns: ["approval_id"],
+                    isOneToOne: false,
+                    referencedRelation: "two_person_approvals",
+                    referencedColumns: ["id"],
                 },
             ];
         }
@@ -2100,11 +2159,11 @@ export type Database = {
             };
             Relationships: [
                 {
-                    foreignKeyName: "emergency_publishing_presets_created_by_fkey";
-                    columns: ["created_by"];
-                    isOneToOne: false;
-                    referencedRelation: "profiles";
-                    referencedColumns: ["id"];
+                    foreignKeyName: "public_emergency_publishing_presets_created_by_fkey",
+                    columns: ["created_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
                 },
             ];
         }
@@ -2839,13 +2898,6 @@ export type Database = {
                 {
                     foreignKeyName: "public_media_assets_uploaded_by_fkey",
                     columns: ["uploaded_by"],
-                    isOneToOne: false,
-                    referencedRelation: "profiles",
-                    referencedColumns: ["id"],
-                },
-                {
-                    foreignKeyName: "public_media_assets_archived_by_fkey",
-                    columns: ["archived_by"],
                     isOneToOne: false,
                     referencedRelation: "profiles",
                     referencedColumns: ["id"],
@@ -3804,36 +3856,6 @@ export type Database = {
                 },
             ];
         }
-        submission_media: {
-            Row: {
-            submission_id: string;
-            media_id: string;
-            };
-            Insert: {
-            submission_id: string;
-            media_id: string;
-            };
-            Update: {
-            submission_id?: string | null;
-            media_id?: string | null;
-            };
-            Relationships: [
-                {
-                    foreignKeyName: "public_submission_media_submission_id_fkey",
-                    columns: ["submission_id"],
-                    isOneToOne: false,
-                    referencedRelation: "submissions",
-                    referencedColumns: ["id"],
-                },
-                {
-                    foreignKeyName: "public_submission_media_media_id_fkey",
-                    columns: ["media_id"],
-                    isOneToOne: false,
-                    referencedRelation: "media_assets",
-                    referencedColumns: ["id"],
-                },
-            ];
-        }
         submission_escalations: {
             Row: {
             id: string;
@@ -3864,25 +3886,55 @@ export type Database = {
             };
             Relationships: [
                 {
-                    foreignKeyName: "submission_escalations_submission_id_fkey";
-                    columns: ["submission_id"];
-                    isOneToOne: false;
-                    referencedRelation: "submissions";
-                    referencedColumns: ["id"];
+                    foreignKeyName: "public_submission_escalations_submission_id_fkey",
+                    columns: ["submission_id"],
+                    isOneToOne: false,
+                    referencedRelation: "submissions",
+                    referencedColumns: ["id"],
                 },
                 {
-                    foreignKeyName: "submission_escalations_escalated_by_fkey";
-                    columns: ["escalated_by"];
-                    isOneToOne: false;
-                    referencedRelation: "profiles";
-                    referencedColumns: ["id"];
+                    foreignKeyName: "public_submission_escalations_escalated_by_fkey",
+                    columns: ["escalated_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
                 },
                 {
-                    foreignKeyName: "submission_escalations_assigned_to_fkey";
-                    columns: ["assigned_to"];
-                    isOneToOne: false;
-                    referencedRelation: "profiles";
-                    referencedColumns: ["id"];
+                    foreignKeyName: "public_submission_escalations_assigned_to_fkey",
+                    columns: ["assigned_to"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        submission_media: {
+            Row: {
+            submission_id: string;
+            media_id: string;
+            };
+            Insert: {
+            submission_id: string;
+            media_id: string;
+            };
+            Update: {
+            submission_id?: string | null;
+            media_id?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_submission_media_submission_id_fkey",
+                    columns: ["submission_id"],
+                    isOneToOne: false,
+                    referencedRelation: "submissions",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_submission_media_media_id_fkey",
+                    columns: ["media_id"],
+                    isOneToOne: false,
+                    referencedRelation: "media_assets",
+                    referencedColumns: ["id"],
                 },
             ];
         }
@@ -3919,18 +3971,18 @@ export type Database = {
             };
             Relationships: [
                 {
-                    foreignKeyName: "submission_reviews_submission_id_fkey";
-                    columns: ["submission_id"];
-                    isOneToOne: false;
-                    referencedRelation: "submissions";
-                    referencedColumns: ["id"];
+                    foreignKeyName: "public_submission_reviews_submission_id_fkey",
+                    columns: ["submission_id"],
+                    isOneToOne: false,
+                    referencedRelation: "submissions",
+                    referencedColumns: ["id"],
                 },
                 {
-                    foreignKeyName: "submission_reviews_reviewer_id_fkey";
-                    columns: ["reviewer_id"];
-                    isOneToOne: false;
-                    referencedRelation: "profiles";
-                    referencedColumns: ["id"];
+                    foreignKeyName: "public_submission_reviews_reviewer_id_fkey",
+                    columns: ["reviewer_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
                 },
             ];
         }
@@ -4010,13 +4062,6 @@ export type Database = {
                 {
                     foreignKeyName: "public_submissions_reviewed_by_fkey",
                     columns: ["reviewed_by"],
-                    isOneToOne: false,
-                    referencedRelation: "profiles",
-                    referencedColumns: ["id"],
-                },
-                {
-                    foreignKeyName: "public_submissions_assigned_editor_id_fkey",
-                    columns: ["assigned_editor_id"],
                     isOneToOne: false,
                     referencedRelation: "profiles",
                     referencedColumns: ["id"],
@@ -4379,25 +4424,25 @@ export type Database = {
             };
             Relationships: [
                 {
-                    foreignKeyName: "translation_jobs_content_item_id_fkey";
-                    columns: ["content_item_id"];
-                    isOneToOne: false;
-                    referencedRelation: "content_items";
-                    referencedColumns: ["id"];
+                    foreignKeyName: "public_translation_jobs_content_item_id_fkey",
+                    columns: ["content_item_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_items",
+                    referencedColumns: ["id"],
                 },
                 {
-                    foreignKeyName: "translation_jobs_translator_id_fkey";
-                    columns: ["translator_id"];
-                    isOneToOne: false;
-                    referencedRelation: "profiles";
-                    referencedColumns: ["id"];
+                    foreignKeyName: "public_translation_jobs_translator_id_fkey",
+                    columns: ["translator_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
                 },
                 {
-                    foreignKeyName: "translation_jobs_reviewer_id_fkey";
-                    columns: ["reviewer_id"];
-                    isOneToOne: false;
-                    referencedRelation: "profiles";
-                    referencedColumns: ["id"];
+                    foreignKeyName: "public_translation_jobs_reviewer_id_fkey",
+                    columns: ["reviewer_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
                 },
             ];
         }
@@ -4704,11 +4749,41 @@ export type Database = {
             };
             Returns: boolean;
         }
+        content_share_bump: {
+            Args: {
+                p_id: string;
+            };
+            Returns: undefined;
+        }
+        content_view_bump: {
+            Args: {
+                p_id: string;
+            };
+            Returns: undefined;
+        }
         db_maintenance_report: {
             Args: {
                 p_purge_older_than_seconds?: number;
             };
             Returns: Json;
+        }
+        digest_freeze: {
+            Args: {
+                p_issue_date: string;
+            };
+            Returns: Json;
+        }
+        digest_mark_sent: {
+            Args: {
+                p_issue_date: string;
+            };
+            Returns: number;
+        }
+        digest_slot_for_item: {
+            Args: {
+                p_item: string;
+            };
+            Returns: undefined;
         }
         expire_ad_campaigns: {
             Args: Record<string, never>;

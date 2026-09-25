@@ -7,7 +7,7 @@ import { getPollsAdmin } from '@/lib/admin/queries'
 import { localizeStatus } from '@/lib/admin/labels'
 import { PageHeader } from '@/components/admin/page-header'
 import { EmptyState } from '@/components/admin/empty-state'
-import { FilterPills, SearchBar } from '@/components/admin/filter-pills'
+import { FilterPills, SearchBar, ActiveFilters } from '@/components/admin/filter-pills'
 import { Pager } from '@/components/admin/pager'
 import { StatusBadge } from '@/components/admin/status-badge'
 import { formatRelative } from '@/lib/admin/format'
@@ -79,6 +79,19 @@ export default async function Page({
           className="w-full sm:w-64"
         />
       </div>
+
+      <ActiveFilters
+        chips={[
+          ...(localeFilter !== 'all'
+            ? [{ key: 'locale', label: `${t.localeLabel}: ${localeFilter === 'en' ? t.filterEn : t.filterFr}`, removeHref: `${base}${qs}` }]
+            : []),
+          ...(search
+            ? [{ key: 'q', label: `${common.search}: ${search}`, removeHref: `${base}?locale=${localeFilter}` }]
+            : []),
+        ]}
+        clearAllHref={base}
+        labels={common}
+      />
 
       {polls.length === 0 ? (
         <EmptyState message={search ? common.emptyFiltered : t.empty} />

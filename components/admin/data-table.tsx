@@ -48,6 +48,14 @@ const SORT_ICON: Record<string, string> = {
   desc: '↓',
 }
 
+/**
+ * Admin ops table. Cell padding is driven by the `--table-pad-*` variables so
+ * the topbar density control (comfortable/compact) rescales every table at
+ * once — see app/globals.css. Zebra striping, row hover, selection tint and
+ * the sticky-edge background inheritance are also CSS-side, which is why the
+ * component stays a Server Component (column `render` closures arrive from
+ * server pages).
+ */
 export function DataTable<T>({
   columns,
   rows,
@@ -87,31 +95,33 @@ export function DataTable<T>({
     : columns
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden max-w-full bg-card">
-      <div className="overflow-x-auto max-w-full">
-        <table className="w-full min-w-0 text-sm border-collapse">
+    <div className="max-w-full overflow-hidden rounded-lg border border-border bg-card">
+      <div className="max-w-full overflow-x-auto">
+        <table className="admin-table w-full min-w-0 border-collapse text-sm">
           <thead>
-            <tr className="bg-muted/50 border-b border-border">
+            <tr className="border-b border-border bg-muted/50">
               {effectiveColumns.map((col) => (
                 <th
                   key={col.key}
                   className={cn(
-                    'px-3 py-2.5 md:px-4 md:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap align-middle',
-                    col.key === '__select' && 'sticky left-0 z-10 bg-muted shadow-[1px_0_0_0_var(--border)]',
-                    col.stickyRight && 'sticky right-0 z-10 bg-muted shadow-[-1px_0_0_0_var(--border)]',
+                    'px-(--table-pad-x) py-(--table-pad-y) text-left text-xs font-medium uppercase tracking-wide whitespace-nowrap align-middle text-muted-foreground',
+                    col.key === '__select' &&
+                      'table-sticky-cell sticky left-0 z-10 bg-muted shadow-[1px_0_0_0_var(--border)]',
+                    col.stickyRight &&
+                      'table-sticky-cell sticky right-0 z-10 bg-muted shadow-[-4px_0_12px_-6px_rgb(0_0_0/0.25)]',
                     col.headerClassName,
                   )}
                 >
                   {col.sortable && col.sortHref ? (
                     <a
                       href={col.sortHref(col.key, col.sortDir === 'asc' ? 'desc' : 'asc')}
-                      className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
-                      aria-sort={col.sortDir === 'asc' ? 'ascending' : col.sortDir === 'desc' ? 'descending' : undefined}
+                      className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
+                      aria-sort={
+                        col.sortDir === 'asc' ? 'ascending' : col.sortDir === 'desc' ? 'descending' : undefined
+                      }
                     >
                       {col.header}
-                      {col.sortDir && (
-                        <span className="text-foreground">{SORT_ICON[col.sortDir]}</span>
-                      )}
+                      {col.sortDir && <span className="text-foreground">{SORT_ICON[col.sortDir]}</span>}
                     </a>
                   ) : col.key === '__select' && selectable ? (
                     <div className="flex items-center">
@@ -130,7 +140,7 @@ export function DataTable<T>({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          <tbody>
             {rows.map((row) => {
               const key = rowKey(row)
               const isSelected = selectedKeys?.has(key) ?? false
@@ -138,10 +148,10 @@ export function DataTable<T>({
                 <tr
                   key={key}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  data-selected={isSelected || undefined}
                   className={cn(
-                    'bg-card transition-colors',
-                    onRowClick && 'cursor-pointer hover:bg-muted/50',
-                    isSelected && 'bg-primary/5',
+                    'border-b border-border/60 last:border-b-0',
+                    onRowClick && 'cursor-pointer',
                     getRowClassName?.(row),
                   )}
                 >
@@ -149,12 +159,11 @@ export function DataTable<T>({
                     <td
                       key={col.key}
                       className={cn(
-                        'px-3 py-2.5 md:px-4 md:py-3 align-middle',
-                        col.key === '__select' && 'sticky left-0 z-10 shadow-[1px_0_0_0_var(--border)]',
-                        col.stickyRight && 'sticky right-0 z-10 shadow-[-1px_0_0_0_var(--border)]',
-                        // Sticky cells need an opaque background so columns
-                        // scrolling underneath don't show through.
-                        (col.key === '__select' || col.stickyRight) && 'bg-card',
+                        'px-(--table-pad-x) py-(--table-pad-y) align-middle',
+                        col.key === '__select' &&
+                          'table-sticky-cell sticky left-0 z-10 shadow-[1px_0_0_0_var(--border)]',
+                        col.stickyRight &&
+                          'table-sticky-cell sticky right-0 z-10 shadow-[-4px_0_12px_-6px_rgb(0_0_0/0.25)]',
                         col.className,
                       )}
                     >
@@ -184,15 +193,15 @@ export function DataTable<T>({
 
 export function TableSkeleton({ rows = 5, columns = 4 }: { rows?: number; columns?: number }) {
   return (
-    <div className="rounded-lg border border-border overflow-hidden">
-      <div className="bg-muted/50 border-b border-border px-4 py-3">
-        <div className="h-3 w-24 bg-muted rounded animate-pulse" />
+    <div className="overflow-hidden rounded-lg border border-border">
+      <div className="border-b border-border bg-muted/50 px-4 py-3">
+        <div className="h-3 w-24 rounded bg-muted animate-pulse" />
       </div>
       <div className="divide-y divide-border">
         {Array.from({ length: rows }).map((_, i) => (
-          <div key={i} className="px-4 py-3 flex gap-4">
+          <div key={i} className="flex gap-4 px-4 py-3">
             {Array.from({ length: columns }).map((_, j) => (
-              <div key={j} className="h-4 flex-1 bg-muted rounded animate-pulse" />
+              <div key={j} className="h-4 flex-1 rounded bg-muted animate-pulse" />
             ))}
           </div>
         ))}

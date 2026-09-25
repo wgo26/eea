@@ -24,12 +24,54 @@ export const MAX_BODY_HTML_CHARS = 500_000
 
 /** Editorial tags that may survive; everything else is unwrapped or dropped. */
 const ALLOWED_TAGS: readonly string[] = [
-    "a", "b", "blockquote", "br", "caption", "center", "code", "col", "colgroup",
+    "a", "audio", "b", "blockquote", "br", "caption", "center", "code", "col", "colgroup",
     "dd", "del", "div", "dl", "dt", "em", "figcaption", "figure",
-    "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "img", "ins", "li", "mark",
-    "ol", "p", "pre", "s", "small", "span", "strike", "strong", "sub", "sup",
-    "table", "tbody", "td", "tfoot", "th", "thead", "tr", "u", "ul",
+    "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "iframe", "img", "ins", "li", "mark",
+    "ol", "p", "pre", "s", "small", "source", "span", "strike", "strong", "sub",
+    "sup", "table", "tbody", "td", "tfoot", "th", "thead", "tr", "u", "ul", "video",
 ]
+
+/**
+ * Embed origins an article body may load a player from.
+ *
+ * `<iframe>` is otherwise the single most dangerous tag to allowlist, so it is
+ * admitted under a strict origin allowlist that is checked on *every* iframe
+ * (see `transformTags` below) rather than trusting the producer: only YouTube
+ * and Vimeo, the two hosts already in the CSP `frame-src` allowlist
+ * (`MEDIA_FRAMES` in lib/security/csp.ts), and only their canonical player
+ * paths. An iframe pointing anywhere else — including a look-alike such as
+ * `https://www.youtube.com.evil.test/` — is removed with its content, exactly
+ * as before this tag was allowlisted. `<video>`/`<audio>`/`<source>` are inert
+ * media elements with no script surface; which hosts can actually serve them is
+ * enforced by the CSP `media-src` allowlist, not here.
+ */
+const EMBED_ORIGINS: readonly string[] = [
+    "https://www.youtube.com",
+    "https://player.vimeo.com",
+];
+
+/** Canonical player paths for `EMBED_ORIGINS`, matched against the parsed URL. */
+const EMBED_PATHS: Readonly<Record<string, RegExp>> = {
+    "https://www.youtube.com": /^\/embed\/[A-Za-z0-9_-]{11}\/?(?:\?[^\s]*)?$/,
+    "https://player.vimeo.com": /^\/video\/\d+\/?(?:\?[^\s]*)?$/,
+};
+
+/** True when `raw` is an approved player URL on an approved origin + path. */
+export function isAllowedEmbedUrl(raw: string | undefined): boolean {
+    if (!raw) return false;
+    let parsed: URL;
+    try {
+        parsed = new URL(raw);
+    } catch {
+        return false;
+    }
+    if (parsed.protocol !== "https:") return false;
+    // Rebuild origin from scheme+host only: this is what discards credentials,
+    // query-before-path tricks and any port that is not explicitly allowlisted.
+    const origin = `${parsed.protocol}//${parsed.host}`;
+    if (!EMBED_ORIGINS.includes(origin)) return false;
+    return (EMBED_PATHS[origin] ?? /$^/).test(`${parsed.pathname}${parsed.search}`);
+}
 
 /** Length units for width/height/margin/padding-style values. */
 const MEASURE = String.raw`[-+]?\d*\.?\d+(px|%|em|rem|pt|ch|vw|vh|cm|mm|in|ex)?`
@@ -76,31 +118,103 @@ const ALLOWED_STYLES: sanitizeHtmlLib.IOptions["allowedStyles"] = {
     ),
 }
 
+/**
+ * Rebuilds every `<iframe>`'s attributes before the allowlist consults them.
+ *
+ * Only an approved player URL survives: a disallowed frame is emptied here and
+ * then removed WITH its content by `dropDisallowedEmbeds`, so a body can never
+ * carry an iframe pointing at an arbitrary origin. Accepted frames get their
+ * attributes rebuilt from scratch (only `src` and `title` are carried over), so
+ * an input-supplied `srcdoc`, `allow=*`, `onload` or `formaction` cannot reach
+ * the output. The `allow` string mirrors
+ * components/media/media-attachment.tsx exactly, so an inline embed behaves
+ * like the supporting-media player the team already ships.
+ */
+function normalizeEmbedTag(
+    name: string,
+    attribs: Record<string, string>,
+): { tagName: string; attribs: Record<string, string> } {
+    if (name !== "iframe") return { tagName: name, attribs };
+    if (!isAllowedEmbedUrl(attribs.src)) return { tagName: name, attribs: {} };
+    return {
+        tagName: name,
+        attribs: {
+            src: attribs.src,
+            title: attribs.title?.trim() || "Embedded video",
+            allow: "accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture",
+            allowfullscreen: "",
+            loading: "lazy",
+            referrerpolicy: "strict-origin-when-cross-origin",
+        },
+    };
+}
+
+/**
+ * Removes an `<iframe>` together with everything inside it (sanitize-html drops
+ * content from the opening tag's position when this returns true) unless its
+ * `src` is an approved embed. Renaming the tag instead was tried first and is
+ * wrong: `nonTextTags` bookkeeping counts opening/closing names, so a renamed
+ * frame leaked a stray `</script>` into the surviving markup.
+ */
+function dropDisallowedEmbeds(frame: { tag: string; attribs: Record<string, string> }): boolean {
+    return frame.tag === "iframe" && !isAllowedEmbedUrl(frame.attribs?.src);
+}
+
 const SANITIZE_OPTIONS: sanitizeHtmlLib.IOptions = {
     allowedTags: [...ALLOWED_TAGS],
+    transformTags: { iframe: normalizeEmbedTag },
+    exclusiveFilter: dropDisallowedEmbeds,
     allowedAttributes: {
         // class/dir/style are safe (values are entity-escaped) and preserve
         // Blogger's structural markup (separator divs, dir="ltr", centering).
         "*": ["style", "dir", "class"],
         a: ["href", "title"],
-        img: ["src", "alt", "title", "width", "height", "align", "border"],
+        // `loading` is value-restricted so the story-block builder's lazy
+        // images survive (it is emitted on every block <img>); without this the
+        // sanitizer drops it and a 20-image story fetches all masters at once.
+        img: [
+          "src",
+          "alt",
+          "title",
+          "width",
+          "height",
+          "align",
+          "border",
+          { name: "loading", values: ["lazy", "eager", "auto"] },
+        ],
         th: ["colspan", "rowspan", "align", "valign"],
         td: ["colspan", "rowspan", "align", "valign"],
         ol: ["start", "type"],
         li: ["value"],
         blockquote: ["cite"],
+        // Every iframe attribute is either rewritten or pinned by
+        // `enforceEmbedPolicy` below, so nothing here is trusted from input.
+        iframe: ["src", "title", "width", "height", "loading", "allow",
+            "referrerpolicy", "allowfullscreen"],
+        video: ["src", "poster", "width", "height", "preload", "controls",
+            "loop", "muted", "playsinline"],
+        audio: ["src", "preload", "controls", "loop", "muted"],
+        source: ["src", "type"],
     },
     allowedStyles: ALLOWED_STYLES,
     // Only plain web/mail schemes; data: URIs are kept out of img src too.
     allowedSchemes: ["http", "https", "mailto"],
-    allowedSchemesByTag: { img: ["http", "https"] },
+    allowedSchemesByTag: {
+        img: ["http", "https"],
+        iframe: ["https"],
+        video: ["http", "https"],
+        audio: ["http", "https"],
+        source: ["http", "https"],
+    },
     allowProtocolRelative: false,
     // Active/foreign/interactive elements are dropped WITH their content —
     // never unwrapped into text — so mXSS carriers (noscript/template/svg)
     // and embedded forms cannot smuggle payload text back into the page.
+    // `iframe` is absent because it is allowlisted under `EMBED_ORIGINS` and
+    // policed by `enforceEmbedPolicy`; object/embed/frame remain banned.
     nonTextTags: [
         "script", "style", "textarea", "noscript", "template", "svg", "math",
-        "iframe", "object", "embed", "frame", "frameset", "form", "option",
+        "object", "embed", "frame", "frameset", "form", "option",
         "select", "button",
     ],
     disallowedTagsMode: "discard",

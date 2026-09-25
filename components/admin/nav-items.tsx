@@ -12,7 +12,11 @@ import type { Dictionary, Locale } from '@/lib/i18n'
  * href is locale-prefixed (never a bare /admin constant).
  */
 
-type SidebarKey = keyof Dictionary['admin']['sidebar']
+/** Nav entry keys — the string-valued sidebar labels (meta keys excluded). */
+export type SidebarKey = Exclude<
+  keyof Dictionary['admin']['sidebar'],
+  'groups' | 'collapseNav' | 'expandNav'
+>
 
 export type AdminNavItem = {
   key: SidebarKey
@@ -25,12 +29,22 @@ export type AdminNavItem = {
   badge?: number
 }
 
+export type AdminNavDomain = 'command' | 'editorial' | 'safety' | 'system'
+
+export type AdminNavGroup = {
+  domain: AdminNavDomain
+  /** Localized domain header (from `dict.admin.sidebar.groups`). */
+  label: string
+  items: AdminNavItem[]
+}
+
 type AdminNavItemSpec = {
   key: SidebarKey
   path: string
   /** A single capability, or any-of a set (e.g. approvals: any gated action). */
   capability: Capability | Capability[]
   icon: ComponentType
+  domain: AdminNavDomain
 }
 
 function hasSpecCapability(spec: AdminNavItemSpec, caps: Set<Capability>): boolean {
@@ -251,39 +265,58 @@ function TranslationsIcon() {
 }
 
 const ADMIN_NAV_SPECS: AdminNavItemSpec[] = [
-  { key: 'dashboard', path: '/admin/dashboard', capability: 'viewDashboard', icon: DashboardIcon },
-  { key: 'inbox', path: '/admin/inbox', capability: 'viewDashboard', icon: InboxIcon },
-  { key: 'insights', path: '/admin/insights', capability: 'viewDashboard', icon: InsightsIcon },
-  { key: 'moderation', path: '/admin/moderation', capability: 'moderate', icon: ModerationIcon },
-  { key: 'trustSafety', path: '/admin/trust-safety', capability: 'moderate', icon: TrustSafetyIcon },
-  { key: 'incidents', path: '/admin/incidents', capability: 'incidents.manage', icon: IncidentIcon },
-  { key: 'states', path: '/admin/states', capability: 'system.configure', icon: StatesIcon },
-  { key: 'secrets', path: '/admin/secrets', capability: 'secrets.read_metadata', icon: KeyIcon },
-  {
-    key: 'approvals',
-    path: '/admin/approvals',
-    capability: ['secrets.revoke', 'incidents.manage', 'branding.publish', 'system.configure', 'manageUsers'],
-    icon: ApprovalsIcon,
-  },
-  { key: 'content', path: '/admin/content', capability: 'manageContent', icon: ContentIcon },
-  { key: 'emergency', path: '/admin/emergency', capability: 'manageContent', icon: EmergencyIcon },
-  { key: 'translations', path: '/admin/translations', capability: 'manageContent', icon: TranslationsIcon },
-  { key: 'listings', path: '/admin/listings', capability: 'manageContent', icon: ListingsIcon },
-  { key: 'taxonomy', path: '/admin/taxonomy', capability: 'manageContent', icon: TaxonomyIcon },
-  { key: 'polls', path: '/admin/polls', capability: 'managePolls', icon: PollIcon },
-  { key: 'fundraisers', path: '/admin/fundraisers', capability: 'manageFundraisers', icon: FundraiserIcon },
-  { key: 'policies', path: '/admin/policies', capability: 'managePolicies', icon: PolicyIcon },
-  { key: 'siteContent', path: '/admin/site-content', capability: 'manageSiteContent', icon: SiteContentIcon },
-  { key: 'branding', path: '/admin/branding', capability: 'branding.publish', icon: BrandingIcon },
-  { key: 'users', path: '/admin/users', capability: 'manageUsers', icon: UsersIcon },
-  { key: 'ads', path: '/admin/ads', capability: 'manageAds', icon: AdsIcon },
-  { key: 'notifications', path: '/admin/notifications', capability: 'manageNotifications', icon: NotificationsIcon },
-  { key: 'storage', path: '/admin/storage-backup', capability: 'manageStorage', icon: StorageIcon },
-  { key: 'audit', path: '/admin/audit-log', capability: 'viewAuditLog', icon: AuditIcon },
-  { key: 'security', path: '/admin/security', capability: 'viewAuditLog', icon: SecurityIcon },
+  // Executive / Command
+  { key: 'dashboard', path: '/admin/dashboard', capability: 'viewDashboard', icon: DashboardIcon, domain: 'command' },
+  { key: 'inbox', path: '/admin/inbox', capability: 'viewDashboard', icon: InboxIcon, domain: 'command' },
+  { key: 'insights', path: '/admin/insights', capability: 'viewDashboard', icon: InsightsIcon, domain: 'command' },
+  // Editorial & Community
+  { key: 'content', path: '/admin/content', capability: 'manageContent', icon: ContentIcon, domain: 'editorial' },
+  { key: 'emergency', path: '/admin/emergency', capability: 'manageContent', icon: EmergencyIcon, domain: 'editorial' },
+  { key: 'translations', path: '/admin/translations', capability: 'manageContent', icon: TranslationsIcon, domain: 'editorial' },
+  { key: 'listings', path: '/admin/listings', capability: 'manageContent', icon: ListingsIcon, domain: 'editorial' },
+  { key: 'taxonomy', path: '/admin/taxonomy', capability: 'manageContent', icon: TaxonomyIcon, domain: 'editorial' },
+  { key: 'polls', path: '/admin/polls', capability: 'managePolls', icon: PollIcon, domain: 'editorial' },
+  { key: 'fundraisers', path: '/admin/fundraisers', capability: 'manageFundraisers', icon: FundraiserIcon, domain: 'editorial' },
+  { key: 'siteContent', path: '/admin/site-content', capability: 'manageSiteContent', icon: SiteContentIcon, domain: 'editorial' },
+  { key: 'branding', path: '/admin/branding', capability: 'branding.publish', icon: BrandingIcon, domain: 'editorial' },
+  // Trust & Governance
+  { key: 'moderation', path: '/admin/moderation', capability: 'moderate', icon: ModerationIcon, domain: 'safety' },
+  { key: 'trustSafety', path: '/admin/trust-safety', capability: 'moderate', icon: TrustSafetyIcon, domain: 'safety' },
+  { key: 'incidents', path: '/admin/incidents', capability: 'incidents.manage', icon: IncidentIcon, domain: 'safety' },
+  { key: 'approvals', path: '/admin/approvals', capability: ['secrets.revoke', 'incidents.manage', 'branding.publish', 'system.configure', 'manageUsers'], icon: ApprovalsIcon, domain: 'safety' },
+  { key: 'policies', path: '/admin/policies', capability: 'managePolicies', icon: PolicyIcon, domain: 'safety' },
+  { key: 'users', path: '/admin/users', capability: 'manageUsers', icon: UsersIcon, domain: 'safety' },
+  { key: 'ads', path: '/admin/ads', capability: 'manageAds', icon: AdsIcon, domain: 'safety' },
+  { key: 'notifications', path: '/admin/notifications', capability: 'manageNotifications', icon: NotificationsIcon, domain: 'safety' },
+  // System & Infrastructure
+  { key: 'states', path: '/admin/states', capability: 'system.configure', icon: StatesIcon, domain: 'system' },
+  { key: 'secrets', path: '/admin/secrets', capability: 'secrets.read_metadata', icon: KeyIcon, domain: 'system' },
+  { key: 'storage', path: '/admin/storage-backup', capability: 'manageStorage', icon: StorageIcon, domain: 'system' },
+  { key: 'audit', path: '/admin/audit-log', capability: 'viewAuditLog', icon: AuditIcon, domain: 'system' },
+  { key: 'security', path: '/admin/security', capability: 'viewAuditLog', icon: SecurityIcon, domain: 'system' },
 ]
 
-/** Locale-prefixed admin entries the given roles may see. */
+const ADMIN_NAV_DOMAIN_ORDER: AdminNavDomain[] = ['command', 'editorial', 'safety', 'system']
+
+function navItemFromSpec(
+  spec: AdminNavItemSpec,
+  locale: Locale,
+  dict: Dictionary,
+  pendingCount: number,
+  unreadNotifications: number,
+): AdminNavItem {
+  return {
+    key: spec.key,
+    path: spec.path,
+    href: localePath(locale, spec.path),
+    label: dict.admin.sidebar[spec.key],
+    icon: spec.icon,
+    badge:
+      spec.key === 'moderation' ? pendingCount : spec.key === 'inbox' ? unreadNotifications : undefined,
+  }
+}
+
+/** Locale-prefixed admin entries the given roles may see (flat, spec order). */
 export function buildAdminNavItems(
   locale: Locale,
   dict: Dictionary,
@@ -293,15 +326,40 @@ export function buildAdminNavItems(
   unreadNotifications = 0,
 ): AdminNavItem[] {
   const caps = effectiveCapabilities(roles, adminRoles)
-  return ADMIN_NAV_SPECS.filter((spec) => hasSpecCapability(spec, caps)).map((spec) => ({
-    key: spec.key,
-    path: spec.path,
-    href: localePath(locale, spec.path),
-    label: dict.admin.sidebar[spec.key],
-    icon: spec.icon,
-    badge:
-      spec.key === 'moderation' ? pendingCount : spec.key === 'inbox' ? unreadNotifications : undefined,
-  }))
+  return ADMIN_NAV_SPECS.filter((spec) => hasSpecCapability(spec, caps)).map((spec) =>
+    navItemFromSpec(spec, locale, dict, pendingCount, unreadNotifications),
+  )
+}
+
+/**
+ * Capability-filtered nav grouped by operational domain. The domain order is
+ * stable; a domain with no visible items is omitted entirely. Group labels
+ * come from `dict.admin.sidebar.groups`, so the sidebar renders localized
+ * headers without any hardcoded strings.
+ */
+export function buildAdminNavGroups(
+  locale: Locale,
+  dict: Dictionary,
+  roles: AppRole[],
+  pendingCount = 0,
+  adminRoles: AdminRole[] = [],
+  unreadNotifications = 0,
+): AdminNavGroup[] {
+  const caps = effectiveCapabilities(roles, adminRoles)
+  const groups = new Map<AdminNavDomain, AdminNavItem[]>()
+  for (const spec of ADMIN_NAV_SPECS) {
+    if (!hasSpecCapability(spec, caps)) continue
+    const item = navItemFromSpec(spec, locale, dict, pendingCount, unreadNotifications)
+    const list = groups.get(spec.domain)
+    if (list) list.push(item)
+    else groups.set(spec.domain, [item])
+  }
+  const result: AdminNavGroup[] = []
+  for (const domain of ADMIN_NAV_DOMAIN_ORDER) {
+    const items = groups.get(domain)
+    if (items) result.push({ domain, label: dict.admin.sidebar.groups[domain], items })
+  }
+  return result
 }
 
 export function adminHomeHref(locale: Locale): string {
@@ -310,4 +368,29 @@ export function adminHomeHref(locale: Locale): string {
 
 export function adminBackToSiteHref(locale: Locale): string {
   return localePath(locale, '/')
+}
+
+/**
+ * Which operational domain and entry the current route belongs to — drives
+ * the topbar breadcrumbs (Phase B). Matches on the locale-free canonical path
+ * so it works with or without the locale prefix.
+ */
+export function findAdminNavLocation(
+  groups: AdminNavGroup[],
+  pathname: string,
+): { groupLabel: string; itemLabel: string } | null {
+  let best: { groupLabel: string; itemLabel: string; length: number } | null = null
+  for (const group of groups) {
+    for (const item of group.items) {
+      const match =
+        pathname === item.path ||
+        pathname.startsWith(`${item.path}/`) ||
+        pathname === item.href ||
+        pathname.startsWith(`${item.href}/`)
+      if (match && (!best || item.path.length > best.length)) {
+        best = { groupLabel: group.label, itemLabel: item.label, length: item.path.length }
+      }
+    }
+  }
+  return best ? { groupLabel: best.groupLabel, itemLabel: best.itemLabel } : null
 }

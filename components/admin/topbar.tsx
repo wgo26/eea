@@ -1,29 +1,44 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { Bell, PanelLeftClose, PanelLeftOpen, Rows3, Table2 } from 'lucide-react'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
-import { signOutAction } from '@/lib/auth/actions'
 import type { AppRole } from '@/lib/auth/types'
 import type { AdminRole } from '@/lib/auth/admin-roles'
 import { useLocaleFromPath } from '@/components/site-header'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AdminMobileNav } from './admin-mobile-nav'
 import { AdminCommandPalette } from './admin-command-palette'
+import { AdminUserMenu } from './admin-user-menu'
 import { SystemStateIndicator } from './system-state-indicator'
 import { useSystemState } from './state-provider'
+import { useSidebarRail, useTableDensity } from './nav-preferences'
 import { EnvIndicator } from './env-indicator'
-import { buildAdminNavItems } from './nav-items'
+import { buildAdminNavGroups, findAdminNavLocation } from './nav-items'
 
 /**
  * Admin topbar (AppShell). Client component so the capability-filtered nav
- * items (which carry icon component references) are built on the client.
- * Building them in a Server Component and passing to AdminMobileNav would
- * pass functions across the server/client boundary → React #441.
- * Sticky, localized, with the mobile drawer trigger (item 8), the
- * pending-moderation shortcut, the staff identity area and a sign-out
- * control on every admin page (item 11). The system-state pill (spec §26/§31)
- * reads the state from `SystemStateProvider` — the layout resolves it once per
- * request, so no page has to thread it down by hand.
+ * groups (which carry icon component references) are built on the client.
+ * Building them in a Server Component and passing them to AdminMobileNav or
+ * AdminCommandPalette would pass functions across the server/client boundary
+ * → React #441.
+ *
+ * Three zones (Phase B): left = mobile drawer trigger, desktop rail toggle
+ * and active-page breadcrumbs; center = the ⌘K global search; right =
+ * environment + system-state indicators, the pending-attention bell and the
+ * compact profile menu. Sticky, localized, reachable from every admin page
+ * (checklist item 11). The system-state pill reads `SystemStateProvider` —
+ * the layout resolves the state once per request, so no page threads it down.
  */
 export function AdminTopbar({
   pendingCount,
@@ -42,23 +57,76 @@ export function AdminTopbar({
 }) {
   const locale = useLocaleFromPath()
   const dict = getDictionary(locale)
-  const items = buildAdminNavItems(locale, dict, roles, pendingCount, adminRoles, unreadNotifications)
-  const isAdmin = roles.includes('admin')
+  const pathname = usePathname() ?? ''
+  const groups = buildAdminNavGroups(locale, dict, roles, pendingCount, adminRoles, unreadNotifications)
+  const location = findAdminNavLocation(groups, pathname)
   const systemState = useSystemState()
+  const { rail, toggleRail } = useSidebarRail()
+  const { density, setDensity } = useTableDensity()
+  const canModerate = groups.some((g) => g.items.some((i) => i.key === 'moderation'))
+  const attention = [
+    pendingCount > 0 && canModerate
+      ? { href: localePath(locale, '/admin/moderation'), label: `${pendingCount} ${dict.admin.topbar.pending}` }
+      : null,
+    unreadNotifications > 0
+      ? { href: localePath(locale, '/admin/inbox'), label: `${unreadNotifications} ${dict.admin.sidebar.inbox}` }
+      : null,
+  ].filter((entry): entry is { href: string; label: string } => entry !== null)
+  const totalAttention = (canModerate ? pendingCount : 0) + unreadNotifications
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60">
-      <div className="flex h-14 items-center gap-3 px-4 md:px-6">
+      <div className="flex h-14 items-center gap-2 px-3 md:gap-3 md:px-4 lg:px-6">
+        {/* Left zone — navigation affordances + active context. */}
         <AdminMobileNav
-          items={items}
+          groups={groups}
           backToSiteHref={localePath(locale, '/')}
           labels={{ menu: dict.admin.topbar.menu, backToSite: dict.admin.sidebar.backToSite }}
         />
 
-        <div className="flex-1" />
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={toggleRail}
+                aria-label={rail ? dict.admin.sidebar.expandNav : dict.admin.sidebar.collapseNav}
+                className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:inline-flex"
+              >
+                {rail ? <PanelLeftOpen className="h-4 w-4" aria-hidden /> : <PanelLeftClose className="h-4 w-4" aria-hidden />}
+              </button>
+            }
+          />
+          <TooltipContent side="bottom">
+            {rail ? dict.admin.sidebar.expandNav : dict.admin.sidebar.collapseNav}
+          </TooltipContent>
+        </Tooltip>
 
-        <nav className="flex items-center gap-2">
-          <EnvIndicator locale={locale} />
+        <nav aria-label={dict.admin.sidebar.admin} className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
+          <Link
+            href={localePath(locale, '/admin/dashboard')}
+            className="shrink-0 font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {dict.admin.sidebar.admin}
+          </Link>
+          {location && (
+            <>
+              <span className="shrink-0 text-muted-foreground/50" aria-hidden>/</span>
+              <span className="hidden shrink-0 text-muted-foreground/70 sm:inline">{location.groupLabel}</span>
+              <span className="hidden shrink-0 text-muted-foreground/50 sm:inline" aria-hidden>/</span>
+              <span className="min-w-0 truncate font-medium text-foreground" aria-current="page">
+                {location.itemLabel}
+              </span>
+            </>
+          )}
+        </nav>
+
+        {/* Center zone — global quick search (⌘K works everywhere). */}
+        <AdminCommandPalette groups={groups} />
+
+        {/* Right zone — status, attention, identity. */}
+        <div className="flex shrink-0 items-center gap-2">
+          <EnvIndicator locale={locale} className="hidden xl:inline-flex" />
           {systemState && (
             <SystemStateIndicator
               label={dict.admin.states.label}
@@ -67,41 +135,62 @@ export function AdminTopbar({
               href={systemState.href}
             />
           )}
-          <AdminCommandPalette items={items} />
-          {pendingCount > 0 && (
-            <Link
-              href={localePath(locale, '/admin/moderation')}
-              className="relative inline-flex min-h-[32px] items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800 transition-colors hover:bg-amber-200"
-            >
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
-              {pendingCount} {dict.admin.topbar.pending}
-            </Link>
-          )}
 
-          {isAdmin && (
-            <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-              {dict.admin.topbar.admin}
-            </span>
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label={`${dict.admin.dashboard.alertsHeading}: ${totalAttention}`}
+                  className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Bell className="h-4 w-4" aria-hidden />
+                  {attention.length > 0 && (
+                    <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-semibold text-destructive-foreground ring-2 ring-card">
+                      {totalAttention > 99 ? '99+' : totalAttention}
+                    </span>
+                  )}
+                </button>
+              }
+            />
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>{dict.admin.dashboard.alertsHeading}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {attention.length > 0 ? (
+                attention.map((entry) => (
+                  <DropdownMenuItem key={entry.href} render={<Link href={entry.href} />}>
+                    {entry.label}
+                  </DropdownMenuItem>
+                ))
+              ) : (
+                <p className="px-2 py-1.5 text-xs text-muted-foreground">{dict.admin.dashboard.alertsClear}</p>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-          <div className="flex items-center gap-2 border-l border-border pl-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
-              {displayName.charAt(0).toUpperCase()}
-            </div>
-            <div className="hidden text-right leading-tight md:block">
-              <div className="text-sm font-medium">{displayName}</div>
-              <div className="text-xs leading-tight text-muted-foreground">{email}</div>
-            </div>
-            <form action={signOutAction}>
-              <button
-                type="submit"
-                className="inline-flex min-h-[36px] items-center rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {dict.admin.topbar.signOut}
-              </button>
-            </form>
-          </div>
-        </nav>
+          <span className="hidden h-6 w-px shrink-0 bg-border sm:block" aria-hidden />
+
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')}
+                  aria-label={dict.admin.common.density}
+                  aria-pressed={density === 'compact'}
+                  className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:inline-flex"
+                >
+                  {density === 'compact' ? <Rows3 className="h-4 w-4" aria-hidden /> : <Table2 className="h-4 w-4" aria-hidden />}
+                </button>
+              }
+            />
+            <TooltipContent side="bottom">
+              {dict.admin.common.density} · {density === 'compact' ? dict.admin.common.densityCompact : dict.admin.common.densityComfortable}
+            </TooltipContent>
+          </Tooltip>
+
+          <AdminUserMenu displayName={displayName} email={email} roles={roles} />
+        </div>
       </div>
     </header>
   )

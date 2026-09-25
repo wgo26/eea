@@ -358,6 +358,8 @@ export function ContentActions({
         cancelLabel={common.cancel}
         loading={loading}
         tone="danger"
+        requirePhrase="DELETE"
+        phraseLabel={common.confirmPhrase}
         onConfirm={handleDelete}
       />
     </>

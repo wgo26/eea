@@ -1017,7 +1017,8 @@ below.*
     en+fr); `/api/cron/ops-digest` fans the 5 latest published stories out
     to active `digest_subscribers` even when the ops webhook is unset.
   - **C self-service contacts** — phone + alert language editable in
-    `ProfileEditDialog` and `/account/notifications`
+    `/account/profile` (`ProfileForm`, tabbed Public identity / Contact &
+    place / Preferences) and `/account/notifications`
     (`saveNotificationPrefs` writes prefs + `profiles` together so the
     worker fallback stays consistent; `getMyContact` backs the UI).
   - **D admin hardening** — migration `20260930000000` adds
