@@ -307,6 +307,7 @@ The nav matrix is now encoded in the shell components themselves — no page can
 - Exactly one primary nav per screen — never header + sidebar + tabs stacked.
 - Nav destinations are locale-prefixed links built from the active locale, never bare `/admin/...` constants (verified by the bare-href audit).
 - Sticky behavior: public header sticks; admin topbar sticks; sidebar is sticky full-height.
+- Nav presentation is shared, not duplicated: row metrics, active treatment, badge tones, domain headers and the rail shortcut live in `components/admin/nav-styles.ts`, rendered by both `AdminSidebar` and `AdminMobileNav` (badges also by `AdminCommandPalette`), so the mobile drawer cannot drift from the desktop sidebar.
 
 **Acceptance**
 Every page matches the matrix on desktop and mobile; switching locale keeps you in the same place in the nav; no screen shows two competing primary navs. The matrix is enforced structurally — `SiteHeader` + `SiteFooter` on public, `(app)` shell (topbar/tabs + profile/sign-out area in the account topbar; `AdminSidebar` capability-filtered + `AdminTopbar` with CommandPalette and `resolveClientIp`-aware locale state) on admin/account, `(focused)` layout renders neither (only `BackButton`). The bare-href audit covers `(app)` and `components/` now as well and reports zero findings.

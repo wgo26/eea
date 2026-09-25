@@ -435,6 +435,11 @@ export const appStringsEn = {
   admin: {
     sidebar: {
       admin: 'Admin',
+      // Brand lockup in the sidebar header: the wordmark is a proper noun
+      // (never translated) and `consoleLabel` disambiguates the staff console
+      // from the public site the "Back to site" row returns to.
+      brand: 'Eagle Eye Africa',
+      consoleLabel: 'Admin console',
       groups: {
         command: 'Command',
         editorial: 'Editorial & community',

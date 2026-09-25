@@ -434,6 +434,10 @@ export const appStringsFr = {
   admin: {
     sidebar: {
       admin: 'Admin',
+      // Marque du produit (nom propre, jamais traduit) + libellé de la console
+      // qui la distingue du site public.
+      brand: 'Eagle Eye Africa',
+      consoleLabel: "Console d'administration",
       groups: {
         command: 'Commande',
         editorial: 'Rédaction & communauté',

@@ -1,4 +1,33 @@
-import type { ComponentType } from 'react'
+import {
+  Bell,
+  CalendarClock,
+  ChartColumn,
+  ClipboardCheck,
+  Database,
+  FileStack,
+  FileText,
+  Gauge,
+  HeartHandshake,
+  Inbox,
+  KeyRound,
+  Languages,
+  LayoutDashboard,
+  LayoutTemplate,
+  Lock,
+  type LucideIcon,
+  Megaphone,
+  Palette,
+  Radio,
+  Scale,
+  ScrollText,
+  ShieldAlert,
+  ShieldCheck,
+  Siren,
+  Store,
+  Tags,
+  Users,
+  Vote,
+} from 'lucide-react'
 import { type Capability } from '@/lib/auth/capabilities'
 import { effectiveCapabilities, type AdminRole } from '@/lib/auth/admin-roles'
 import type { AppRole } from '@/lib/auth/types'
@@ -10,13 +39,25 @@ import type { Dictionary, Locale } from '@/lib/i18n'
  * filtered through the capability map — an editor never receives the users/
  * ads/storage/audit entries at all, so menus and routes stay in sync. Every
  * href is locale-prefixed (never a bare /admin constant).
+ *
+ * Icons are `lucide-react` components: the same geometry, sizing props and
+ * tree-shaking the topbar, command palette and UI primitives already use, so the
+ * shell reads as one product instead of mixing a hand-rolled stroke set with the
+ * design system's.
  */
 
 /** Nav entry keys — the string-valued sidebar labels (meta keys excluded). */
 export type SidebarKey = Exclude<
   keyof Dictionary['admin']['sidebar'],
-  'groups' | 'collapseNav' | 'expandNav'
+  'groups' | 'collapseNav' | 'expandNav' | 'brand' | 'consoleLabel'
 >
+
+/**
+ * Count severity. `alert` = needs action now (renders destructive); `neutral` =
+ * informational (renders a quiet chip). Defaults to neutral, so a newly badged
+ * entry can never start shouting red on its own.
+ */
+export type AdminNavBadgeTone = 'alert' | 'neutral'
 
 export type AdminNavItem = {
   key: SidebarKey
@@ -25,8 +66,9 @@ export type AdminNavItem = {
   /** Locale-prefixed href (used for navigation). */
   href: string
   label: string
-  icon: ComponentType
+  icon: LucideIcon
   badge?: number
+  badgeTone?: AdminNavBadgeTone
 }
 
 export type AdminNavDomain = 'command' | 'editorial' | 'safety' | 'system'
@@ -43,8 +85,10 @@ type AdminNavItemSpec = {
   path: string
   /** A single capability, or any-of a set (e.g. approvals: any gated action). */
   capability: Capability | Capability[]
-  icon: ComponentType
+  icon: LucideIcon
   domain: AdminNavDomain
+  /** Severity for this entry's count badge (only consulted when it has one). */
+  badgeTone?: AdminNavBadgeTone
 }
 
 function hasSpecCapability(spec: AdminNavItemSpec, caps: Set<Capability>): boolean {
@@ -53,266 +97,38 @@ function hasSpecCapability(spec: AdminNavItemSpec, caps: Set<Capability>): boole
     : caps.has(spec.capability)
 }
 
-function DashboardIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
-    </svg>
-  )
-}
-
-function InsightsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M3 17l6-6 4 4 5-5 3 3v5a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-      <path d="M12 7v6l3-3" />
-    </svg>
-  )
-}
-
-function ModerationIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-    </svg>
-  )
-}
-
-function ContentIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
-    </svg>
-  )
-}
-
-function UsersIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  )
-}
-
-function AdsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
-    </svg>
-  )
-}
-
-function IncidentIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-      <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-    </svg>
-  )
-}
-
-function KeyIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4" />
-    </svg>
-  )
-}
-
-function ApprovalsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><polyline points="17 11 19 13 23 9" />
-    </svg>
-  )
-}
-
-function StorageIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-    </svg>
-  )
-}
-
-function AuditIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="15" y2="17" />
-    </svg>
-  )
-}
-
-function PollIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M3 3v18h18" /><rect x="7" y="10" width="3" height="8" /><rect x="12" y="6" width="3" height="12" /><rect x="17" y="13" width="3" height="5" />
-    </svg>
-  )
-}
-
-function FundraiserIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-2.22-2.07a5.5 5.5 0 0 0-7.78 7.78l2.22 2.22L12 21.23l7.78-7.78 2.22-2.22a5.5 5.5 0 0 0 0-7.78z" />
-    </svg>
-  )
-}
-
-function PolicyIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><polyline points="9 12 11 14 15 10" />
-    </svg>
-  )
-}
-
-function SiteContentIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-    </svg>
-  )
-}
-
-function TrustSafetyIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
-      <path d="m9 12 2 2 4-4" />
-    </svg>
-  )
-}
-
-function ListingsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
-      <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
-    </svg>
-  )
-}
-
-function TaxonomyIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M20 7h-9" /><path d="M14 17H5" /><circle cx="17" cy="17" r="3" /><circle cx="7" cy="7" r="3" />
-    </svg>
-  )
-}
-
-function BrandingIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="8.5" cy="9" r="1.2" /><circle cx="15.5" cy="9" r="1.2" /><circle cx="12" cy="16" r="1.2" />
-    </svg>
-  )
-}
-
-function StatesIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
-      <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
-      <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
-      <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-    </svg>
-  )
-}
-
-function NotificationsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-    </svg>
-  )
-}
-
-function InboxIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
-      <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
-    </svg>
-  )
-}
-
-function SecurityIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
-      <circle cx="12" cy="11" r="1" /><path d="M12 12v3" />
-    </svg>
-  )
-}
-
-function EmergencyIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
-    </svg>
-  )
-}
-
-function DigestIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2" />
-      <path d="M18 14h-8" /><path d="M15 18h-5" />
-    </svg>
-  )
-}
-
-function TemplateIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18" /><path d="M9 21V9" />
-    </svg>
-  )
-}
-
-function TranslationsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-      <path d="m5 8 6 6" /><path d="m4 14 6-6 2-3" /><path d="M2 5h12" /><path d="M7 2h1" />
-      <path d="m22 22-5-10-5 10" /><path d="M14 18h6" />
-    </svg>
-  )
-}
-
 const ADMIN_NAV_SPECS: AdminNavItemSpec[] = [
   // Executive / Command
-  { key: 'dashboard', path: '/admin/dashboard', capability: 'viewDashboard', icon: DashboardIcon, domain: 'command' },
-  { key: 'inbox', path: '/admin/inbox', capability: 'viewDashboard', icon: InboxIcon, domain: 'command' },
-  { key: 'insights', path: '/admin/insights', capability: 'viewDashboard', icon: InsightsIcon, domain: 'command' },
+  { key: 'dashboard', path: '/admin/dashboard', capability: 'viewDashboard', icon: LayoutDashboard, domain: 'command' },
+  { key: 'inbox', path: '/admin/inbox', capability: 'viewDashboard', icon: Inbox, domain: 'command', badgeTone: 'neutral' },
+  { key: 'insights', path: '/admin/insights', capability: 'viewDashboard', icon: ChartColumn, domain: 'command' },
   // Editorial & Community
-  { key: 'content', path: '/admin/content', capability: 'manageContent', icon: ContentIcon, domain: 'editorial' },
-  { key: 'emergency', path: '/admin/emergency', capability: 'manageContent', icon: EmergencyIcon, domain: 'editorial' },
-  { key: 'digest', path: '/admin/digest', capability: 'manageContent', icon: DigestIcon, domain: 'editorial' },
-  { key: 'templates', path: '/admin/templates', capability: 'manageContent', icon: TemplateIcon, domain: 'editorial' },
-  { key: 'translations', path: '/admin/translations', capability: 'manageContent', icon: TranslationsIcon, domain: 'editorial' },
-  { key: 'listings', path: '/admin/listings', capability: 'manageContent', icon: ListingsIcon, domain: 'editorial' },
-  { key: 'taxonomy', path: '/admin/taxonomy', capability: 'manageContent', icon: TaxonomyIcon, domain: 'editorial' },
-  { key: 'polls', path: '/admin/polls', capability: 'managePolls', icon: PollIcon, domain: 'editorial' },
-  { key: 'fundraisers', path: '/admin/fundraisers', capability: 'manageFundraisers', icon: FundraiserIcon, domain: 'editorial' },
-  { key: 'siteContent', path: '/admin/site-content', capability: 'manageSiteContent', icon: SiteContentIcon, domain: 'editorial' },
-  { key: 'branding', path: '/admin/branding', capability: 'branding.publish', icon: BrandingIcon, domain: 'editorial' },
-  // Trust & Governance
-  { key: 'moderation', path: '/admin/moderation', capability: 'moderate', icon: ModerationIcon, domain: 'safety' },
-  { key: 'trustSafety', path: '/admin/trust-safety', capability: 'moderate', icon: TrustSafetyIcon, domain: 'safety' },
-  { key: 'incidents', path: '/admin/incidents', capability: 'incidents.manage', icon: IncidentIcon, domain: 'safety' },
-  { key: 'approvals', path: '/admin/approvals', capability: ['secrets.revoke', 'incidents.manage', 'branding.publish', 'system.configure', 'manageUsers'], icon: ApprovalsIcon, domain: 'safety' },
-  { key: 'policies', path: '/admin/policies', capability: 'managePolicies', icon: PolicyIcon, domain: 'safety' },
-  { key: 'users', path: '/admin/users', capability: 'manageUsers', icon: UsersIcon, domain: 'safety' },
-  { key: 'ads', path: '/admin/ads', capability: 'manageAds', icon: AdsIcon, domain: 'safety' },
-  { key: 'notifications', path: '/admin/notifications', capability: 'manageNotifications', icon: NotificationsIcon, domain: 'safety' },
+  { key: 'content', path: '/admin/content', capability: 'manageContent', icon: FileText, domain: 'editorial' },
+  { key: 'emergency', path: '/admin/emergency', capability: 'manageContent', icon: Radio, domain: 'editorial' },
+  { key: 'digest', path: '/admin/digest', capability: 'manageContent', icon: CalendarClock, domain: 'editorial' },
+  { key: 'templates', path: '/admin/templates', capability: 'manageContent', icon: FileStack, domain: 'editorial' },
+  { key: 'translations', path: '/admin/translations', capability: 'manageContent', icon: Languages, domain: 'editorial' },
+  { key: 'listings', path: '/admin/listings', capability: 'manageContent', icon: Store, domain: 'editorial' },
+  { key: 'taxonomy', path: '/admin/taxonomy', capability: 'manageContent', icon: Tags, domain: 'editorial' },
+  { key: 'polls', path: '/admin/polls', capability: 'managePolls', icon: Vote, domain: 'editorial' },
+  { key: 'fundraisers', path: '/admin/fundraisers', capability: 'manageFundraisers', icon: HeartHandshake, domain: 'editorial' },
+  { key: 'siteContent', path: '/admin/site-content', capability: 'manageSiteContent', icon: LayoutTemplate, domain: 'editorial' },
+  { key: 'branding', path: '/admin/branding', capability: 'branding.publish', icon: Palette, domain: 'editorial' },
+  // Trust & Governance — only moderation's count is action-now; mail is not.
+  { key: 'moderation', path: '/admin/moderation', capability: 'moderate', icon: ShieldCheck, domain: 'safety', badgeTone: 'alert' },
+  { key: 'trustSafety', path: '/admin/trust-safety', capability: 'moderate', icon: ShieldAlert, domain: 'safety' },
+  { key: 'incidents', path: '/admin/incidents', capability: 'incidents.manage', icon: Siren, domain: 'safety' },
+  { key: 'approvals', path: '/admin/approvals', capability: ['secrets.revoke', 'incidents.manage', 'branding.publish', 'system.configure', 'manageUsers'], icon: ClipboardCheck, domain: 'safety' },
+  { key: 'policies', path: '/admin/policies', capability: 'managePolicies', icon: Scale, domain: 'safety' },
+  { key: 'users', path: '/admin/users', capability: 'manageUsers', icon: Users, domain: 'safety' },
+  { key: 'ads', path: '/admin/ads', capability: 'manageAds', icon: Megaphone, domain: 'safety' },
+  { key: 'notifications', path: '/admin/notifications', capability: 'manageNotifications', icon: Bell, domain: 'safety' },
   // System & Infrastructure
-  { key: 'states', path: '/admin/states', capability: 'system.configure', icon: StatesIcon, domain: 'system' },
-  { key: 'secrets', path: '/admin/secrets', capability: 'secrets.read_metadata', icon: KeyIcon, domain: 'system' },
-  { key: 'storage', path: '/admin/storage-backup', capability: 'manageStorage', icon: StorageIcon, domain: 'system' },
-  { key: 'audit', path: '/admin/audit-log', capability: 'viewAuditLog', icon: AuditIcon, domain: 'system' },
-  { key: 'security', path: '/admin/security', capability: 'viewAuditLog', icon: SecurityIcon, domain: 'system' },
+  { key: 'states', path: '/admin/states', capability: 'system.configure', icon: Gauge, domain: 'system' },
+  { key: 'secrets', path: '/admin/secrets', capability: 'secrets.read_metadata', icon: KeyRound, domain: 'system' },
+  { key: 'storage', path: '/admin/storage-backup', capability: 'manageStorage', icon: Database, domain: 'system' },
+  { key: 'audit', path: '/admin/audit-log', capability: 'viewAuditLog', icon: ScrollText, domain: 'system' },
+  { key: 'security', path: '/admin/security', capability: 'viewAuditLog', icon: Lock, domain: 'system' },
 ]
 
 const ADMIN_NAV_DOMAIN_ORDER: AdminNavDomain[] = ['command', 'editorial', 'safety', 'system']
@@ -324,14 +140,15 @@ function navItemFromSpec(
   pendingCount: number,
   unreadNotifications: number,
 ): AdminNavItem {
+  const badge = spec.key === 'moderation' ? pendingCount : spec.key === 'inbox' ? unreadNotifications : undefined
   return {
     key: spec.key,
     path: spec.path,
     href: localePath(locale, spec.path),
     label: dict.admin.sidebar[spec.key],
     icon: spec.icon,
-    badge:
-      spec.key === 'moderation' ? pendingCount : spec.key === 'inbox' ? unreadNotifications : undefined,
+    badge,
+    badgeTone: badge != null && badge > 0 ? (spec.badgeTone ?? 'neutral') : undefined,
   }
 }
 
@@ -413,3 +230,4 @@ export function findAdminNavLocation(
   }
   return best ? { groupLabel: best.groupLabel, itemLabel: best.itemLabel } : null
 }
+

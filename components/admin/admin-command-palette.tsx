@@ -14,10 +14,12 @@ import {
   CommandShortcut,
 } from '@/components/ui/command'
 import { adminGlobalSearch, type AdminSearchResults } from '@/lib/admin/actions/content'
+import { cn } from '@/lib/utils'
 import { localePath } from '@/lib/i18n/urls'
 import { getDictionary } from '@/lib/i18n'
 import { useLocaleFromPath } from '@/components/site-header'
 import { type AdminNavGroup, type SidebarKey } from './nav-items'
+import { ADMIN_NAV_BADGE_CLASS, adminNavBadgeClass } from './nav-styles'
 
 /**
  * Keyboard-first shortcuts (Phase A): the subset of the nav that starts work
@@ -123,10 +125,10 @@ export function AdminCommandPalette({ groups }: { groups: AdminNavGroup[] }) {
                   value={`${item.label} ${item.path}`}
                   onSelect={() => go(item.href)}
                 >
-                  <item.icon />
+                  <item.icon className="h-4 w-4" aria-hidden />
                   {item.label}
                   {item.badge != null && item.badge > 0 && (
-                    <span className="ml-auto rounded-full bg-destructive px-1.5 text-xs font-medium text-destructive-foreground">
+                    <span className={cn(ADMIN_NAV_BADGE_CLASS, adminNavBadgeClass(item.badgeTone), 'ml-auto')}>
                       {item.badge > 99 ? '99+' : item.badge}
                     </span>
                   )}

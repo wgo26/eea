@@ -16,6 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Kbd } from '@/components/ui/kbd'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AdminMobileNav } from './admin-mobile-nav'
 import { AdminCommandPalette } from './admin-command-palette'
@@ -25,6 +26,7 @@ import { useSystemState } from './state-provider'
 import { useSidebarRail, useTableDensity } from './nav-preferences'
 import { EnvIndicator } from './env-indicator'
 import { buildAdminNavGroups, findAdminNavLocation } from './nav-items'
+import { SHORTCUT_ATTR, SHORTCUT_KEY_LABEL, SHORTCUT_MODIFIER } from './nav-styles'
 
 /**
  * Admin topbar (AppShell). Client component so the capability-filtered nav
@@ -81,7 +83,12 @@ export function AdminTopbar({
         <AdminMobileNav
           groups={groups}
           backToSiteHref={localePath(locale, '/')}
-          labels={{ menu: dict.admin.topbar.menu, backToSite: dict.admin.sidebar.backToSite }}
+          labels={{
+            menu: dict.admin.topbar.menu,
+            backToSite: dict.admin.sidebar.backToSite,
+            brand: dict.admin.sidebar.brand,
+            consoleLabel: dict.admin.sidebar.consoleLabel,
+          }}
         />
 
         <Tooltip>
@@ -91,6 +98,7 @@ export function AdminTopbar({
                 type="button"
                 onClick={toggleRail}
                 aria-label={rail ? dict.admin.sidebar.expandNav : dict.admin.sidebar.collapseNav}
+                aria-keyshortcuts={SHORTCUT_ATTR}
                 className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:inline-flex"
               >
                 {rail ? <PanelLeftOpen className="h-4 w-4" aria-hidden /> : <PanelLeftClose className="h-4 w-4" aria-hidden />}
@@ -99,6 +107,8 @@ export function AdminTopbar({
           />
           <TooltipContent side="bottom">
             {rail ? dict.admin.sidebar.expandNav : dict.admin.sidebar.collapseNav}
+            <Kbd>{SHORTCUT_MODIFIER}</Kbd>
+            <Kbd>{SHORTCUT_KEY_LABEL}</Kbd>
           </TooltipContent>
         </Tooltip>
 

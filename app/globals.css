@@ -646,3 +646,27 @@ html.high-contrast *:focus-visible {
 .admin-table .table-sticky-cell {
   background-color: inherit;
 }
+
+/* ---------------------------------------------------------------------------
+   Admin navigation — scroll surface (sidebar polish).
+   The sidebar nav is the one long, independently-scrolling column in the shell.
+   A full-width OS scrollbar cuts the surface in half and jumps on hover, so the
+   container opts into a thin, low-contrast bar (Firefox via `scrollbar-color`,
+   WebKit via the pseudo-elements below).
+--------------------------------------------------------------------------- */
+.admin-nav-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.admin-nav-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.admin-nav-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.admin-nav-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background-color: var(--border);
+  background-clip: content-box;
+}

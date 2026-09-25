@@ -1,4 +1,4 @@
-﻿'use server'
+'use server'
 
 import { assertCapability, type AdminContext } from '@/lib/admin/auth'
 import { audit, revalidateLocalized } from './_shared'
