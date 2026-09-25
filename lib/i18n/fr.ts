@@ -1238,6 +1238,7 @@ about: {
     archiveDescription: 'Parcourez les résumés quotidiens précédents et leurs histoires.',
     archiveEmpty: 'Aucun résumé publié — revenez demain.',
     archiveStories: '{count} histoires',
+    weeklyBadge: 'Cette semaine',
     viewArchive: 'Voir les résumés précédents',
     intro:
       'Un court e-mail ou message WhatsApp avec les histoires vérifiées du jour. Inscrivez-vous avec l’un ou l’autre contact — désinscription à tout moment, jamais de marketing.',
