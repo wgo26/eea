@@ -122,6 +122,22 @@ suite('RLS invariants — RBAC core', () => {
          select 1 from public.data_requests d where d.requester_email = 'guest-req@test.local'
        )`,
     )
+    await client.query(
+      `insert into public.corrections (content_item_id, correction_text, status, resolution, resolved_at)
+       select id, 'The market closed at 4pm, not 6pm.', 'resolved', 'Corrected the closing time.', now()
+       from public.content_items where slug = 'rls-published'
+       and not exists (
+         select 1 from public.corrections c where c.correction_text like 'The market closed%'
+       )`,
+    )
+    await client.query(
+      `insert into public.corrections (content_item_id, correction_text, status)
+       select id, 'Unresolved report that must stay private.', 'open'
+       from public.content_items where slug = 'rls-published'
+       and not exists (
+         select 1 from public.corrections c where c.correction_text like 'Unresolved report%'
+       )`,
+    )
     await client.query('commit')
   })
 
@@ -287,6 +303,42 @@ suite('RLS invariants — RBAC core', () => {
       expect(
         await count(c, `select count(*)::int as n from public.content_items where slug = 'rls-draft'`),
       ).toBe(0)
+    })
+  })
+
+  /*
+   * The public correction register (migration 20261113000000). These assert
+   * the two halves of the contract the register's credibility rests on:
+   * resolved rows are world-readable, and nothing anon can reach exposes the
+   * reporter. The view's column list IS the privacy control, so a select of a
+   * reporter column must fail rather than simply return null.
+   */
+  it('the public correction register shows resolved corrections only', async () => {
+    await asUser('anon', null, async (c) => {
+      expect(await count(c, `select count(*)::int as n from public.published_corrections`)).toBe(1)
+      expect(
+        await count(
+          c,
+          `select count(*)::int as n from public.published_corrections
+           where correction_text like 'Unresolved%'`,
+        ),
+      ).toBe(0)
+    })
+  })
+
+  it('the register cannot leak reporter identity (no such column exists)', async () => {
+    for (const column of ['reporter_email', 'reporter_name', 'reporter_id']) {
+      await expect(
+        asUser('anon', null, (c) =>
+          c.query(`select ${column} from public.published_corrections limit 1`),
+        ),
+      ).rejects.toThrow(/column .* does not exist/i)
+    }
+  })
+
+  it('raw corrections stay unreadable by anon (RLS has no anon SELECT policy)', async () => {
+    await asUser('anon', null, async (c) => {
+      expect(await count(c, `select count(*)::int as n from public.corrections`)).toBe(0)
     })
   })
 })

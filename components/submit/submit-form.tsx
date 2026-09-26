@@ -319,12 +319,17 @@ export function SubmitForm({
     canUpload = false,
     initial,
     initialDraft,
+    step: controlledStep,
+    onStepChange,
 }: {
     type: SubmitType;
     dict: Dictionary;
     canUpload?: boolean;
     initial?: SubmitInitial;
     initialDraft?: Record<string, string>;
+    /** When provided, the form becomes controlled — step state lives in the parent. */
+    step?: number;
+    onStepChange?: (step: number) => void;
 }) {
     const router = useRouter();
     const locale = useLocaleFromPath();
@@ -342,7 +347,6 @@ export function SubmitForm({
     const turnstileKey = state.error ? `${state.error}#${submitAttempt}` : "fresh";
     const f = dict.submit.fields;
     const s = dict.submit.steps;
-    const [step, setStep] = React.useState(0);
     // Signed-in contributors with a known name start with contact collapsed.
     const [showContact, setShowContact] = React.useState(!initial?.name);
     const [mediaOpen, setMediaOpen] = React.useState(false);
@@ -350,6 +354,30 @@ export function SubmitForm({
     const [reviewValues, setReviewValues] = React.useState<Record<string, string>>({});
     const formRef = React.useRef<HTMLFormElement>(null);
     const stepRef = React.useRef<HTMLDivElement>(null);
+    const [internalStep, setInternalStep] = React.useState(0)
+    const step = controlledStep ?? internalStep;
+
+    const goStep = (next: number) => {
+        if (next > step) {
+            // Validate only the visible step before advancing.
+            const root = stepRef.current;
+            if (root) {
+                const required = Array.from(
+                    root.querySelectorAll<HTMLElement>("[data-step-active='true'] [required]"),
+                );
+                for (const el of required) {
+                    const input = el as HTMLInputElement;
+                    if (!input.checkValidity()) {
+                        input.reportValidity();
+                        return;
+                    }
+                }
+            }
+        }
+        if (controlledStep === undefined) setInternalStep(next)
+        onStepChange?.(next)
+        stepRef.current?.scrollIntoView({ block: "start", behavior: "smooth" })
+    }
 
     // Phase 3 — draft autosave: restore unsent fields after a dropped
     // connection, clear on success.
@@ -383,27 +411,6 @@ export function SubmitForm({
             clearDraft(); // clear local draft since server took over
         }
     }, [draftState.ok, clearDraft]);
-
-    const goStep = (next: number) => {
-        if (next > step) {
-            // Validate only the visible step before advancing.
-            const root = stepRef.current;
-            if (root) {
-                const required = Array.from(
-                    root.querySelectorAll<HTMLElement>("[data-step-active='true'] [required]"),
-                );
-                for (const el of required) {
-                    const input = el as HTMLInputElement;
-                    if (!input.checkValidity()) {
-                        input.reportValidity();
-                        return;
-                    }
-                }
-            }
-        }
-        setStep(next);
-        stepRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
-    }
 
     /** Capture live form values into state when the review summary opens, so
      * refs are read inside an event handler (not during render). */

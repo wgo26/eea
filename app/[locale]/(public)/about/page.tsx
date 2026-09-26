@@ -15,8 +15,15 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { getDictionary, resolveLocale } from "@/lib/i18n";
-import { getCommunityStats } from "@/lib/queries/about";
+import {
+    formatDate,
+    getDictionary,
+    resolveLocale,
+    type Dictionary,
+    type Locale,
+} from "@/lib/i18n";
+import { getCommunityStats, type CommunityStats } from "@/lib/queries/about";
+import { getCorrectionRegister, type RegisterEntry } from "@/lib/queries/corrections";
 import { getAboutOverrides } from "@/lib/admin/queries";
 import { formatMoneyCompact } from "@/lib/format";
 import { ApertureMark } from "@/components/system/page-skeletons";
@@ -46,17 +53,6 @@ const POLICY_LINKS = [
     { href: "/about/contact", labelKey: "contact", descKey: "contactDesc", icon: Mail },
 ] as const;
 
-const LOOP_STEPS = [
-    "stepDiscover",
-    "stepRead",
-    "stepParticipate",
-    "stepSubmit",
-    "stepVerify",
-    "stepPublish",
-    "stepShare",
-    "stepReturn",
-] as const;
-
 const PIPELINE_STEPS = [
     { titleKey: "pipeSubmitted", bodyKey: "pipeSubmittedBody", icon: Users },
     { titleKey: "pipeReview", bodyKey: "pipeReviewBody", icon: BookOpen },
@@ -76,15 +72,19 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
     const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     const a = dict.about;
-    const [stats, overrides] = await Promise.all([getCommunityStats(), getAboutOverrides(locale)]);
+    // The register preview is the record demonstrating itself: the three most
+    // recent published corrections, live. Nothing renders when there are none.
+    const [stats, overrides, recentCorrections] = await Promise.all([
+        getCommunityStats(),
+        getAboutOverrides(locale),
+        getCorrectionRegister({ limit: 3, locale }),
+    ]);
     // Admin overrides (managed at /admin/policies → About page) win over the
     // dictionary; empty table = built-in copy renders, never a blank.
     const text = (key: keyof typeof overrides, field: "heading" | "body" | "ctaLabel", fallback: string) =>
         overrides[key]?.[field]?.trim() || fallback;
     const heroTitle = text("hero", "heading", a.heroTitle);
     const heroBody = text("hero", "body", a.heroBody);
-    const loopTitle = text("loop", "heading", a.loopTitle);
-    const loopHint = text("loop", "body", a.loopHint);
     const statsTitle = text("stats", "heading", a.statsTitle);
     const statsHint = text("stats", "body", a.statsHint);
     const pipelineTitle = text("pipeline", "heading", a.pipelineTitle);
@@ -124,30 +124,23 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
                             {a.ctaExplore}
                         </Button>
                     </div>
-                </div>
-            </section>
-
-            {/* --------------------------------- The core loop, as a journey */}
-            <section>
-                <header className="max-w-2xl">
-                    <h2 className="text-2xl font-extrabold tracking-tight md:text-3xl">{loopTitle}</h2>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground md:text-base">
-                        {loopHint}
-                    </p>
-                </header>
-                <ol className="mt-8 flex snap-x gap-3 overflow-x-auto pb-4">
-                    {LOOP_STEPS.map((key, index) => (
-                        <li
-                            key={key}
-                            className="flex min-w-[9.5rem] snap-start flex-col items-center gap-3 rounded-2xl border bg-card px-4 py-6 text-center"
+                    {/* Third way in — a record you can look things up in, and
+                        see how it handles being wrong. */}
+                    <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-bold">
+                        <Link
+                            href={localePath(locale, "/search")}
+                            className="underline decoration-primary/60 underline-offset-4 hover:decoration-primary"
                         >
-                            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-black text-primary-foreground">
-                                {index + 1}
-                            </span>
-                            <span className="text-sm font-bold leading-tight">{a[key]}</span>
-                        </li>
-                    ))}
-                </ol>
+                            {a.ctaSearch}
+                        </Link>
+                        <Link
+                            href={localePath(locale, "/about/corrections")}
+                            className="underline decoration-primary/60 underline-offset-4 hover:decoration-primary"
+                        >
+                            {a.correctionsViewRegister}
+                        </Link>
+                    </div>
+                </div>
             </section>
 
             {/* ------------------------------------- Live proof band (DB-fed) */}
@@ -160,7 +153,60 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
                     <StatBlock value={stats.storiesPublished.toLocaleString()} label={a.statStories} accent />
                     <StatBlock value={stats.contributors.toLocaleString()} label={a.statContributors} />
                     <StatBlock value={stats.locationsCovered.toLocaleString()} label={a.statLocations} />
-                    <StatBlock value={formatMoneyCompact(stats.raisedTotal, stats.raisedCurrency, locale)} label={a.statRaised} />
+                    <StatBlock
+                        value={stats.correctionsPublished30d.toLocaleString()}
+                        label={a.accountabilityCorrections}
+                        accent
+                    />
+                </div>
+                {stats.raisedHeadlineCurrency ? (
+                    <p className="mt-8 border-t border-border/60 pt-5 text-sm text-muted-foreground">
+                        <span className="font-bold text-foreground">
+                            {formatMoneyCompact(stats.raisedHeadlineTotal, stats.raisedHeadlineCurrency, locale)}
+                        </span>{" "}
+                        {raisedFootnote(stats, a, locale)}
+                    </p>
+                ) : null}
+            </section>
+
+            {/* ------------------------------------------ The accountable record */}
+            <section>
+                <header className="max-w-2xl">
+                    <h2 className="text-2xl font-extrabold tracking-tight md:text-3xl">
+                        {a.accountabilityTitle}
+                    </h2>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground md:text-base">
+                        {a.accountabilityHint}
+                    </p>
+                </header>
+                <div className="mt-8 grid gap-4 sm:grid-cols-2">
+                    {/* The accountability number AND its three most recent
+                        instances — the proof band counts it, this panel shows
+                        what the count is made of. When the loop has not been
+                        walked yet, the count is 0 and the list is empty state
+                        instead of a gap in the argument. */}
+                    <Link
+                        href={localePath(locale, "/about/corrections")}
+                        className="group flex flex-col rounded-2xl border bg-card p-5 transition-shadow hover:shadow-md"
+                    >
+                        <span className="text-4xl font-extrabold tabular-nums tracking-tight text-primary">
+                            {stats.correctionsPublished30d.toLocaleString()}
+                        </span>
+                        <span className="mt-1 text-sm font-extrabold">
+                            {a.accountabilityCorrections}
+                        </span>
+                        <span className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                            {a.accountabilityCorrectionsBody}
+                        </span>
+                        <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-bold text-primary">
+                            {a.correctionsViewRegister}
+                            <ArrowRight
+                                className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                                aria-hidden
+                            />
+                        </span>
+                    </Link>
+                    <LiveCorrections corrections={recentCorrections} dict={dict} locale={locale} />
                 </div>
             </section>
 
@@ -271,6 +317,80 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
             </section>
         </div>
     );
+}
+
+/**
+ * The three most recent published corrections, live on the About page: the
+ * record demonstrating itself instead of asserting itself. Each row links to
+ * the fixed story when one exists. Empty state explains what an empty
+ * register means (not yet, not never) instead of hiding the panel.
+ */
+function LiveCorrections({
+    corrections,
+    dict,
+    locale,
+}: {
+    corrections: RegisterEntry[];
+    dict: Dictionary;
+    locale: Locale;
+}) {
+    const c = dict.about;
+    return (
+        <div className="rounded-2xl border bg-card p-5">
+            <p className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+                {c.correctionsTitle}
+            </p>
+            {corrections.length === 0 ? (
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {c.correctionsEmptyBody}
+                </p>
+            ) : (
+                <ul className="mt-3 space-y-3">
+                    {corrections.map((entry) => (
+                        <li key={entry.id} className="text-sm">
+                            <span className="block font-bold tabular-nums text-muted-foreground">
+                                {entry.resolvedAt ? formatDate(entry.resolvedAt, locale) : null}
+                            </span>
+                            {entry.contentHref ? (
+                                <Link
+                                    href={localePath(locale, entry.contentHref)}
+                                    className="font-bold hover:underline"
+                                >
+                                    {entry.contentTitle || c.correctionsStoryLabel}
+                                </Link>
+                            ) : (
+                                <span className="font-bold">
+                                    {entry.contentTitle || c.correctionsStoryLabel}
+                                </span>
+                            )}
+                            <span className="mt-0.5 line-clamp-2 block text-muted-foreground">
+                                {entry.resolution || entry.correctionText}
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+            <Link
+                href={localePath(locale, "/about/corrections")}
+                className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-primary hover:underline"
+            >
+                {c.correctionsViewRegister}
+                <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
+        </div>
+    );
+}
+
+/**
+ * The raised-funds footnote. Totals are never fused across currencies, so the
+ * line names every bucket once the RPC returns it — "1.25M FCFA · €3 200"
+ * carries its own evidence. One bucket: just that. None: nothing renders.
+ */
+function raisedFootnote(stats: CommunityStats, a: Dictionary["about"], locale: Locale): string {
+    const parts = stats.raisedByCurrency.map((row) =>
+        formatMoneyCompact(row.total, row.currency, locale),
+    );
+    return `${a.statRaised}: ${parts.join(" · ")}`;
 }
 
 function StatBlock({ value, label, accent }: { value: string; label: string; accent?: boolean }) {

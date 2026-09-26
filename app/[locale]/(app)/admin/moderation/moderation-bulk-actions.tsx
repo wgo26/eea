@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { DataTable } from '@/components/admin/data-table'
 import type { Column } from '@/components/admin/data-table'
-import { BulkActionsBar } from '@/components/admin/bulk-actions'
+import { StickyBatchBar } from '@/components/admin/sticky-batch-bar'
 import { DetailDrawer, DetailButton } from '@/components/admin/detail-drawer'
 import { bulkApproveSubmissions, bulkRejectSubmissions, bulkRequestClarification } from '@/lib/admin/actions/moderation'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
@@ -138,7 +138,7 @@ export function ModerationBulkTable({
   return (
     <>
       {selected.size > 0 && (
-        <BulkActionsBar
+        <StickyBatchBar
           selectedCount={selected.size}
           getKeys={() => Array.from(selected)}
           onClear={() => setSelected(new Set())}

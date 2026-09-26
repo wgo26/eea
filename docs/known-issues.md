@@ -8,6 +8,39 @@ was deleted — do not recreate it.)
 
 ## Already fixed (do not re-implement)
 
+- **The correction register (the correction loop's public half).**
+  `lib/queries/corrections.ts` + `CorrectionsNotice` + `/about/corrections` +
+  migration `20261113000000`. Corrections were previously write-only from the
+  app's perspective — the `corrections` table, the inline form on
+  `news/[slug]`, the guest receipt, the staff alert and the
+  `/admin/trust-safety` resolve queue all existed, but no query ever read a
+  row back, so "Corrections are public policy" on /about was unbacked. Now
+  resolved corrections render on the story (news, photo stories, notices) and
+  in a public register, PII-free by construction (`published_corrections` view
+  + an explicit column list in the query layer; messenger identity is never
+  selected). Declined reports stay private and staff-visible only. Invalidation
+  is wired (`revalidateCorrectionRegisterCache`) so a resolution appears
+  immediately. Don't re-add a `corrections` read that selects `reporter_*`.
+- **The /about proof band counts evidence, not inventory.** Old code counted
+  every `profiles` row as "Contributors" and every `locations` row (not even
+  `is_active`-filtered) as "covered", and fused all fundraiser totals into one
+  number wearing an arbitrary currency. `community_record_stats()` (same
+  migration) returns distinct authors of live content, places holding published
+  content, due published stories, resolved corrections (30d) and raised funds
+  grouped by currency; `mapRecordStats()` is unit-tested in
+  `lib/queries/about.test.ts`. Keep the labels and the queries meaning the same
+  thing.
+- **Expired listings no longer advertise as Active.** `/buy-sell/[id]` ignored
+  `expires_at`/`listing_status` entirely (the badge read `Active` for an
+  expired listing and the reveal-contact/price-watch actions stayed live). It
+  now derives `isExpired` from status *and* date, renders the Expired state,
+  gates the closed actions and says so in the JSON-LD availability. Notices
+  already behaved correctly.
+- **`about_sections.section_key = 'loop'` is retired** (page, both
+  `ABOUT_SECTION_KEYS` copies, the admin default, and the rows themselves in
+  migration `20261113000000`). The 8-step loop strip duplicated the 4-step
+  pipeline on the same page. Re-introducing the key means re-adding it in all
+  four places.
 - Ads: slots/advertisers/campaigns have real Dialogs (incl. `updateAdSlot` /
   `deleteAdSlot` wired); no `window.prompt/confirm/alert` in ads or users.
 - Ads formats: image/video/audio/html/sponsored creatives with mobile/desktop

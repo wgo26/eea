@@ -146,7 +146,7 @@ export async function deletePolicyVersion(policyId: string): Promise<ActionResul
 
 const ABOUT_SECTION_KEYS = [
   'hero',
-  'loop',
+  // No 'loop' — see the matching note in lib/admin/queries/programs.ts.
   'stats',
   'pipeline',
   'values',

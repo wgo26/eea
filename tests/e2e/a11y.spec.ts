@@ -33,6 +33,7 @@ const ROUTES = [
   '/en/contributors',
   '/en/about',
   '/en/about/verification',
+  '/en/about/corrections',
   '/en/digest',
   '/en/offline',
   '/fr/about/verification',

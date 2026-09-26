@@ -15,9 +15,12 @@ import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
 import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
 import { SaveButton } from "@/components/system/save-button";
+import { MobileReaderPill } from "@/components/system/mobile-reader-pill";
 import { ReportButton } from "@/components/system/report-dialog";
 import { TextSizeControl } from "@/components/system/text-size-control";
 import { FeedbackWidget } from "@/components/system/feedback-widget";
+import { CorrectionsNotice } from "@/components/system/corrections-notice";
+import { getCorrectionsForContent } from "@/lib/queries/corrections";
 import { StoryCard } from "@/components/home/story-card";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { GalleryGrid } from "@/components/photo-stories/gallery-grid";
@@ -90,10 +93,12 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
     const story = await getPhotoStoryBySlug(slug, locale);
     if (!story) notFound();
 
-    const [related, adjacent, railAd] = await Promise.all([
+    const [related, adjacent, railAd, corrections] = await Promise.all([
         getOtherPhotoStories(story.id, locale),
         getAdjacentPhotoStories(story.id, story.publishedAt ?? new Date().toISOString(), locale),
         getAdForSlot("photo-story-rail"),
+        // Public correction trail (renders nothing when there is none).
+        getCorrectionsForContent(story.id, locale),
     ]);
     const shareUrl = `${SITE.url}${localePath(locale, `/photo-stories/${story.slug}`)}`;
     // Section-built stories and Blogger imports store the body as markup; plain
@@ -222,7 +227,7 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
             {/* Essay prose */}
             {/* Essay prose (plain drafts) or sanitized sections (built/imports). */}
             {story.body ? (
-                <section className="mt-12" aria-label={story.title}>
+                <section id="article-body" className="mt-12" aria-label={story.title}>
                     <StoryBody body={story.body} bodyHtml={bodyHtml} />
                 </section>
             ) : null}
@@ -279,6 +284,12 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
             {/* More essays + sidebar */}
             <div className="no-print mt-10 border-t pt-6">
                 <FeedbackWidget contentItemId={story.id} copy={dict.feedback} />
+            </div>
+
+            {/* Public correction trail — nothing renders until an editor
+                confirms a reader's report on this essay. */}
+            <div id="correction" className="mt-6 max-w-4xl">
+                <CorrectionsNotice corrections={corrections} dict={dict} locale={locale} />
             </div>
 
             <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -421,6 +432,24 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                     </Card>
                 </aside>
             </div>
+
+            {/* Mobile reader action pill (WhatsApp share, reactions, save offline, jump to corrections). */}
+            <MobileReaderPill
+                shareUrl={shareUrl}
+                title={story.title}
+                contentId={story.id}
+                hasCorrections={corrections.length > 0}
+                locale={locale}
+                labels={{
+                    share: dict.common.whatsapp,
+                    reactLike: dict.news.reactLike,
+                    reactHelpful: dict.news.reactHelpful,
+                    save: dict.news.saveOffline,
+                    saved: dict.news.savedOffline,
+                    jumpToCorrections: dict.readerPill.jumpToCorrections,
+                    reactions: dict.readerPill.reactions,
+                }}
+            />
         </article>
         </>
     );

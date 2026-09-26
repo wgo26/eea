@@ -588,6 +588,86 @@ below.*
 
 ## Changelog
 
+- 2026-09-26 — **The correction register: the record's other half is published.**
+  /about has always promised *"Corrections, guidelines and takedowns are public
+  policy — trust is built in the open"*, and the About hero describes the
+  product as "a pan-African record". The correction loop was fully built on the
+  way **in** — `corrections` table, inline form on `news/[slug]`, guest receipt,
+  staff alert, `/admin/trust-safety` resolve queue with a resolution note — and
+  entirely absent on the way **out**: the only SELECT policy was
+  `Reviewable corrections using (public.is_staff())`, and `grep from("corrections")`
+  across `lib/queries/` returned nothing. Corrections were collected,
+  adjudicated, then sealed. A feed deletes its mistakes; a record prints them.
+  - **`supabase/migrations/20261113000000_public_correction_register.sql`** —
+    a `published_corrections` view (`security_invoker = false`, the same PII-safe
+    projection pattern as `poll_results` / `content_reaction_counts`) exposing
+    resolved corrections on live content joined to the story they fix. Reporter
+    id/name/email are **not** in the projection, so the privacy contract is
+    structural rather than a discipline anyone has to remember. Two partial
+    indexes back the register's `resolved_at desc` read.
+  - **Read path — `lib/queries/corrections.ts`** (`getCorrectionsForContent`,
+    `getCorrectionRegister`, `getRecentCorrectionCount`, all `unstable_cache`d on
+    the new `corrections` tag). It reads the **base table** via the service-role
+    client and selects the same column list as the view, deliberately: generated
+    view types only exist when the generator runs against a live schema, so a
+    view read would break `tsc` on DDL-only regeneration — the trade-off already
+    documented on `getContentReactionState()`. The view is the machine-checkable
+    contract; the query layer is the caller.
+  - **`CorrectionsNotice`** on news, photo-story and notice detail pages: *what a
+    reader reported → what we changed → when*, above the form that produces it,
+    so reporting an error visibly leads somewhere. Zero rows renders nothing.
+  - **`/about/corrections`** — the public register (EN+FR, `buildAlternates`,
+    sitemap-registered, axe route). Only `resolved` appears; `dismissed` rows stay
+    private by editorial policy (the reasoning is in the migration header): a
+    corrections trail that doubles as a disputes log stops recording what was
+    wrong. Empty state explains what an empty register means instead of claiming
+    perfection.
+  - **Invalidation** — `revalidateCorrectionRegisterCache()` busts the tag +
+    `/about/corrections` + `/about` from `resolveCorrection` (so a newly published
+    correction lands immediately, not at the end of the window) and from
+    `bulkDeleteCorrections`; `revalidatePublicContentCache()` also busts
+    `corrections` because archiving a story must remove its corrections.
+  - **Honest numbers — `community_record_stats()`** (same migration, service-role
+    only). The About proof band had been counting inventory, not evidence: every
+    row in `profiles` as "Contributors", every row in `locations` (not even
+    `is_active`-filtered) as "covered", and every fundraiser's `raised_amount`
+    fused into one figure wearing whichever currency the last row happened to
+    carry. One RPC now returns distinct **authors** of live content, active
+    **places** that actually hold published content, due published stories,
+    resolved corrections in the trailing 30 days, and raised funds **grouped by
+    currency** (never fused). `mapRecordStats()` is pure and unit-tested
+    (`lib/queries/about.test.ts`, 4 cases).
+  - **About page rebuilt around accountability** — the 8-step "core loop" strip
+    was cut: it narrated the same sighting→published journey as the 4-step
+    verification pipeline, from two angles, on one page, and the pipeline carries
+    the trust claim. `'loop'` is removed from `ABOUT_SECTION_KEYS` in both
+    `lib/admin/queries/programs.ts` and `lib/admin/actions/policies.ts`, the
+    admin editor default, and orphan `about_sections` rows are deleted in the
+    migration. In its place: an **accountable-record** section with the live
+    correction count beside the three most recent published corrections (the
+    record demonstrating itself rather than asserting itself), a corrections
+    stat promoted into the proof band, a per-currency raised-funds footnote, and
+    a third hero path — *search the record*.
+  - **Durability survives expiry** — `/buy-sell/[id]` had no expiry notion at
+    all: `getListingDetail` filters only on published + unarchived, so an expired
+    listing kept its URL but rendered an **Active** badge and offered the
+    reveal-contact and price-watch actions. It now derives `isExpired` from
+    `listingStatus` *and* `expiresAt` (covering the gap before the next sweep),
+    renders Expired, says so on the JSON-LD availability, gates contact/watch on
+    the terminal state, and states the policy in the page (`expiredRecordNote`).
+    Notices already behaved correctly (`NoticeStatus: "expired"`), so this brings
+    listings to parity rather than inventing a new pattern.
+  - **Cleanup** — the orphaned `(focused)/news/[slug]/correction` page is
+    deleted. Nothing linked to it; the detail page has carried an inline form
+    with `id="correction"` since the flow first shipped, so the route was a second
+    front door to the same room.
+  - **Validation** — `tsc --noEmit` clean; `lib/i18n/parity.test.ts` and the new
+    `lib/queries/about.test.ts` green (9 tests); `npm run check` gates
+    (bare-href, sitemap, migration manifest, unstable-cache keys, client
+    dictionary, anon bundle) all pass; `types:db` regenerated against the
+    migrations (`--check` clean) so the new view, RPC and its `Json` return are
+    typed.
+
 - 2026-09-26 — **Admin AppShell phases 4–7: breadcrumb, footer, attention parity,
   nav↔guard integrity.** The topbar now renders a real `nav > ol > li` trail
   (`AdminBreadcrumbs`) with `aria-current` and a record crumb on detail routes —

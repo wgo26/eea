@@ -21,6 +21,10 @@
  *   - `brand` — the published brand theme (`lib/branding/index.ts`), read by the
  *     shells on every request; invalidated by every theme mutation, so a
  *     publish or archive lands immediately rather than after the window.
+ *   - `corrections` — the public correction register (`lib/queries/corrections.ts`):
+ *     the per-story block, the /about/corrections list and the /about count.
+ *     Invalidated whenever a correction changes status, because a resolution
+ *     is exactly the moment a previously-private row becomes a public one.
  *
  * Invalidation uses the two-argument `revalidateTag(tag, profile)` form — the
  * single-argument form is deprecated in Next.js 16. `max` serves stale content
@@ -47,6 +51,7 @@ export const CACHE_TAGS = {
     site: "site",
     ads: "ads",
     brand: "brand",
+    corrections: "corrections",
 } as const;
 
 /** Cache/revalidate window for public content data + ISR pages (5 minutes). */

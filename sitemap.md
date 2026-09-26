@@ -43,6 +43,8 @@ Every top-level section follows the same **Index → Detail** pattern, and every
 ├── Search bar (→ /search)
 └── Footer
     ├── /about
+    ├── /about/verification
+    ├── /about/corrections
     ├── /about/terms
     ├── /about/privacy
     ├── /about/guidelines
@@ -259,8 +261,16 @@ This is the page that makes the platform feel like "a living digital memory of p
 ├── /about/privacy
 ├── /about/guidelines           (Community Guidelines / Code of Conduct)
 ├── /about/copyright             (Copyright & Takedown Policy)
+├── /about/verification          (the four trust states every badge links to)
+├── /about/corrections           (the correction register — what we got wrong)
 └── /about/contact
 ```
+
+`/about/verification` and `/about/corrections` are the two halves of one
+argument: the badge states what we knew before publishing, and the register
+states what we published incorrectly and then fixed. Both are EN+FR with
+`buildAlternates`, both are indexable, and every verification badge and every
+per-story correction trail links into them.
 
 Linked from the global footer on every page, plus specifically from the submission consent step (`/submit/*`) and from every "Report" action (correction, listing, content).
 

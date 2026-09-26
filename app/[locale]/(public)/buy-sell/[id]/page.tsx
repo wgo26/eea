@@ -96,7 +96,22 @@ export default async function ListingPage({ params }: ListingPageProps) {
 
     const photos = listing.photos ?? [];
     const [cover, ...rest] = photos;
+    // Durability: an expired listing keeps its URL instead of 404-ing, so the
+    // record shows what was offered and how it ended. `listingStatus` is the
+    // durable field (the sweep writes 'expired'); the date check covers the
+    // window between expiry and the next sweep so a stale listing never
+    // advertises itself as active.
     const isSold = listing.listingStatus === "sold";
+    const isExpired =
+        !isSold &&
+        (listing.listingStatus === "expired" ||
+            (listing.expiresAt ? new Date(listing.expiresAt) < new Date() : false));
+    const isClosed = isSold || isExpired;
+    const statusBadge = isSold
+        ? dict.buySell.statusSold
+        : isExpired
+          ? dict.buySell.statusExpired
+          : dict.buySell.statusActive;
     // Phase 3 — Product+Offer + breadcrumb structured data (rich results).
     const jsonLd = renderJsonLd([
         productJsonLd({
@@ -106,7 +121,7 @@ export default async function ListingPage({ params }: ListingPageProps) {
             url: shareUrl,
             price: listing.price,
             currency: listing.currency,
-            isSold,
+            isSold: isClosed,
             sellerName: listing.sellerName,
         }),
         breadcrumbJsonLd([
@@ -181,10 +196,10 @@ export default async function ListingPage({ params }: ListingPageProps) {
                 <section className="flex flex-col">
                     <div className="flex flex-wrap items-center gap-2">
                         {listing.category ? <Badge>{listing.category}</Badge> : null}
-                        {isSold ? (
-                            <Badge variant="destructive">{dict.buySell.statusSold}</Badge>
+                        {isClosed ? (
+                            <Badge variant="destructive">{statusBadge}</Badge>
                         ) : (
-                            <Badge variant="secondary">{dict.buySell.statusActive}</Badge>
+                            <Badge variant="secondary">{statusBadge}</Badge>
                         )}
                     </div>
                     <h1 className="font-display mt-3 text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">
@@ -193,6 +208,14 @@ export default async function ListingPage({ params }: ListingPageProps) {
                     <p className="mt-3 text-3xl font-black text-primary">
                         {formatPrice(listing.price, listing.currency, locale)}
                     </p>
+
+                    {isExpired ? (
+                        /* Durability, stated plainly: the listing stays
+                           readable with its ending shown rather than 404-ing. */
+                        <p className="mt-4 rounded-2xl border border-border/70 bg-muted/40 p-3.5 text-sm leading-relaxed text-muted-foreground">
+                            {dict.buySell.expiredRecordNote}
+                        </p>
+                    ) : null}
 
                     <dl className="mt-4 space-y-2.5 border-y py-4 text-sm">
                         {listing.location ? (
@@ -247,7 +270,7 @@ export default async function ListingPage({ params }: ListingPageProps) {
                             hasPhone={listing.hasPhone}
                             hasEmail={listing.hasEmail}
                             hasWhatsapp={listing.hasWhatsapp}
-                            isActive={listing.listingStatus === "active"}
+                            isActive={!isClosed}
                             title={listing.title}
                             labels={{
                                 reveal: dict.buySell.revealContact,
@@ -259,7 +282,9 @@ export default async function ListingPage({ params }: ListingPageProps) {
                                 rateLimited: dict.buySell.contactRateLimited,
                                 unavailable: dict.buySell.contactUnavailable,
                                 loading: dict.buySell.contactLoading,
-                                soldNotice: dict.buySell.soldContactNotice,
+                                soldNotice: isExpired
+                                    ? dict.buySell.expiredContactNotice
+                                    : dict.buySell.soldContactNotice,
                                 safetyTip: dict.buySell.safetyTip,
                             }}
                         />
@@ -289,7 +314,7 @@ export default async function ListingPage({ params }: ListingPageProps) {
                         <RatingWidget contentItemId={listing.id} copy={dict.ratings} />
                     </div>
                     {/* Phase 3 — price-drop watch + reply expectation */}
-                    {!isSold ? (
+                    {!isClosed ? (
                         <div className="mt-4 space-y-1.5">
                             <PriceWatchButton
                                 listingId={listing.id}

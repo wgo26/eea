@@ -181,7 +181,10 @@ export async function getPoliciesAdmin(limit = 100): Promise<AdminPolicyRow[]> {
 
 export const ABOUT_SECTION_KEYS = [
   'hero',
-  'loop',
+  // 'loop' was retired — the 8-step reader journey narrated the same path
+  // as the 4-step verification pipeline, and the pipeline (which carries the
+  // trust claim) won. Orphan rows were deleted in migration
+  // 20261113000000; this key stays absent deliberately.
   'stats',
   'pipeline',
   'values',

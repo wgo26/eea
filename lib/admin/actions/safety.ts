@@ -1,7 +1,7 @@
 'use server'
 
 import { assertAdmin, assertCapability } from '@/lib/admin/auth'
-import { type ActionResult, audit, auditBulkOperation, fail, revalidateLocalized } from './_shared'
+import { type ActionResult, audit, auditBulkOperation, fail, revalidateCorrectionRegisterCache, revalidateLocalized } from './_shared'
 
 /* ------------------------------------------------------------------ */
 /* Trust & safety (reports + corrections)                              */
@@ -113,6 +113,10 @@ export async function resolveCorrection(
       })
     }
 
+    // A resolved correction is now public on the story and in the register
+    // (lib/queries/corrections.ts); any status change can add or remove it.
+    revalidateCorrectionRegisterCache()
+
     revalidateLocalized('/admin/trust-safety')
     return { ok: true }
   } catch (e) {
@@ -185,6 +189,9 @@ export async function bulkDeleteCorrections(ids: string[]): Promise<ActionResult
     }
     // §53 bulk deletion — corrections had no audit trail beyond the row count.
     await auditBulkOperation({ action: 'correction:bulk_delete', resourceType: 'correction', ids, failed })
+    // Deleting a resolved row must remove it from the public register now,
+    // not at the end of the 5-minute cache window.
+    revalidateCorrectionRegisterCache()
     if (failed > 0) return { ok: false, error: `${failed} of ${ids.length} correction(s) failed.` }
     revalidateLocalized('/admin/trust-safety')
     return { ok: true }

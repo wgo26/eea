@@ -123,59 +123,99 @@ export async function getPolicies(
 }
 
 export type CommunityStats = {
+    /** Due, published, unarchived stories (from the content pipeline). */
     storiesPublished: number;
+    /** Distinct people with at least one live published story — not accounts. */
     contributors: number;
+    /** Active locations that actually hold published content. */
     locationsCovered: number;
-    /** Sum of `raised_amount` across all fundraiser campaigns. */
-    raisedTotal: number;
-    raisedCurrency: string;
+    /** Resolved corrections in the trailing 30 days — the accountability number. */
+    correctionsPublished30d: number;
+    /** Raised funds, one total per currency (never fused across currencies). */
+    raisedByCurrency: { currency: string; total: number }[];
+    /** The currency of the headline "raised" figure, or null when empty. */
+    raisedHeadlineCurrency: string | null;
+    /** The headline "raised" figure (largest currency bucket by total). */
+    raisedHeadlineTotal: number;
 };
 
 const EMPTY_STATS: CommunityStats = {
     storiesPublished: 0,
     contributors: 0,
     locationsCovered: 0,
-    raisedTotal: 0,
-    raisedCurrency: "XAF",
+    correctionsPublished30d: 0,
+    raisedByCurrency: [],
+    raisedHeadlineCurrency: null,
+    raisedHeadlineTotal: 0,
 };
+
+type RecordStatsRpc = {
+    stories_published?: unknown;
+    contributors?: unknown;
+    places_covered?: unknown;
+    corrections_30d?: unknown;
+    raised_by_currency?: unknown;
+};
+
+function toCount(value: unknown): number {
+    const n = typeof value === "string" ? Number(value) : (value as number);
+    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+}
+
+function toMoney(value: unknown): number {
+    const n = typeof value === "string" ? Number(value) : (value as number);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+/**
+ * Pure map of the `community_record_stats()` RPC payload to CommunityStats —
+ * kept free of I/O so the evidence semantics are unit-testable (a record
+ * that cannot be audited is just a slogan).
+ */
+export function mapRecordStats(payload: RecordStatsRpc | null | undefined): CommunityStats {
+    if (!payload || typeof payload !== "object") return { ...EMPTY_STATS };
+    const raisedByCurrency: { currency: string; total: number }[] = [];
+    const raisedRaw = payload.raised_by_currency;
+    if (raisedRaw && typeof raisedRaw === "object" && !Array.isArray(raisedRaw)) {
+        for (const [currency, total] of Object.entries(raisedRaw as Record<string, unknown>)) {
+            const code = currency.trim().toUpperCase();
+            const amount = toMoney(total);
+            if (code && amount > 0) raisedByCurrency.push({ currency: code, total: amount });
+        }
+    }
+    raisedByCurrency.sort((a, b) => b.total - a.total);
+    const headline = raisedByCurrency[0] ?? null;
+    return {
+        storiesPublished: toCount(payload.stories_published),
+        contributors: toCount(payload.contributors),
+        locationsCovered: toCount(payload.places_covered),
+        correctionsPublished30d: toCount(payload.corrections_30d),
+        raisedByCurrency,
+        raisedHeadlineCurrency: headline?.currency ?? null,
+        raisedHeadlineTotal: headline?.total ?? 0,
+    };
+}
 
 /**
  * Live "proof band" numbers for the About page — an about page that updates
- * itself is part of the product's credibility. Every count degrades to zero
- * on a DB hiccup (the band simply shows 0s, never breaks the page).
+ * itself is part of the product's credibility. One `community_record_stats()`
+ * RPC round trip answers every question the labels ask, replacing the old
+ * four independent inventory counts (whose answers the labels did not ask:
+ * every profile row, every location row, one fused money figure).
+ * A DB hiccup resolves to the empty stats — the band shows 0s and the cache
+ * window retries, never breaks the page.
  */
 export async function getCommunityStats(): Promise<CommunityStats> {
     if (!hasDatabase()) return EMPTY_STATS;
 
-    const client = createAdminClient();
-
-    const [stories, contributors, locations, raised] = await Promise.all([
-        safe(
-            client
-                .from("content_items")
-                .select("id", { count: "exact", head: true })
-                .eq("status", "published"),
-        ),
-        safe(client.from("profiles").select("id", { count: "exact", head: true })),
-        safe(client.from("locations").select("id", { count: "exact", head: true })),
-        safe(client.from("fundraisers").select("raised_amount, currency")),
-    ]);
-
-    let raisedTotal = 0;
-    let raisedCurrency = EMPTY_STATS.raisedCurrency;
-    if (raised.data) {
-        for (const row of raised.data as { raised_amount: number | string | null; currency: string | null }[]) {
-            const amount = typeof row.raised_amount === "string" ? Number(row.raised_amount) : (row.raised_amount ?? 0);
-            if (Number.isFinite(amount)) raisedTotal += amount;
-            if (row.currency) raisedCurrency = row.currency;
-        }
+    try {
+        const { data, error } = await createAdminClient().rpc("community_record_stats");
+        if (error) throw new Error(error.message);
+        return mapRecordStats((data ?? null) as RecordStatsRpc | null);
+    } catch (err) {
+        logger.error("about", "record stats failed", {
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return { ...EMPTY_STATS };
     }
-
-    return {
-        storiesPublished: stories.count ?? 0,
-        contributors: contributors.count ?? 0,
-        locationsCovered: locations.count ?? 0,
-        raisedTotal,
-        raisedCurrency,
-    };
 }

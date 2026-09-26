@@ -22,6 +22,8 @@ import { RevealNoticeContact } from "@/components/notices/reveal-contact";
 import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { TrustBadge } from "@/components/system/trust-badge";
+import { CorrectionsNotice } from "@/components/system/corrections-notice";
+import { getCorrectionsForContent } from "@/lib/queries/corrections";
 import { FundraisingSection } from "@/components/news/fundraising-section";
 import { getFundraisers, getFundraiserStats } from "@/lib/queries/fundraisers";
 import { Badge } from "@/components/ui/badge";
@@ -99,9 +101,11 @@ export default async function NoticePage({ params }: NoticePageProps) {
     // the natural extension of the town-square notice board: road repair,
     // medical emergencies). Shared component with the news page; empty state
     // is a quiet CTA, never a dead end.
-    const [fundraisers, fundraiserStats] = await Promise.all([
+    const [fundraisers, fundraiserStats, corrections] = await Promise.all([
         getFundraisers({ locale, limit: 3, onlyActive: true }),
         getFundraiserStats(),
+        // Public correction trail (renders nothing when there is none).
+        getCorrectionsForContent(notice.id, locale),
     ]);
 
     const shareUrl = `${SITE.url}${localePath(locale, `/notices/${id}`)}`;
@@ -331,6 +335,12 @@ export default async function NoticePage({ params }: NoticePageProps) {
                             </div>
                         </section>
                     ) : null}
+
+                    {/* Public correction trail — a notice that was corrected
+                        stays in the record with its fix attached. */}
+                    <div className="mt-8">
+                        <CorrectionsNotice corrections={corrections} dict={dict} locale={locale} />
+                    </div>
                 </div>
 
                 <aside className="space-y-6">

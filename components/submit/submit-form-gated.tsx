@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
-import { SubmitForm, type SubmitType, type SubmitInitial } from '@/components/submit/submit-form'
-import { TYPE_TO_DB } from '@/components/submit/submit-form'
+import { SubmitFormWithProgress } from '@/components/submit/submit-form-with-progress'
+import { TYPE_TO_DB, type SubmitType, type SubmitInitial } from '@/components/submit/submit-form'
 import type { Dictionary } from '@/lib/i18n'
 
 /**
@@ -57,5 +57,5 @@ export async function SubmitFormGated({ type, dict }: { type: SubmitType; dict: 
         }
     }
 
-    return <SubmitForm type={type} dict={dict} canUpload={!!user} initial={initial} initialDraft={initialDraft} />;
+    return <SubmitFormWithProgress type={type} dict={dict} canUpload={!!user} initial={initial} initialDraft={initialDraft} />;
 }

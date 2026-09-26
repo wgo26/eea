@@ -45,6 +45,20 @@ export function revalidatePublicContentCache() {
     revalidateTag(CACHE_TAGS.culture, 'max')
     // Publishing changes location content lists + counts.
     revalidateTag(CACHE_TAGS.locations, 'max')
+    // Archiving/unpublishing a story also removes its corrections from the
+    // public register (the query filters on content status).
+    revalidateTag(CACHE_TAGS.corrections, 'max')
+}
+
+/**
+ * The public correction register (`lib/queries/corrections.ts`) exposes only
+ * resolved corrections, so a status change is the moment a private row
+ * becomes a public one — and the moment the /about accountability count moves.
+ */
+export function revalidateCorrectionRegisterCache() {
+    revalidateTag(CACHE_TAGS.corrections, 'max')
+    revalidateLocalized('/about/corrections')
+    revalidateLocalized('/about')
 }
 
 /** On-demand invalidation for the ad-serving cache (lib/queries/ads.ts). */

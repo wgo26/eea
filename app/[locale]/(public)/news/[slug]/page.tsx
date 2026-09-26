@@ -25,10 +25,13 @@ import { StoryCard } from "@/components/home/story-card";
 import { MediaBadge } from "@/components/media/media-attachment";
 import { AdaptiveImage } from "@/components/media/adaptive-image";
 import { SaveOfflineButton } from "@/components/system/save-offline-button";
+import { MobileReaderPill } from "@/components/system/mobile-reader-pill";
 import { ReactionBar } from "@/components/news/reaction-bar";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { ArticleShare } from "@/components/news/article-share";
 import { CorrectionForm } from "@/components/news/correction-form";
+import { CorrectionsNotice } from "@/components/system/corrections-notice";
+import { getCorrectionsForContent } from "@/lib/queries/corrections";
 import { ReadingProgress } from "@/components/news/reading-progress";
 import { TimelineSection } from "@/components/news/timeline-section";
 import { ReaderToolbar } from "@/components/system/reader-toolbar";
@@ -98,7 +101,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
     const article = await getNewsBySlug(slug, locale);
     if (!article) notFound();
 
-    const [related, neighbours, railAd, readingModeOn, ttsOn] = await Promise.all([
+    const [related, neighbours, railAd, readingModeOn, ttsOn, corrections] = await Promise.all([
         getRelatedNews(article.id, article.categoryId ?? null, locale, 3),
         article.publishedAt
             ? getAdjacentNews(article.id, article.publishedAt, locale)
@@ -108,6 +111,9 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
         // (settings read is unstable_cache-tagged, so ISR stays safe).
         isFeatureEnabled("feature_reading_mode"),
         isFeatureEnabled("feature_text_to_speech"),
+        // The public correction trail for this article (empty unless an
+        // editor has resolved a reader's report — see lib/queries/corrections).
+        getCorrectionsForContent(article.id, locale),
     ]);
     const filtered = related.filter((n) => n.id !== article.id);
     const { prev, next } = neighbours;
@@ -474,6 +480,18 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
 
             <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div>
+                    {/* The record shows its own fixes above the form that
+                        produces them — reporting an error visibly leads
+                        somewhere. Renders nothing when there are none. */}
+                    <div className="mb-8">
+                        <CorrectionsNotice
+                            corrections={corrections}
+                            dict={dict}
+                            locale={locale}
+                            storyHref={`/news/${article.slug}`}
+                        />
+                    </div>
+
                     {/* Report a correction — inline form (no dead /correction route). */}
                     <div id="correction" className="mb-8 space-y-4 rounded-2xl border bg-muted/40 p-4 text-sm">
                         <div className="flex flex-wrap items-center gap-3">
@@ -629,6 +647,24 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                     </Card>
                 </aside>
             </div>
+
+            {/* Mobile reader action pill (WhatsApp share, reactions, save offline, jump to corrections). */}
+            <MobileReaderPill
+                shareUrl={shareUrl}
+                title={article.title}
+                contentId={article.id}
+                hasCorrections={corrections.length > 0}
+                locale={locale}
+                labels={{
+                    share: dict.common.whatsapp,
+                    reactLike: dict.news.reactLike,
+                    reactHelpful: dict.news.reactHelpful,
+                    save: dict.news.saveOffline,
+                    saved: dict.news.savedOffline,
+                    jumpToCorrections: dict.readerPill.jumpToCorrections,
+                    reactions: dict.readerPill.reactions,
+                }}
+            />
         </article>
         </>
     );

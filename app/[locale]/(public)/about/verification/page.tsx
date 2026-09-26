@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { Landmark, Radio, ShieldCheck, Users, type LucideIcon } from "lucide-react";
-import { buildAlternates } from "@/lib/i18n/urls";
+import Link from "next/link";
+import { ArrowRight, Landmark, Radio, ShieldCheck, Users, type LucideIcon } from "lucide-react";
+import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
 
@@ -110,6 +111,16 @@ export default async function VerificationAboutPage({
             <p className="mt-6 rounded-2xl border border-border/70 bg-muted/40 p-4 text-sm leading-relaxed text-muted-foreground">
                 {dict.about.verificationFooter}
             </p>
+            {/* The explainer is where every verification badge lands, so it is
+                the right place to point at the register: the badge says what
+                we knew, the register says what we got wrong. */}
+            <Link
+                href={localePath(locale, "/about/corrections")}
+                className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-primary hover:underline"
+            >
+                {dict.about.correctionsViewRegister}
+                <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
         </div>
     );
 }

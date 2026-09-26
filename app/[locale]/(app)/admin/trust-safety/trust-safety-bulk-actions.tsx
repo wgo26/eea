@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { DataTable, type Column } from '@/components/admin/data-table'
-import { BulkActionsBar } from '@/components/admin/bulk-actions'
+import { StickyBatchBar } from '@/components/admin/sticky-batch-bar'
 import { DetailDrawer, DetailButton } from '@/components/admin/detail-drawer'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { formatRelative } from '@/lib/admin/format'
@@ -159,7 +159,7 @@ export function TrustSafetyReportsBulk({
   return (
     <>
       {selected.size > 0 && (
-        <BulkActionsBar
+        <StickyBatchBar
           selectedCount={selected.size}
           getKeys={() => Array.from(selected)}
           onClear={clear}
@@ -168,46 +168,44 @@ export function TrustSafetyReportsBulk({
           clearLabel={common.bulkClear}
           cancelLabel={common.cancel}
           confirmLabel={common.confirm}
-          actions={[
-            {
-              label: copy.bulkInvestigate,
-              action: (keys) => bulkResolveReports(keys, 'investigating'),
-              successToast: common.bulkUpdated,
-              tone: 'default',
-              confirmTitle: copy.bulkInvestigate,
-              confirmBody: common.bulkUpdated,
-            },
-            {
-              label: copy.bulkResolve,
-              action: (keys) => bulkResolveReports(keys, 'resolved'),
-              successToast: common.bulkUpdated,
-              tone: 'default',
-              confirmTitle: copy.bulkResolve,
-              confirmBody: common.bulkUpdated,
-            },
-            {
-              label: copy.bulkDismiss,
-              action: (keys) => bulkResolveReports(keys, 'dismissed'),
-              successToast: common.bulkUpdated,
-              tone: 'danger',
-              confirmTitle: copy.bulkDismissTitle,
-              confirmBody: copy.bulkDismissBody,
-              confirmLabel: copy.dismiss,
-              cancelLabel: common.cancel,
-            },
-            {
-              label: copy.deleteReport,
-              action: (keys) => bulkDeleteReports(keys),
-              successToast: copy.toastReportDeleted,
-              tone: 'danger',
-              confirmTitle: copy.deleteReportConfirmTitle,
-              confirmBody: copy.deleteReportConfirmBody,
-              confirmLabel: copy.deleteReport,
-              cancelLabel: common.cancel,
-              requirePhrase: 'DELETE',
-              phraseLabel: common.confirmPhrase,
-            },
-          ]}
+          actions={[{
+            label: copy.bulkInvestigate,
+            action: (keys) => bulkResolveReports(keys, 'investigating'),
+            successToast: common.bulkUpdated,
+            tone: 'default',
+            confirmTitle: copy.bulkInvestigate,
+            confirmBody: common.bulkUpdated,
+          },
+          {
+            label: copy.bulkResolve,
+            action: (keys) => bulkResolveReports(keys, 'resolved'),
+            successToast: common.bulkUpdated,
+            tone: 'default',
+            confirmTitle: copy.bulkResolve,
+            confirmBody: common.bulkUpdated,
+          },
+          {
+            label: copy.bulkDismiss,
+            action: (keys) => bulkResolveReports(keys, 'dismissed'),
+            successToast: common.bulkUpdated,
+            tone: 'danger',
+            confirmTitle: copy.bulkDismissTitle,
+            confirmBody: copy.bulkDismissBody,
+            confirmLabel: copy.dismiss,
+            cancelLabel: common.cancel,
+          },
+          {
+            label: copy.deleteReport,
+            action: (keys) => bulkDeleteReports(keys),
+            successToast: copy.toastReportDeleted,
+            tone: 'danger',
+            confirmTitle: copy.deleteReportConfirmTitle,
+            confirmBody: copy.deleteReportConfirmBody,
+            confirmLabel: copy.deleteReport,
+            cancelLabel: common.cancel,
+            requirePhrase: 'DELETE',
+            phraseLabel: common.confirmPhrase,
+          }]}
         />
       )}
 
@@ -343,7 +341,7 @@ export function TrustSafetyCorrectionsBulk({
   return (
     <>
       {selected.size > 0 && (
-        <BulkActionsBar
+        <StickyBatchBar
           selectedCount={selected.size}
           getKeys={() => Array.from(selected)}
           onClear={clear}
@@ -352,46 +350,44 @@ export function TrustSafetyCorrectionsBulk({
           clearLabel={common.bulkClear}
           cancelLabel={common.cancel}
           confirmLabel={common.confirm}
-          actions={[
-            {
-              label: copy.bulkInvestigate,
-              action: (keys) => bulkResolveCorrections(keys, 'investigating'),
-              successToast: common.bulkUpdated,
-              tone: 'default',
-              confirmTitle: copy.bulkInvestigate,
-              confirmBody: common.bulkUpdated,
-            },
-            {
-              label: copy.bulkResolve,
-              action: (keys) => bulkResolveCorrections(keys, 'resolved'),
-              successToast: common.bulkUpdated,
-              tone: 'default',
-              confirmTitle: copy.bulkResolve,
-              confirmBody: common.bulkUpdated,
-            },
-            {
-              label: copy.bulkDismiss,
-              action: (keys) => bulkResolveCorrections(keys, 'dismissed'),
-              successToast: common.bulkUpdated,
-              tone: 'danger',
-              confirmTitle: copy.bulkDismissTitle,
-              confirmBody: copy.bulkDismissBody,
-              confirmLabel: copy.dismiss,
-              cancelLabel: common.cancel,
-            },
-            {
-              label: copy.deleteReport,
-              action: (keys) => bulkDeleteCorrections(keys),
-              successToast: copy.toastReportDeleted,
-              tone: 'danger',
-              confirmTitle: copy.deleteReportConfirmTitle,
-              confirmBody: copy.deleteReportConfirmBody,
-              confirmLabel: copy.deleteReport,
-              cancelLabel: common.cancel,
-              requirePhrase: 'DELETE',
-              phraseLabel: common.confirmPhrase,
-            },
-          ]}
+          actions={[{
+            label: copy.bulkInvestigate,
+            action: (keys) => bulkResolveCorrections(keys, 'investigating'),
+            successToast: common.bulkUpdated,
+            tone: 'default',
+            confirmTitle: copy.bulkInvestigate,
+            confirmBody: common.bulkUpdated,
+          },
+          {
+            label: copy.bulkResolve,
+            action: (keys) => bulkResolveCorrections(keys, 'resolved'),
+            successToast: common.bulkUpdated,
+            tone: 'default',
+            confirmTitle: copy.bulkResolve,
+            confirmBody: common.bulkUpdated,
+          },
+          {
+            label: copy.bulkDismiss,
+            action: (keys) => bulkResolveCorrections(keys, 'dismissed'),
+            successToast: common.bulkUpdated,
+            tone: 'danger',
+            confirmTitle: copy.bulkDismissTitle,
+            confirmBody: copy.bulkDismissBody,
+            confirmLabel: copy.dismiss,
+            cancelLabel: common.cancel,
+          },
+          {
+            label: copy.deleteReport,
+            action: (keys) => bulkDeleteCorrections(keys),
+            successToast: copy.toastReportDeleted,
+            tone: 'danger',
+            confirmTitle: copy.deleteReportConfirmTitle,
+            confirmBody: copy.deleteReportConfirmBody,
+            confirmLabel: copy.deleteReport,
+            cancelLabel: common.cancel,
+            requirePhrase: 'DELETE',
+            phraseLabel: common.confirmPhrase,
+          }]}
         />
       )}
 

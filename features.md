@@ -5,6 +5,10 @@ The core loop is:
 Discover → Read → Participate → Submit → Verify → Publish → Share → Return
 The important distinction is that Eagle Eye Africa shouldn't feel like just another news website. It should feel like a digital community record of what is happening around people.
 
+What "record" commits us to (the test every feature should pass): for a place someone cares about, a reader can answer — in a few taps, with sources — **what happened today**, **what happened here before**, **who saw it and how verified is it**, and **is this still true / was it ever wrong**. Feeds are cheap and forgettable; a record is durable, attributable and accountable.
+
+The last of those four is the one that separates the two, and it is now shipped: **the correction register** (`/about/corrections`). A feed deletes its mistakes; a record prints them. Every correction an editor accepts is published — what a reader reported, what changed, and when — stamped on the story it fixed, so "Corrections are public policy" is a URL rather than an adjective. Corrections an editor declines stay private: a corrections trail that doubles as a disputes log stops recording what was wrong. The same principle drives durability (expired notices and sold listings keep their URLs with their final state shown, instead of vanishing) and the honest proof band on /about, which counts authors of live content, places that actually hold published content, and corrections — never registered accounts.
+
 1. ESSENTIALS
 These features are considered non-negotiable.
 A. Homepage / Discovery

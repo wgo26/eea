@@ -4,6 +4,9 @@ import { getRequestLocale } from '@/lib/i18n/server'
 import { getAccountIdentity } from '@/lib/account/identity'
 import { getPublicSiteSettings } from '@/lib/admin/queries'
 import { AccountTopbar } from '@/components/account/account-topbar'
+import { AccountBottomNav } from '@/components/account/account-bottom-nav'
+import { buildAccountNavGroups, splitAccountNav } from '@/lib/account/nav'
+import { getDictionary } from '@/lib/i18n'
 import { SkipLink } from '@/components/system/skip-link'
 import { ToastProvider } from '@/components/admin/toast'
 import { appMono } from '../fonts'
@@ -45,9 +48,16 @@ export default async function AccountLayout({ children }: { children: ReactNode 
           unreadNotifications={identity.unreadNotifications}
           logoUrl={siteSettings.logoUrl}
         />
-        <main id="main-content" tabIndex={-1} className="flex-1">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 pb-[calc(4rem+env(safe-area-inset-bottom,_0px))] md:pb-0"
+        >
           {children}
         </main>
+        <AccountBottomNav
+          groups={splitAccountNav(buildAccountNavGroups(locale, getDictionary(locale), { unreadNotifications: identity.unreadNotifications }))}
+        />
       </ToastProvider>
     </div>
   )

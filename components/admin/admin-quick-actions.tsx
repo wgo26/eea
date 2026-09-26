@@ -36,7 +36,7 @@ import { useLocaleFromPath } from '@/components/site-header'
  */
 
 /** Where each action goes. `key` is the nav entry whose visibility gates it. */
-const QUICK_ACTIONS: { key: SidebarKey; labelKey?: SidebarKey; path: string }[] = [
+export const QUICK_ACTIONS: { key: SidebarKey; labelKey?: SidebarKey; path: string }[] = [
   { key: 'content', path: '/admin/content?create=new' },
   { key: 'moderation', path: '/admin/moderation' },
   { key: 'emergency', path: '/admin/emergency' },

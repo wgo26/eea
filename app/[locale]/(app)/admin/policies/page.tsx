@@ -28,7 +28,6 @@ function aboutDefaults(locale: Locale, dict: ReturnType<typeof getDictionary>) {
   const a = dict.about
   return [
     { key: 'hero', label: 'hero', heading: a.heroTitle, body: a.heroBody, cta: null as string | null },
-    { key: 'loop', label: 'loop', heading: a.loopTitle, body: a.loopHint, cta: null },
     { key: 'stats', label: 'stats', heading: a.statsTitle, body: a.statsHint, cta: null },
     { key: 'pipeline', label: 'pipeline', heading: a.pipelineTitle, body: a.pipelineHint, cta: null },
     { key: 'values', label: 'values', heading: a.valuesTitle, body: null, cta: null },

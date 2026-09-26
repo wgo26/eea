@@ -38,6 +38,11 @@ const STATIC_PATHS = [
     "/about/copyright",
     "/about/contact",
     "/about/verification",
+    // The public correction register: the artifact that makes describing this
+    // site as a record — rather than a feed — a defensible claim. (Note: no
+    // quoted strings in this block — scripts/verify-sitemap.mjs extracts
+    // paths by matching quoted text, so quoted prose becomes a fake route.)
+    "/about/corrections",
 ];
 
 type DynamicEntry = { path: string; lastModified?: Date };

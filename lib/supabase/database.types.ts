@@ -809,6 +809,39 @@ export type Database = {
             };
             Relationships: [];
         }
+        audit_archives: {
+            Row: {
+            id: string;
+            filename: string;
+            sha256: string;
+            size_bytes: number;
+            from_ts: string | null;
+            to_ts: string | null;
+            row_count: number;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            filename: string;
+            sha256: string;
+            size_bytes?: number;
+            from_ts?: string | null;
+            to_ts?: string | null;
+            row_count?: number;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            filename?: string | null;
+            sha256?: string | null;
+            size_bytes?: number | null;
+            from_ts?: string | null;
+            to_ts?: string | null;
+            row_count?: number | null;
+            created_at?: string | null;
+            };
+            Relationships: [];
+        }
         audit_events: {
             Row: {
             id: string;
@@ -861,39 +894,6 @@ export type Database = {
                     referencedColumns: ["id"],
                 },
             ];
-        }
-        audit_archives: {
-            Row: {
-            id: string;
-            filename: string;
-            sha256: string;
-            size_bytes: number;
-            from_ts: string | null;
-            to_ts: string | null;
-            row_count: number;
-            created_at: string;
-            };
-            Insert: {
-            id?: string;
-            filename: string;
-            sha256: string;
-            size_bytes?: number;
-            from_ts?: string | null;
-            to_ts?: string | null;
-            row_count?: number;
-            created_at?: string;
-            };
-            Update: {
-            id?: string | null;
-            filename?: string | null;
-            sha256?: string | null;
-            size_bytes?: number | null;
-            from_ts?: string | null;
-            to_ts?: string | null;
-            row_count?: number | null;
-            created_at?: string | null;
-            };
-            Relationships: [];
         }
         backup_jobs: {
             Row: {
@@ -953,7 +953,15 @@ export type Database = {
             expires_at?: string | null;
             created_at?: string | null;
             };
-            Relationships: [];
+            Relationships: [
+                {
+                    foreignKeyName: "public_blocked_ips_blocked_by_fkey",
+                    columns: ["blocked_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
         }
         brand_asset_usage: {
             Row: {
@@ -1567,6 +1575,13 @@ export type Database = {
                     columns: ["author_id"],
                     isOneToOne: false,
                     referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_content_items_template_id_fkey",
+                    columns: ["template_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_templates",
                     referencedColumns: ["id"],
                 },
             ];
@@ -3129,6 +3144,13 @@ export type Database = {
                     referencedRelation: "profiles",
                     referencedColumns: ["id"],
                 },
+                {
+                    foreignKeyName: "public_media_assets_archived_by_fkey",
+                    columns: ["archived_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
             ];
         }
         media_text_variants: {
@@ -4368,6 +4390,13 @@ export type Database = {
                     referencedRelation: "profiles",
                     referencedColumns: ["id"],
                 },
+                {
+                    foreignKeyName: "public_submissions_assigned_editor_id_fkey",
+                    columns: ["assigned_editor_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
             ];
         }
         system_state_events: {
@@ -4955,6 +4984,22 @@ export type Database = {
         }
         };
         Views: {
+        content_reaction_counts: {
+            Row: {
+            content_item_id: string | null;
+            kind: string | null;
+            reactions: number | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_content_reaction_counts_content_item_id_fkey",
+                    columns: ["content_item_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_items",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
         poll_results: {
             Row: {
             poll_id: string | null;
@@ -5050,6 +5095,10 @@ export type Database = {
                 p_window_seconds: number;
             };
             Returns: boolean;
+        }
+        community_record_stats: {
+            Args: Record<string, never>;
+            Returns: Json;
         }
         content_share_bump: {
             Args: {

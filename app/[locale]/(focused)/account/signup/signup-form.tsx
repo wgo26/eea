@@ -150,7 +150,7 @@ export function SignupForm({ copy, nextPath, loginHref, providers }: Props) {
                         hideLabel={copy.hidePassword}
                         onChange={(e) => setConfirmValue(e.target.value)}
                     />
-                    {mismatch && (
+                    {mismatch && state.error !== 'password_mismatch' && (
                         <p role="alert" className="text-xs text-destructive">
                             {copy.errorMismatch}
                         </p>
