@@ -37,6 +37,13 @@ export async function verifyTurnstileToken(
 
     try {
         const body = new URLSearchParams({ secret, response: token });
+        // Passing the widget's sitekey makes Cloudflare reject tokens minted
+        // for a different widget with a clear `invalid-input-sitekey` code.
+        // The sitekey is baked into client bundles at build time, so a stale
+        // build after a key rotation shows up as that code in the logs
+        // instead of a generic invalid-response rejection.
+        const sitekey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+        if (sitekey) body.set("sitekey", sitekey);
         if (remoteIp) body.set("remoteip", remoteIp);
         const res = await fetch(SITEVERIFY_URL, {
             method: "POST",

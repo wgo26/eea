@@ -6,6 +6,7 @@ import { signUpWithPassword, type AuthState } from "@/lib/auth/actions";
 import type { OAuthProvider } from "@/lib/auth/oauth";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { TurnstileWidget } from "@/components/security/turnstile-widget";
+import { PasswordInput } from "@/components/ui/password-input";
 import type { Dictionary } from "@/lib/i18n";
 
 type Props = {
@@ -21,6 +22,8 @@ function errorMessage(code: NonNullable<AuthState["error"]>, copy: Props["copy"]
             return copy.errorInvalid;
         case "email_exists":
             return copy.errorExists;
+        case "password_mismatch":
+            return copy.errorMismatch;
         case "rate_limited":
             return copy.errorRateLimited;
         case "captcha":
@@ -40,6 +43,10 @@ export function SignupForm({ copy, nextPath, loginHref, providers }: Props) {
     // makes the key change even when the same error repeats.
     const [attempt, setAttempt] = useState(0);
     const turnstileKey = state.error ? `${state.error}#${attempt}` : "fresh";
+    const [passwordValue, setPasswordValue] = useState("");
+    const [confirmValue, setConfirmValue] = useState("");
+    const mismatch =
+        passwordValue.length > 0 && confirmValue.length > 0 && passwordValue !== confirmValue;
 
     if (state.ok && state.checkEmail) {
         return (
@@ -112,18 +119,42 @@ export function SignupForm({ copy, nextPath, loginHref, providers }: Props) {
                     <label htmlFor="password" className="text-sm font-medium leading-none">
                         {copy.password}
                     </label>
-                    <input
+                    <PasswordInput
                         id="password"
                         name="password"
-                        type="password"
                         required
                         minLength={8}
                         maxLength={72}
                         autoComplete="new-password"
-                        placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
-                        className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        placeholder={copy.passwordPlaceholder}
+                        showHideLabel={copy.showPassword}
+                        hideLabel={copy.hidePassword}
+                        onChange={(e) => setPasswordValue(e.target.value)}
                     />
                     <p className="text-xs text-muted-foreground">{copy.passwordHint}</p>
+                </div>
+
+                <div className="space-y-2">
+                    <label htmlFor="confirmPassword" className="text-sm font-medium leading-none">
+                        {copy.confirmPassword}
+                    </label>
+                    <PasswordInput
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        required
+                        minLength={8}
+                        maxLength={72}
+                        autoComplete="new-password"
+                        placeholder={copy.confirmPasswordPlaceholder}
+                        showHideLabel={copy.showPassword}
+                        hideLabel={copy.hidePassword}
+                        onChange={(e) => setConfirmValue(e.target.value)}
+                    />
+                    {mismatch && (
+                        <p role="alert" className="text-xs text-destructive">
+                            {copy.errorMismatch}
+                        </p>
+                    )}
                 </div>
 
                 <TurnstileWidget key={turnstileKey} />

@@ -41,6 +41,7 @@ export type AuthErrorCode =
   | 'invalid_credentials'
   | 'not_confirmed'
   | 'email_exists'
+  | 'password_mismatch'
   | 'rate_limited'
   | 'captcha'
   | 'account_disabled'
@@ -215,6 +216,9 @@ export async function signUpWithPassword(
   const password = typeof formData.get('password') === 'string'
     ? (formData.get('password') as string)
     : ''
+  const confirmPassword = typeof formData.get('confirmPassword') === 'string'
+    ? (formData.get('confirmPassword') as string)
+    : ''
 
   if (
     fullName.length < 2 ||
@@ -224,6 +228,9 @@ export async function signUpWithPassword(
     password.length > 72
   ) {
     return { ok: false, error: 'invalid' }
+  }
+  if (password !== confirmPassword) {
+    return { ok: false, error: 'password_mismatch' }
   }
 
   // Abuse gate: durable per-IP limiter + Turnstile when configured. Signup
