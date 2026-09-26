@@ -28,12 +28,21 @@ export type Capability =
   | 'branding.publish'
   // Phase 2.1 — security, analytics and the granular content/admin domains
   // (spec §17–§18). Names match the plan so role mappings read verbatim.
-  | 'secrets.read_metadata'
-  | 'secrets.create'
-  | 'secrets.rotate'
-  | 'secrets.revoke'
-  | 'secrets.manage'
-  | 'analytics.read'
+   | 'secrets.read_metadata'
+   | 'secrets.create'
+   | 'secrets.rotate'
+   | 'secrets.revoke'
+   | 'secrets.manage'
+   // Phase 2.2 — supreme system tier (spec §17 addendum). These two
+   // capabilities are NEVER granted to the legacy `admin` map below: they
+   // belong exclusively to the `chief_admin` fine-grained role, so the five
+   // System & Infrastructure tabs (states, secrets, storage, audit, security)
+   // stay invisible — and unreachable — to every other administrator.
+   // `system.owner` gates the whole tier; `secrets.reveal` gates the
+   // one-time plaintext reveal inside it.
+   | 'system.owner'
+   | 'secrets.reveal'
+   | 'analytics.read'
   | 'listings.manage'
   | 'media.manage'
 
@@ -94,6 +103,9 @@ const CAPABILITY_WEIGHT: Record<Capability, number> = {
   'secrets.rotate': 21,
   'secrets.revoke': 22,
   'secrets.manage': 23,
+  // Appended (never renumbered) so existing menu/badge order is stable.
+  'system.owner': 24,
+  'secrets.reveal': 25,
 }
 
 /**

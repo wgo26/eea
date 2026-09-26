@@ -19,7 +19,7 @@ export async function generateMetadata(): Promise<{ title: string }> {
  */
 export default async function Page() {
   const locale = await getRequestLocale()
-  await requireCapability('secrets.create', '/admin/secrets/new')
+  await requireCapability('system.owner', '/admin/secrets/new')
   const dict = getDictionary(locale)
   const t = dict.admin.secrets
 

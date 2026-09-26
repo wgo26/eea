@@ -23,6 +23,13 @@ export const dynamic = 'force-dynamic'
  * /api/cron/storage-backup (in production a missing secret is a 500, a wrong
  * secret a 401). No lease is needed: the report is idempotent and cheap, and
  * two overlapping runs just purge nothing the second time.
+ *
+ * Retention (System & Infrastructure hygiene): the audit trail and finished
+ * storage tasks grow unbounded otherwise. `audit_events` older than
+ * AUDIT_RETENTION_DAYS (default 365) and `completed` storage tasks older
+ * than 30 days are hard-deleted here — best-effort, never failing the run.
+ * `moderation_log` (per-item editorial history) and `credential_events`
+ * (key lifecycle) are intentionally kept: small, and needed for forensics.
  */
 async function runMaintenance(request: Request) {
   const startedAt = Date.now()
@@ -57,6 +64,43 @@ async function runMaintenance(request: Request) {
     })
     if (error) throw new Error(error.message)
 
+    // Retention sweeps (best-effort, reported, never fatal).
+    const retentionDaysRaw = Number(process.env.AUDIT_RETENTION_DAYS ?? '365')
+    const retentionDays = Number.isFinite(retentionDaysRaw)
+      ? Math.min(Math.max(Math.floor(retentionDaysRaw), 30), 3650)
+      : 365
+    let purgedAuditRows: number | null = null
+    let purgedTaskRows: number | null = null
+    try {
+      const auditCutoff = new Date(Date.now() - retentionDays * 86_400_000).toISOString()
+      const { error: auditPurgeError, count: auditCount } = await supabase
+        .from('audit_events')
+        .delete({ count: 'exact' })
+        .lt('created_at', auditCutoff)
+      if (auditPurgeError) throw auditPurgeError
+      purgedAuditRows = auditCount ?? 0
+    } catch (purgeErr) {
+      logger.warn('cron/db-maintenance', 'audit retention purge failed', {
+        correlationId,
+        error: purgeErr instanceof Error ? purgeErr.message : String(purgeErr),
+      })
+    }
+    try {
+      const taskCutoff = new Date(Date.now() - 30 * 86_400_000).toISOString()
+      const { error: taskPurgeError, count: taskCount } = await supabase
+        .from('storage_tasks')
+        .delete({ count: 'exact' })
+        .eq('status', 'completed')
+        .lt('updated_at', taskCutoff)
+      if (taskPurgeError) throw taskPurgeError
+      purgedTaskRows = taskCount ?? 0
+    } catch (purgeErr) {
+      logger.warn('cron/db-maintenance', 'storage-task retention purge failed', {
+        correlationId,
+        error: purgeErr instanceof Error ? purgeErr.message : String(purgeErr),
+      })
+    }
+
     const report = (data ?? {}) as {
       checkedAt?: string
       purgedRateLimitRows?: number
@@ -72,6 +116,9 @@ async function runMaintenance(request: Request) {
       correlationId,
       purgeSeconds,
       purgedRateLimitRows: report.purgedRateLimitRows ?? null,
+      purgedAuditRows,
+      auditRetentionDays: retentionDays,
+      purgedCompletedTasks: purgedTaskRows,
       rateLimitTable: report.rateLimitTable ?? null,
       migrations: report.migrations ?? null,
       missingObjects: report.missingObjects ?? [],

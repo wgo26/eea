@@ -2,7 +2,7 @@ import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
 import { requireCapability } from '@/lib/auth/guards'
-import { getAuditTrail, getAuditFilterOptions } from '@/lib/admin/queries'
+import { getAuditActorOptions, getAuditTrail, getAuditFilterOptions } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { ActiveFilters } from '@/components/admin/filter-pills'
 import { Pager } from '@/components/admin/pager'
@@ -18,6 +18,7 @@ const PAGE_SIZE = 50
 type SearchParams = {
   action?: string
   resource?: string
+  actor?: string
   origin?: string
   q?: string
   from?: string
@@ -30,7 +31,7 @@ export default async function Page({
 }: {
   searchParams: Promise<SearchParams>
 }) {
-  await requireCapability('viewAuditLog', '/admin/audit-log')
+  await requireCapability('system.owner', '/admin/audit-log')
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
   const t = dict.admin.audit
@@ -40,13 +41,13 @@ export default async function Page({
   const origin =
     params.origin === 'system' || params.origin === 'moderation' ? params.origin : undefined
 
-  const [{ rows: entries, total }, filterOptions] = await Promise.all([
+  const [{ rows: entries, total }, filterOptions, actorOptions] = await Promise.all([
     getAuditTrail({
       limit: PAGE_SIZE,
       page,
       action: params.action,
       resourceType: params.resource,
-      actor: undefined,
+      actor: params.actor,
       origin: origin ?? 'all',
       search: params.q,
       from: params.from,
@@ -54,12 +55,15 @@ export default async function Page({
       locale,
     }),
     getAuditFilterOptions(),
+    getAuditActorOptions(),
   ])
+  const actorName = actorOptions.find((a) => a.id === params.actor)?.name
 
   const filterParams = () => {
     const sp = new URLSearchParams()
     if (params.action) sp.set('action', params.action)
     if (params.resource) sp.set('resource', params.resource)
+    if (params.actor) sp.set('actor', params.actor)
     if (params.origin) sp.set('origin', params.origin)
     if (params.q) sp.set('q', params.q)
     if (params.from) sp.set('from', params.from)
@@ -92,7 +96,7 @@ export default async function Page({
     const qs = filterParams().toString()
     return `${localePath(locale, '/admin/audit-log/export')}${qs ? `?${qs}` : ''}`
   })()
-  const hasFilters = !!(params.action || params.resource || params.origin || params.q || params.from || params.to)
+  const hasFilters = !!(params.action || params.resource || params.actor || params.origin || params.q || params.from || params.to)
 
   return (
     <div className="space-y-5">
@@ -128,6 +132,12 @@ export default async function Page({
             <option key={e} value={e}>{humanize(e)}</option>
           ))}
         </select>
+        <select name="actor" defaultValue={params.actor ?? ''} aria-label={t.colActor} className={selectCls}>
+          <option value="">{t.allActors}</option>
+          {actorOptions.map((a) => (
+            <option key={a.id} value={a.id}>{a.name}</option>
+          ))}
+        </select>
         <input type="date" name="from" defaultValue={params.from ?? ''} aria-label={t.fromLabel} className={selectCls} />
         <input type="date" name="to" defaultValue={params.to ?? ''} aria-label={t.toLabel} className={selectCls} />
         <input
@@ -153,6 +163,9 @@ export default async function Page({
             : []),
           ...(params.resource
             ? [{ key: 'resource', label: `${t.entityPlaceholder}: ${humanize(params.resource)}`, removeHref: hrefWithout('resource') }]
+            : []),
+          ...(params.actor
+            ? [{ key: 'actor', label: `${t.colActor}: ${actorName ?? params.actor.slice(0, 8)}`, removeHref: hrefWithout('actor') }]
             : []),
           ...(params.from || params.to
             ? [{ key: 'range', label: `${t.fromLabel} ${params.from ?? '…'} → ${t.toLabel} ${params.to ?? '…'}`, removeHref: hrefWithout('from', 'to') }]

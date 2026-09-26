@@ -172,10 +172,9 @@ export async function signInWithPassword(
   if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
     // The password step succeeded; the second factor is still outstanding.
     await recordAuthEvent({
-      action: AUTH_AUDIT_ACTIONS.loginSucceeded,
+      action: AUTH_AUDIT_ACTIONS.mfaChallenge,
       actorId: userId,
       identifier: email,
-      detail: { mfa: 'challenge_pending' },
     })
     const locale = await getRequestLocale()
     const challengeNext = safeNextPath(str(formData.get('next')) || null, locale)

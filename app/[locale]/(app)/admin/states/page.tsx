@@ -20,12 +20,14 @@ import {
   NORMAL_STATE_ID,
   type StateActivationRules,
 } from '@/lib/platform/state-engine'
+import { ensurePluginStatesRegistered } from '@/lib/platform/states/index'
 import { STATE_NAME_KEYS, stateNameKey, stateToneClasses } from '@/lib/platform/state-presentation'
 import { PageHeader } from '@/components/admin/page-header'
 import { EmptyState } from '@/components/admin/empty-state'
 import { DataTable, type Column } from '@/components/admin/data-table'
 import { fillCopy, formatDateTime, formatRelative } from '@/lib/admin/format'
 import { StateControl, type StateControlLabels } from './state-control'
+import { ScheduleManager, type ScheduleManagerLabels } from './schedule-manager'
 import type { Locale } from '@/lib/i18n'
 
 /**
@@ -78,8 +80,12 @@ export async function generateMetadata(): Promise<{ title: string }> {
 }
 
 export default async function Page() {
+  // Plugin manifests (HOLIDAY, ELECTION_PERIOD) register idempotently per
+  // request — without this the ladder only ever shows the built-ins plus
+  // BACK_TO_SCHOOL, no matter what the migrations seeded.
+  ensurePluginStatesRegistered()
   const locale = await getRequestLocale()
-  const { roles, adminRoles } = await requireCapability('system.configure', '/admin/states')
+  const { roles, adminRoles } = await requireCapability('system.owner', '/admin/states')
   const dict = getDictionary(locale)
   const t = dict.admin.statesPage
   const names = dict.admin.states
@@ -325,6 +331,37 @@ export default async function Page() {
   }
   const eventLabel = (event: StateEventRow) => eventLabels[event.action] ?? event.action
 
+  // States a new schedule may target: registered, scheduled-route, and never
+  // the baseline or the incident console's operational states.
+  const schedulable = getRegisteredStates()
+    .filter(
+      (config) =>
+        config.activation?.scheduled &&
+        config.id !== NORMAL_STATE_ID &&
+        !OPERATIONAL_STATES.includes(config.id),
+    )
+    .map((config) => ({ id: config.id, label: labelFor(config.id, config.name) }))
+
+  const scheduleLabels: ScheduleManagerLabels = {
+    state: t.scheduleState,
+    name: t.scheduleName,
+    namePlaceholder: t.scheduleNamePlaceholder,
+    start: t.scheduleStart,
+    end: t.scheduleEnd,
+    month: t.scheduleMonth,
+    day: t.scheduleDay,
+    add: t.scheduleAdd,
+    addedToast: t.toastScheduleAdded,
+    updatedToast: t.toastScheduleUpdated,
+    deletedToast: t.toastScheduleDeleted,
+    enable: t.scheduleEnable,
+    disable: t.scheduleDisable,
+    delete: t.scheduleDelete,
+    deleteTitle: t.scheduleDeleteTitle,
+    deleteBody: t.scheduleDeleteBody,
+    cancel: dict.admin.common.cancel,
+  }
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -360,6 +397,11 @@ export default async function Page() {
           columns={scheduleColumns}
           emptyState={<EmptyState message={t.schedulesEmpty} />}
         />
+        <div>
+          <h3 className="text-sm font-medium text-foreground">{t.scheduleAddHeading}</h3>
+          <p className="text-xs text-muted-foreground">{t.scheduleAddHint}</p>
+        </div>
+        <ScheduleManager schedules={schedules} schedulable={schedulable} labels={scheduleLabels} />
       </section>
 
       <section className="space-y-3">

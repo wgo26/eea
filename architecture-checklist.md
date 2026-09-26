@@ -235,6 +235,12 @@ staff member with no per-role filtering.
 - 🔧 Menu visibility is role-driven, not hardcoded: the sidebar/topbar render from a
   capability map (`canManageUsers`, `canModerate`, `canManageAds`, …), so editors and admins
   see different menus.
+- 🔧 Supreme tier: `chief_admin` (`user_admin_roles`, SQL-granted, never click-grantable)
+  exclusively holds `system.owner` + `secrets.reveal`. The five System & Infrastructure
+  tabs (states, secrets, storage-backup, audit-log, security) require `system.owner` at
+  nav, page, export and action layers; legacy `admin`/`super_admin`/`platform_admin`
+  never receive it. The chief also keeps a coarse `admin` row (staff gate + `is_admin()`
+  RLS). Runbook: `docs/system/chief-access.md`.
 
 **Tasks**
 - [ ] Close the `/en/admin/*` guard bypass: add `app/[locale]/admin/layout.tsx` with the

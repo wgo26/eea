@@ -6,6 +6,7 @@ import {
   enableCredential,
   markRotationStep,
   requestCredentialRevocation,
+  revealCredentialSecret,
   revokeCredential,
   rotateCredential,
   testCredential,
@@ -56,10 +57,11 @@ const btnSmGhost = `${ui.btnSm} border border-border bg-background text-muted-fo
 /**
  * Detail console for one credential (spec §12–§16). It holds no secret value:
  * the only plaintext it ever sees arrives in the response to its own rotate
- * call and is rendered once by `SecretReveal`. Emergency revocation is the §44
- * two-person flow — request here, a second admin decides in /admin/approvals,
- * then revoke — and every mutation is re-checked server-side, so the
- * capability flags below only hide controls; they never widen access.
+ * or step-up reveal calls and is rendered once by `SecretReveal`. Emergency
+ * revocation is the §44 two-person flow — request here, a second admin
+ * decides in /admin/approvals, then revoke — and every mutation is
+ * re-checked server-side, so the capability flags below only hide controls;
+ * they never widen access.
  */
 export function CredentialDetail({
   credential,
@@ -74,7 +76,7 @@ export function CredentialDetail({
   credential: DetailCredential
   rotation: RotationCycle
   approval: ApprovalListRow | null
-  caps: { manage: boolean; rotate: boolean; revoke: boolean }
+  caps: { manage: boolean; rotate: boolean; revoke: boolean; reveal: boolean }
   mask: string
   categories: readonly CredentialCategory[]
   copy: Copy
@@ -110,6 +112,8 @@ export function CredentialDetail({
   const [revokeOpen, setRevokeOpen] = useState(false)
   const [requesting, setRequesting] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [revealOpen, setRevealOpen] = useState(false)
+  const [revealing, setRevealing] = useState(false)
 
   const revoked = credential.status === 'revoked'
   const approvalReady = approval?.usable === true
@@ -158,6 +162,23 @@ export function CredentialDetail({
       addToast(err instanceof Error ? err.message : 'Operation failed', 'error')
     } finally {
       setRotating(false)
+    }
+  }
+
+  async function handleReveal() {
+    setRevealing(true)
+    try {
+      const result = await revealCredentialSecret(credential.id)
+      if (!result.ok) {
+        addToast(result.error, 'error')
+        return
+      }
+      setRevealOpen(false)
+      setRevealed({ secret: result.secret, version: result.version, generated: result.generated })
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Operation failed', 'error')
+    } finally {
+      setRevealing(false)
     }
   }
 
@@ -283,6 +304,19 @@ export function CredentialDetail({
               <button type="button" className={ui.btnPrimary} onClick={() => setRotateOpen(true)}>
                 {copy.rotate}
               </button>
+            </div>
+          )}
+          {caps.reveal && !revoked && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className={btnSmGhost}
+                disabled={loading || revealing}
+                onClick={() => setRevealOpen(true)}
+              >
+                {copy.reveal}
+              </button>
+              <span className="text-xs text-muted-foreground">{copy.revealHint}</span>
             </div>
           )}
           <p className="text-xs text-muted-foreground">{copy.rotateHint}</p>
@@ -545,6 +579,20 @@ export function CredentialDetail({
             className={ui.textarea}
           />
         </Field>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={revealOpen}
+        onOpenChange={setRevealOpen}
+        title={copy.revealTitle}
+        description={copy.revealCurrentBody}
+        confirmLabel={copy.reveal}
+        cancelLabel={common.cancel}
+        loading={revealing}
+        tone="danger"
+        onConfirm={handleReveal}
+      >
+        <p className="text-xs text-muted-foreground">{copy.revealAuditNote}</p>
       </ConfirmDialog>
     </div>
   )

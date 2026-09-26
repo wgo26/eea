@@ -6,6 +6,7 @@ import type { Locale } from "@/lib/i18n";
 import type { MediaAttachment } from "@/lib/media/attachments";
 import { mapAttachments, previewImageUrl, supportingMedia } from "@/lib/media/attachments";
 import { getAdsForSlots, type AdCreative } from "@/lib/queries/ads";
+import { rankForHero } from "@/lib/content/hero-rank";
 
 export type StoryCardData = {
     id: string;
@@ -20,6 +21,9 @@ export type StoryCardData = {
     verification: string | null;
     /** Engagement-earned flag (ops-sweep feature ladder): prioritised over plain recency in the hero queue. */
     isFeatured?: boolean;
+    /** Counters feeding the hero quality score (see getCachedHomeData). */
+    viewCount?: number;
+    shareCount?: number;
     publishedAt: string | null;
     /** True when the item carries video/audio supporting media (Phase B badge). */
     hasVideo?: boolean;
@@ -64,6 +68,8 @@ type RawItem = {
     slug: string | null;
     verification: string | null;
     is_featured: boolean;
+    view_count: number | string | null;
+    share_count: number | string | null;
     published_at: string | null;
     location?: { name: string } | { name: string }[] | null;
     category?:
@@ -151,6 +157,8 @@ function mapItem(item: RawItem, locale: Locale): StoryCardData | null {
         credit: media.find((m) => m.is_cover)?.photographer_credit ?? images[0]?.photographer_credit ?? null,
         verification: item.verification ?? null,
         isFeatured: item.is_featured ?? false,
+        viewCount: Number(item.view_count ?? 0),
+        shareCount: Number(item.share_count ?? 0),
         publishedAt: item.published_at,
         hasVideo: media.some((m) => m.kind === 'video' || (m.mime_type ?? '').startsWith('video/')),
         hasAudio: media.some((m) => m.kind === 'audio' || (m.mime_type ?? '').startsWith('audio/')),
@@ -180,6 +188,7 @@ async function must<T>(promise: PromiseLike<QueryResult<T>>): Promise<T | null> 
 type SlotRow = {
     slot_key: string;
     content_item_id: string | null;
+    sort_order: number;
     starts_at: string | null;
     ends_at: string | null;
 };
@@ -213,7 +222,7 @@ const getCachedHomeData = unstable_cache(
             supabase
                 .from("content_items")
                 .select(
-                    `id, type, slug, verification, is_featured, published_at,
+                    `id, type, slug, verification, is_featured, view_count, share_count, published_at,
                      location:locations(name),
                      category:categories(category_translations(locale, name)),
                      translations:content_translations(locale, title, excerpt),
@@ -230,9 +239,10 @@ const getCachedHomeData = unstable_cache(
         must(
             supabase
                 .from("homepage_slots")
-                .select("slot_key, content_item_id, starts_at, ends_at")
+                .select("slot_key, content_item_id, sort_order, starts_at, ends_at")
                 .eq("is_active", true)
-                .in("slot_key", ["hero", "secondary"])
+                .in("slot_key", ["hero", "secondary", "rail"])
+                .order("sort_order", { ascending: true })
         ),
         // Ad serving lives in lib/queries/ads.ts (window + creative-status
         // aware); unset slots fall back to the placeholder in AdSlot.
@@ -272,12 +282,16 @@ const getCachedHomeData = unstable_cache(
     if (heroSlot?.content_item_id) {
         hero = items.find((i) => i.id === heroSlot.content_item_id) ?? null;
     }
-    const pool = [...photoStories, ...news, ...culture];
-    const byRecency = (a: StoryCardData, b: StoryCardData) =>
-        (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "");
-    const earned = pool.filter((i) => i.isFeatured).sort(byRecency);
-    const latest = pool.filter((i) => !i.isFeatured).sort(byRecency);
-    if (!hero) hero = earned[0] ?? photoStories[0] ?? news[0] ?? culture[0] ?? items[0] ?? null;
+    // Zero-config lead: the best story by quality score (engagement, trust,
+    // cover, freshness — lib/content/hero-rank.ts), not plain recency.
+    // Editorial types are preferred for the lead, with any item as floor.
+    const editorialPool = [...photoStories, ...news, ...culture];
+    if (!hero) {
+        hero =
+            rankForHero(editorialPool, now)[0] ??
+            rankForHero(items, now)[0] ??
+            null;
+    }
 
     const featured: StoryCardData[] = [];
     const pushFeature = (story: StoryCardData | null | undefined) => {
@@ -291,16 +305,30 @@ const getCachedHomeData = unstable_cache(
             pushFeature(items.find((i) => i.id === slot.content_item_id));
         }
     }
-    for (const story of [...earned, ...latest, ...items]) {
+    for (const story of rankForHero(editorialPool, now)) {
+        if (featured.length >= FEATURED_LIMIT) break;
+        pushFeature(story);
+    }
+    for (const story of rankForHero(items, now)) {
         if (featured.length >= FEATURED_LIMIT) break;
         pushFeature(story);
     }
 
-    // Rail shows the latest stories beyond the featured five.
+    // Rail: curated `rail` slots lead (Tier-1 override), then the strongest
+    // stories not already in the carousel by quality score.
     const featuredIds = new Set(featured.map((f) => f.id));
-    const secondary = [...photoStories, ...news, ...culture]
-        .filter((i) => !featuredIds.has(i.id))
-        .slice(0, LIMITS.secondary);
+    const curatedRail = slots
+        .filter((s) => s.slot_key === "rail")
+        .map((s) => items.find((i) => i.id === s.content_item_id))
+        .filter((i): i is StoryCardData => Boolean(i) && !featuredIds.has(i!.id));
+    const curatedRailIds = new Set(curatedRail.map((i) => i.id));
+    const secondary = [
+        ...curatedRail,
+        ...rankForHero(
+            items.filter((i) => !featuredIds.has(i.id) && !curatedRailIds.has(i.id)),
+            now,
+        ).slice(0, LIMITS.secondary - curatedRail.length),
+    ].slice(0, LIMITS.secondary);
 
     // "Trending now" rail: the most recent stories not already displayed in a
     // homepage section, so the module only surfaces fresh links.

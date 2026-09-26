@@ -365,7 +365,6 @@ export type AuditFilterOptions = {
   entityTypes: string[]
   sources: string[]
 }
-
 /** Distinct action / resource-type / source values for the audit-log filters. */
 export async function getAuditFilterOptions(): Promise<AuditFilterOptions> {
   if (!hasDatabase()) return { actions: [], resourceTypes: [], entityTypes: [], sources: [] }
@@ -397,4 +396,47 @@ export async function getAuditFilterOptions(): Promise<AuditFilterOptions> {
     entityTypes: resourceTypes,
     sources: uniqSorted(auditRows.map((r) => r.source)),
   }
+}
+
+export type AuditActorOption = { id: string; name: string }
+
+/**
+ * Recent distinct actors for the audit-log actor filter. Newest-first sample
+ * across both sources, merged in memory — the filter itself is an exact
+ * `actor_id` match, so this list only needs to cover the humans who act.
+ */
+export async function getAuditActorOptions(limit = 100): Promise<AuditActorOption[]> {
+  if (!hasDatabase()) return []
+  const [systemRes, moderationRes] = await Promise.all([
+    safe(
+      db()
+        .from('audit_events')
+        .select('actor_id, created_at, actor:profiles(display_name, full_name)')
+        .not('actor_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1000),
+    ),
+    safe(
+      db()
+        .from('moderation_log')
+        .select('actor_id, created_at, actor:profiles(display_name, full_name)')
+        .not('actor_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1000),
+    ),
+  ])
+  const byId = new Map<string, AuditActorOption>()
+  for (const res of [systemRes, moderationRes]) {
+    for (const row of ((res.data ?? []) as unknown as Record<string, unknown>[])) {
+      const id = row.actor_id as string | null
+      if (!id || byId.has(id)) continue
+      const actor = asActor(row.actor)
+      byId.set(id, {
+        id,
+        name: actor?.display_name ?? actor?.full_name ?? id.slice(0, 8),
+      })
+      if (byId.size >= limit) return [...byId.values()]
+    }
+  }
+  return [...byId.values()]
 }

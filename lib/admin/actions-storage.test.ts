@@ -30,7 +30,7 @@ vi.mock('next/cache', () => ({
 }))
 
 vi.mock('./auth', () => ({
-  assertAdmin: vi.fn(async () => ({ user: { id: 'admin-user-id' } })),
+  assertCapability: vi.fn(async () => ({ user: { id: 'admin-user-id' } })),
 }))
 
 vi.mock('@/lib/supabase/admin', () => ({

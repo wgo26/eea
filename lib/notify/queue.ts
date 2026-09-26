@@ -33,7 +33,7 @@ export async function enqueueNotification(payload: NotifyPayload): Promise<void>
 
 /** Staff alert shorthand (moderation queue, ad inquiries, legal inbox, automation). */
 export function enqueueStaffAlert(
-  event: Extract<NotifyPayload['event'], 'submission.received' | 'advertise.inquiry' | 'legal.takedown' | 'legal.contact' | 'legal.data_request' | 'content.correction' | 'content.updated' | 'poll.closed' | 'plan.failed' | 'translation.gap' | 'content.milestone' | 'digest.ready_for_review'>,
+  event: Extract<NotifyPayload['event'], 'submission.received' | 'advertise.inquiry' | 'legal.takedown' | 'legal.contact' | 'legal.data_request' | 'content.correction' | 'content.updated' | 'poll.closed' | 'plan.failed' | 'translation.gap' | 'content.milestone' | 'digest.ready_for_review' | 'credential.hygiene' | 'storage.hygiene' | 'security.critical'>,
   data?: Record<string, string | number | null>,
   path?: string,
 ): Promise<void> {

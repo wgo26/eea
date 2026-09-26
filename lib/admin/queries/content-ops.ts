@@ -629,20 +629,46 @@ export type SlotSearchResult = {
   coverUrl: string | null
 }
 
-/** Search content by title across both languages for homepage slot assignment. */
+/**
+ * Content search for homepage slot assignment. Only published, non-archived
+ * items are offered — a draft slot never renders (lib/queries/home.ts reads
+ * the published pool only), so offering one would be a silent no-op.
+ *
+ * Title matching goes through the two-step pattern from
+ * lib/admin/queries/programs.ts: embedding a filter path inside `or()` is
+ * only supported on newer PostgREST and fails outright on others, so we
+ * resolve matching item ids first, then fetch those rows. An empty query
+ * lists the latest published items so the picker opens ready to click.
+ */
 export async function queryContentForSlotAssign(query: string, limit = 10): Promise<SlotSearchResult[]> {
-  const q = query.trim()
-  if (!q) return []
-  const { data } = await safe(
-    db()
-      .from('content_items')
-      .select(`id, type, status,
-        translations:content_translations(locale, title),
-        cover:media_assets(public_url)`)
-      .or(`translations.title.ilike.%${q}%`)
-      .order('updated_at', { ascending: false })
-      .limit(limit),
-  )
+  const q = query.trim().replace(/[%_,()\\]/g, '')
+  const like = `%${q}%`
+
+  let idFilter: string[] | null = null
+  if (q) {
+    const [slugRes, titleRes] = await Promise.all([
+      safe(db().from('content_items').select('id').eq('status', 'published').eq('is_archived', false).ilike('slug', like).limit(100)),
+      safe(db().from('content_translations').select('content_item_id').ilike('title', like).limit(100)),
+    ])
+    const ids = new Set<string>()
+    for (const r of (slugRes.data ?? []) as { id: string }[]) ids.add(r.id)
+    for (const r of (titleRes.data ?? []) as { content_item_id: string }[]) ids.add(r.content_item_id)
+    if (ids.size === 0) return []
+    idFilter = [...ids]
+  }
+
+  let rowsQuery = db()
+    .from('content_items')
+    .select(`id, type, status,
+      translations:content_translations(locale, title),
+      cover:media_assets(public_url)`)
+    .eq('status', 'published')
+    .eq('is_archived', false)
+    .order('published_at', { ascending: false, nullsFirst: false })
+    .limit(limit)
+  if (idFilter) rowsQuery = rowsQuery.in('id', idFilter)
+
+  const { data } = await safe(rowsQuery)
   return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
     const trans = Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []
     const cover = Array.isArray(row.cover) ? row.cover[0] : row.cover

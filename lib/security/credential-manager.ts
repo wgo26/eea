@@ -305,9 +305,9 @@ export async function getCredentialMetadata(id: string): Promise<CredentialRecor
 }
 
 /**
- * The one plaintext read path: used by the validation probe. Returns the
- * decrypted value to its caller only — callers must never log it, return it
- * to a client, or copy it into an audit row.
+ * The one plaintext read path: used by the validation probe and the
+ * chief-only step-up reveal. Returns the decrypted value to its caller
+ * only — callers must never log it or copy it into an audit row.
  */
 export async function readCredentialSecret(
   id: string,

@@ -33,6 +33,7 @@ export const CRON_GRACE_HOURS: Record<string, number> = {
   'db-maintenance': 36,
   'storage-backup': 36,
   'db-dump': 60,
+  'credential-hygiene': 8 * 24,
 }
 
 /**

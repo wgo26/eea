@@ -23,11 +23,12 @@ type Copy = Dictionary['admin']['content']
 
 /**
  * The slot keys the homepage actually renders (lib/queries/home.ts queries
- * `hero` + `secondary`): `hero` is the lead story, `secondary` rows join the
- * featured carousel. Any other key would sit in this table but never render,
- * so the create form offers exactly these two.
+ * `hero` + `secondary` + `rail`): `hero` is the lead story, `secondary` rows
+ * join the featured carousel, `rail` rows lead the right-hand column before
+ * the auto-ranked fill. Any other key would sit in this table but never
+ * render, so the create form offers exactly these three.
  */
-const RENDERED_SLOT_KEYS = ['hero', 'secondary'] as const
+const RENDERED_SLOT_KEYS = ['hero', 'secondary', 'rail'] as const
 
 /** Visible-window state derived from the optional starts/ends bounds. */
 type WindowState = 'always' | 'scheduled' | 'live' | 'expired'
@@ -225,7 +226,7 @@ function CreateSlotForm({ copy }: { copy: Copy }) {
         >
           {RENDERED_SLOT_KEYS.map((key) => (
             <option key={key} value={key}>
-              {key === 'hero' ? copy.slotKeyHero : copy.slotKeySecondary}
+              {key === 'hero' ? copy.slotKeyHero : key === 'rail' ? copy.slotKeyRail : copy.slotKeySecondary}
             </option>
           ))}
         </select>
@@ -342,13 +343,7 @@ function SlotCard({
   const runSearch = useCallback(async (value: string) => {
     setBusy(true)
     setNoResults(false)
-    const q = value.trim()
-    if (!q) {
-      setResults([])
-      setBusy(false)
-      return
-    }
-    const found = await searchContentForSlot(q, 8)
+    const found = await searchContentForSlot(value.trim(), 8)
     setResults(found)
     setNoResults(found.length === 0)
     setBusy(false)
@@ -359,7 +354,7 @@ function SlotCard({
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
       void runSearch(value)
-    }, 350)
+    }, 300)
   }
 
   return (
@@ -476,7 +471,10 @@ function SlotCard({
           <p className="mb-2 text-xs text-muted-foreground">{copy.noContentAssigned}</p>
           <button
             type="button"
-            onClick={() => setSearching(true)}
+            onClick={() => {
+              setSearching(true)
+              void runSearch('')
+            }}
             disabled={loading}
             className="text-xs text-primary hover:underline disabled:opacity-50"
           >
@@ -493,7 +491,6 @@ function SlotCard({
               value={query}
               onChange={(e) => handleQueryChange(e.target.value)}
               placeholder={copy.searchContent}
-              autoFocus
               className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
             />
             <button

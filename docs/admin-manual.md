@@ -103,6 +103,9 @@ Staff-maintainable copy without a code deploy:
 - Invite staff via email; assign roles (admin/editor/contributor/advertiser).
 - Suspend/ban/restore accounts (restore requires a confirmation).
 - Reauthentication is required for sensitive changes.
+- The five **System & infrastructure** tabs are chief-only and documented
+  separately in `docs/system/` (chief access, states, credentials, storage,
+  audit, security) — they never appear for other roles.
 
 ## Ads `/admin/ads`
 

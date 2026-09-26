@@ -30,7 +30,10 @@ export type NotifyEvent =
   | 'content.milestone'
   | 'contributor.milestone'
   | 'correction.resolved'
-  | 'digest.ready_for_review';
+  | 'digest.ready_for_review'
+  | 'credential.hygiene'
+  | 'storage.hygiene'
+  | 'security.critical';
 
 export type NotifyPayload = {
   event: NotifyEvent;
@@ -246,6 +249,27 @@ export function renderEvent(payload: NotifyPayload): RenderedNotify {
         body: `${S(d.question)} — ${S(d.count, '999')} votes recorded. Review the results in the polls panel.`,
         bodyFr: `${S(d.question)} — ${S(d.count, '999')} vote(s) enregistré(s). Consultez les résultats dans le panneau des sondages.`,
       };
+    case 'credential.hygiene':
+      return {
+        title: 'Credential hygiene needs attention',
+        titleFr: 'Hygiène des identifiants à vérifier',
+        body: `${S(d.expired)} expired · ${S(d.due)} rotation-due · ${S(d.expiring)} expiring soon (${S(d.names)}). Open Credentials to rotate.`,
+        bodyFr: `${S(d.expired)} expiré(s) · ${S(d.due)} à renouveler · ${S(d.expiring)} bientôt expirés (${S(d.names)}). Ouvrez les identifiants pour la rotation.`,
+      };
+    case 'storage.hygiene':
+      return {
+        title: 'Storage tasks need attention',
+        titleFr: 'Tâches de stockage à vérifier',
+        body: `${S(d.failed)} failed storage task(s)${d.pending ? ` · ${S(d.pending)} still pending` : ''}. Open Storage & backup to retry.`,
+        bodyFr: `${S(d.failed)} tâche(s) de stockage en échec${d.pending ? ` · ${S(d.pending)} encore en attente` : ''}. Ouvrez Stockage & sauvegarde pour réessayer.`,
+      };
+    case 'security.critical':
+      return {
+        title: 'Critical mode activated',
+        titleFr: 'Mode critique activé',
+        body: `${S(d.title)} — the platform is in CRITICAL state. Open the incident console.`,
+        bodyFr: `${S(d.title)} — la plateforme est en état CRITIQUE. Ouvrez la console d’incident.`,
+      };
   }
 }
 
@@ -270,6 +294,12 @@ export function defaultStaffPath(event: NotifyEvent): string {
       return '/admin/templates';
     case 'poll.closed':
       return '/admin/polls';
+    case 'credential.hygiene':
+      return '/admin/secrets';
+    case 'storage.hygiene':
+      return '/admin/storage-backup';
+    case 'security.critical':
+      return '/admin/incidents';
     case 'content.updated':
       return '/admin/trust-safety';
     case 'translation.gap':

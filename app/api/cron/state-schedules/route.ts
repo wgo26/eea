@@ -6,6 +6,7 @@ import { stampHeartbeat } from '@/lib/automation/heartbeat'
 import { logStateEvent, setStateActive } from '@/lib/admin/state-writes'
 import { isWithinWindow, type SeasonalWindow } from '@/lib/platform/seasonal-window'
 import { getEffectiveState, resolveActiveStates, toSystemState } from '@/lib/platform/state-engine'
+import { ensurePluginStatesRegistered } from '@/lib/platform/states/index'
 import { compileTemplatesForState } from '@/lib/content/templates-run'
 
 export const dynamic = 'force-dynamic'
@@ -72,6 +73,7 @@ async function runStateSchedules(request: Request) {
   if (denied) return denied
 
   try {
+    ensurePluginStatesRegistered()
     const admin = createAdminClient()
     const now = new Date()
 
@@ -192,6 +194,35 @@ async function runStateSchedules(request: Request) {
         .eq('id', transition.scheduleId)
     }
 
+    // Expiry sweeper: manual activations carry `expires_at` (e.g. HIGH_ACTIVITY
+    // +24h) but nothing cleared the row — `isStateLive` only filters reads.
+    // Sweep every live-but-expired non-operational state so the ladder, the
+    // history and the row agree again. Schedule-owned rows are handled above;
+    // operational states are never swept (the incident console owns them).
+    const swept: string[] = []
+    const { data: expiredRows } = await admin
+      .from('system_states')
+      .select('id')
+      .eq('active', true)
+      .lt('expires_at', now.toISOString())
+    for (const expired of ((expiredRows ?? []) as unknown as { id: string }[])) {
+      if (OPERATIONAL_STATES.includes(expired.id)) continue
+      const previousState = getEffectiveState(await activeStates(admin))
+      const written = await setStateActive(admin, expired.id, false, null)
+      if (!written.ok) {
+        skipped.push(`${expired.id}: ${written.error}`)
+        continue
+      }
+      await logStateEvent(admin, {
+        stateId: expired.id,
+        action: 'deactivated',
+        previousStateId: previousState.id,
+        reason: 'Expired — cleared by the scheduler',
+        actorId: null,
+      })
+      swept.push(expired.id)
+    }
+
     const result = {
       ok: true,
       timestamp: now.toISOString(),
@@ -199,6 +230,7 @@ async function runStateSchedules(request: Request) {
       correlationId,
       evaluated: schedules.length,
       transitions,
+      swept,
       skipped,
     }
     logger.info('cron/state-schedules', 'schedule evaluation complete', {

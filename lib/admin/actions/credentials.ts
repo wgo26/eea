@@ -9,10 +9,12 @@
  * writes `audit_events` with `resource_type = 'api_credential'` (plan step 2.2,
  * spec §19) and revalidates the localized admin paths.
  *
- * Spec §13/§16 — the plaintext value leaves the server exactly twice: in the
- * response to the creation call and in the response to a rotation. Those two
- * results are the "shown once at creation" panel; nothing else in the app can
- * return a secret, and no audit metadata ever carries one (spec §19).
+ * Spec §13/§16 — the plaintext value leaves the server exactly three ways:
+ * the creation response, a rotation response ("shown once" panels), and the
+ * chief-only step-up reveal below (`revealCredentialSecret`: `secrets.reveal`
+ * + second factor when enrolled + `credential.revealed` audit). Nothing else
+ * in the app can return a secret, and no audit metadata ever carries one
+ * (spec §19).
  *
  * Spec §15 rotation: `rotateCredential` only generates the replacement and
  * opens a transition window. The previous secret is never invalidated
@@ -89,6 +91,17 @@ export type RequestRevocationResult =
 
 const MIN_SECRET_LENGTH = 8
 
+/**
+ * Supreme-tier gate: every credential surface additionally requires the
+ * chief administrator (`system.owner`). The granular `secrets.*` asserts at
+ * each action stay in place so the intent of each operation remains explicit
+ * — both must pass. Pages already hide the whole tab from non-chiefs; this
+ * closes the direct-action-call door.
+ */
+async function assertChief(): Promise<void> {
+  await assertCapability('system.owner')
+}
+
 function normalizeCategory(value: CredentialCategory | null | undefined): CredentialCategory | null {
   return isCredentialCategory(value) ? value : null
 }
@@ -105,6 +118,7 @@ function requireText(value: string | undefined | null, message: string): string 
 
 export async function createCredential(input: CreateCredentialInput): Promise<SecretRevealResult> {
   try {
+    await assertChief()
     const ctx = await assertCapability('secrets.create')
     if (!isSecretStorageConfigured()) {
       return { ok: false, error: 'Secret storage is not configured — set CREDENTIAL_ENCRYPTION_KEY.' }
@@ -161,6 +175,7 @@ export async function rotateCredential(
   options: RotateCredentialOptions = {},
 ): Promise<SecretRevealResult> {
   try {
+    await assertChief()
     const ctx = await assertCapability('secrets.rotate')
     if (!isSecretStorageConfigured()) {
       return { ok: false, error: 'Secret storage is not configured — set CREDENTIAL_ENCRYPTION_KEY.' }
@@ -199,6 +214,46 @@ export async function rotateCredential(
     revalidateLocalized('/admin/secrets')
     revalidateLocalized(`/admin/secrets/${id}`)
     return { ok: true, id, secret: newSecret, version: result.version, generated }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Step-up reveal (chief only)                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * One-time plaintext reveal for key rotation WITHOUT a redeploy: the chief
+ * reads the current value (or the freshly rotated one from the rotate
+ * response), pastes it into the provider / host env, then marks the rotation
+ * steps. Gated by `secrets.reveal` (chief-only) plus a second factor when
+ * the chief has one enrolled, and every reveal lands in `audit_events` as
+ * `credential.revealed` — a reveal is always attributable. The value itself
+ * is never logged or stored anywhere; the client must render it with the
+ * one-time `SecretReveal` panel.
+ */
+export async function revealCredentialSecret(id: string): Promise<SecretRevealResult> {
+  try {
+    await assertChief()
+    const ctx = await assertTwoFactorIfEnrolled(await assertCapability('secrets.reveal'))
+    if (!isSecretStorageConfigured()) {
+      return { ok: false, error: 'Secret storage is not configured — set CREDENTIAL_ENCRYPTION_KEY.' }
+    }
+    const read = await readCredentialSecret(id)
+    if (!read.ok) return { ok: false, error: read.error }
+    if (read.record.status === 'revoked') {
+      return { ok: false, error: 'This credential is revoked — there is nothing to reveal.' }
+    }
+    await auditEvent(ctx.user.id, {
+      action: 'credential.revealed',
+      actorRole: ctx.roles.join(',') || null,
+      resourceType: 'api_credential',
+      resourceId: id,
+      metadata: { version: read.record.version, provider: read.record.provider, name: read.record.name },
+    })
+    revalidateLocalized(`/admin/secrets/${id}`)
+    return { ok: true, id, secret: read.secret, version: read.record.version, generated: false }
   } catch (e) {
     return fail(e)
   }
@@ -275,11 +330,18 @@ function probeUrl(
       headers: { Authorization: `Bearer ${secret}` },
     }
   }
+  if (provider.includes('openai')) {
+    return { href: 'https://api.openai.com/v1/models', headers: { Authorization: `Bearer ${secret}` } }
+  }
+  if (provider.includes('resend')) {
+    return { href: 'https://api.resend.com/domains', headers: { Authorization: `Bearer ${secret}` } }
+  }
   return null
 }
 
 export async function testCredential(id: string): Promise<CredentialTestResult> {
   try {
+    await assertChief()
     const ctx = await assertCapability('secrets.rotate')
     const read = await readCredentialSecret(id)
     if (!read.ok) return { ok: false, error: read.error }
@@ -311,6 +373,7 @@ export async function markRotationStep(
   step: 'deploy' | 'verify' | 'retire_old',
 ): Promise<ActionResult> {
   try {
+    await assertChief()
     const ctx = await assertCapability('secrets.rotate')
     const result = await markRotationStepRecord(id, step, ctx.user.id)
     if (!result.ok) return result
@@ -344,6 +407,7 @@ export async function requestCredentialRevocation(
   reason?: string,
 ): Promise<RequestRevocationResult> {
   try {
+    await assertChief()
     const ctx = await assertTwoFactorIfEnrolled(await assertCapability('secrets.revoke'))
     const record = await getCredentialMetadata(id)
     if (!record) return { ok: false, error: 'Credential not found.' }
@@ -395,6 +459,7 @@ export async function revokeCredential(
   options: { approvalId?: string | null; reason?: string | null } = {},
 ): Promise<ActionResult> {
   try {
+    await assertChief()
     const ctx = await assertTwoFactorIfEnrolled(await assertCapability('secrets.revoke'))
     const approvalId = options.approvalId?.trim() || null
     if (isApprovalRequired('secret.revoke')) {
@@ -458,6 +523,7 @@ export async function enableCredential(id: string): Promise<ActionResult> {
 
 async function setStatusAction(id: string, status: Extract<CredentialStatus, 'active' | 'disabled'>): Promise<ActionResult> {
   try {
+    await assertChief()
     const ctx = await assertCapability('secrets.manage')
     const result =
       status === 'disabled'
@@ -483,6 +549,7 @@ export async function updateCredential(
   patch: CredentialPatch,
 ): Promise<ActionResult> {
   try {
+    await assertChief()
     const ctx = await assertCapability('secrets.manage')
     const result = await updateCredentialRecord(id, patch, ctx.user.id)
     if (!result.ok) return result

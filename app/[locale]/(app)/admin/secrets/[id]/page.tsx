@@ -25,7 +25,7 @@ export async function generateMetadata(): Promise<{ title: string }> {
  */
 export default async function Page({ params }: { params: Promise<{ locale: string; id: string }> }) {
   const locale = await getRequestLocale()
-  const { user, roles, adminRoles } = await requireCapability('secrets.read_metadata', '/admin/secrets')
+  const { user, roles, adminRoles } = await requireCapability('system.owner', '/admin/secrets')
   const dict = getDictionary(locale)
   const t = dict.admin.secrets
 
@@ -103,6 +103,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
           manage: caps.has('secrets.manage'),
           rotate: caps.has('secrets.rotate'),
           revoke: caps.has('secrets.revoke'),
+          reveal: caps.has('secrets.reveal'),
         }}
         mask={SECRET_MASK}
         categories={CREDENTIAL_CATEGORIES}

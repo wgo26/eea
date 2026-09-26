@@ -518,10 +518,10 @@ export function getStateBehavior(
 /* ------------------------------------------------------------------ */
 
 /**
- * Spec §28 — only administrators holding `system.configure` may activate or
- * deactivate a state. The caller passes the result of a capability check so
- * this module stays dependency-free; every activation surface (actions
- * module) asserts the same capability server-side.
+ * Spec §28 — only the chief administrator may activate or deactivate a
+ * state. The caller passes the result of a capability check so this module
+ * stays dependency-free; every activation surface (actions module) asserts
+ * the same capability server-side.
  */
 export function canActivateState(params: {
   allowed: boolean

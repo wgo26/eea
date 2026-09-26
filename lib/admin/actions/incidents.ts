@@ -45,6 +45,7 @@ import {
   type StateSeverity,
 } from '@/lib/platform/state-engine'
 import { createAdminClient, type InsertOf, type UpdateOf } from '@/lib/supabase/admin'
+import { enqueueStaffAlert } from '@/lib/notify/queue'
 import { logStateEvent, setStateActive } from '@/lib/admin/state-writes'
 import { sendNotificationToRole } from '@/lib/admin/notification-writes'
 import type { Json } from '@/lib/supabase/database.types'
@@ -596,6 +597,9 @@ export async function activateCriticalMode(
       resourceId: id,
       metadata: { previousState: previousState.id, restoredTo: displaced, approvalId: approval },
     })
+    // Best-effort page to every staff channel: critical mode changes what the
+    // whole platform shows, so silence is not an option.
+    void enqueueStaffAlert('security.critical', { title: current.title }, `/admin/incidents/${id}`)
     revalidateLocalized('/admin/incidents')
     revalidateLocalized(`/admin/incidents/${id}`)
     revalidateLocalized('/admin/dashboard')

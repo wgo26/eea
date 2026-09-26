@@ -10,6 +10,7 @@ import {
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
 import { requireCronSecret } from '@/lib/security/cron-auth'
 import { stampHeartbeat } from '@/lib/automation/heartbeat'
+import { enqueueStaffAlert } from '@/lib/notify/queue'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,6 +59,30 @@ async function runBackup(request: Request) {
       correlationId,
       mirror,
       verify,
+    }
+    // Stale-data hygiene: failed tasks never retry themselves — page the
+    // chief once per run while any exist so the queue cannot rot silently.
+    try {
+      const { count: failed } = await supabase
+        .from('storage_tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'failed')
+      if ((failed ?? 0) > 0) {
+        const { count: pending } = await supabase
+          .from('storage_tasks')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending')
+        await enqueueStaffAlert(
+          'storage.hygiene',
+          { failed: failed ?? 0, pending: pending ?? 0 },
+          '/admin/storage-backup',
+        )
+      }
+    } catch (alertErr) {
+      logger.warn('cron/storage-backup', 'hygiene alert failed', {
+        correlationId,
+        error: alertErr instanceof Error ? alertErr.message : String(alertErr),
+      })
     }
     await releaseBackupLease(supabase, owner, result)
     logger.info('cron/storage-backup', 'backup run complete', { correlationId, durationMs: result.durationMs, ...result.mirror, ...result.verify })

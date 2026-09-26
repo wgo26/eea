@@ -131,7 +131,7 @@ type SearchParams = {
 }
 
 export default async function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  await requireCapability('viewAuditLog', '/admin/security')
+  await requireCapability('system.owner', '/admin/security')
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
   const t = dict.admin.security
@@ -185,9 +185,31 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
 
   const selectCls = 'rounded-md border border-border bg-background px-2.5 py-1.5 text-xs'
 
+  const exportHref = (() => {
+    const sp = new URLSearchParams()
+    if (category !== 'all') sp.set('category', category)
+    if (params.from) sp.set('from', params.from)
+    if (params.to) sp.set('to', params.to)
+    const qs = sp.toString()
+    return `${localePath(locale, '/admin/security/export')}${qs ? `?${qs}` : ''}`
+  })()
+  const hasFilters = category !== 'all' || !!params.from || !!params.to
+
   return (
     <div className="space-y-5">
-      <PageHeader title={t.title} description={t.description} />
+      <PageHeader
+        title={t.title}
+        description={t.description}
+        actions={
+          <a
+            href={exportHref}
+            className="inline-flex min-h-[32px] items-center rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            title={hasFilters ? t.exportFiltered : t.exportCsv}
+          >
+            {hasFilters ? t.exportFiltered : t.exportCsv}
+          </a>
+        }
+      />
 
       <StatGrid>
         <StatCard label={t.statEvents} value={counts.total} hint={t.statEventsHint} />

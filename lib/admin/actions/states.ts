@@ -12,8 +12,8 @@
  *
  * Everything else on the ladder (SEASONAL, BACK_TO_SCHOOL, HIGH_ACTIVITY,
  * MAINTENANCE, DEGRADED, RECOVERY) is operator/automation configuration:
- * `system.configure` is the gate, and every transition lands in
- * `system_state_events` plus `audit_events` (spec §19/§27).
+ * `system.owner` (chief administrator) is the gate, and every transition
+ * lands in `system_state_events` plus `audit_events` (spec §19/§27).
  *
  * Deactivation restores the previous state for free: states are independent
  * flags, so clearing the top one re-exposes the next live state — or NORMAL —
@@ -51,7 +51,7 @@ function revalidateStateSurfaces() {
 
 export async function activateState(stateId: string, reason?: string): Promise<ActionResult> {
   try {
-    const ctx = await assertCapability('system.configure')
+    const ctx = await assertCapability('system.owner')
     const id = normalizeStateId(stateId)
 
     if (OPERATIONAL_STATES.includes(id)) {
@@ -116,7 +116,7 @@ export async function activateState(stateId: string, reason?: string): Promise<A
 
 export async function deactivateState(stateId: string, reason?: string): Promise<ActionResult> {
   try {
-    const ctx = await assertCapability('system.configure')
+    const ctx = await assertCapability('system.owner')
     const id = normalizeStateId(stateId)
 
     if (id === NORMAL_STATE_ID) {

@@ -60,10 +60,14 @@ export function OverviewSection({
   stats,
   copy,
   locale,
+  // Supreme-tier link: the storage tab is chief-only, so the dashboard only
+  // links the card when the viewer may actually open it.
+  storageHref,
 }: {
   stats: DashboardStats
   copy: Copy
   locale: Locale
+  storageHref?: string
 }) {
   const contentHref = (type: string) => `${localePath(locale, '/admin/content')}?tab=content&type=${type}`
   const statusHref = (status: string) => `${localePath(locale, '/admin/content')}?tab=content&status=${status}`
@@ -158,7 +162,7 @@ export function OverviewSection({
         <StatCard
           label={copy.storageUsed}
           value={formatBytes(stats.storageUsed)}
-          href={localePath(locale, '/admin/storage-backup')}
+          href={storageHref}
           footer={
             storageSegments.length > 0 ? (
               <div className="space-y-1">

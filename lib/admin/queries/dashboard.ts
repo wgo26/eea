@@ -427,14 +427,14 @@ export function getPrioritizedActions(input: PrioritizedActionInput): Prioritize
 
     const failedJobs = alert('failed-jobs')
     const failedDeliveries = alert('failed-deliveries')
-    if ((failedJobs || failedDeliveries) && caps.has('manageStorage')) {
+    if ((failedJobs || failedDeliveries) && caps.has('system.owner')) {
         const source = failedJobs ?? failedDeliveries!
         actions.push({
             id: 'clear-failed-jobs',
             severity: source.severity,
             count: (failedJobs?.count ?? 0) + (failedDeliveries?.count ?? 0),
             href: source.href,
-            capability: 'manageStorage',
+            capability: 'system.owner',
         })
     }
 

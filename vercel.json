@@ -30,6 +30,10 @@
       "schedule": "0 0 * * *"
     },
     {
+      "path": "/api/cron/credential-hygiene",
+      "schedule": "0 8 * * 1"
+    },
+    {
       "path": "/api/cron/weekly-digest",
       "schedule": "0 7 * * 1"
     },

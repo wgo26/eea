@@ -160,7 +160,16 @@ export default async function Page() {
       <CommandCenter alerts={alerts} actions={actions} copy={t} severity={severity} locale={locale} />
 
       {/* §34.2 — the fixed counter band, unified: shares, meters, pipeline. */}
-      <OverviewSection stats={stats} copy={t} locale={locale} />
+      <OverviewSection
+        stats={stats}
+        copy={t}
+        locale={locale}
+        storageHref={
+          effectiveCapabilities(roles, adminRoles).has('system.owner')
+            ? localePath(locale, '/admin/storage-backup')
+            : undefined
+        }
+      />
 
       {/* §35 — the arrangement the viewer saved (role defaults when none). */}
       <WidgetBoard widgets={widgets} catalog={catalog} copy={t} cancelLabel={dict.admin.common.cancel} />

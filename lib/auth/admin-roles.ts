@@ -26,6 +26,7 @@ import { ALL_CAPABILITIES, capabilitiesFor, type Capability } from './capabiliti
  * staff the coarse gate already trusts.
  */
 export type AdminRole =
+  | 'chief_admin'
   | 'super_admin'
   | 'platform_admin'
   | 'editorial_admin'
@@ -37,6 +38,7 @@ export type AdminRole =
   | 'support_operator'
 
 export const ALL_ADMIN_ROLES: AdminRole[] = [
+  'chief_admin',
   'super_admin',
   'platform_admin',
   'editorial_admin',
@@ -50,6 +52,7 @@ export const ALL_ADMIN_ROLES: AdminRole[] = [
 
 /** Human-readable names (spec §17 headings) for admin UI badges/selects. */
 export const ADMIN_ROLE_LABELS: Record<AdminRole, string> = {
+  chief_admin: 'Chief Administrator',
   super_admin: 'Super Administrator',
   platform_admin: 'Platform Administrator',
   editorial_admin: 'Editorial Administrator',
@@ -65,12 +68,26 @@ export function isAdminRole(value: string | null | undefined): value is AdminRol
   return !!value && (ALL_ADMIN_ROLES as string[]).includes(value)
 }
 
+/**
+ * Capabilities held ONLY by the chief administrator. `ALL_CAPABILITIES`
+ * picks up every future capability automatically, so the supreme tier is
+ * defined as an exclusion list: everything except these two stays with the
+ * super administrator. Granting `chief_admin` requires an explicit
+ * `user_admin_roles` row (see docs/system/credentials.md runbook) — the
+ * legacy-`admin` alias below deliberately resolves to `super_admin`, never
+ * to chief, so the tier can never be inherited by accident.
+ */
+const SUPREME_CAPABILITIES: Capability[] = ['system.owner', 'secrets.reveal']
+
 const ROLE_CAPABILITIES: Record<AdminRole, Capability[]> = {
-  super_admin: ALL_CAPABILITIES,
+  chief_admin: ALL_CAPABILITIES,
+  super_admin: ALL_CAPABILITIES.filter((c) => !(SUPREME_CAPABILITIES as Capability[]).includes(c)),
   // Configuration, users, integrations and system settings (spec §17) — but
   // not branding.publish: publishing the public identity is a global branding
   // change (spec §44) that stays with the super admin.
-  platform_admin: ALL_CAPABILITIES.filter((c) => c !== 'branding.publish'),
+  platform_admin: ALL_CAPABILITIES.filter(
+    (c) => c !== 'branding.publish' && !(SUPREME_CAPABILITIES as Capability[]).includes(c),
+  ),
   // Content, submissions and publishing.
   editorial_admin: [
     'viewDashboard',

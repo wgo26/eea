@@ -33,6 +33,7 @@ export const SECURITY_ACTIONS: Record<string, SecurityCategory> = {
   'auth.login.failed': 'auth',
   'auth.login.blocked': 'auth',
   'auth.login.succeeded': 'auth',
+  'auth.mfa.challenge': 'auth',
   'auth.logout': 'auth',
   // §53 permission escalation
   'user:role:assign': 'permissions',
@@ -44,6 +45,7 @@ export const SECURITY_ACTIONS: Record<string, SecurityCategory> = {
   // §53 credential rotation / revocation
   'credential.created': 'credentials',
   'credential.rotated': 'credentials',
+  'credential.revealed': 'credentials',
   'credential.validated': 'credentials',
   'credential.updated': 'credentials',
   'credential.disabled': 'credentials',
@@ -164,6 +166,35 @@ export async function getSecurityEvents(
   } catch (e) {
     logger.error('admin', 'getSecurityEvents failed', { error: e })
     return { rows: [], total: 0 }
+  }
+}
+
+/**
+ * Streaming export source for the security CSV: pages the same filtered
+ * slice oldest-first in 500-row chunks — one pass, bounded memory.
+ */
+export async function* exportSecurityTrail(
+  options: SecurityEventsOptions = {},
+): AsyncGenerator<SecurityEventRow[]> {
+  if (!hasDatabase()) return
+  const pageSize = 500
+  let page = 1
+  for (;;) {
+    let query = db()
+      .from('audit_events')
+      .select(EVENT_SELECT)
+      .or(securityActionFilter(options.category ?? 'all'))
+      .order('created_at', { ascending: true })
+      .range((page - 1) * pageSize, page * pageSize - 1)
+    if (options.actor) query = query.eq('actor_id', options.actor)
+    if (options.from) query = query.gte('created_at', options.from)
+    if (options.to) query = query.lte('created_at', `${options.to}T23:59:59.999Z`)
+    const { data } = await safe(query)
+    const rows = ((data ?? []) as unknown as Record<string, unknown>[]).map(toEventRow)
+    if (rows.length === 0) return
+    yield rows
+    if (rows.length < pageSize) return
+    page += 1
   }
 }
 

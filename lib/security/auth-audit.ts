@@ -27,6 +27,8 @@ export const AUTH_AUDIT_ACTIONS = {
   loginFailed: 'auth.login.failed',
   /** Refused before or instead of a credential check (throttle, captcha, ban). */
   loginBlocked: 'auth.login.blocked',
+  /** Password step passed but a TOTP challenge is still outstanding. */
+  mfaChallenge: 'auth.mfa.challenge',
   logout: 'auth.logout',
 } as const
 export type AuthAuditAction = (typeof AUTH_AUDIT_ACTIONS)[keyof typeof AUTH_AUDIT_ACTIONS]

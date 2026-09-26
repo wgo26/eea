@@ -13,6 +13,7 @@ import {
   getStateVisualProfile,
   stateTokenStyle,
 } from '@/lib/platform/state-engine'
+import { ensurePluginStatesRegistered } from '@/lib/platform/states/index'
 import { stateNameKey } from '@/lib/platform/state-presentation'
 import { AdminSidebar } from '@/components/admin/sidebar'
 import { AdminTopbar } from '@/components/admin/topbar'
@@ -31,6 +32,9 @@ export const metadata = {
 }
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
+  // Plugin manifests register idempotently per request so precedence and
+  // behavior resolve for every admin surface, not just the states tab.
+  ensurePluginStatesRegistered()
   const { supabase, user, roles } = await requireStaff('/admin/dashboard')
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
@@ -58,7 +62,10 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const stateName = dict.admin.states[stateNameKey(effectiveState.id)]
   const isNormal = effectiveState.id === NORMAL_STATE_ID
   const canManageIncidents = caps.has('incidents.manage')
-  const canConfigureStates = caps.has('system.configure')
+  // Supreme tier: the state pill + operational-controls links point at the
+  // chief-only states tab. `system.configure` holders (super/platform admin)
+  // keep incident-console access via canManageIncidents but no ladder link.
+  const canConfigureStates = caps.has('system.owner')
   const incident = isNormal ? null : await getActiveIncident()
   const incidentHref = incident && canManageIncidents ? localePath(locale, `/admin/incidents/${incident.id}`) : undefined
   // Where the state pill points: the incident driving an operational state,

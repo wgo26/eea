@@ -29,7 +29,7 @@ export default async function Page({
   searchParams: Promise<{ locale?: string; status?: string; provider?: string }>
 }) {
   const locale = await getRequestLocale()
-  await requireCapability('secrets.read_metadata', '/admin/secrets')
+  await requireCapability('system.owner', '/admin/secrets')
   const dict = getDictionary(locale)
   const t = dict.admin.secrets
 

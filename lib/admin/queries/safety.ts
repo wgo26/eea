@@ -142,10 +142,13 @@ export type StorageStats = {
 }
 
 export async function getStorageStats(): Promise<StorageStats> {
-  const [assetsRes, pendingRes, verificationRes] = await Promise.all([
+  const [assetsRes, pendingRes, verificationRes, backupJobRes] = await Promise.all([
     safe(db().from('media_assets').select('provider, destination, kind, file_size_bytes')),
     safe(db().from('media_assets').select('id', { count: 'exact', head: true }).eq('provider', 'r2').is('backed_up_at', null)),
     safe(db().from('media_assets').select('id', { count: 'exact', head: true }).eq('verification_status', 'pending')),
+    safe(
+      db().from('backup_jobs').select('last_run_at').eq('job_name', 'storage-mirror').maybeSingle(),
+    ),
   ])
 
   const rows = (assetsRes.data ?? []) as { provider: string; destination: string; kind: string; file_size_bytes: number | null }[]
@@ -173,7 +176,9 @@ export async function getStorageStats(): Promise<StorageStats> {
     byKind: [...byKind.entries()].map(([kind, count]) => ({ kind, count })),
     pendingBackup: pendingRes.count ?? 0,
     pendingVerification: verificationRes.count ?? 0,
-    lastBackupAt: null,
+    lastBackupAt:
+      ((backupJobRes.data as unknown as { last_run_at: string | null } | null)?.last_run_at ??
+        null),
   }
 }
 
@@ -234,6 +239,61 @@ export async function getMediaAssets(options?: {
       contentItemId: (r.content_item_id as string | null) ?? null,
     })),
     total: count ?? 0,
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Storage task queue                                                */
+/* ------------------------------------------------------------------ */
+
+export type StorageTaskRow = {
+  id: string
+  taskType: string
+  mediaId: string | null
+  status: string
+  attempts: number
+  lastError: string | null
+  updatedAt: string | null
+}
+
+export type StorageTaskCounts = { pending: number; processing: number; failed: number; completed: number }
+
+/** Queue depth for the storage tab + failed rows for the retry console. */
+export async function getStorageTaskCounts(): Promise<StorageTaskCounts> {
+  const counts: StorageTaskCounts = { pending: 0, processing: 0, failed: 0, completed: 0 }
+  if (!hasDatabase()) return counts
+  for (const status of Object.keys(counts) as (keyof StorageTaskCounts)[]) {
+    const res = await safe(
+      db().from('storage_tasks').select('id', { count: 'exact', head: true }).eq('status', status),
+    )
+    counts[status] = res.count ?? 0
+  }
+  return counts
+}
+
+export async function getFailedStorageTasks(limit = 25): Promise<StorageTaskRow[]> {
+  if (!hasDatabase()) return []
+  try {
+    const { data } = await safe(
+      db()
+        .from('storage_tasks')
+        .select('id, task_type, media_id, status, attempts, last_error, updated_at')
+        .eq('status', 'failed')
+        .order('updated_at', { ascending: false })
+        .limit(limit),
+    )
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+      id: r.id as string,
+      taskType: (r.task_type as string | null) ?? '?',
+      mediaId: (r.media_id as string | null) ?? null,
+      status: (r.status as string | null) ?? 'failed',
+      attempts: typeof r.attempts === 'number' ? r.attempts : 0,
+      lastError: (r.last_error as string | null) ?? null,
+      updatedAt: (r.updated_at as string | null) ?? null,
+    }))
+  } catch (e) {
+    logger.error('admin', 'getFailedStorageTasks failed', { error: e })
+    return []
   }
 }
 

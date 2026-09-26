@@ -125,12 +125,16 @@ const ADMIN_NAV_SPECS: AdminNavItemSpec[] = [
   { key: 'users', path: '/admin/users', capability: 'manageUsers', icon: Users, domain: 'safety' },
   { key: 'ads', path: '/admin/ads', capability: 'manageAds', icon: Megaphone, domain: 'safety' },
   { key: 'notifications', path: '/admin/notifications', capability: 'manageNotifications', icon: Bell, domain: 'safety' },
-  // System & Infrastructure
-  { key: 'states', path: '/admin/states', capability: 'system.configure', icon: Gauge, domain: 'system' },
-  { key: 'secrets', path: '/admin/secrets', capability: 'secrets.read_metadata', icon: KeyRound, domain: 'system' },
-  { key: 'storage', path: '/admin/storage-backup', capability: 'manageStorage', icon: Database, domain: 'system' },
-  { key: 'audit', path: '/admin/audit-log', capability: 'viewAuditLog', icon: ScrollText, domain: 'system' },
-  { key: 'security', path: '/admin/security', capability: 'viewAuditLog', icon: Lock, domain: 'system' },
+  // System & Infrastructure — supreme tier. These five tabs are visible
+  // ONLY to the chief administrator (`system.owner`): states, credentials,
+  // storage, audit and security concentrate platform-wide power (state
+  // ladder, plaintext-bearing rotation, destructive storage cleanup,
+  // full audit visibility), so they sit above `admin`/`super_admin`.
+  { key: 'states', path: '/admin/states', capability: 'system.owner', icon: Gauge, domain: 'system' },
+  { key: 'secrets', path: '/admin/secrets', capability: 'system.owner', icon: KeyRound, domain: 'system' },
+  { key: 'storage', path: '/admin/storage-backup', capability: 'system.owner', icon: Database, domain: 'system' },
+  { key: 'audit', path: '/admin/audit-log', capability: 'system.owner', icon: ScrollText, domain: 'system' },
+  { key: 'security', path: '/admin/security', capability: 'system.owner', icon: Lock, domain: 'system' },
 ]
 
 const ADMIN_NAV_DOMAIN_ORDER: AdminNavDomain[] = ['command', 'editorial', 'safety', 'system']

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { AUTH_AUDIT_ACTIONS, recordAuthEvent } from "@/lib/security/auth-audit";
 import { LOCALE_COOKIE, defaultLocale, type Locale } from "@/lib/i18n/config";
 import { localePath, safeNextPath } from "@/lib/i18n/urls";
 
@@ -32,8 +33,23 @@ export async function GET(request: NextRequest) {
         const supabase = await createClient();
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (!error) {
+            // OAuth sign-ins previously left no audit trace — password logins
+            // record success/failure/blocked, so the security heatmap was
+            // blind to the social path. Best-effort: never breaks the landing.
+            const { data } = await supabase.auth.getUser();
+            const oauthUser = data.user ?? null;
+            await recordAuthEvent({
+                action: AUTH_AUDIT_ACTIONS.loginSucceeded,
+                actorId: oauthUser?.id ?? null,
+                identifier: oauthUser?.email ?? null,
+                detail: { method: 'oauth' },
+            });
             return NextResponse.redirect(`${origin}${next}`);
         }
+        await recordAuthEvent({
+            action: AUTH_AUDIT_ACTIONS.loginFailed,
+            detail: { method: 'oauth', reason: 'exchange_failed' },
+        });
     }
 
     return NextResponse.redirect(
