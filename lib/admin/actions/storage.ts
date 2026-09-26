@@ -81,7 +81,7 @@ export async function deleteMediaAsset(mediaId: string): Promise<ActionResult> {
 /* ------------------------------------------------------------------ */
 
 /** Completed storage tasks older than this are purged (UI + nightly sweep). */
-export const COMPLETED_TASK_RETENTION_DAYS = 30
+const COMPLETED_TASK_RETENTION_DAYS = 30
 
 /**
  * Re-queue every failed storage task: status back to pending, attempts kept

@@ -68,6 +68,85 @@ export function isAdminRole(value: string | null | undefined): value is AdminRol
   return !!value && (ALL_ADMIN_ROLES as string[]).includes(value)
 }
 
+/* ------------------------------------------------------------------ */
+/* Authority tiers — how a set of roles is DISPLAYED, not what it GRANTS */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The four rungs the shell shows a staff member. This exists because
+ * `user_admin_roles` is a SET: someone can hold three roles at once, and the
+ * topbar still has to answer "who am I" in one badge. Before this, the identity
+ * chip derived that from the LEGACY `app_role` enum only (admin / editor /
+ * nothing), so it printed "Member" at a Chief Administrator, a Platform
+ * Administrator and an Analyst alike.
+ *
+ * Deliberately NOT a permission model. No check may consult `ADMIN_ROLE_TIER`:
+ * guards ask for capabilities (`requireCapability` / `assertCapability`), which
+ * is the contract in lib/auth/capabilities.ts and docs/system/chief-access.md.
+ * Tiers are a presentation ranking, kept apart from authorization on purpose so
+ * that re-ranking a badge can never quietly change who can do what.
+ */
+export type AdminRoleTier = 'supreme' | 'executive' | 'operational' | 'analytical'
+
+export const ADMIN_ROLE_TIER: Record<AdminRole, AdminRoleTier> = {
+  // Holds `system.owner` + `secrets.reveal` — the five System tabs
+  // (docs/system/chief-access.md). SQL-only grant, never click-grantable.
+  chief_admin: 'supreme',
+  // Full-platform reach, short of the supreme tier.
+  super_admin: 'executive',
+  platform_admin: 'executive',
+  // A bounded domain of work: editorial, community, catalogue, support.
+  editorial_admin: 'operational',
+  senior_editor: 'operational',
+  moderator: 'operational',
+  marketplace_admin: 'operational',
+  media_admin: 'operational',
+  support_operator: 'operational',
+  // Read-only measurement.
+  analyst: 'analytical',
+}
+
+/** Lower rank wins the badge. Supreme is first so it can never be outranked. */
+const TIER_RANK: Record<AdminRoleTier, number> = {
+  supreme: 0,
+  executive: 1,
+  operational: 2,
+  analytical: 3,
+}
+
+/**
+ * The role to name someone by when they hold several: the highest-ranked tier,
+ * ties broken by ALL_ADMIN_ROLES order so the answer is stable and never
+ * depends on the row order `getAdminRoles()` happened to read back. Null when
+ * the user holds no admin role (a coarse-gate-only editor, or a legacy `admin`
+ * before `resolveAdminRoles()` applies the spec §17 alias).
+ */
+export function topTierRole(adminRoles: AdminRole[]): AdminRole | null {
+  let best: AdminRole | null = null
+  let bestRank = Number.POSITIVE_INFINITY
+  let bestIndex = Number.POSITIVE_INFINITY
+  for (const role of adminRoles) {
+    const rank = TIER_RANK[ADMIN_ROLE_TIER[role]]
+    const index = ALL_ADMIN_ROLES.indexOf(role)
+    if (rank < bestRank || (rank === bestRank && index < bestIndex)) {
+      best = role
+      bestRank = rank
+      bestIndex = index
+    }
+  }
+  return best
+}
+
+/** Rank of a role's tier (0 = supreme). Presentation ordering only. */
+export function roleTierRank(role: AdminRole): number {
+  return TIER_RANK[ADMIN_ROLE_TIER[role]]
+}
+
+/** Every held role at one tier, in ALL_ADMIN_ROLES order — the "+N" chip. */
+export function rolesInTier(adminRoles: AdminRole[], tier: AdminRoleTier): AdminRole[] {
+  return adminRoles.filter((role) => ADMIN_ROLE_TIER[role] === tier)
+}
+
 /**
  * Capabilities held ONLY by the chief administrator. `ALL_CAPABILITIES`
  * picks up every future capability automatically, so the supreme tier is
