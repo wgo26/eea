@@ -40,6 +40,7 @@ export function HeroSkeleton() {
                 <div className="min-h-36 rounded-2xl bg-muted" />
                 <div className="min-h-36 rounded-2xl bg-muted" />
                 <div className="min-h-36 rounded-2xl bg-muted" />
+                <div className="min-h-36 rounded-2xl bg-muted" />
             </div>
         </div>
     );

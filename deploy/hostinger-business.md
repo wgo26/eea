@@ -75,6 +75,9 @@ Launch blockers (public intake silently breaks or opens to bots without them):
 `TURNSTILE_SECRET_KEY` + `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (bot protection is
 fail-closed in production — `verifyTurnstileToken` returns false when the
 secret is unset, so anonymous forms reject until both keys are set).
+`NEXT_PUBLIC_*` values are baked in at build time: if the site key was added
+or rotated after the last build, redeploy (rebuild) or the widget renders a
+"verification unavailable" notice and every submit fails the captcha gate.
 
 Optional: `DIGEST_WEBHOOK_URL`, `SMTP_*`, `WHATSAPP_*` (graceful skips with
 honest worker statuses — safe to omit at launch).

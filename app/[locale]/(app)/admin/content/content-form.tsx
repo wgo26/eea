@@ -327,7 +327,13 @@ export function formFromRow(
     frBody: data?.frBody ?? "",
     enSeo: data?.enSeoDescription ?? "",
     frSeo: data?.frSeoDescription ?? "",
-    credit: "",
+    // The credit is stored per media row (media_assets.photographer_credit),
+    // not on the post — so the field has to be rebuilt from the photos or it
+    // renders blank on every edit. Saving a blank field then wiped the stored
+    // credit (payloadFromForm sends `null`), which is why a credit "disappeared"
+    // after any unrelated edit. Cover first, then any photo that carries one.
+    credit:
+      data?.photos.find((p) => p.credit?.trim())?.credit?.trim() ?? "",
     verification: data?.verification ?? "community_submission",
     locationId: data?.locationId ?? "",
     categoryId: data?.categoryId ?? "",

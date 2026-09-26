@@ -699,6 +699,9 @@ badges: {
       optional: 'Facultatif',
       detect: 'Utiliser ma position',
       detected: 'Détectée',
+      resolving: 'Recherche du lieu le plus proche…',
+      resolveFailed:
+        'Impossible de nommer ce lieu — vos coordonnées ont été enregistrées pour les rédacteurs. Veuillez saisir le nom du lieu.',
       keepSuggestion: 'Garder comme suggestion',
       detailsHint: 'Le lieu et les dates aident les rédacteurs à vérifier et situer votre histoire. Tout texte libre est conservé comme suggestion.',
       whatHelp: 'Décrivez ce qui s’est passé en 2 à 4 phrases : qui, quoi, et l’issue.',

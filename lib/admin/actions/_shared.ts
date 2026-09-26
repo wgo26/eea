@@ -318,6 +318,42 @@ export async function syncPhotos(
   if (error) throw new Error(`Could not save photos: ${error.message}`)
 }
 
+/**
+ * Apply the form's post-level "Photo credit" to every media row of the item.
+ *
+ * Why this is separate from syncPhotos: the public pages read the credit off
+ * the *cover* row (`media_assets.photographer_credit`), but the credit field on
+ * the content form is story-level and only reached `media_assets` for rows
+ * *inserted or linked by that same save*. Photos already stored on the post
+ * were left untouched, so typing (or editing) the credit appeared to do
+ * nothing — and neither the preview nor the live page showed it.
+ *
+ * The form exposes exactly one credit control, so the story-level value owns
+ * every row: an empty field clears them, which is what deleting the text means.
+ * Rows are only written when their value actually changes, so a save that
+ * didn't touch media doesn't churn updated_at.
+ */
+export async function applyStoryCredit(
+  supabase: AdminContext['supabase'],
+  contentItemId: string,
+  credit: string | null,
+): Promise<void> {
+  const normalized = credit?.trim() || null
+  const { data: media } = await supabase
+    .from('media_assets')
+    .select('id, photographer_credit')
+    .eq('content_item_id', contentItemId)
+  if (!media?.length) return
+  for (const row of media) {
+    if ((row.photographer_credit ?? null) === normalized) continue
+    const { error } = await supabase
+      .from('media_assets')
+      .update({ photographer_credit: normalized })
+      .eq('id', row.id)
+    if (error) throw new Error(`Could not save photo credit: ${error.message}`)
+  }
+}
+
 export async function deleteStoredMedia(
   supabase: AdminContext['supabase'],
   media: { provider: string; storage_key: string | null },

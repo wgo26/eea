@@ -102,6 +102,8 @@ function LocationField({
     placeholder,
     detectLabel,
     detectedLabel,
+    resolvingLabel,
+    resolveFailedLabel,
     keepAsSuggestionLabel,
     initialText,
     initialId,
@@ -110,6 +112,8 @@ function LocationField({
     placeholder?: string;
     detectLabel: string;
     detectedLabel: string;
+    resolvingLabel: string;
+    resolveFailedLabel: string;
     keepAsSuggestionLabel: string;
     initialText?: string | null;
     initialId?: string | null;
@@ -119,6 +123,9 @@ function LocationField({
     const [items, setItems] = React.useState<LocationSuggestion[]>([]);
     const [open, setOpen] = React.useState(false);
     const [detecting, setDetecting] = React.useState(false);
+    const [resolving, setResolving] = React.useState(false);
+    const [resolvedName, setResolvedName] = React.useState<string | null>(null);
+    const [resolveFailed, setResolveFailed] = React.useState(false);
     const [coords, setCoords] = React.useState<{ lat: number; lng: number } | null>(null);
     const boxRef = React.useRef<HTMLDivElement>(null);
 
@@ -169,15 +176,49 @@ function LocationField({
     const detect = () => {
         if (!("geolocation" in navigator)) return;
         setDetecting(true);
+        setResolving(false);
+        setResolveFailed(false);
         navigator.geolocation.getCurrentPosition(
-            (pos) => {
+            async (pos) => {
                 setDetecting(false);
                 const lat = Math.round(pos.coords.latitude * 10000) / 10000;
                 const lng = Math.round(pos.coords.longitude * 10000) / 10000;
                 setCoords({ lat, lng });
-                if (!text.trim()) setText(`${lat}, ${lng}`);
+                // Resolve the position to a proper place: a canonical
+                // location link when one matches, otherwise the readable
+                // place name as suggestion text. Raw "lat, lng" is never
+                // written into the field — coords travel in hidden inputs
+                // for the editors.
+                setResolving(true);
+                try {
+                    const res = await fetch(
+                        `/api/locations/reverse?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`,
+                    );
+                    const data = (await res.json()) as {
+                        displayName?: string | null;
+                        locationId?: string | null;
+                        locationName?: string | null;
+                    };
+                    if (data.locationId && data.locationName) {
+                        setText(data.locationName);
+                        setLocationId(data.locationId);
+                        setResolvedName(data.locationName);
+                    } else if (data.displayName) {
+                        if (!text.trim()) setText(data.displayName);
+                        setResolvedName(data.displayName);
+                    } else {
+                        setResolveFailed(true);
+                    }
+                } catch {
+                    setResolveFailed(true);
+                } finally {
+                    setResolving(false);
+                }
             },
-            () => setDetecting(false),
+            () => {
+                setDetecting(false);
+                setResolveFailed(true);
+            },
             { timeout: 8000 },
         );
     };
@@ -189,7 +230,7 @@ function LocationField({
                 <button
                     type="button"
                     onClick={detect}
-                    disabled={detecting}
+                    disabled={detecting || resolving}
                     className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline disabled:opacity-50"
                 >
                     <LocateFixed className="h-3.5 w-3.5" aria-hidden />
@@ -249,10 +290,19 @@ function LocationField({
                     </div>
                 ) : null}
             </div>
-            {coords ? (
+            {resolving ? (
+                <p className="text-xs text-muted-foreground">{resolvingLabel}</p>
+            ) : resolvedName && coords ? (
+                <p className="text-xs text-muted-foreground">
+                    {detectedLabel}: {resolvedName} ({coords.lat}, {coords.lng})
+                </p>
+            ) : coords ? (
                 <p className="text-xs text-muted-foreground">
                     {detectedLabel}: {coords.lat}, {coords.lng}
                 </p>
+            ) : null}
+            {resolveFailed && !resolvedName ? (
+                <p className="text-xs text-muted-foreground">{resolveFailedLabel}</p>
             ) : null}
             {/* Canonical pick (nullable) + raw text + coords for the intake action. */}
             <input type="hidden" name="location_id" value={locationId} />
@@ -286,6 +336,10 @@ export function SubmitForm({
         saveStoryDraft,
         { ok: false },
     );
+    // Turnstile tokens are single-use — remount the challenge after a failed
+    // submit so a spent token is never replayed.
+    const [submitAttempt, setSubmitAttempt] = React.useState(0);
+    const turnstileKey = state.error ? `${state.error}#${submitAttempt}` : "fresh";
     const f = dict.submit.fields;
     const s = dict.submit.steps;
     const [step, setStep] = React.useState(0);
@@ -400,7 +454,12 @@ export function SubmitForm({
         failedCount: dict.submit.uploadFailedCount,
     };
     return (
-        <form ref={formRef} action={formAction} className="space-y-5">
+        <form
+            ref={formRef}
+            action={formAction}
+            onSubmit={() => setSubmitAttempt((a) => a + 1)}
+            className="space-y-5"
+        >
             <input type="hidden" name="submissionType" value={TYPE_TO_DB[type]} />
 
             {/* Phase 3 — restored-draft notice (autosave survived a dropped connection). */}
@@ -641,6 +700,8 @@ export function SubmitForm({
                         placeholder={f.locationPlaceholder}
                         detectLabel={s.detect}
                         detectedLabel={s.detected}
+                        resolvingLabel={s.resolving}
+                        resolveFailedLabel={s.resolveFailed}
                         keepAsSuggestionLabel={s.keepSuggestion}
                         initialText={initial?.locationText}
                         initialId={initial?.locationId}
@@ -747,7 +808,7 @@ export function SubmitForm({
                         aria-hidden="true"
                         className="hidden"
                     />
-                    <TurnstileWidget />
+                    <TurnstileWidget key={turnstileKey} />
 
                     {reviewOpen ? (
                         <section aria-label={s.review} className="rounded-2xl border bg-muted/30 p-4">

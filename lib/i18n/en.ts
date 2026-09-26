@@ -594,6 +594,9 @@ export const en = {
       optional: 'Optional',
       detect: 'Use my location',
       detected: 'Detected',
+      resolving: 'Finding the nearest place…',
+      resolveFailed:
+        'Could not name this place — your coordinates were saved for the editors. Please type the place name as well.',
       keepSuggestion: 'Keep as suggestion',
       detailsHint: 'Location and dates help editors verify and place your story. Anything you type as free text is kept as a suggestion.',
       whatHelp: 'Describe what happened in 2–4 sentences: who, what, where it led to.',

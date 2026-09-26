@@ -54,11 +54,20 @@ export function ContentPreview({
     }
   }, [rawBody])
 
-  const cover =
-    v.newPhotos.find((p) => p.kind !== 'video' && p.kind !== 'audio')?.url ??
+  // Both ExistingPhoto and UploadedPhoto carry url/caption/credit, so the
+  // cover can be read uniformly regardless of which list it came from.
+  const coverPhoto =
+    v.newPhotos.find((p) => p.kind !== 'video' && p.kind !== 'audio') ??
     (v.keepIds.length > 0
-      ? dataPhotos.find((p) => v.keepIds.includes(p.id))?.url
+      ? dataPhotos.find((p) => v.keepIds.includes(p.id))
       : undefined)
+  const cover = coverPhoto?.url
+
+  // Mirrors what the public hero renders: the story-level credit the save
+  // writes to media_assets.photographer_credit, with a per-photo value
+  // overriding it. Without this the field looked dead in the preview.
+  const coverCredit = coverPhoto?.credit?.trim() || v.credit.trim()
+  const coverCaption = coverPhoto?.caption?.trim() || ''
 
   const isEmpty = !title.trim() && !prose.trim() && blocks.length === 0
 
@@ -117,10 +126,22 @@ export function ContentPreview({
           ) : (
             <article className={device === 'mobile' ? 'p-4' : 'p-6 md:p-8'}>
               {cover ? (
-                <div className="relative mb-4 aspect-video w-full overflow-hidden rounded-md bg-muted">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- unsaved blob URLs can't use next/image */}
-                  <img src={cover} alt="" className="h-full w-full object-cover" />
-                </div>
+                <figure className="mb-4">
+                  <div className="relative aspect-video w-full overflow-hidden rounded-md bg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- unsaved blob URLs can't use next/image */}
+                    <img src={cover} alt={coverPhoto?.alt?.trim() ?? ''} className="h-full w-full object-cover" />
+                  </div>
+                  {coverCaption || coverCredit ? (
+                    <figcaption className="flex flex-wrap items-baseline justify-between gap-2 pt-2 text-xs text-muted-foreground">
+                      <span className="min-w-0 flex-1 leading-relaxed">{coverCaption || title}</span>
+                      {coverCredit ? (
+                        <span className="shrink-0 font-semibold">
+                          {copy.photographerCredit}: {coverCredit}
+                        </span>
+                      ) : null}
+                    </figcaption>
+                  ) : null}
+                </figure>
               ) : (
                 <div className="mb-4 aspect-video w-full rounded-md bg-muted" aria-hidden />
               )}

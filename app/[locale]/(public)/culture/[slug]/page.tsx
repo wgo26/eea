@@ -164,9 +164,9 @@ export default async function CultureDetailPage({ params }: Props) {
                     </div>
                 </header>
 
-                {/* Featured image */}
+                {/* Featured image + credit line (mirrors the news hero). */}
                 {article.imageUrl ? (
-                    <div className="relative mb-8 overflow-hidden rounded-3xl bg-muted">
+                    <figure className="mb-8 overflow-hidden rounded-3xl bg-muted">
                         <span className="relative block aspect-[16/9] w-full overflow-hidden">
                             <SmartImage
                                 src={article.imageUrl}
@@ -176,7 +176,12 @@ export default async function CultureDetailPage({ params }: Props) {
                                 className="object-cover"
                             />
                         </span>
-                    </div>
+                        {article.credit ? (
+                            <figcaption className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground md:px-5">
+                                {dict.news.photoCredit}: {article.credit}
+                            </figcaption>
+                        ) : null}
+                    </figure>
                 ) : null}
 
                 {/* Event info block */}

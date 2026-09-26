@@ -59,7 +59,6 @@ export function HomeHero({ featured, secondary, dict, locale, submitHref, photoS
                     <HeroSlide story={featured[0]} dict={dict} locale={locale} headingLevel="h1" priority />
                 )}
                 <aside className="flex min-w-0 flex-col gap-3">
-                    {/* <aside className="flex flex-col gap-3"> */}
                     <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
                         {dict.home.kicker}
                     </p>
@@ -71,7 +70,6 @@ export function HomeHero({ featured, secondary, dict, locale, submitHref, photoS
                                 dict={dict}
                                 locale={locale}
                                 variant="row"
-                                className="flex-1"
                             />
                         ))
                     ) : (

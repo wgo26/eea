@@ -10,7 +10,7 @@ import { translateTexts } from '@/lib/translate/deepl'
 import { localizeContent, draftShareText, isShareVoice } from '@/lib/translate/localize'
 import { llmReady, llmLocalizeFields, llmDraftShareLine } from '@/lib/translate/prompts'
 import { lookupSegment } from '@/lib/translate/tm'
-import { type ActionResult, audit, fail, revalidateLocalized, revalidatePublicContentCache, uniqueSlug, syncPhotos, deleteStoredMedia, upsertTranslations } from './_shared'
+import { type ActionResult, audit, fail, revalidateLocalized, revalidatePublicContentCache, uniqueSlug, syncPhotos, applyStoryCredit, deleteStoredMedia, upsertTranslations } from './_shared'
 
 export type { ContentDraftInput } from '../content-validation'
 
@@ -84,6 +84,9 @@ export async function saveContentItem(contentItemId: string, draft: ContentDraft
     }
     if (draft.photos || draft.keepPhotoIds || draft.attachments) {
       await syncPhotos(supabase, contentItemId, draft.photos ?? [], draft.keepPhotoIds ?? [], draft.photographerCredit ?? null, draft.attachments ?? [])
+      // The story-level credit must also reach photo rows that this save did
+      // not create or link, or editing it would appear to do nothing.
+      await applyStoryCredit(supabase, contentItemId, draft.photographerCredit ?? null)
     }
 
     if (item.type === 'listing' && draft.listing) {

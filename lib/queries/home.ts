@@ -18,6 +18,8 @@ export type StoryCardData = {
     category: string | null;
     credit: string | null;
     verification: string | null;
+    /** Engagement-earned flag (ops-sweep feature ladder): prioritised over plain recency in the hero queue. */
+    isFeatured?: boolean;
     publishedAt: string | null;
     /** True when the item carries video/audio supporting media (Phase B badge). */
     hasVideo?: boolean;
@@ -61,6 +63,7 @@ type RawItem = {
     type: string;
     slug: string | null;
     verification: string | null;
+    is_featured: boolean;
     published_at: string | null;
     location?: { name: string } | { name: string }[] | null;
     category?:
@@ -75,7 +78,7 @@ type RawItem = {
     listings?: { price: number | null; currency: string | null }[] | null;
 };
 
-const LIMITS = { photo: 4, news: 4, notices: 4, listings: 4, culture: 3, secondary: 3 };
+const LIMITS = { photo: 4, news: 4, notices: 4, listings: 4, culture: 3, secondary: 4 };
 
 /** Homepage hero slideshow size (spec §1A): five rotating featured stories. */
 const FEATURED_LIMIT = 5;
@@ -147,6 +150,7 @@ function mapItem(item: RawItem, locale: Locale): StoryCardData | null {
             : null,
         credit: media.find((m) => m.is_cover)?.photographer_credit ?? images[0]?.photographer_credit ?? null,
         verification: item.verification ?? null,
+        isFeatured: item.is_featured ?? false,
         publishedAt: item.published_at,
         hasVideo: media.some((m) => m.kind === 'video' || (m.mime_type ?? '').startsWith('video/')),
         hasAudio: media.some((m) => m.kind === 'audio' || (m.mime_type ?? '').startsWith('audio/')),
@@ -209,7 +213,7 @@ const getCachedHomeData = unstable_cache(
             supabase
                 .from("content_items")
                 .select(
-                    `id, type, slug, verification, published_at,
+                    `id, type, slug, verification, is_featured, published_at,
                      location:locations(name),
                      category:categories(category_translations(locale, name)),
                      translations:content_translations(locale, title, excerpt),
@@ -249,7 +253,11 @@ const getCachedHomeData = unstable_cache(
 
     // Curated hero + featured slideshow (admin curation, spec §9) with
     // automatic fallbacks: the hero slot leads, curated secondary slots follow,
-    // and the latest pool pads the queue up to five rotating features.
+    // then items the feature ladder earned via engagement (is_featured —
+    // views/share threshold, ops-sweep E4), then the latest pool pads the
+    // queue up to five rotating features. This is the zero-config default:
+    // with no homepage_slots rows at all, the hero shows the best recent
+    // stories automatically and the ladder keeps it fresh without an admin.
     // Slots carry an optional display window (starts_at/ends_at, set from the
     // Feature dialog) — expired or not-yet-started rows are skipped here so
     // featuring with a duration actually ends on time without an admin visit.
@@ -264,7 +272,12 @@ const getCachedHomeData = unstable_cache(
     if (heroSlot?.content_item_id) {
         hero = items.find((i) => i.id === heroSlot.content_item_id) ?? null;
     }
-    if (!hero) hero = photoStories[0] ?? news[0] ?? culture[0] ?? items[0] ?? null;
+    const pool = [...photoStories, ...news, ...culture];
+    const byRecency = (a: StoryCardData, b: StoryCardData) =>
+        (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "");
+    const earned = pool.filter((i) => i.isFeatured).sort(byRecency);
+    const latest = pool.filter((i) => !i.isFeatured).sort(byRecency);
+    if (!hero) hero = earned[0] ?? photoStories[0] ?? news[0] ?? culture[0] ?? items[0] ?? null;
 
     const featured: StoryCardData[] = [];
     const pushFeature = (story: StoryCardData | null | undefined) => {
@@ -278,7 +291,7 @@ const getCachedHomeData = unstable_cache(
             pushFeature(items.find((i) => i.id === slot.content_item_id));
         }
     }
-    for (const story of [...photoStories, ...news, ...culture, ...items]) {
+    for (const story of [...earned, ...latest, ...items]) {
         if (featured.length >= FEATURED_LIMIT) break;
         pushFeature(story);
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { signUpWithPassword, type AuthState } from "@/lib/auth/actions";
 import type { OAuthProvider } from "@/lib/auth/oauth";
@@ -35,6 +35,11 @@ export function SignupForm({ copy, nextPath, loginHref, providers }: Props) {
         signUpWithPassword,
         { ok: false },
     );
+    // Turnstile tokens are single-use: remount the challenge after every
+    // failed attempt so a spent token is never replayed. The attempt counter
+    // makes the key change even when the same error repeats.
+    const [attempt, setAttempt] = useState(0);
+    const turnstileKey = state.error ? `${state.error}#${attempt}` : "fresh";
 
     if (state.ok && state.checkEmail) {
         return (
@@ -62,7 +67,7 @@ export function SignupForm({ copy, nextPath, loginHref, providers }: Props) {
                 <p className="mt-2 text-sm text-muted-foreground">{copy.subtitle}</p>
             </div>
 
-            <form action={formAction} className="space-y-6">
+            <form action={formAction} onSubmit={() => setAttempt((a) => a + 1)} className="space-y-6">
                 <input type="hidden" name="next" value={nextPath} />
                 {state.error && (
                     <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
@@ -121,7 +126,7 @@ export function SignupForm({ copy, nextPath, loginHref, providers }: Props) {
                     <p className="text-xs text-muted-foreground">{copy.passwordHint}</p>
                 </div>
 
-                <TurnstileWidget />
+                <TurnstileWidget key={turnstileKey} />
 
                 <button
                     type="submit"

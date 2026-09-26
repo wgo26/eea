@@ -226,15 +226,22 @@ export default async function NoticePage({ params }: NoticePageProps) {
             />
 
             {notice.imageUrl ? (
-                <div className="relative mt-8 h-64 w-full overflow-hidden rounded-2xl bg-muted md:h-96">
-                    <SmartImage
-                        src={notice.imageUrl}
-                        alt={notice.title}
-                        sizes="(max-width: 1024px) 100vw, 60vw"
-                        priority
-                        className="object-cover"
-                    />
-                </div>
+                <figure className="mt-8 overflow-hidden rounded-2xl bg-muted">
+                    <div className="relative h-64 w-full md:h-96">
+                        <SmartImage
+                            src={notice.imageUrl}
+                            alt={notice.title}
+                            sizes="(max-width: 1024px) 100vw, 60vw"
+                            priority
+                            className="object-cover"
+                        />
+                    </div>
+                    {notice.credit ? (
+                        <figcaption className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground md:px-5">
+                            {dict.news.photoCredit}: {notice.credit}
+                        </figcaption>
+                    ) : null}
+                </figure>
             ) : null}
 
             {bodyHtml ? (
