@@ -1,6 +1,6 @@
 import { getDictionary } from '@/lib/i18n'
 import { getRequestLocale } from '@/lib/i18n/server'
-import { requireCapability } from '@/lib/auth/guards'
+import { requireAnyCapability } from '@/lib/auth/guards'
 import { getInsights, type TopContentRow } from '@/lib/admin/analytics'
 import { PageHeader } from '@/components/admin/page-header'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
@@ -12,9 +12,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
  * W13 — aggregate-only product Insights (audits H1–H5 metrics).
  *
  * Reads come from `getInsights()` (service-role, counters only — no IP,
- * cookie, user id or path ever reaches `analytics_daily`). Guard reuses
- * `viewDashboard` so admins and editors see it; no new capability was
- * added to keep the capability matrix stable.
+ * cookie, user id or path ever reaches `analytics_daily`).
+ *
+ * The guard is any-of and mirrors the nav entry exactly
+ * (`components/admin/nav-items.tsx`, asserted by
+ * `lib/admin/nav-integrity.test.ts`). It used to be `viewDashboard` alone,
+ * written when `analytics.read` did not exist; once the nav was widened so the
+ * spec §17 Analyst could see Insights, the page guard stayed behind and the
+ * Analyst's only visible link bounced them to not-authorized. `analytics.read`
+ * is the capability the role is named for, and this page is the only aggregate
+ * analytics surface, so it is the right one to accept.
  */
 
 export async function generateMetadata(): Promise<{ title: string }> {
@@ -86,7 +93,7 @@ function TopTable({ rows, t }: { rows: TopContentRow[]; t: TopTableLabels }) {
 }
 
 export default async function Page() {
-  await requireCapability('viewDashboard', '/admin/insights')
+  await requireAnyCapability(['viewDashboard', 'analytics.read'], '/admin/insights')
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
   const t = dict.admin.insights

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger, generateCorrelationId } from '@/lib/observability/logger'
 import { requireCronSecret } from '@/lib/security/cron-auth'
+import { getAuditRetentionDays } from '@/lib/security/audit-retention'
 import { stampHeartbeat } from '@/lib/automation/heartbeat'
 
 export const dynamic = 'force-dynamic'
@@ -65,10 +66,7 @@ async function runMaintenance(request: Request) {
     if (error) throw new Error(error.message)
 
     // Retention sweeps (best-effort, reported, never fatal).
-    const retentionDaysRaw = Number(process.env.AUDIT_RETENTION_DAYS ?? '365')
-    const retentionDays = Number.isFinite(retentionDaysRaw)
-      ? Math.min(Math.max(Math.floor(retentionDaysRaw), 30), 3650)
-      : 365
+    const retentionDays = getAuditRetentionDays()
     let purgedAuditRows: number | null = null
     let purgedTaskRows: number | null = null
     try {

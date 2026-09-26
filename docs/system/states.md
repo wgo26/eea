@@ -53,7 +53,10 @@ branding, widgets, content templates and the admin chrome react as one.
 - `state-schedules` daily 00:00 UTC (`vercel.json`): evaluates windows,
   activates inside / deactivates schedule-lit states outside, sweeps expired
   manual rows, compiles matching content templates (`state_id` + cadence),
-  stamps a heartbeat (`36h` grace — watch `/api/ready` / automations strip).
+  stamps a heartbeat (`36h` grace). A stall is shown in the topbar's
+  attention control to holders of `system.owner` only — the row links to
+  `/admin/states`, which is the chief-only ladder, so it is withheld from
+  everyone else rather than offered as a dead link.
 - `state-watchdog` every 15 min: lights `DEGRADED` from live telemetry
   (`getSystemMetrics` — same verdict the dashboard renders), clears it on
   recovery **only when the watchdog lit it** (manual activations are never

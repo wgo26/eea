@@ -440,13 +440,19 @@ export const appStringsEn = {
       // from the public site the "Back to site" row returns to.
       brand: 'Eagle Eye Africa',
       consoleLabel: 'Admin console',
+      /* Operational domains. Named for what the operator is trying to do, not
+         for which role may see it — visibility is a separate capability filter.
+         Order is fixed in nav-items.tsx: your desk, then the newsroom, the
+         readers, the material, and the machine. */
       groups: {
         command: 'Command',
-        editorial: 'Editorial & community',
-        safety: 'Trust & governance',
-        system: 'System & infrastructure',
+        newsroom: 'Newsroom',
+        community: 'Community',
+        catalogue: 'Catalogue',
+        platform: 'Platform',
       },
       dashboard: 'Dashboard',
+      media: 'Media archive',
       inbox: 'Inbox',
       insights: 'Insights',
       moderation: 'Moderation',
@@ -516,6 +522,32 @@ export const appStringsEn = {
       schedulerFailing: '{job} failed on its last run',
       schedulerUnknown: '{job} has never reported',
       schedulerGrace: 'expected every {hours}h',
+      /* Breadcrumb trail (AppShell). The section and record crumbs resolve from
+         the nav and the URL, so only the region name needs copy. */
+      breadcrumbLabel: 'Admin section',
+      /* Section-state chip: a bare count beside the section it counts. Kept as
+         two generic words rather than per-section copy, so a new section with a
+         count reuses them instead of adding a key per screen. */
+      waitingShort: 'waiting',
+      overdueShort: 'overdue',
+    },
+    /* Admin footer strip — read-only facts, never links to market the site.
+       Each row exists because a docs/system/* runbook currently tells the
+       operator to go and look it up somewhere else. */
+    footer: {
+      /* Only three of the four states classifyAssurance() can return are named
+         here, deliberately: `unknown` means the read failed, which is not a fact
+         about the operator's session, so the row is omitted rather than a
+         transient error being displayed as a standing. */
+      assurance: {
+        'step-up': 'Session: second factor verified',
+        'enrolled-not-used': 'Session: password only — your authenticator was not used',
+        'password-only': 'Session: password only — no authenticator enrolled',
+      },
+      schedulerHealthy: 'Scheduled jobs healthy',
+      schedulerFailing: '{count} scheduled job(s) need review',
+      auditRetention: 'Audit trail retained {days} days',
+      statusSource: 'Full status',
     },
     /* Spec §17 role names for the identity chip. Mirrors ADMIN_ROLE_LABELS in
        lib/auth/admin-roles.ts, which stays the server-side source for error
@@ -1841,6 +1873,61 @@ export const appStringsEn = {
       filter: 'Filter',
       fromLabel: 'From',
       toLabel: 'To',
+    },
+    /* The media archive — the screen the spec §17 `media_admin` role exists to
+       run. Distinct from `storage` on purpose: that one is about bytes and
+       backups (chief-only infrastructure), this one is about what a photo IS —
+       its caption, credit, consent and rights — and who may publish it. */
+    mediaArchive: {
+      title: 'Media archive',
+      description: 'Every stored asset with its credit, consent and rights status.',
+      empty: 'No media matches this view yet.',
+      untitled: 'Untitled asset',
+      noPreview: 'No preview',
+      filter: 'Filter',
+      searchPlaceholder: 'Search caption, credit, creator, rights holder',
+      filterKind: 'Kind',
+      filterKindAll: 'All kinds',
+      filterRights: 'Rights',
+      filterRightsAll: 'Any rights status',
+      filterRightsUnset: 'Rights unset',
+      filterRightsConfirmed: 'Rights confirmed',
+      tabActive: 'Active',
+      tabArchived: 'Archived',
+      colAsset: 'Asset',
+      colCredit: 'Credit',
+      colRights: 'Rights',
+      colCaptured: 'Captured',
+      statTotal: 'Assets',
+      statMissingRights: 'Rights unset',
+      statArchivedShowing: 'Showing archived',
+      statArchivedHidden: 'Archived hidden',
+      missingRightsHint: 'Cannot be published until cleared',
+      allCleared: 'Every visible asset is cleared',
+      archivedHint: 'Archived assets are hidden from the public site',
+      rightsUnset: 'Unset',
+      rights: {
+        pending: 'Pending',
+        cleared: 'Cleared',
+        restricted: 'Restricted',
+        withdrawn: 'Withdrawn',
+        expired: 'Expired',
+      },
+      consentPending: 'Consent pending',
+      consentConfirmed: 'Consent on file',
+      consentNotRequired: 'No consent needed',
+      consentWithdrawn: 'Consent withdrawn',
+      archive: 'Archive',
+      restore: 'Restore',
+      archiveTitle: 'Archive this asset?',
+      archiveBody: 'It stops appearing in the archive list and on the public site. The stored file and its backup are untouched, and this is reversible.',
+      archiveConfirm: 'Archive',
+      restoreTitle: 'Restore this asset?',
+      restoreBody: 'It returns to the active archive. Any story that still references it will show it again.',
+      restoreConfirm: 'Restore',
+      toastArchived: 'Asset archived.',
+      toastRestored: 'Asset restored.',
+      cancel: 'Cancel',
     },
     storage: {
       title: 'Storage & Backup',

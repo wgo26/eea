@@ -191,8 +191,15 @@ function mapContent(row: RawContentRow, locale: Locale): LocationContent | null 
 const LOCATION_SELECT = `id, name, slug, latitude, longitude, parent_id,
     parent:locations!parent_id(name)`;
 
-const CONTENT_SELECT = `id, type, slug, published_at,
-    location:locations(name),
+/**
+ * Content select with an inner location join — PostgREST only restricts
+ * parent rows via embedded filters when the embed is `!inner` (see news.ts /
+ * notices.ts). Both users of this variant filter by `locations.slug`, so the
+ * inner join loses nothing that should have matched. Written as a literal so
+ * supabase-js keeps inferring the row shape from the select string.
+ */
+const CONTENT_SELECT_WITH_LOCATION = `id, type, slug, published_at,
+    location:locations!inner(name),
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title),
     media:media_assets(public_url, is_cover, kind, mime_type)`;
@@ -201,31 +208,16 @@ const CONTENT_SELECT = `id, type, slug, published_at,
 export async function getAllLocations(): Promise<LocationData[]> {
     if (!hasDatabase()) return [];
     try {
-        return await getCachedAllLocations();
+        // Data-backed by design: the place picker (api/places) offers what
+        // this returns, and a selectable place must have something to show.
+        // Locations with zero published content are excluded.
+        const withCounts = await getCachedLocationsWithCounts();
+        return withCounts.filter((l) => (l.contentCount ?? 0) > 0);
     } catch (err) {
         logCacheFailure("getAllLocations", err);
         return [];
     }
 }
-
-const getCachedAllLocations = unstable_cache(
-    async (): Promise<LocationData[]> => {
-        const { data, error } = await safe(
-            createAdminClient()
-                .from("locations")
-                .select(LOCATION_SELECT)
-                .eq("is_active", true)
-                .order("name", { ascending: true }),
-        );
-        if (error) throw new Error(error.message);
-        return (data ?? []).flatMap((row) => {
-            const location = mapLocation(row as RawLocationRow);
-            return location ? [location] : [];
-        });
-    },
-    ["locations-all"],
-    { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
-);
 
 /** Fetches a single location by slug (null when not found or inactive). */
 export async function getLocationBySlug(slug: string): Promise<LocationData | null> {
@@ -304,7 +296,7 @@ const getCachedLocationContent = unstable_cache(
     async (slug: string, locale: Locale, type: string | null): Promise<LocationContent[]> => {
         let query = createAdminClient()
             .from("content_items")
-            .select(CONTENT_SELECT)
+            .select(CONTENT_SELECT_WITH_LOCATION)
             .eq("locations.slug", slug)
             .eq("status", "published")
             .eq("is_archived", false)
@@ -338,11 +330,43 @@ export async function getLocationsWithCounts(): Promise<LocationData[]> {
     }
 }
 
+/**
+ * Published, non-archived content counts per location id. Paginates in 1k
+ * chunks — a plain select would silently truncate at PostgREST's default
+ * limit and understate the counts. Throws on query error (cached-reader
+ * contract); returns the map on success.
+ */
+async function publishedCountsByLocationId(contentType: string | null): Promise<Map<string, number>> {
+    const supabase = createAdminClient();
+    const totals = new Map<string, number>();
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+        let query = supabase
+            .from("content_items")
+            .select("location_id")
+            .eq("status", "published")
+            .eq("is_archived", false)
+            .not("location_id", "is", null)
+            .not("published_at", "is", null);
+        if (contentType) query = query.eq("type", contentType);
+        const { data, error } = await safe(query.range(from, from + pageSize - 1));
+        if (error) throw new Error(error.message);
+        const rows = (data ?? []) as { location_id: string | null }[];
+        for (const row of rows) {
+            if (row.location_id) {
+                totals.set(row.location_id, (totals.get(row.location_id) ?? 0) + 1);
+            }
+        }
+        if (rows.length < pageSize) break;
+    }
+    return totals;
+}
+
 const getCachedLocationsWithCounts = unstable_cache(
     async (): Promise<LocationData[]> => {
         const supabase = createAdminClient();
 
-        const [locationsResult, contentResult] = await Promise.all([
+        const [locationsResult, totals] = await Promise.all([
             safe(
                 supabase
                     .from("locations")
@@ -350,25 +374,9 @@ const getCachedLocationsWithCounts = unstable_cache(
                     .eq("is_active", true)
                     .order("name", { ascending: true }),
             ),
-            safe(
-                supabase
-                    .from("content_items")
-                    .select("location_id")
-                    .eq("status", "published")
-                    .eq("is_archived", false)
-                    .not("published_at", "is", null),
-            ),
+            publishedCountsByLocationId(null),
         ]);
         if (locationsResult.error) throw new Error(locationsResult.error.message);
-        if (contentResult.error) throw new Error(contentResult.error.message);
-
-        const totals = new Map<string, number>();
-        for (const row of contentResult.data ?? []) {
-            const raw = row as { location_id: string | null };
-            if (raw.location_id) {
-                totals.set(raw.location_id, (totals.get(raw.location_id) ?? 0) + 1);
-            }
-        }
 
         return (locationsResult.data ?? []).flatMap((row) => {
             const location = mapLocation(row as RawLocationRow);
@@ -436,7 +444,7 @@ const getCachedNearYouContent = unstable_cache(
         const { data, error } = await safe(
             createAdminClient()
                 .from("content_items")
-                .select(CONTENT_SELECT)
+                .select(CONTENT_SELECT_WITH_LOCATION)
                 .eq("locations.slug", placeSlug)
                 .eq("status", "published")
                 .eq("is_archived", false)
@@ -580,54 +588,47 @@ export type LocationFacet = {
 };
 
 /**
- * Unified location facet query for any content type. Replaces the per-vertical
- * `getNewsLocations()` / `getListingsLocations()` helpers that each re-query
- * the same `locations` table. Returns active locations with an optional
- * count of published, non-archived content of the given type in each.
+ * Unified location facet query for any content type: locations that actually
+ * have published, non-archived content of that type, each with its count —
+ * so facet chips never offer a place whose grid would come up empty.
  * Phase 4.1: cached (tag `locations`).
  */
 const getCachedLocationsByContentType = unstable_cache(
     async (contentType: string | null): Promise<LocationFacet[]> => {
         const supabase = createAdminClient();
 
-        const locationsResult = await safe(
-            supabase
-                .from("locations")
-                .select("slug, name")
-                .eq("is_active", true)
-                .order("name", { ascending: true }),
-        );
+        const [locationsResult, totals] = await Promise.all([
+            safe(
+                supabase
+                    .from("locations")
+                    .select("id, slug, name")
+                    .eq("is_active", true)
+                    .order("name", { ascending: true }),
+            ),
+            contentType ? publishedCountsByLocationId(contentType) : Promise.resolve<Map<string, number> | null>(null),
+        ]);
         if (locationsResult.error) throw new Error(locationsResult.error.message);
 
         const facets: LocationFacet[] = (locationsResult.data ?? []).flatMap((row) => {
-            const loc = row as { slug: string; name: string | null };
+            const loc = row as { id: string; slug: string; name: string | null };
             return loc.name ? [{ slug: loc.slug, name: loc.name }] : [];
         });
 
-        if (contentType) {
-            const contentResult = await safe(
-                supabase
-                    .from("content_items")
-                    .select("location_id", { count: "exact" })
-                    .eq("type", contentType)
-                    .eq("status", "published")
-                    .eq("is_archived", false)
-                    .not("published_at", "is", null),
-            );
-            if (contentResult.error) throw new Error(contentResult.error.message);
+        if (!contentType || !totals) return facets;
 
-            const totals = new Map<string, number>();
-            for (const row of contentResult.data ?? []) {
-                const raw = row as { location_id: string | null };
-                if (raw.location_id) {
-                    totals.set(raw.location_id, (totals.get(raw.location_id) ?? 0) + 1);
-                }
-            }
-
-            return facets.map((f) => ({ ...f, count: totals.get(f.slug) ?? 0 }));
+        const idToSlug = new Map<string, string>();
+        for (const row of locationsResult.data ?? []) {
+            const loc = row as { id: string; slug: string };
+            idToSlug.set(loc.id, loc.slug);
         }
-
-        return facets;
+        const bySlug = new Map<string, number>();
+        for (const [locationId, count] of totals) {
+            const slug = idToSlug.get(locationId);
+            if (slug) bySlug.set(slug, (bySlug.get(slug) ?? 0) + count);
+        }
+        return facets
+            .filter((f) => (bySlug.get(f.slug) ?? 0) > 0)
+            .map((f) => ({ ...f, count: bySlug.get(f.slug) ?? 0 }));
     },
     ["locations-by-content-type"],
     { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },

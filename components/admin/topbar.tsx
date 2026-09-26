@@ -1,13 +1,11 @@
 'use client'
 
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
-import type { AppRole } from '@/lib/auth/types'
+import { type AppRole } from '@/lib/auth/types'
 import { type AdminRole } from '@/lib/auth/admin-roles'
-import { type ShellContext } from '@/lib/admin/queries/shell'
+import { type AdminShellContext } from '@/lib/admin/shell-context'
 import { useLocaleFromPath } from '@/components/site-header'
 import { Kbd } from '@/components/ui/kbd'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -21,7 +19,8 @@ import { SystemStateIndicator } from './system-state-indicator'
 import { useSystemState } from './state-provider'
 import { useRecentPaths, useSidebarRail } from './nav-preferences'
 import { EnvIndicator } from './env-indicator'
-import { ADMIN_NAV_TOTAL, buildAdminNavGroups, findAdminNavLocation } from './nav-items'
+import { ADMIN_NAV_TOTAL, buildAdminNavGroups } from './nav-items'
+import { AdminBreadcrumbs } from './admin-breadcrumbs'
 import { SHORTCUT_ATTR, SHORTCUT_KEY_LABEL, SHORTCUT_MODIFIER } from './nav-styles'
 
 /**
@@ -50,14 +49,13 @@ export function AdminTopbar({
 }: {
   roles: AppRole[]
   adminRoles?: AdminRole[]
-  shell: ShellContext
+  shell: AdminShellContext
   displayName: string
   email: string
   logoUrl?: string | null
 }) {
   const locale = useLocaleFromPath()
   const dict = getDictionary(locale)
-  const pathname = usePathname() ?? ''
   const groups = buildAdminNavGroups(
     locale,
     dict,
@@ -67,10 +65,18 @@ export function AdminTopbar({
     shell.unreadNotifications,
   )
   const items = groups.flatMap((group) => group.items)
-  const location = findAdminNavLocation(groups, pathname)
   const systemState = useSystemState()
   const { rail, toggleRail } = useSidebarRail()
   const { paths } = useRecentPaths()
+
+  // Section-state chips for the breadcrumb, keyed by canonical path. Both values
+  // are ones the layout already resolved — this renders them beside the section
+  // they describe rather than issuing a fresh read.
+  const topbarCopy = dict.admin.topbar
+  const sectionState: Record<string, { count: number; label: string } | undefined> = {
+    '/admin/moderation': { count: shell.pendingSubmissions, label: topbarCopy.waitingShort },
+    '/admin/content': { count: shell.org.overdueScheduled, label: topbarCopy.overdueShort },
+  }
 
   // Recents persist as locale-free paths and resolve against the CURRENT visible
   // nav, so revoking a capability or switching language can never leave a stale
@@ -125,31 +131,7 @@ export function AdminTopbar({
           </TooltipContent>
         </Tooltip>
 
-        <nav
-          aria-label={dict.admin.sidebar.admin}
-          className="hidden min-w-0 flex-1 items-center gap-1.5 text-sm md:flex"
-        >
-          <Link
-            href={dashboardHref}
-            className="shrink-0 font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            {dict.admin.sidebar.admin}
-          </Link>
-          {location && (
-            <>
-              <span className="shrink-0 text-muted-foreground/50" aria-hidden>
-                /
-              </span>
-              <span className="hidden shrink-0 text-muted-foreground/70 lg:inline">{location.groupLabel}</span>
-              <span className="hidden shrink-0 text-muted-foreground/50 lg:inline" aria-hidden>
-                /
-              </span>
-              <span className="min-w-0 truncate font-medium text-foreground" aria-current="page">
-                {location.itemLabel}
-              </span>
-            </>
-          )}
-        </nav>
+        <AdminBreadcrumbs groups={groups} sectionState={sectionState} />
 
         {/* Center zone — global search. ⌘K works from anywhere in the shell. */}
         <div className="flex min-w-0 flex-1 justify-center md:flex-none">

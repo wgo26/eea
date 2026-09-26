@@ -23,6 +23,12 @@ uploads → media_assets (R2 / Supabase) ──mirror──▶ B2 (SHA-256 verif
   disaster-recovery copy, not a cache.
 - `lastBackupAt` reads the `storage-mirror` lease row — if it says *Never*
   while assets exist, the nightly job is not running (check `CRON_SECRET`).
+  You do not have to be on this screen to find out: the topbar's
+  **needs-attention** control lists `storage-backup` / `db-dump` /
+  `db-maintenance` as stale, failing or never-reported, and the admin footer
+  states whether any job needs review. Those rows are capability-filtered to
+  `system.owner` holders — exactly the people who can act on them — so a chief
+  sees a dead scheduler from whichever page they happen to be on.
 
 ## Queue operations (the tasks section)
 
@@ -72,4 +78,6 @@ restores come from the B2 mirror (never deleted by the app).
 - `mismatched` verifies: bytes differ between origin and B2 — do not delete
   the origin; investigate the provider first.
 - Pending backup never drains: `backup_requested_at` set but no run — check
-  cron secret, then heartbeat staleness in `/api/ready`.
+  cron secret, then heartbeat staleness, which the topbar's attention control
+  already shows (or `/api/ready`, which is the same verdict without the
+  capability filter and is what a monitor should call).

@@ -330,7 +330,11 @@ function probeUrl(
       headers: { Authorization: `Bearer ${secret}` },
     }
   }
-  if (provider.includes('openai')) {
+  if (provider.includes('openai') && !provider.includes('compat')) {
+    // Bare "OpenAI" only: OpenAI-compatible endpoints (DeepSeek, Groq,
+    // OpenRouter…) must be named WITHOUT the word "openai"
+    // (e.g. provider "DeepSeek") — otherwise this probe would test the key
+    // against api.openai.com and falsely report it rejected.
     return { href: 'https://api.openai.com/v1/models', headers: { Authorization: `Bearer ${secret}` } }
   }
   if (provider.includes('resend')) {

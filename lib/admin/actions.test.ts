@@ -39,4 +39,14 @@ describe('content draft validation', () => {
     expect(validateContentDraft(draft({ authorId: 'not-a-uuid' }), false))
       .toBe('Unknown author — please pick an author from the search results.')
   })
+
+  it('requires a location for publication but not for drafts', () => {
+    // Drafts may stay locationless until they publish.
+    expect(validateContentDraft(draft(), false)).toBeNull()
+    expect(validateContentDraft(draft({ locationId: 'loc-1' }), true)).toBeNull()
+    expect(validateContentDraft(draft(), true))
+      .toBe('Add a location before publishing — place pages and filters depend on it.')
+    expect(validateContentDraft(draft({ locationId: null }), true))
+      .toBe('Add a location before publishing — place pages and filters depend on it.')
+  })
 })

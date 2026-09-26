@@ -37,9 +37,13 @@ export async function createFundraiser(input: {
     const { supabase, user } = await assertCapability('manageFundraisers')
     const slug = `fundraiser-${Date.now()}`
 
+    // Insert as draft, create the fundraiser detail row, then flip to
+    // published: the location-publish trigger (20261112000000) exempts items
+    // that already have a fundraisers row at flip time, and a brand-new id is
+    // invisible to it before the insert — so the publish step must come last.
     const { data: created, error: cErr } = await supabase
       .from('content_items')
-      .insert({ type: 'culture', slug, status: 'published', author_id: user.id })
+      .insert({ type: 'culture', slug, status: 'draft', author_id: user.id })
       .select('id')
       .single()
     if (cErr || !created) return { ok: false, error: cErr?.message ?? 'Could not create fundraiser item.' }
@@ -82,6 +86,19 @@ export async function createFundraiser(input: {
     if (fErr) {
       await supabase.from('content_items').delete().eq('id', created.id)
       return { ok: false, error: fErr.message }
+    }
+
+    // Fundraisers are place-optional (goal/progress, not coverage): flip to
+    // published now that the fundraisers row exists so the location-publish
+    // trigger exempts it.
+    const { error: flipErr } = await supabase
+      .from('content_items')
+      .update({ status: 'published', published_at: new Date().toISOString() })
+      .eq('id', created.id)
+    if (flipErr) {
+      await supabase.from('fundraisers').delete().eq('content_item_id', created.id)
+      await supabase.from('content_items').delete().eq('id', created.id)
+      return { ok: false, error: flipErr.message }
     }
 
     await audit(supabase, user.id, { action: 'fundraiser:create', contentItemId: created.id, notes: titleEn })

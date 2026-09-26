@@ -110,6 +110,19 @@ const LISTING_SELECT = `id, slug, verification, published_at, expires_at,
     media:media_assets(public_url, alt_text, caption, is_cover, sort_order, photographer_credit, kind, mime_type),
     listing:listings(price, currency, listing_status, seller_name)`;
 
+/**
+ * Same select with an inner location join — PostgREST only restricts parent
+ * rows via embedded filters when the embed is `!inner` (see news.ts). Used
+ * only when a location filter is actually requested. Written as a literal so
+ * supabase-js keeps inferring the row shape from the select string.
+ */
+const LISTING_SELECT_WITH_LOCATION = `id, slug, verification, published_at, expires_at,
+    location:locations!inner(name, slug),
+    category:categories(category_translations(locale, name)),
+    translations:content_translations(locale, title, excerpt, body),
+    media:media_assets(public_url, alt_text, caption, is_cover, sort_order, photographer_credit, kind, mime_type),
+    listing:listings(price, currency, listing_status, seller_name)`;
+
 type QueryResult<T> = {
     data: T | null;
     count: number | null;
@@ -184,11 +197,14 @@ function sanitizePhrase(input: string): string {
 }
 
 /** Base builder for every public listing query (published, unarchived). */
-function publishedListings(countExact = false) {
+function publishedListings(
+    countExact = false,
+    select: typeof LISTING_SELECT | typeof LISTING_SELECT_WITH_LOCATION = LISTING_SELECT,
+) {
     const supabase = createAdminClient();
     return supabase
         .from("content_items")
-        .select(LISTING_SELECT, countExact ? { count: "exact" } : undefined)
+        .select(select, countExact ? { count: "exact" } : undefined)
         .eq("type", "listing")
         .eq("status", "published")
         .eq("is_archived", false)
@@ -267,7 +283,7 @@ const getCachedListings = unstable_cache(
         locale: Locale,
         page: number,
     ): Promise<{ listings: ListingData[]; total: number; page: number; pageCount: number }> => {
-        let query = publishedListings(true);
+        let query = publishedListings(true, location ? LISTING_SELECT_WITH_LOCATION : LISTING_SELECT);
         if (search) {
             query = query.or(
                 `content_translations.title.ilike.*${search}*,` +
@@ -351,37 +367,6 @@ export async function getListings(options: {
     }
 }
 
-/**
- * Location filter facets from the shared `locations` table (active only).
- * Phase 4.1: cached (tag `listings`).
- */
-const getCachedListingsLocations = unstable_cache(
-    async (): Promise<{ slug: string; name: string }[]> => {
-        const { data, error } = await createAdminClient()
-            .from("locations")
-            .select("slug, name")
-            .eq("is_active", true)
-            .order("name", { ascending: true });
-        if (error) throw new Error(error.message);
-        return (data ?? []).flatMap((row) => {
-            const location = row as { slug: string; name: string | null };
-            return location.name ? [{ slug: location.slug, name: location.name }] : [];
-        });
-    },
-    ["listings-locations"],
-    { tags: [CACHE_TAGS.listings], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
-);
-
-export async function getListingsLocations(): Promise<{ slug: string; name: string }[]> {
-    if (!hasDatabase()) return [];
-    try {
-        return await getCachedListingsLocations();
-    } catch (err) {
-        logCacheFailure("getListingsLocations", err);
-        return [];
-    }
-}
-
 /** One listing by id, for the detail page (null when not found). */
 export async function getListingById(id: string, locale: Locale = "en"): Promise<ListingData | null> {
     if (!hasDatabase()) return null;
@@ -447,7 +432,7 @@ const getCachedListingsByLocation = unstable_cache(
         locale: Locale,
         limit: number,
     ): Promise<ListingData[]> => {
-        const { data, error } = await publishedListings()
+        const { data, error } = await publishedListings(false, LISTING_SELECT_WITH_LOCATION)
             .eq("locations.slug", locationSlug)
             .order("published_at", { ascending: false, nullsFirst: false })
             .limit(limit);
@@ -585,7 +570,7 @@ const getCachedSimilarListings = unstable_cache(
         limit: number,
     ): Promise<ListingData[]> => {
         const match = async (locationOnly: boolean): Promise<ListingData[]> => {
-            let query = publishedListings().neq("id", excludeId);
+            let query = publishedListings(false, locationSlug ? LISTING_SELECT_WITH_LOCATION : LISTING_SELECT).neq("id", excludeId);
             if (locationSlug) {
                 query = query.eq("locations.slug", locationSlug);
             }

@@ -30,6 +30,23 @@ export function localePath(locale: Locale, path: string): string {
 }
 
 /**
+ * Locale-prefixed path → canonical path. The exact inverse of `localePath`,
+ * and idempotent: an unprefixed path is returned unchanged.
+ *
+ * The admin shell needs this in both directions — nav entries are stored
+ * canonical (`/admin/users`) while `usePathname()` and real hrefs carry the
+ * prefix (`/en/admin/users/9f…`). Stripping is by SEGMENT against `locales`
+ * rather than by regex, so a dynamic id that happens to read `en` is never
+ * eaten. Query strings and fragments are dropped.
+ */
+export function stripLocalePrefix(path: string): string {
+  const withoutQuery = (path.split("?")[0] ?? "").split("#")[0] ?? "";
+  const segments = withoutQuery.replace(/\/+$/, "").split("/").filter(Boolean);
+  if (segments.length > 0 && (locales as readonly string[]).includes(segments[0])) segments.shift();
+  return segments.length === 0 ? "/" : `/${segments.join("/")}`;
+}
+
+/**
  * Resolves a locale from an Accept-Language header.
  * Order: first supported tag wins over later ones; defaults to English.
  */

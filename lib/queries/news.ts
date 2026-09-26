@@ -396,37 +396,6 @@ export async function getNewsCategories(): Promise<
 }
 
 /**
- * Location filter facets from the shared `locations` table (active only).
- * Phase 4.1: cached (tag `news`).
- */
-const getCachedNewsLocations = unstable_cache(
-    async (): Promise<{ slug: string; name: string }[]> => {
-        const { data, error } = await createAdminClient()
-            .from("locations")
-            .select("slug, name")
-            .eq("is_active", true)
-            .order("name", { ascending: true });
-        if (error) throw new Error(error.message);
-        return (data ?? []).flatMap((row) => {
-            const location = row as { slug: string; name: string | null };
-            return location.name ? [{ slug: location.slug, name: location.name }] : [];
-        });
-    },
-    ["news-locations"],
-    { tags: [CACHE_TAGS.news], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
-);
-
-export async function getNewsLocations(): Promise<{ slug: string; name: string }[]> {
-    if (!hasDatabase()) return [];
-    try {
-        return await getCachedNewsLocations();
-    } catch (err) {
-        logCacheFailure("getNewsLocations", err);
-        return [];
-    }
-}
-
-/**
  * Neighbouring articles for the detail-page prev/next navigation.
  * Phase 4.1: cached (tag `news`); the `published_at` cursor keeps the cache
  * key stable per article.

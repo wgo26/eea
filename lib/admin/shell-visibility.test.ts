@@ -4,7 +4,7 @@ import { canViewerOpenAlert, schedulerIssuesForViewer } from "./shell-visibility
 import { countActionableApprovals } from "@/lib/admin/queries/shell";
 import { CRON_GRACE_HOURS, type HeartbeatHealth } from "@/lib/automation/heartbeat";
 import type { OperationalAlert } from "@/lib/admin/queries/dashboard";
-import type { Capability } from "@/lib/auth/capabilities";
+import { capabilitiesFor, type Capability } from "@/lib/auth/capabilities";
 
 /**
  * What the AppShell may show a given viewer (spec §17 / §34.1).
@@ -36,8 +36,11 @@ describe("canViewerOpenAlert", () => {
   it("routes failed jobs to the chief tier only", () => {
     const a = alert({ id: "failed-jobs", href: "/admin/storage-backup" })
     // The storage tab is `system.owner`-gated in the nav, so an alert linking
-    // there must agree with the nav or it points at a dead end.
-    expect(canViewerOpenAlert(a, caps("manageStorage", "viewAuditLog"))).toBe(false)
+    // there must agree with the nav or it points at a dead end. The negative
+    // case is a LEGACY ADMIN, not an abstract pile of capabilities: admin holds
+    // every non-supreme capability, which is exactly why `system.owner` exists
+    // and why "can administer" must never be enough to open these five tabs.
+    expect(canViewerOpenAlert(a, capabilitiesFor(["admin"]))).toBe(false)
     expect(canViewerOpenAlert(a, caps("system.owner"))).toBe(true)
   })
 
@@ -69,9 +72,15 @@ const beat = (over: Partial<HeartbeatHealth>): HeartbeatHealth => ({
 })
 
 describe("schedulerIssuesForViewer", () => {
+  // The persona each case needs. A row is withheld when the viewer cannot open
+  // its DESTINATION, so a fixture must hold the capability for the screen the
+  // job points at — which is exactly what these tests are about.
+  const contentStaff = caps("viewDashboard", "manageContent")
+  const opsStaff = caps("viewDashboard", "manageContent", "manageNotifications")
+
   it("surfaces only jobs that are not healthy", () => {
     const rows = [beat({}), beat({ job: "reminders", status: "stale" })]
-    expect(schedulerIssuesForViewer(rows, caps("viewDashboard")).map((i) => i.job)).toEqual([
+    expect(schedulerIssuesForViewer(rows, contentStaff).map((i) => i.job)).toEqual([
       "reminders",
     ])
   })
@@ -82,14 +91,37 @@ describe("schedulerIssuesForViewer", () => {
       beat({ job: "db-dump", status: "stale" }),
       beat({ job: "notify", status: "failing" }),
     ]
-    expect(schedulerIssuesForViewer(rows, caps("moderate")).map((i) => i.job)).toEqual(["notify"])
-    const chief = schedulerIssuesForViewer(rows, caps("system.owner")).map((i) => i.job)
+    expect(schedulerIssuesForViewer(rows, caps("moderate", "manageNotifications")).map((i) => i.job)).toEqual([
+      "notify",
+    ])
+    // The chief persona: `system.owner` opens the storage tab, and the notify row
+    // points at /admin/notifications, so it needs that capability too.
+    const chief = schedulerIssuesForViewer(rows, caps("system.owner", "manageNotifications")).map((i) => i.job)
     expect(chief.sort()).toEqual(["db-dump", "notify", "storage-backup"])
+  })
+
+  it("withholds a job whose destination is chief-only, by destination not name", () => {
+    // The bug this rule fixes: `state-schedules` was absent from the chief-only
+    // JOB list while pointing at /admin/states, the supreme-tier ladder. A super
+    // administrator (everything except `system.owner`) was handed a row that
+    // bounced them to not-authorized. Deriving from the nav cannot reproduce it:
+    // the row's audience is whatever the sidebar already requires.
+    const rows = [beat({ job: "state-schedules", status: "stale" })]
+    expect(schedulerIssuesForViewer(rows, caps("viewDashboard", "system.configure")).map((i) => i.job)).toEqual([])
+    expect(schedulerIssuesForViewer(rows, caps("system.owner")).map((i) => i.job)).toEqual(["state-schedules"])
+  })
+
+  it("judges a job by its href, not by an allowlist of names", () => {
+    // Two jobs, two destinations, two different audiences — neither is in the
+    // old chief-only list.
+    const rows = [beat({ job: "notify", status: "stale" }), beat({ job: "publish-plans", status: "stale" })]
+    expect(schedulerIssuesForViewer(rows, contentStaff).map((i) => i.job)).toEqual(["publish-plans"])
+    expect(schedulerIssuesForViewer(rows, caps("manageNotifications")).map((i) => i.job)).toEqual(["notify"])
   })
 
   it("escalates failing rows above merely stale ones", () => {
     const rows = [beat({ job: "notify", status: "stale" }), beat({ job: "reminders", status: "failing" })]
-    expect(schedulerIssuesForViewer(rows, caps("viewDashboard")).map((i) => i.job)).toEqual([
+    expect(schedulerIssuesForViewer(rows, opsStaff).map((i) => i.job)).toEqual([
       "reminders",
       "notify",
     ])
@@ -105,7 +137,7 @@ describe("schedulerIssuesForViewer", () => {
   })
 
   it("reports the grace window the runbooks tell operators to watch", () => {
-    const issues = schedulerIssuesForViewer([beat({ job: "notify", status: "stale" })], caps("viewDashboard"))
+    const issues = schedulerIssuesForViewer([beat({ job: "notify", status: "stale" })], caps("manageNotifications"))
     expect(issues[0].graceHours).toBe(CRON_GRACE_HOURS.notify)
   })
 
@@ -116,7 +148,7 @@ describe("schedulerIssuesForViewer", () => {
         beat({ job: "notify", status: "stale", lastSuccess: twoDaysAgo }),
         beat({ job: "reminders", status: "unknown", lastSuccess: null }),
       ],
-      caps("viewDashboard"),
+      opsStaff,
     )
     expect(issues.find((i) => i.job === "notify")?.silenceHours).toBeGreaterThanOrEqual(47)
     expect(issues.find((i) => i.job === "reminders")?.silenceHours).toBeNull()

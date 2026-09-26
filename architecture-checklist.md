@@ -241,6 +241,19 @@ staff member with no per-role filtering.
   nav, page, export and action layers; legacy `admin`/`super_admin`/`platform_admin`
   never receive it. The chief also keeps a coarse `admin` row (staff gate + `is_admin()`
   RLS). Runbook: `docs/system/chief-access.md`.
+- 🔧 **Roles are displayed, never granted, from the shell.** `ADMIN_ROLE_TIER` /
+  `topTierRole()` (`lib/auth/admin-roles.ts`) rank the identity chip's badge only; no
+  check may consult a tier. Authorization stays capability-based
+  (`requireCapability`/`requireAnyCapability`/`assertCapability`), and grants remain
+  SQL-only on purpose (`docs/system/chief-access.md`) — the topbar shows roles and must
+  never become a place to change them.
+- 🔧 **Nav visibility and page access are one contract, and it is tested.** Every
+  `ADMIN_NAV_SPECS` capability list must be accepted by the page's own guard: an
+  any-of nav entry needs `requireAnyCapability` with the same set. A mismatch is
+  invisible to `tsc`, eslint and `next build` and reaches one person as a dead link.
+  `lib/admin/nav-integrity.test.ts` enforces it against the page source on disk;
+  adding or widening either side means updating `lib/admin/nav-integrity.ts` in the
+  same change.
 
 **Tasks**
 - [ ] Close the `/en/admin/*` guard bypass: add `app/[locale]/admin/layout.tsx` with the
@@ -314,13 +327,14 @@ The nav matrix is now encoded in the shell components themselves — no page can
 - Nav destinations are locale-prefixed links built from the active locale, never bare `/admin/...` constants (verified by the bare-href audit).
 - Sticky behavior: public header sticks; admin topbar sticks; sidebar is sticky full-height.
 - Nav presentation is shared, not duplicated: row metrics, active treatment, badge tones, domain headers and the rail shortcut live in `components/admin/nav-styles.ts`, rendered by both `AdminSidebar` and `AdminMobileNav` (badges also by `AdminCommandPalette`), so the mobile drawer cannot drift from the desktop sidebar.
+- 🔧 Admin breadcrumbs are shell chrome, owned by the topbar and built from the capability-filtered nav (`AdminBreadcrumbs` + `findAdminNavLocation`): every crumb is a screen the viewer can actually open, and the trail is `Admin → domain → section → record`. The record segment resolves client-side from the pathname (`lib/admin/entity-context.ts`) because a layout cannot read one, and a declared static sub-route is never mistaken for a record id.
+- 🔧 The admin footer is facts, not navigation marketing. `AdminFooter` is a 32px read-only strip (environment/build, session assurance, scheduler health, audit retention); `SiteFooter` stays the only place carrying public/legal links.
+- 🔧 Every shell ships a keyboard bypass: `components/system/skip-link.tsx` targets `<main id="main-content" tabIndex={-1}>` in the public, admin and account trees. A new shell reuses the component instead of re-inlining the anchor.
 
 **Acceptance**
 Every page matches the matrix on desktop and mobile; switching locale keeps you in the same place in the nav; no screen shows two competing primary navs. The matrix is enforced structurally — `SiteHeader` + `SiteFooter` on public, `(app)` shell (topbar/tabs + profile/sign-out area in the account topbar; `AdminSidebar` capability-filtered + `AdminTopbar` with CommandPalette and `resolveClientIp`-aware locale state) on admin/account, `(focused)` layout renders neither (only `BackButton`). The bare-href audit covers `(app)` and `components/` now as well and reports zero findings.
 
-**Remaining scope** — polish, not structure: confirm admin mobile drawer (`AdminMobileNav`, 3.5 KB of nav links) is wired into the mobile `<AppShell>` and mirrors the full desktop sidebar; today it ships but the shell routing for mobile admin still uses the desktop sidebar path below `lg`. Add breadcrumbs to the remaining admin pages beyond moderation/users detail (the `content-breadcrumb` component exists; add to listings, content, audit, storage manage). Tap-target and breakpoint walk-through is the next QA item (see item 8).
-
-**Remaining scope** — polish, not structure: add breadcrumbs to the remaining admin pages beyond moderation/users detail (the `breadcrumb` component exists; add to listings, content, audit, storage manage). Confirm admin mobile drawer (`AdminMobileNav`) covers the full menu; today it mirrors the desktop sidebar but should be verified end-to-end.
+**Remaining scope** — polish, not structure: confirm the admin mobile drawer (`AdminMobileNav`) covers the full menu end-to-end; today it mirrors the desktop sidebar but has not been walked against it. The shell breadcrumb now covers every admin section including detail routes, so the per-page `breadcrumb` prop on `PageHeader` is reserved for within-section trails (list → record). Tap-target and breakpoint walk-through is the next QA item (see item 8).
 
 ---
 
@@ -574,6 +588,51 @@ below.*
 
 ## Changelog
 
+- 2026-09-26 — **Admin AppShell phases 4–7: breadcrumb, footer, attention parity,
+  nav↔guard integrity.** The topbar now renders a real `nav > ol > li` trail
+  (`AdminBreadcrumbs`) with `aria-current` and a record crumb on detail routes —
+  `lib/admin/entity-context.ts` resolves it from the client pathname (a layout
+  cannot read one) and refuses to mistake a declared static sub-route for an id.
+  `AdminFooter` adds the 32px strip of facts `docs/system/*` previously sent
+  operators to fetch elsewhere: environment/build, this session's 2FA assurance
+  (`lib/admin/session-assurance.ts`, read off the JWT — no network call),
+  scheduler health, and audit retention, now sourced from
+  `lib/security/audit-retention.ts` so the number the UI prints is the number the
+  nightly purge enforces (the audit screen had been printing the **raw** env,
+  unclamped — `AUDIT_RETENTION_DAYS=1` displayed "1 day" while the sweeper
+  enforced 30). Accessibility: `components/system/skip-link.tsx` is now shared and
+  added to the admin and **account** shells (the account shell had the
+  `#main-content` target but no link to it), and the state pill is a persistent
+  `role="status"` region mounted outside its `Link`/`span` swap, so a
+  NORMAL→CRITICAL transition is actually announced — the `StateBanner`'s own live
+  region mounts at the moment of the change and cannot be relied on to speak it.
+  `export const dynamic = 'force-dynamic'` now states the admin shell's per-session
+  nature instead of leaving it an emergent property of `proxy.ts`.
+  **New gate — `lib/admin/nav-integrity.test.ts` (26 assertions):** every
+  `ADMIN_NAV_SPECS` entry is checked against the guard parsed off the real page
+  source, against the declared pairing, and against the role map; every nav path
+  must resolve to a route on disk. It exists because that mismatch is invisible to
+  `tsc`/eslint/build and surfaces only to the one person holding the role. It
+  caught a live regression on arrival: `/admin/insights` guards
+  `requireCapability('viewDashboard')` while the nav had been widened to admit
+  `analytics.read`, so an **Analyst's only visible link bounced them to
+  not-authorized** — fixed to `requireAnyCapability(['viewDashboard',
+  'analytics.read'])`, mirroring the nav, no guard weakened.
+  **Flagged, then resolved:** `viewAuditLog`, `manageStorage` and
+  `secrets.read_metadata` were declared, granted to every legacy `admin`, and
+  gated nothing anywhere (app, SQL, nav). All three are now deleted, and a new
+  rule — `every capability gates something real`, checked against the source tree
+  rather than another declaration — fails if a capability is ever defined that no
+  surface consumes. Deleting rather than wiring them up is the security choice:
+  the legacy `admin` map grants all three, so giving the storage/credentials
+  names a real guard would have handed every legacy admin access to tabs that
+  `docs/system/chief-access.md` says must stay unreachable to other roles.
+  `lib/admin/queries/shell.ts` now caches only the heartbeat read (45s,
+  CACHE_TAGS.operations) — the *alert* read is deliberately left uncached because
+  no mutation path invalidates operational reads at all (every `revalidateTag` in
+  `lib/admin` names a public content tag), so a cached alert could only expire on
+  a TTL and would freeze a just-cleared badge, breaking the "list empties itself"
+  property `queries/dashboard.ts` documents.
 - 2026-09-25 — **Branding engine wired into the document (new item 13)**
   (`tsc --noEmit` clean, eslint clean, `vitest run lib/branding` 100 green,
   `next build` compiles and prerenders 188/188). The colour vocabulary is now

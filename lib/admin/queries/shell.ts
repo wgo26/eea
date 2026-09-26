@@ -1,9 +1,12 @@
 import 'server-only'
 
+import { unstable_cache } from 'next/cache'
+
 import { getPendingSubmissionCount } from './content-ops'
 import { getUnreadNotificationTotal } from './notifications'
 import { getApprovalsAdmin } from './approvals'
 import { getOperationalAlerts, type OperationalAlert } from './dashboard'
+import { CACHE_TAGS } from '@/lib/cache/tags'
 import { db, safe } from './shared'
 import { isTwoPersonAction, twoPersonActionCapability } from '../two-person-control'
 import { canViewerOpenAlert, schedulerIssuesForViewer } from '../shell-visibility'
@@ -37,6 +40,49 @@ import type { AppRole } from '@/lib/auth/types'
 /* ------------------------------------------------------------------ */
 /* Shared org-wide facts                                               */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Scheduler heartbeats, cached briefly and SHARED across every admin.
+ *
+ * This is the one org-wide shell read that is safe to cache, and the reason is
+ * about who writes it: `cron_heartbeats` is stamped ONLY through
+ * `stampHeartbeat`/`recordCronHeartbeat`, and every call site of those lives in
+ * `app/api/cron/*`. That was checked rather than assumed, because the one
+ * in-app manual trigger the admin area has — `runDuePlansNow()` in
+ * lib/admin/actions/publish-plans.ts, which calls the same runner the cron does
+ * — deliberately does NOT stamp, so no operator action writes this table at all.
+ * A cached read therefore cannot contradict something the operator just did; it
+ * is at most 45 seconds behind a job that finished during the window, against
+ * grace windows measured in hours (CRON_GRACE_HOURS). No admin mutation needs to
+ * bust it, which is exactly the property `getOperationalAlerts()` does NOT have.
+ *
+ * Why the alerts are NOT cached here: they are derived counts over queues an
+ * operator clears by hand, and NOTHING in the mutation layer invalidates them.
+ * That was checked, not assumed — lib/admin makes 25 `revalidateTag()` calls and
+ * every single one names a PUBLIC content tag (`news`, `home`, `locations`,
+ * `listings`, `site`, `brand`, ...); none touches an operational read. So there
+ * is no tag to attach the alert cache to that anyone would ever bust, and the
+ * only expiry available would be a TTL. A TTL on a live queue is the bug: clear
+ * the last pending submission and the bell keeps shouting for the whole window,
+ * which breaks the property ./dashboard.ts documents ("alerts are derived, never
+ * stored... the list empties itself") and the refresh control in
+ * admin-attention.tsx exists to protect. One indexed count query is a cheap
+ * price for a badge that cannot lie; the heartbeats carry no such guarantee, so
+ * only they are cached.
+ *
+ * The corollary, since it is a real constraint on future work: if the alert read
+ * is ever cached, the mutation paths that change a queue (moderation, publish,
+ * delivery retry, storage) must be taught to bust it, and `operations` is the tag
+ * to bust. Until someone does that work, caching it is a correctness regression
+ * dressed as a performance win.
+ */
+const HEARTBEAT_CACHE_SECONDS = 45
+
+export const getCachedHeartbeatHealth = unstable_cache(
+  async () => getCronHeartbeatHealth(),
+  ['admin-shell-heartbeats'],
+  { tags: [CACHE_TAGS.operations], revalidate: HEARTBEAT_CACHE_SECONDS },
+)
 
 export type OrgFacts = {
   /** Two-person requests still pending (a work queue, not a notification). */
@@ -153,7 +199,8 @@ export async function getShellContext(options: {
     getUnreadNotificationTotal(userId),
     getOrgFacts(),
     getOperationalAlerts(),
-    getCronHeartbeatHealth(),
+    // Cached: the only org-wide shell read that no operator action ever mutates.
+    getCachedHeartbeatHealth(),
   ])
 
   let actionableApprovals = 0

@@ -469,13 +469,16 @@ export default async function NoticesPage({
                                                     location: loc.slug,
                                                 })}
                                                 aria-current={location === loc.slug ? "page" : undefined}
-                                                className={`inline-block rounded-full border px-2.5 py-1 text-xs transition-colors hover:bg-muted ${location === loc.slug
-                                                        ? "border-primary bg-primary/10 font-semibold text-foreground"
-                                                        : "text-muted-foreground"
-                                                    }`}
-                                            >
-                                                {loc.name}
-                                            </Link>
+                                                 className={`inline-block rounded-full border px-2.5 py-1 text-xs transition-colors hover:bg-muted ${location === loc.slug
+                                                         ? "border-primary bg-primary/10 font-semibold text-foreground"
+                                                         : "text-muted-foreground"
+                                                     }`}
+                                             >
+                                                 {loc.name}
+                                                 {loc.count != null ? (
+                                                     <span className="ml-1 tabular-nums opacity-70">{loc.count}</span>
+                                                 ) : null}
+                                             </Link>
                                         </li>
                                     ))}
                                 </ul>

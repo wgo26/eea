@@ -26,10 +26,24 @@ export async function saveContentItem(contentItemId: string, draft: ContentDraft
 
     const { data: item } = await supabase
       .from('content_items')
-      .select('id, type, slug, author_id')
+      .select('id, type, slug, author_id, status, location_id')
       .eq('id', contentItemId)
       .single()
     if (!item) return { ok: false, error: 'Content item not found.' }
+    // An edit must not strip the location off a live item — published content
+    // without a place row is invisible to (or wrong on) hubs, facets and the
+    // Near You rail. Mirrors the DB trigger (20261112000000): transitioning
+    // INTO published requires a location (validateContentDraft on the publish
+    // path), stripping one from a live item is blocked here, but legacy
+    // locationless rows stay editable (typo fixes) until they are republished.
+    if (
+      (item as { status: string; location_id: string | null }).status === 'published' &&
+      draft.locationId !== undefined &&
+      !draft.locationId &&
+      (item as { location_id: string | null }).location_id
+    ) {
+      return { ok: false, error: 'Add a location before publishing — place pages and filters depend on it.' }
+    }
 
     const changed: string[] = []
     const patch: Record<string, unknown> = {}
@@ -546,14 +560,26 @@ export async function updateContentStatus(contentId: string, status: string, sch
     // Publish stamps published_at only when the row doesn't already carry one
     // (imported posts keep their original source date; native drafts have
     // published_at null, so they get "now" exactly as before).
-    if (status === 'published') {
+    if (status === 'published' || status === 'scheduled') {
       const { data: current } = await supabase
         .from('content_items')
-        .select('published_at')
+        .select('published_at, location_id')
         .eq('id', contentId)
         .limit(1)
-      const existing = (current ?? [])[0] as { published_at: string | null } | undefined
-      patch.published_at = existing?.published_at ?? new Date().toISOString()
+      const existing = (current ?? [])[0] as { published_at: string | null; location_id: string | null } | undefined
+      if (!existing) return { ok: false, error: 'Content item not found.' }
+      // The place taxonomy is what makes location facets, place hubs and the
+      // Near You rail honest — an item without one must not reach the public
+      // site through the status control either (the same rule the create/edit
+      // publish paths enforce, and the scheduled cron flip depends on).
+      // Emergency notices are the deliberate exception and live on their own
+      // path (lib/admin/actions/emergency.ts).
+      if (!existing.location_id) {
+        return { ok: false, error: 'Add a location before publishing — place pages and filters depend on it.' }
+      }
+      if (status === 'published') {
+        patch.published_at = existing.published_at ?? new Date().toISOString()
+      }
     }
     if (status === 'scheduled' && scheduledFor) patch.scheduled_for = scheduledFor
     // Unpublish (published/scheduled → draft): fully hide from the public

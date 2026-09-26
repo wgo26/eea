@@ -3,7 +3,8 @@ import { requireStaff } from '@/lib/auth/guards'
 import { getAdminDisplayName } from '@/lib/admin/identity'
 import { getAdminRoles } from '@/lib/auth/roles'
 import { effectiveCapabilities, resolveAdminRoles } from '@/lib/auth/admin-roles'
-import { getShellContext } from '@/lib/admin/queries/shell'
+import { getAdminShellContext } from '@/lib/admin/shell-context'
+import { getAuditRetentionDays } from '@/lib/security/audit-retention'
 import { getActiveStates, getActiveIncident, getPublicSiteSettings } from '@/lib/admin/queries'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
@@ -18,6 +19,8 @@ import { ensurePluginStatesRegistered } from '@/lib/platform/states/index'
 import { stateNameKey } from '@/lib/platform/state-presentation'
 import { AdminSidebar } from '@/components/admin/sidebar'
 import { AdminTopbar } from '@/components/admin/topbar'
+import { AdminFooter } from '@/components/admin/admin-footer'
+import { SkipLink } from '@/components/system/skip-link'
 import { AdminClientWrapper } from '@/components/admin/admin-client-wrapper'
 import { AdminErrorBoundary } from '@/components/admin/error-boundary'
 import { StateBanner } from '@/components/admin/state-banner'
@@ -32,6 +35,20 @@ export const metadata = {
   robots: { index: false, follow: false },
 }
 
+/**
+ * The admin shell is per-user and per-session, so it is never prerendered.
+ *
+ * Until now it was dynamic only by accident: `proxy.ts` awaits
+ * `updateSession()` on every request and that touches cookies, which happens to
+ * opt the whole tree out of static rendering. An emergent property of a
+ * middleware file is not a contract — the shell now also reads
+ * `getSessionAssurance()`, another cookie-scoped value, and a future change to
+ * the proxy could silently turn an admin page into static HTML carrying one
+ * operator's unread counts and 2FA standing inside another operator's response.
+ * Stated here, that cannot happen quietly.
+ */
+export const dynamic = 'force-dynamic'
+
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   // Plugin manifests register idempotently per request so precedence and
   // behavior resolve for every admin surface, not just the states tab.
@@ -45,12 +62,14 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const adminRoles = await getAdminRoles(supabase, user.id)
   const caps = effectiveCapabilities(roles, adminRoles)
   // One pass resolves everything the AppShell renders: the badge counts the
-  // sidebar needs, the derived operational alerts, the scheduler's health and
-  // the approvals this viewer can decide. Alert/scheduler reads are org-wide and
-  // degrade to empty rather than throwing, so the shell renders during an outage
-  // instead of taking the page down with it (see lib/admin/queries/shell.ts).
+  // sidebar needs, the derived operational alerts, the scheduler's health, the
+  // approvals this viewer can decide and this session's 2FA assurance.
+  // Alert/scheduler reads are org-wide and degrade to empty rather than throwing,
+  // so the shell renders during an outage instead of taking the page down with it
+  // (see lib/admin/queries/shell.ts; the assurance read and the freshness
+  // contract are in lib/admin/shell-context.ts).
   const [shell, states] = await Promise.all([
-    getShellContext({ userId: user.id, roles, adminRoles }),
+    getAdminShellContext({ userId: user.id, roles, adminRoles }),
     getActiveStates(),
   ])
   const pendingCount = shell.pendingSubmissions
@@ -105,6 +124,12 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         reduceMotion={stateProfile.reduceMotion}
         className={`flex min-h-dvh overflow-x-clip bg-muted/30 ${appMono.variable}`}
       >
+        {/* Keyboard bypass past the sidebar + topbar chrome (Phase 6). The admin
+            shell has more tab stops before the content than any other surface in
+            the product — sidebar, collapse toggle, mobile drawer, quick actions,
+            palette, attention, preferences, identity — so this is the shell that
+            needed it most, and it did not have one. */}
+        <SkipLink locale={locale} />
         <div className="hidden lg:block">
           <div className="sticky top-0 h-screen">
             <AdminSidebar
@@ -147,7 +172,10 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               }
             />
           )}
-          <main className="flex-1 overflow-x-hidden p-4 md:p-6 lg:p-8">
+          {/* `id` + `tabIndex` are the SkipLink's target: see
+              components/system/skip-link.tsx for why a target with no tabindex
+              leaves focus on the link instead of in the page. */}
+          <main id="main-content" tabIndex={-1} className="flex-1 overflow-x-hidden p-4 md:p-6 lg:p-8">
             <AdminErrorBoundary
               title={dict.admin.common.sectionErrorTitle}
               message={dict.admin.common.sectionErrorBody}
@@ -158,6 +186,13 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               {children}
             </AdminErrorBoundary>
           </main>
+          <AdminFooter
+            locale={locale}
+            assurance={shell.assurance}
+            schedulerIssueCount={shell.schedulerIssues.length}
+            canSeeScheduler={caps.has('system.owner')}
+            retentionDays={getAuditRetentionDays()}
+          />
         </div>
       </SystemStateProvider>
     </AdminClientWrapper>

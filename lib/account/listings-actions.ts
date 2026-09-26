@@ -69,15 +69,34 @@ export async function renewOwnListing(contentItemId: string): Promise<Result> {
     if (status === 'active') return { ok: false, error: 'This listing is already active.' }
     if (status === 'removed') return { ok: false, error: 'Removed listings need staff review — contact us.' }
     const now = new Date().toISOString()
+    // Renewing re-publishes, and published items must carry a location
+    // (enforce_location_on_publish trigger, 20261112000000). A pre-trigger
+    // listing without one — or one edited to remove it — must get a clear
+    // error instead of a half-applied flip.
+    const { data: itemRow } = await own.supabase
+      .from('content_items')
+      .select('location_id')
+      .eq('id', own.itemId)
+      .maybeSingle()
+    if (!(itemRow as { location_id: string | null } | null)?.location_id) {
+      return { ok: false, error: 'Add a location to this listing before renewing it.' }
+    }
     const { error } = await own.supabase
       .from('listings')
       .update({ listing_status: 'active', renewed_at: now, sold_at: null })
       .eq('content_item_id', own.itemId)
     if (error) return { ok: false, error: error.message }
-    await own.supabase
+    const { error: flipErr } = await own.supabase
       .from('content_items')
       .update({ expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString(), is_archived: false, status: 'published', published_at: now })
       .eq('id', own.itemId)
+    if (flipErr) {
+      await own.supabase
+        .from('listings')
+        .update({ listing_status: status ?? 'expired' })
+        .eq('content_item_id', own.itemId)
+      return { ok: false, error: flipErr.message }
+    }
     await own.supabase.from('moderation_log').insert({ action: 'listing:renewed:owner', content_item_id: own.itemId })
     revalidatePath('/account/listings', 'page')
     return { ok: true }

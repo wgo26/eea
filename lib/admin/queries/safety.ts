@@ -197,7 +197,25 @@ export type MediaAssetRow = {
   createdAt: string | null
   /** Set when a content item references this asset — drives the delete warning. */
   contentItemId: string | null
+  /** Archive-descriptive columns (migration 20261101000002), surfaced by the
+   *  Media archive screen for the `media_admin` role. */
+  caption: string | null
+  altText: string | null
+  credit: string | null
+  creator: string | null
+  locationText: string | null
+  capturedAt: string | null
+  copyrightHolder: string | null
+  license: string | null
+  consentStatus: string | null
+  rightsHolder: string | null
+  rightsStatus: string | null
+  /** Non-null once `archiveMedia` has run; the asset is hidden by default. */
+  archivedAt: string | null
 }
+
+const MEDIA_COLUMNS =
+  'id, kind, provider, destination, public_url, storage_key, mime_type, file_size_bytes, backed_up_at, backup_verified_at, verification_status, created_at, content_item_id, caption, alt_text, credit, creator, location_text, captured_at, copyright_holder, license, consent_status, rights_holder, rights_status, archived_at'
 
 /** Per-asset rows for the storage table (aggregates live in getStorageStats). */
 export async function getMediaAssets(options?: {
@@ -206,6 +224,16 @@ export async function getMediaAssets(options?: {
   kind?: string
   provider?: string
   backup?: 'backed_up' | 'pending'
+  /** Free-text search over caption / alt / credit / creator / rights holder. */
+  search?: string
+  /**
+   * Archived-asset handling. Defaults to `all`, which is what this function has
+   * always returned: the storage/backup screen MUST keep seeing archived rows,
+   * because the B2 mirror is the disaster-recovery copy and an asset stays
+   * backed up whether or not editorial retired it. The media archive screen
+   * passes `exclude` explicitly.
+   */
+  archived?: 'exclude' | 'only' | 'all'
 }): Promise<{ rows: MediaAssetRow[]; total: number }> {
   const limit = options?.limit ?? 25
   const page = options?.page ?? 1
@@ -213,13 +241,21 @@ export async function getMediaAssets(options?: {
 
   let query = db()
     .from('media_assets')
-    .select('id, kind, provider, destination, public_url, storage_key, mime_type, file_size_bytes, backed_up_at, backup_verified_at, verification_status, created_at, content_item_id', { count: 'exact' })
+    .select(MEDIA_COLUMNS, { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
   if (options?.kind && options.kind !== 'all') query = query.eq('kind', options.kind)
   if (options?.provider && options.provider !== 'all') query = query.eq('provider', options.provider)
   if (options?.backup === 'pending') query = query.is('backed_up_at', null)
   if (options?.backup === 'backed_up') query = query.not('backed_up_at', 'is', null)
+  if (options?.search) {
+    const term = `%${options.search.replace(/[,%()]/g, ' ')}%`
+    query = query.or(`caption.ilike.${term},alt_text.ilike.${term},credit.ilike.${term},creator.ilike.${term},rights_holder.ilike.${term}`)
+  }
+  // The storage screen never asked for this filter, so its behaviour is
+  // unchanged; only the media archive opts into showing archived rows.
+  if (options?.archived === 'only') query = query.not('archived_at', 'is', null)
+  else if (options?.archived !== 'all') query = query.is('archived_at', null)
 
   const { data, count } = await safe(query)
   return {
@@ -237,6 +273,18 @@ export async function getMediaAssets(options?: {
       verificationStatus: (r.verification_status as string | null) ?? null,
       createdAt: (r.created_at as string | null) ?? null,
       contentItemId: (r.content_item_id as string | null) ?? null,
+      caption: (r.caption as string | null) ?? null,
+      altText: (r.alt_text as string | null) ?? null,
+      credit: (r.credit as string | null) ?? null,
+      creator: (r.creator as string | null) ?? null,
+      locationText: (r.location_text as string | null) ?? null,
+      capturedAt: (r.captured_at as string | null) ?? null,
+      copyrightHolder: (r.copyright_holder as string | null) ?? null,
+      license: (r.license as string | null) ?? null,
+      consentStatus: (r.consent_status as string | null) ?? null,
+      rightsHolder: (r.rights_holder as string | null) ?? null,
+      rightsStatus: (r.rights_status as string | null) ?? null,
+      archivedAt: (r.archived_at as string | null) ?? null,
     })),
     total: count ?? 0,
   }
@@ -487,7 +535,11 @@ export async function runDueContentSweep(): Promise<void> {
       .update({ status: 'published', published_at: nowIso })
       .eq('status', 'scheduled')
       .not('scheduled_for', 'is', null)
-      .lte('scheduled_for', nowIso),
+      .lte('scheduled_for', nowIso)
+      // Mirrors the publish-integrity trigger + cron guard (migration
+      // 20261112000000): a locationless row stays scheduled instead of
+      // erroring the flip.
+      .not('location_id', 'is', null),
   )
   const { data: dueListings } = await safe(
     db()

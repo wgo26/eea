@@ -4,6 +4,7 @@ import { getRequestLocale } from '@/lib/i18n/server'
 import { getAccountIdentity } from '@/lib/account/identity'
 import { getPublicSiteSettings } from '@/lib/admin/queries'
 import { AccountTopbar } from '@/components/account/account-topbar'
+import { SkipLink } from '@/components/system/skip-link'
 import { ToastProvider } from '@/components/admin/toast'
 import { appMono } from '../fonts'
 
@@ -33,6 +34,7 @@ export default async function AccountLayout({ children }: { children: ReactNode 
           into the error boundary with "useToast must be used within
           ToastProvider". Same wrapper the admin shell uses. */}
       <ToastProvider>
+        <SkipLink locale={locale} />
         <AccountTopbar
           displayName={identity.displayName}
           email={identity.email}

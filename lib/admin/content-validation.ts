@@ -69,6 +69,7 @@ const STRINGS: Record<ValidationLocale, Record<string, string>> = {
   en: {
     enTitle: 'An English title is required.',
     frTitle: 'A French title is required before publishing.',
+    location: 'Add a location before publishing — place pages and filters depend on it.',
     photoLink: 'Photo links must start with http:// or https://.',
     mediaLink: 'Media links must start with http:// or https://.',
     verification: 'Unknown verification value.',
@@ -84,6 +85,7 @@ const STRINGS: Record<ValidationLocale, Record<string, string>> = {
   fr: {
     enTitle: 'Un titre anglais est requis.',
     frTitle: 'Un titre français est requis avant publication.',
+    location: 'Un lieu est requis avant publication — les pages et filtres par lieu en dépendent.',
     photoLink: 'Les liens photo doivent commencer par http:// ou https://.',
     mediaLink: 'Les liens média doivent commencer par http:// ou https://.',
     verification: 'Valeur de vérification inconnue.',
@@ -104,6 +106,10 @@ export function validateContentDraft(input: ContentDraftInput, requireBilingual:
   const fr = input.translations.find((t) => t.locale === 'fr')
   if (!en?.title?.trim()) return t.enTitle
   if (requireBilingual && !fr?.title?.trim()) return t.frTitle
+  // requireBilingual marks publish/schedule paths — the taxonomy the public
+  // place pages promise (hubs, facets, Near You) is only honest when every
+  // published item carries a location. Drafts may stay locationless.
+  if (requireBilingual && !input.locationId) return t.location
   for (const photo of input.photos ?? []) {
     if (!/^https?:\/\//i.test(photo.url.trim())) return `${t.photoLink} (${photo.url})`
   }

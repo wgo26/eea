@@ -122,25 +122,35 @@ export async function relistListing(contentItemId: string, days = 30): Promise<A
 
     const { data: item } = await supabase
       .from('content_items')
-      .select('id, type, status, published_at')
+      .select('id, type, status, published_at, location_id')
       .eq('id', contentItemId)
       .single()
     if (!item) return { ok: false, error: 'Listing not found.' }
     if (item.type !== 'listing') return { ok: false, error: 'This content item is not a listing.' }
 
     const expiresAt = new Date(Date.now() + days * 86_400_000).toISOString()
+    const patch: Record<string, unknown> = { expires_at: expiresAt, is_archived: false }
+    if (item.status !== 'published') {
+      // Relisting re-publishes, and the location-publish trigger
+      // (20261112000000) requires a location — check before flipping the
+      // listing row so a legacy locationless item cannot go half-active.
+      if (!(item as { location_id: string | null }).location_id) {
+        return { ok: false, error: 'Add a location to this listing before relisting it.' }
+      }
+      patch.status = 'published'
+      patch.published_at = item.published_at ?? now
+    }
+    const { error: cErr } = await supabase
+      .from('content_items')
+      .update(patch as UpdateOf<'content_items'>)
+      .eq('id', contentItemId)
+    if (cErr) return { ok: false, error: cErr.message }
+
     const { error } = await supabase
       .from('listings')
       .update({ listing_status: 'active', renewed_at: now })
       .eq('content_item_id', contentItemId)
     if (error) return { ok: false, error: error.message }
-
-    const patch: Record<string, unknown> = { expires_at: expiresAt, is_archived: false }
-    if (item.status !== 'published') {
-      patch.status = 'published'
-      patch.published_at = item.published_at ?? now
-    }
-    await supabase.from('content_items').update(patch as UpdateOf<'content_items'>).eq('id', contentItemId)
 
     await supabase.from('moderation_log').insert({
       action: 'listing:relisted',

@@ -27,6 +27,8 @@ export type MappedContent = {
     imageUrl: string | null;
     publishedAt: string | null;
     category: string | null;
+    /** Hub slug this pin belongs to (map explorer place filtering). */
+    locationSlug?: string;
 };
 
 /**

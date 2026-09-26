@@ -40,12 +40,16 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
         (a, b) => (b.contentCount ?? 0) - (a.contentCount ?? 0),
     );
 
-    const featured = ranked.slice(0, 3);
+    // Featured/most-active/map are coverage claims — only places that
+    // actually have published stories may appear in them. The directory
+    // grid below still lists every registered place (people follow and
+    // claim them), with an honest "awaiting first story" label.
+    const featured = ranked.filter((l) => (l.contentCount ?? 0) > 0).slice(0, 3);
     const totalCoverage = ranked.reduce((sum, item) => sum + (item.contentCount ?? 0), 0);
     const activePlaces = ranked.filter((item) => (item.contentCount ?? 0) > 0).length;
-    const mostActive = ranked[0];
+    const mostActive = ranked.find((l) => (l.contentCount ?? 0) > 0);
     const mappedHubs = ranked
-        .filter((l) => l.latitude != null && l.longitude != null)
+        .filter((l) => l.latitude != null && l.longitude != null && (l.contentCount ?? 0) > 0)
         .map((l) => ({
             slug: l.slug,
             name: l.name,
@@ -178,11 +182,22 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                             </div>
 
                             <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-                                <span>{location.contentCount ?? 0} {dict.locations.items}</span>
-                                <span className="inline-flex items-center gap-1 font-medium text-primary">
-                                    {dict.locations.explore}
-                                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" aria-hidden />
+                                <span>
+                                    {(location.contentCount ?? 0) > 0
+                                        ? `${location.contentCount ?? 0} ${dict.locations.items}`
+                                        : dict.locations.awaitingFirst}
                                 </span>
+                                {(location.contentCount ?? 0) > 0 ? (
+                                    <span className="inline-flex items-center gap-1 font-medium text-primary">
+                                        {dict.locations.explore}
+                                        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" aria-hidden />
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1 font-medium text-muted-foreground">
+                                        {dict.locations.openHub}
+                                        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" aria-hidden />
+                                    </span>
+                                )}
                             </div>
                         </Link>
                     ))}

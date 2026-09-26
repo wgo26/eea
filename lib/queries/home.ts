@@ -330,8 +330,9 @@ const getCachedHomeData = unstable_cache(
         ).slice(0, LIMITS.secondary - curatedRail.length),
     ].slice(0, LIMITS.secondary);
 
-    // "Trending now" rail: the most recent stories not already displayed in a
-    // homepage section, so the module only surfaces fresh links.
+    // "Trending now" rail: ranked by the hero quality score (real view/share
+    // counters, featured flag, freshness) among stories not already displayed
+    // in a homepage section — the label promises trending, the order delivers.
     const shownIds = new Set([
         ...featuredIds,
         ...photoStories.map((i) => i.id),
@@ -340,7 +341,7 @@ const getCachedHomeData = unstable_cache(
         ...listings.map((i) => i.id),
         ...culture.map((i) => i.id),
     ]);
-    const trending = items.filter((i) => !shownIds.has(i.id)).slice(0, TRENDING_LIMIT);
+    const trending = rankForHero(items.filter((i) => !shownIds.has(i.id)), now).slice(0, TRENDING_LIMIT);
     if (trending.length < 3) {
         // Thin pool: backfill from the featured queue (never the lead hero).
         for (const story of featured) {

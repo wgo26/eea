@@ -4,6 +4,7 @@ import { localePath } from '@/lib/i18n/urls'
 import { requireCapability } from '@/lib/auth/guards'
 import { getAuditActorOptions, getAuditTrail, getAuditFilterOptions, getLatestAuditArchive } from '@/lib/admin/queries'
 import { formatDateTime } from '@/lib/admin/format'
+import { getAuditRetentionDays } from '@/lib/security/audit-retention'
 import { PageHeader } from '@/components/admin/page-header'
 import { ActiveFilters } from '@/components/admin/filter-pills'
 import { Pager } from '@/components/admin/pager'
@@ -198,7 +199,7 @@ export default async function Page({
           <ChainVerifyButton copy={t} />
         </div>
         <p className="text-xs text-muted-foreground">
-          {t.retentionLine.replace('{days}', process.env.AUDIT_RETENTION_DAYS ?? '365')}
+          {t.retentionLine.replace('{days}', String(getAuditRetentionDays()))}
         </p>
       </section>
     </div>

@@ -689,39 +689,6 @@ export async function getNoticesByLocation(
 }
 
 /**
- * Location filter facets from the shared `locations` table (active only).
- * Phase 4.1: cached (tag `notices`).
- */
-const getCachedNoticesLocations = unstable_cache(
-    async (): Promise<{ slug: string; name: string }[]> => {
-        const { data, error } = await createAdminClient()
-            .from("locations")
-            .select("slug, name")
-            .eq("is_active", true)
-            .order("name", { ascending: true });
-        if (error) throw new Error(error.message);
-        return (data ?? []).flatMap((row) => {
-            const location = row as { slug: string; name: string | null };
-            return location.name ? [{ slug: location.slug, name: location.name }] : [];
-        });
-    },
-    ["notices-locations"],
-    { tags: [CACHE_TAGS.notices], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
-);
-
-export async function getNoticesLocations(): Promise<
-    { slug: string; name: string }[]
-> {
-    if (!hasDatabase()) return [];
-    try {
-        return await getCachedNoticesLocations();
-    } catch (err) {
-        logCacheFailure("getNoticesLocations", err);
-        return [];
-    }
-}
-
-/**
  * Notice type facets with totals, counted across published notices only
  * (empty types are hidden). Sorted so the loudest categories lead.
  * Phase 4.1: cached (tag `notices`) — the facet list only changes on

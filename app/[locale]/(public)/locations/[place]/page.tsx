@@ -182,7 +182,8 @@ export default async function Page({
                         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                             <span className="inline-flex items-center gap-2">
                                 <MapPin className="h-4 w-4 text-primary" aria-hidden />
-                                {location.parentName ? `${location.parentName} · ` : ""}Local coverage
+                                {location.parentName ? `${location.parentName} · ` : ""}
+                                {totalCoverage > 0 ? "Local coverage" : "No stories yet"}
                             </span>
                             {featured?.publishedAt ? (
                                 <span className="inline-flex items-center gap-2">

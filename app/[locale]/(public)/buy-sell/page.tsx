@@ -207,6 +207,7 @@ export default async function BuySellPage({
                                   facets: locations.map((loc) => ({
                                       key: loc.slug,
                                       label: loc.name,
+                                      count: loc.count,
                                       href: hrefL({ search, category, sort, location: loc.slug }),
                                   })),
                               },

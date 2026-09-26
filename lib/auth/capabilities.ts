@@ -19,16 +19,13 @@ export type Capability =
   | 'manageSiteContent'
   | 'manageUsers'
   | 'manageAds'
-  | 'manageStorage'
   | 'manageNotifications'
-  | 'viewAuditLog'
   // Phase 1.2 — platform states + incidents (spec §24–§39).
   | 'system.configure'
   | 'incidents.manage'
   | 'branding.publish'
   // Phase 2.1 — security, analytics and the granular content/admin domains
   // (spec §17–§18). Names match the plan so role mappings read verbatim.
-   | 'secrets.read_metadata'
    | 'secrets.create'
    | 'secrets.rotate'
    | 'secrets.revoke'
@@ -57,13 +54,10 @@ const ROLE_CAPABILITIES: Record<AppRole, Capability[]> = {
     'manageSiteContent',
     'manageUsers',
     'manageAds',
-    'manageStorage',
     'manageNotifications',
-    'viewAuditLog',
     'system.configure',
     'incidents.manage',
     'branding.publish',
-    'secrets.read_metadata',
     'secrets.create',
     'secrets.rotate',
     'secrets.revoke',
@@ -80,7 +74,6 @@ const ROLE_CAPABILITIES: Record<AppRole, Capability[]> = {
 }
 
 const CAPABILITY_WEIGHT: Record<Capability, number> = {
-  viewAuditLog: 1,
   viewDashboard: 2,
   moderate: 3,
   manageContent: 4,
@@ -89,7 +82,6 @@ const CAPABILITY_WEIGHT: Record<Capability, number> = {
   managePolicies: 7,
   manageSiteContent: 8,
   manageAds: 9,
-  manageStorage: 10,
   manageNotifications: 11,
   manageUsers: 12,
   'analytics.read': 13,
@@ -98,7 +90,6 @@ const CAPABILITY_WEIGHT: Record<Capability, number> = {
   'incidents.manage': 16,
   'system.configure': 17,
   'branding.publish': 18,
-  'secrets.read_metadata': 19,
   'secrets.create': 20,
   'secrets.rotate': 21,
   'secrets.revoke': 22,
@@ -107,6 +98,32 @@ const CAPABILITY_WEIGHT: Record<Capability, number> = {
   'system.owner': 24,
   'secrets.reveal': 25,
 }
+
+/**
+ * RETIRED WEIGHTS — 1 (`viewAuditLog`), 10 (`manageStorage`) and 19
+ * (`secrets.read_metadata`) are deliberately left unused rather than reused.
+ *
+ * All three were dead: they appeared in the type, the legacy `admin` grant list
+ * and this table, but gated nothing anywhere in the app, in SQL, or in the nav
+ * (proven by the `every capability gates something real` rule in
+ * lib/admin/nav-integrity.test.ts). `viewAuditLog` outlived its own guard when
+ * the five System & Infrastructure tabs moved behind `system.owner`;
+ * `manageStorage` and `secrets.read_metadata` were never wired to a surface —
+ * the storage and credentials screens are guarded by `system.owner` directly.
+ *
+ * Deleting rather than wiring them up is the security-preserving choice: the
+ * legacy `admin` map grants all three, so giving either of the storage/secrets
+ * names a real guard would have handed every legacy admin access to tabs that
+ * docs/system/chief-access.md states must "stay invisible — and unreachable —
+ * to every other administrator". Wiring them expands access; deleting them
+ * removes a name that falsely reads as an authority.
+ *
+ * The numbers stay unassigned on purpose. A weight is only a menu/badge sort
+ * key, so reuse would silently re-rank an unrelated entry; appending new names
+ * past 25 is the rule this file has followed since `system.owner`. The retired
+ * weights are 1, 10 and 19 — gaps a reader may notice, which is why they are
+ * named here rather than left as a mystery.
+ */
 
 /**
  * Every capability in weight order. `Capability` is exactly the key set of

@@ -438,13 +438,17 @@ export const appStringsFr = {
       // qui la distingue du site public.
       brand: 'Eagle Eye Africa',
       consoleLabel: "Console d'administration",
+      /* Domaines opérationnels. Nommés d'après la tâche de l'opérateur, et non
+         d'après le rôle qui y a accès — la visibilité est un filtre distinct. */
       groups: {
-        command: 'Commande',
-        editorial: 'Rédaction & communauté',
-        safety: 'Confiance & gouvernance',
-        system: 'Système & infrastructure',
+        command: 'Poste de commande',
+        newsroom: 'Rédaction',
+        community: 'Communauté',
+        catalogue: 'Catalogue',
+        platform: 'Plateforme',
       },
       dashboard: 'Tableau de bord',
+      media: 'Archive média',
       inbox: 'Boîte de réception',
       insights: 'Statistiques',
       moderation: 'Modération',
@@ -517,6 +521,32 @@ export const appStringsFr = {
       schedulerFailing: '{job} : échec au dernier passage',
       schedulerUnknown: '{job} : jamais signalé',
       schedulerGrace: 'attendu toutes les {hours} h',
+      /* Fil d'Ariane (AppShell). Les miettes de section et d'enregistrement
+         découlent de la navigation et de l'URL : seul le nom de la zone
+         demande une traduction. */
+      breadcrumbLabel: 'Section d\'administration',
+      /* Puce d'état de section : un simple décompte à côté de la section qu'il
+         compte. Deux mots génériques plutôt qu'une formule par écran, pour
+         qu'une nouvelle section avec compteur les réutilise. */
+      waitingShort: 'en attente',
+      overdueShort: 'en retard',
+    },
+    /* Bandeau de pied de page de l'admin — des faits en lecture seule, jamais
+       des liens marketing. Chaque ligne existe parce qu'un runbook
+       docs/system/* renvoie aujourd'hui l'opérateur chercher l'info ailleurs. */
+    footer: {
+      /* Trois des quatre états que classifyAssurance() peut renvoyer sont nommés
+         ici, volontairement : `unknown` signifie que la lecture a échoué, ce
+         n'est pas un fait sur la session — la ligne est omise. */
+      assurance: {
+        'step-up': 'Session : second facteur vérifié',
+        'enrolled-not-used': 'Session : mot de passe seul — votre application d\'authentification n\'a pas été utilisée',
+        'password-only': 'Session : mot de passe seul — aucun second facteur enregistré',
+      },
+      schedulerHealthy: 'Tâches planifiées en bonne santé',
+      schedulerFailing: '{count} tâche(s) planifiée(s) à examiner',
+      auditRetention: 'Journal d\'audit conservé {days} jours',
+      statusSource: 'État complet',
     },
     /* Noms des rôles §17 pour la pastille d'identité — miroir de
        ADMIN_ROLE_LABELS (lib/auth/admin-roles.ts), qui reste la source
@@ -1842,6 +1872,61 @@ export const appStringsFr = {
       filter: 'Filtrer',
       fromLabel: 'Du',
       toLabel: 'Au',
+    },
+    /* L’archive média — l’écran que le rôle §17 `media_admin` existe pour
+       gérer. Distinct de `storage` volontairement : celui-ci parle des octets
+       et des sauvegardes (infrastructure, chef seul), celui-ci parle de ce
+       qu’EST une photo — légende, crédit, consentement, droits. */
+    mediaArchive: {
+      title: 'Archive média',
+      description: 'Chaque fichier stocké avec son crédit, son consentement et son statut de droits.',
+      empty: 'Aucun média ne correspond à cette vue.',
+      untitled: 'Fichier sans titre',
+      noPreview: 'Aperçu indisponible',
+      filter: 'Filtrer',
+      searchPlaceholder: 'Rechercher légende, crédit, auteur, détenteur',
+      filterKind: 'Type',
+      filterKindAll: 'Tous les types',
+      filterRights: 'Droits',
+      filterRightsAll: 'Tous les statuts',
+      filterRightsUnset: 'Droits non définis',
+      filterRightsConfirmed: 'Droits confirmés',
+      tabActive: 'Actifs',
+      tabArchived: 'Archivés',
+      colAsset: 'Fichier',
+      colCredit: 'Crédit',
+      colRights: 'Droits',
+      colCaptured: 'Prise de vue',
+      statTotal: 'Fichiers',
+      statMissingRights: 'Droits non définis',
+      statArchivedShowing: 'Archivés affichés',
+      statArchivedHidden: 'Archivés masqués',
+      missingRightsHint: 'Publication impossible tant que les droits ne sont pas validés',
+      allCleared: 'Tous les fichiers visibles sont autorisés',
+      archivedHint: 'Les fichiers archivés disparaissent du site public',
+      rightsUnset: 'Non défini',
+      rights: {
+        pending: 'En attente',
+        cleared: 'Autorisé',
+        restricted: 'Restreint',
+        withdrawn: 'Retiré',
+        expired: 'Expiré',
+      },
+      consentPending: 'Consentement en attente',
+      consentConfirmed: 'Consentement au dossier',
+      consentNotRequired: 'Consentement inutile',
+      consentWithdrawn: 'Consentement retiré',
+      archive: 'Archiver',
+      restore: 'Restaurer',
+      archiveTitle: 'Archiver ce fichier ?',
+      archiveBody: 'Il disparaît de la liste d’archive et du site public. Le fichier stocké et sa sauvegarde ne sont pas touchés, et l’action est réversible.',
+      archiveConfirm: 'Archiver',
+      restoreTitle: 'Restaurer ce fichier ?',
+      restoreBody: 'Il revient dans l’archive active. Tout article qui y renvoie l’affichera de nouveau.',
+      restoreConfirm: 'Restaurer',
+      toastArchived: 'Fichier archivé.',
+      toastRestored: 'Fichier restauré.',
+      cancel: 'Annuler',
     },
     storage: {
       title: 'Stockage & sauvegarde',

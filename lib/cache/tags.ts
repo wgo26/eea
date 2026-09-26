@@ -33,6 +33,10 @@
  */
 
 export const CACHE_TAGS = {
+    /** Admin AppShell operational reads (cron heartbeats). Never busted by a
+     *  mutation — see lib/admin/queries/shell.ts for why that is safe here and
+     *  why it is NOT safe for the operational-alert read. */
+    operations: "operations",
     news: "news",
     home: "home",
     listings: "listings",

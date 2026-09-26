@@ -3,7 +3,7 @@ import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
 import { getListingsAdmin } from '@/lib/admin/queries'
-import { requireCapability } from '@/lib/auth/guards'
+import { requireAnyCapability } from '@/lib/auth/guards'
 import { isAdminRoles } from '@/lib/auth/roles'
 import { PageHeader } from '@/components/admin/page-header'
 import { FilterPills, SearchBar, ActiveFilters } from '@/components/admin/filter-pills'
@@ -35,7 +35,14 @@ export default async function Page({
   searchParams: Promise<{ status?: string; page?: string; q?: string; sort?: string }>
 }) {
   const locale = await getRequestLocale()
-  const { roles } = await requireCapability('manageContent', '/admin/listings')
+  // Any-of, mirroring the nav entry exactly: the editorial team has always run
+  // Listings through `manageContent`, and the spec §17 Marketplace Administrator
+  // holds `listings.manage` — which previously matched no nav entry and no page
+  // guard, so that role's only visible link bounced them to not-authorized.
+  const { roles } = await requireAnyCapability(
+    ['manageContent', 'listings.manage'],
+    '/admin/listings',
+  )
   const canDelete = isAdminRoles(roles)
   const dict = getDictionary(locale)
   const t = dict.admin.listingsAdmin

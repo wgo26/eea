@@ -1,17 +1,16 @@
-import { notFound } from "next/navigation";
-import { MapPin, Layers, Filter } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
+import { MapPin, Layers } from "lucide-react";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
-import { getDictionary, resolveLocale } from "@/lib/i18n";
+import { getDictionary, resolveLocale, type Dictionary } from "@/lib/i18n";
 import { getMappedLocations, getAllLocations, getMappedContent } from "@/lib/queries/locations";
 import type { Metadata } from "next";
 import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
-import { LocationMap, type MappedContent, type MappedHub } from "@/components/locations/location-map";
-import type { Dictionary } from "@/lib/i18n";
+import type { MappedContent, MappedHub } from "@/components/locations/location-map";
+import {
+    MapExplorerClient,
+    MapExplorerFallback,
+    type MapPlaceFilter,
+    type MapTypeFilter,
+} from "@/components/map/map-explorer-client";
 import { Suspense } from "react";
 
 // Force dynamic rendering since this page uses Leaflet (client-only)
@@ -21,26 +20,7 @@ import { Suspense } from "react";
 // The map itself hydrates client-side behind <Suspense>.
 export const revalidate = 300;
 
-type ContentType = "news" | "photo_story" | "notice" | "culture" | "listing" | "micro_story" | "all";
-
-const CONTENT_TYPES: { value: ContentType; labelKey: keyof Dictionary["search"] }[] = [
-    { value: "all", labelKey: "allTypes" },
-    { value: "news", labelKey: "news" },
-    { value: "photo_story", labelKey: "photoStories" },
-    { value: "notice", labelKey: "notices" },
-    { value: "culture", labelKey: "culture" },
-    { value: "listing", labelKey: "buySell" },
-];
-
-function getSearchLabel(dict: Dictionary["search"], key: keyof Dictionary["search"]): string {
-    return dict[key] ?? key;
-}
-
-function MapLoadingSkeleton() {
-    return (
-        <div className="z-0 h-80 w-full overflow-hidden rounded-2xl border border-border bg-muted md:h-96 animate-pulse" />
-    );
-}
+const TYPE_ORDER = ["news", "photo_story", "notice", "culture", "listing", "micro_story"] as const;
 
 export async function generateMetadata({
     params,
@@ -87,15 +67,6 @@ export default async function MapPage({
             href: localePath(locale, `/locations/${l.slug}`),
         }));
 
-    const typeIcons: Record<string, string> = {
-        news: "📰",
-        photo_story: "📸",
-        notice: "📋",
-        culture: "🎭",
-        listing: "🛍️",
-        micro_story: "👁️",
-    };
-
     // Phase 4.1 — clustered story pins: same-place stories share hub
     // coordinates, so spread them with a deterministic golden-angle spiral
     // (±2 km) instead of stacking exactly.
@@ -116,8 +87,38 @@ export default async function MapPage({
             imageUrl: s.imageUrl,
             publishedAt: s.publishedAt,
             category: s.category,
+            locationSlug: s.locationSlug,
         };
     });
+
+    // Filter options are derived from the pins that actually exist — every
+    // checkbox controls real map content, and its counter matches what the
+    // type/place contributes to the visible total. No decorative filters.
+    const typeCounts = new Map<string, number>();
+    const placeCounts = new Map<string, number>();
+    const hubNames = new Map(hubs.map((h) => [h.slug, h.name]));
+    for (const pin of pins) {
+        typeCounts.set(pin.type, (typeCounts.get(pin.type) ?? 0) + 1);
+        if (pin.locationSlug) {
+            placeCounts.set(pin.locationSlug, (placeCounts.get(pin.locationSlug) ?? 0) + 1);
+        }
+    }
+    const typeOptions: MapTypeFilter[] = [
+        ...[...typeCounts.keys()].sort(
+            (a, b) => TYPE_ORDER.indexOf(a as (typeof TYPE_ORDER)[number]) - TYPE_ORDER.indexOf(b as (typeof TYPE_ORDER)[number]),
+        ),
+    ].map((value) => ({
+        value,
+        label: getSearchLabel(dict, value),
+        count: typeCounts.get(value) ?? 0,
+    }));
+    const placeOptions: MapPlaceFilter[] = [...placeCounts.entries()]
+        .filter(([slug]) => hubNames.has(slug))
+        .sort((a, b) => (hubNames.get(a[0]) ?? "").localeCompare(hubNames.get(b[0]) ?? ""))
+        .slice(0, 30)
+        .map(([slug, count]) => ({ slug, name: hubNames.get(slug) ?? slug, count }));
+
+    const coverage = allLocations.reduce((sum, l) => sum + (l.contentCount ?? 0), 0);
 
     return (
         <div className="mx-auto w-full max-w-7xl space-y-8 px-4 py-8 md:px-6 lg:px-8">
@@ -139,109 +140,56 @@ export default async function MapPage({
                     <div className="grid w-full max-w-md gap-3 sm:grid-cols-3 lg:w-auto">
                         <StatBlock
                             label={dict.locations.statPlaces}
-                            value={String(locations.length)}
+                            value={String(placeCounts.size)}
                             icon={<MapPin className="h-4 w-4" />}
                         />
                         <StatBlock
+                            label={dict.locations.statItems}
+                            value={String(pins.length)}
+                            icon={<Layers className="h-4 w-4" />}
+                        />
+                        <StatBlock
                             label={dict.locations.statCoverage}
-                            value={String(allLocations.reduce((sum, l) => sum + (l.contentCount ?? 0), 0))}
+                            value={String(coverage)}
                             icon={<Layers className="h-4 w-4" />}
                         />
                     </div>
                 </div>
             </header>
 
-            <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-                <aside className="lg:sticky lg:top-24 space-y-6">
-                    <Card className="p-4">
-                        <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="flex items-center gap-2 text-lg">
-                                    <Filter className="h-4 w-4 text-primary" aria-hidden />
-                                    {dict.map.filters}
-                                </CardTitle>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                            <div className="space-y-2">
-                                {CONTENT_TYPES.map((type) => (
-                                    <div key={type.value} className="flex items-center gap-2">
-                                        <Checkbox id={`type-${type.value}`} defaultChecked={type.value === "all"} />
-                                        <Label htmlFor={`type-${type.value}`} className="text-sm cursor-pointer">
-                                            {getSearchLabel(dict.search, type.labelKey)}
-                                        </Label>
-                                    </div>
-                                ))}
-                            </div>
-                            <Separator />
-                            <div className="space-y-2">
-                                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                                    {dict.map.locationFilter}
-                                </p>
-                                <div className="max-h-48 overflow-y-auto space-y-1">
-                                    {allLocations
-                                        .filter((l) => (l.contentCount ?? 0) > 0)
-                                        .slice(0, 20)
-                                        .map((location) => (
-                                            <div key={location.slug} className="flex items-center gap-2">
-                                                <Checkbox id={`loc-${location.slug}`} />
-                                                <Label htmlFor={`loc-${location.slug}`} className="text-sm cursor-pointer truncate">
-                                                    {location.name}
-                                                </Label>
-                                            </div>
-                                        ))}
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="p-4">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="flex items-center gap-2 text-lg">
-                                <Layers className="h-4 w-4 text-primary" aria-hidden />
-                                {dict.map.legend}
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-2">
-                            {Object.entries(typeIcons).map(([type, icon]) => (
-                                <div key={type} className="flex items-center gap-2 text-sm">
-                                    <span className="text-lg">{icon}</span>
-                                    <span>{getSearchLabel(dict.search, type === "photo_story" ? "photoStories" : (type as keyof Dictionary["search"]))}</span>
-                                </div>
-                            ))}
-                            <div className="flex items-center gap-2 text-sm pt-2 border-t">
-                                <span className="w-6 h-6 rounded-full border-2 border-primary flex items-center justify-center text-xs">
-                                    12
-                                </span>
-                                <span>{dict.map.cluster}</span>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </aside>
-
-                <main className="min-w-0">
-                    <Suspense fallback={<MapLoadingSkeleton />}>
-                        <LocationMap
-                            hubs={hubs}
-                            content={pins}
-                            copy={dict.map}
-                            showClustering={true}
-                        />
-                    </Suspense>
-                    <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-                        <span>
-                            {hubs.length}                             {dict.map.hubsCount?.replace("{count}", String(hubs.length))}
-                            {pins.length > 0 ? ` · ${dict.map.storiesOnMap.replace("{count}", String(pins.length))}` : ""}
-                        </span>
-                        <Button variant="outline" size="sm" className="gap-2">
-                            <Layers className="h-4 w-4" aria-hidden />
-                            {dict.map.listView}
-                        </Button>
-                    </div>
-                </main>
-            </div>
+            <Suspense fallback={<MapExplorerFallback />}>
+                <MapExplorerClient
+                    hubs={hubs}
+                    pins={pins}
+                    copy={dict.map}
+                    labels={{
+                        filtersTitle: dict.map.filters,
+                        byType: dict.map.byType,
+                        byPlace: dict.map.byPlace,
+                        shownCount: dict.map.shownCount,
+                        noVisible: dict.map.noVisible,
+                    }}
+                    typeOptions={typeOptions}
+                    placeOptions={placeOptions}
+                />
+            </Suspense>
         </div>
     );
+}
+
+function getSearchLabel(dict: Dictionary, type: string): string {
+    switch (type) {
+        case "photo_story":
+            return dict.search.photoStories;
+        case "micro_story":
+            return dict.map.microStory;
+        case "listing":
+            return dict.search.buySell;
+        case "notice":
+            return dict.search.notices;
+        default:
+            return (dict.search as Record<string, string>)[type] ?? type;
+    }
 }
 
 function StatBlock({

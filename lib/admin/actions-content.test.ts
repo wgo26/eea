@@ -73,6 +73,7 @@ describe('Content Lifecycle Actions', () => {
         type: 'news',
         draft: {
           slugBase: 'news-item',
+          locationId: 'location-123',
           translations: [
             { locale: 'en', title: 'News Title', body: 'News Body' },
             { locale: 'fr', title: 'Titre de Nouvelle', body: 'Corps' },
@@ -83,6 +84,24 @@ describe('Content Lifecycle Actions', () => {
       expect(res.ok).toBe(false)
       if (!res.ok) {
         expect(res.error).toBe('A schedule date is required when scheduling.')
+      }
+    })
+
+    it('requires a location when publishing', async () => {
+      const res = await createContentItem({
+        type: 'news',
+        draft: {
+          slugBase: 'news-item',
+          translations: [
+            { locale: 'en', title: 'News Title', body: 'News Body' },
+            { locale: 'fr', title: 'Titre de Nouvelle', body: 'Corps' },
+          ],
+        },
+        publish: 'now',
+      })
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.error).toBe('Add a location before publishing — place pages and filters depend on it.')
       }
     })
   })

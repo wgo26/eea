@@ -104,6 +104,20 @@ const CULTURE_SELECT_LEFT = `id, slug, verification, published_at, view_count, s
     author:profiles!content_items_author_id_fkey(id, display_name),
     events(starts_at, ends_at, venue_name, ticket_url, organizer_name)`;
 
+/**
+ * Same select with an inner location join — PostgREST only restricts parent
+ * rows via embedded filters when the embed is `!inner` (see news.ts). Used
+ * only when a location filter is actually requested. Written as a literal so
+ * supabase-js keeps inferring the row shape from the select string.
+ */
+const CULTURE_SELECT_LEFT_WITH_LOCATION = `id, slug, verification, published_at, view_count, share_count,
+    location:locations!inner(slug, name),
+    category:categories(category_translations(locale, name)),
+    translations:content_translations(locale, title, excerpt, body),
+    media:media_assets(public_url, alt_text, caption, photographer_credit, is_cover, sort_order, kind, mime_type),
+    author:profiles!content_items_author_id_fkey(id, display_name),
+    events(starts_at, ends_at, venue_name, ticket_url, organizer_name)`;
+
 /** The admin client is only usable when the service key is configured. */
 function hasDatabase(): boolean {
     return Boolean(
@@ -151,11 +165,14 @@ export function prettifyCategory(slug: string): string {
 }
 
 /** Base builder for every public culture query (published, unarchived). */
-function publishedCulture(countExact = false) {
+function publishedCulture(
+    countExact = false,
+    select: typeof CULTURE_SELECT_LEFT | typeof CULTURE_SELECT_LEFT_WITH_LOCATION = CULTURE_SELECT_LEFT,
+) {
     const supabase = createAdminClient();
     return supabase
         .from("content_items")
-        .select(CULTURE_SELECT_LEFT, countExact ? { count: "exact" } : undefined)
+        .select(select, countExact ? { count: "exact" } : undefined)
         .eq("type", "culture")
         .eq("status", "published")
         .eq("is_archived", false)
@@ -252,7 +269,7 @@ const getCachedCultureArticles = unstable_cache(
         locale: Locale,
         page: number,
     ): Promise<{ articles: CultureArticle[]; total: number; page: number; pageCount: number }> => {
-        let query = publishedCulture(true);
+        let query = publishedCulture(true, location ? CULTURE_SELECT_LEFT_WITH_LOCATION : CULTURE_SELECT_LEFT);
         if (search) {
             query = query.or(
                 `content_translations.title.ilike.*${search}*,` +
@@ -488,7 +505,7 @@ const getCachedCultureByLocation = unstable_cache(
         locale: Locale,
         limit: number,
     ): Promise<CultureArticle[]> => {
-        const { data, error } = await publishedCulture()
+        const { data, error } = await publishedCulture(false, CULTURE_SELECT_LEFT_WITH_LOCATION)
             .eq("locations.slug", locationSlug)
             .order("published_at", { ascending: false, nullsFirst: false })
             .limit(limit);

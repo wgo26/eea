@@ -101,6 +101,21 @@ const STORY_SELECT = `id, slug, verification, published_at, view_count, share_co
  */
 const STORY_SELECT_LEGACY = STORY_SELECT.replace(", share_text", "");
 
+/**
+ * Same selects with an inner location join — PostgREST only restricts parent
+ * rows via embedded filters when the embed is `!inner` (see news.ts). Used
+ * only when a location filter is actually requested, so stories without a
+ * location still render in the unfiltered grid.
+ */
+const STORY_SELECT_WITH_LOCATION = STORY_SELECT.replace(
+    "location:locations(",
+    "location:locations!inner(",
+);
+const STORY_SELECT_LEGACY_WITH_LOCATION = STORY_SELECT_WITH_LOCATION.replace(
+    ", share_text",
+    "",
+);
+
 type QueryResult<T> = {
     data: T | null;
     count: number | null;
@@ -367,8 +382,8 @@ const getCachedPhotoStories = unstable_cache(
     }> => {
         const from = (page - 1) * PHOTO_STORIES_PAGE_SIZE;
         const { data, count: total, error } = await selectStories(
-            STORY_SELECT,
-            STORY_SELECT_LEGACY,
+            location ? STORY_SELECT_WITH_LOCATION : STORY_SELECT,
+            location ? STORY_SELECT_LEGACY_WITH_LOCATION : STORY_SELECT_LEGACY,
             (select) => {
                 let query = publishedPhotoStories(true, select);
                 if (search) {
@@ -550,39 +565,6 @@ export async function getPhotoStoryYears(): Promise<number[]> {
         return await getCachedPhotoStoryYears();
     } catch (err) {
         logCacheFailure("getPhotoStoryYears", err);
-        return [];
-    }
-}
-
-/**
- * Location filter facets from the shared `locations` table (active only).
- * Phase 4.1: cached (tag `stories`).
- */
-const getCachedPhotoStoryLocations = unstable_cache(
-    async (): Promise<{ slug: string; name: string }[]> => {
-        const { data, error } = await createAdminClient()
-            .from("locations")
-            .select("slug, name")
-            .eq("is_active", true)
-            .order("name", { ascending: true });
-        if (error) throw new Error(error.message);
-        return (data ?? []).flatMap((row) => {
-            const location = row as { slug: string; name: string | null };
-            return location.name ? [{ slug: location.slug, name: location.name }] : [];
-        });
-    },
-    ["photo-story-locations"],
-    { tags: [CACHE_TAGS.stories], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
-);
-
-export async function getPhotoStoryLocations(): Promise<
-    { slug: string; name: string }[]
-> {
-    if (!hasDatabase()) return [];
-    try {
-        return await getCachedPhotoStoryLocations();
-    } catch (err) {
-        logCacheFailure("getPhotoStoryLocations", err);
         return [];
     }
 }

@@ -263,6 +263,7 @@ export default async function PhotoStoriesPage({
                                     facets: locations.map((loc) => ({
                                         key: loc.slug,
                                         label: loc.name,
+                                        count: loc.count,
                                         href: hrefL({ search, category, year, location: loc.slug }),
                                     })),
                                 } as FilterGroup,
@@ -387,7 +388,7 @@ export default async function PhotoStoriesPage({
                     isFiltered={isFiltered || page > 1}
                 />
 
-                {mostViewed.length > 0 ? (
+                {mostViewed.some((s) => (s.viewCount ?? 0) > 0) ? (
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2 text-base">
