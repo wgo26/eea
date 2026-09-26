@@ -27,24 +27,28 @@ The page is read-only by design — remediation lives where its own guards are:
 1. **Repeat logins on one identity:** open the timeline filtered to `auth`,
    confirm the window, ask the owner to rotate their password; if the account
    is staff, check `/admin/users` for role changes in the same window.
-2. **Hostile IP:** block at the edge (CDN/WAF) — the app has no IP firewall;
-   rate limiting already throttles auth (`auth:login` fail-closed).
+2. **Hostile IP:** **Block IP** right from the heatmap row (or the Blocked
+   addresses section) — refusals are silent to the scanner. Short bans
+   (7–30 days) expire on their own; the nightly sweep deletes the rows.
+   Edge/CDN blocking stays the stronger layer where you have it.
 3. **Compromised session:** user changes password (rotates session); staff
    account → suspend from `/admin/users` pending review.
 4. **Unexpected credential event:** rotate immediately (Credentials runbook),
    validate, retire the old value at the provider.
 5. **Critical mode:** resolve the incident in the console — activation pages
-   staff automatically (`security.critical` alert) with a deep link.
+   staff automatically (`security.critical` alert **plus** a webhook page to
+   `DIGEST_WEBHOOK_URL`, so point it at a channel with mobile push).
 
 ## Alerts & automation
 
 - `incident.critical_mode_activated` → `security.critical` staff alert
-  (notification centre + digest channels) with the incident title + link.
+  (notification centre + digest channels) **plus** an out-of-band webhook
+  page — the in-app alert never wakes a sleeping chief.
 - Scan caps (2,000 login rows, 200 suspicious) bound cost but truncate under
   attack volume — during an active incident, query the tables directly.
 - No auto-throttle linkage: the page observes, the limiter enforces, the
-  chief decides. Wire your edge alerting to page a human on the critical
-  alert; nothing here pages on its own.
+  chief decides. Blocked addresses are refused at sign-in and public intake
+  (generic errors outward, `ip_blocked` on the trail).
 
 ## Data model (for debugging)
 

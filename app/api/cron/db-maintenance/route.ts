@@ -100,6 +100,21 @@ async function runMaintenance(request: Request) {
         error: purgeErr instanceof Error ? purgeErr.message : String(purgeErr),
       })
     }
+    let purgedBlockRows: number | null = null
+    try {
+      const { error: blockPurgeError, count: blockCount } = await supabase
+        .from('blocked_ips')
+        .delete({ count: 'exact' })
+        .not('expires_at', 'is', null)
+        .lt('expires_at', new Date().toISOString())
+      if (blockPurgeError) throw blockPurgeError
+      purgedBlockRows = blockCount ?? 0
+    } catch (purgeErr) {
+      logger.warn('cron/db-maintenance', 'expired block purge failed', {
+        correlationId,
+        error: purgeErr instanceof Error ? purgeErr.message : String(purgeErr),
+      })
+    }
 
     const report = (data ?? {}) as {
       checkedAt?: string
@@ -119,6 +134,7 @@ async function runMaintenance(request: Request) {
       purgedAuditRows,
       auditRetentionDays: retentionDays,
       purgedCompletedTasks: purgedTaskRows,
+      purgedExpiredBlocks: purgedBlockRows,
       rateLimitTable: report.rateLimitTable ?? null,
       migrations: report.migrations ?? null,
       missingObjects: report.missingObjects ?? [],

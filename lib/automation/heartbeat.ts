@@ -27,6 +27,7 @@ export const CRON_GRACE_HOURS: Record<string, number> = {
   notify: 1,
   reminders: 2,
   'state-schedules': 36,
+  'state-watchdog': 1,
   'ops-digest': 36,
   'weekly-digest': 8 * 24,
   'publish-plans': 1,
@@ -34,6 +35,7 @@ export const CRON_GRACE_HOURS: Record<string, number> = {
   'storage-backup': 36,
   'db-dump': 60,
   'credential-hygiene': 8 * 24,
+  'audit-archive': 32 * 24,
 }
 
 /**

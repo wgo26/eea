@@ -9,6 +9,8 @@ import {
   getAllStates,
   getRecentStateEvents,
   getStateSchedules,
+  getStateThemeBindings,
+  loadThemeList,
   type StateEventRow,
   type StateScheduleRow,
   type StateSeverity,
@@ -28,6 +30,7 @@ import { DataTable, type Column } from '@/components/admin/data-table'
 import { fillCopy, formatDateTime, formatRelative } from '@/lib/admin/format'
 import { StateControl, type StateControlLabels } from './state-control'
 import { ScheduleManager, type ScheduleManagerLabels } from './schedule-manager'
+import { StateThemeManager, type StateThemeManagerLabels } from './state-theme-manager'
 import type { Locale } from '@/lib/i18n'
 
 /**
@@ -91,11 +94,13 @@ export default async function Page() {
   const names = dict.admin.states
   const canManageIncidents = effectiveCapabilities(roles, adminRoles).has('incidents.manage')
 
-  const [dbStates, schedules, events, incident] = await Promise.all([
+  const [dbStates, schedules, events, incident, themeBindings, themeList] = await Promise.all([
     getAllStates(),
     getStateSchedules(),
     getRecentStateEvents(12),
     getActiveIncident(),
+    getStateThemeBindings(),
+    loadThemeList(),
   ])
 
   /** DB rows carry English seed text, so a known id renders its dictionary name. */
@@ -323,6 +328,28 @@ export default async function Page() {
     },
   ]
 
+  // Bindable states: registered, never the baseline or the incident
+  // console's operational states.
+  const themeStates = getRegisteredStates()
+    .filter((config) => config.id !== NORMAL_STATE_ID && !OPERATIONAL_STATES.includes(config.id))
+    .map((config) => ({ id: config.id, label: labelFor(config.id, config.name) }))
+  const publishedThemes = themeList
+    .filter((theme) => theme.status === 'published')
+    .map((theme) => ({ id: theme.id, name: theme.name, version: theme.version }))
+
+  const themeLabels: StateThemeManagerLabels = {
+    bound: t.themeBound,
+    unbound: t.themeUnbound,
+    selectTheme: t.themeSelect,
+    save: t.themeSave,
+    clear: t.themeClear,
+    clearTitle: t.themeClearTitle,
+    clearBody: t.themeClearBody,
+    cancel: dict.admin.common.cancel,
+    savedToast: t.toastThemeSaved,
+    clearedToast: t.toastThemeCleared,
+  }
+
   const eventLabels: Record<string, string> = {
     activated: t.eventActivated,
     deactivated: t.eventDeactivated,
@@ -402,6 +429,19 @@ export default async function Page() {
           <p className="text-xs text-muted-foreground">{t.scheduleAddHint}</p>
         </div>
         <ScheduleManager schedules={schedules} schedulable={schedulable} labels={scheduleLabels} />
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-sm font-medium text-foreground">{t.themeHeading}</h2>
+          <p className="text-xs text-muted-foreground">{t.themeHint}</p>
+        </div>
+        <StateThemeManager
+          states={themeStates}
+          bindings={themeBindings}
+          themes={publishedThemes}
+          labels={themeLabels}
+        />
       </section>
 
       <section className="space-y-3">

@@ -261,6 +261,11 @@ export interface EffectiveTheme {
 /**
  * The theme the current request renders with: published tokens composed with
  * the effective system state and the accessibility preference (spec §42).
+ *
+ * A state with a bound theme (`system_state_themes`, managed from
+ * /admin/states) swaps the *base palette* for that theme's published tokens;
+ * the state's visual profile still composes on top, so a seasonal palette
+ * never loses its state accents.
  */
 export async function resolveEffectiveTheme(options?: {
   /** Overrides the resolved system state — used by preview renderers. */
@@ -273,14 +278,29 @@ export async function resolveEffectiveTheme(options?: {
     const states = await getActiveStates()
     stateId = getEffectiveState(states).id
   }
+  // State-bound palette wins over the globally published theme when the
+  // state lights. Best-effort: any failure falls back to the active record.
+  let baseRecord = record
+  try {
+    const { data: binding } = await safe(
+      db().from('system_state_themes').select('theme_id').eq('state_id', stateId).maybeSingle(),
+    )
+    const themeId = (binding as unknown as { theme_id: string } | null)?.theme_id
+    if (themeId && themeId !== record?.id) {
+      const bound = await loadThemeRecord(themeId)
+      if (bound && normalizeThemeStatus(bound.status) === 'published') baseRecord = bound
+    }
+  } catch {
+    /* fall back to the active record */
+  }
   const accessibility = options?.accessibility ?? 'standard'
-  const theme = composeEffectiveTheme({ theme: record?.tokens ?? null, stateId, accessibility })
+  const theme = composeEffectiveTheme({ theme: baseRecord?.tokens ?? null, stateId, accessibility })
   return {
     theme,
-    record,
+    record: baseRecord,
     stateId,
     accessibility,
-    isBaseline: record === null,
+    isBaseline: baseRecord === null,
     variables: themeToCssVariables(theme),
     darkVariables: themeToCssVariables(composeDarkTheme(theme, stateId, accessibility)),
     css: serializeTheme(theme),

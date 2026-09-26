@@ -183,8 +183,11 @@ async function runDigest(request: Request) {
 
   if (!webhook) {
     // Ops webhook unset — still deliver the public subscriber digest so the
-    // user-facing loop never depends on staff webhook config.
-    const fanout = await deliverPublicDigest(correlationId);
+    // user-facing loop never depends on staff webhook config. Same incident
+    // pause as the main path below.
+    const { isPublicFanoutPaused: fanoutPaused } = await import('@/lib/platform/fanout')
+    const gate = await fanoutPaused()
+    const fanout = gate.paused ? { paused: true, stateId: gate.stateId } : await deliverPublicDigest(correlationId);
     const templates = await compileTemplatesForCadence('daily');
     const ops = await runAutoOpsSweep();
     logger.info('cron/ops-digest', 'DIGEST_WEBHOOK_URL unset — ops skipped, public fan-out ran', { correlationId, fanout, templates, ops })
@@ -315,8 +318,20 @@ async function runDigest(request: Request) {
 
   // Public daily-digest fan-out (gap B): active opt-in subscribers get the
   // day's published stories by email and/or WhatsApp. Best-effort — a fan-out
-  // failure never fails the ops webhook above.
-  const fanout = await deliverPublicDigest(correlationId)
+  // failure never fails the ops webhook above. Paused during incident /
+  // critical states (behavior-axis enforcement): readers are not marketed to
+  // while responders work; staff alerts and transactional mail are unaffected.
+  const { isPublicFanoutPaused } = await import('@/lib/platform/fanout')
+  const fanoutGate = await isPublicFanoutPaused()
+  const fanout = fanoutGate.paused
+    ? { paused: true, stateId: fanoutGate.stateId }
+    : await deliverPublicDigest(correlationId)
+  if (fanoutGate.paused) {
+    logger.info('cron/ops-digest', 'public fan-out paused by system state', {
+      correlationId,
+      stateId: fanoutGate.stateId,
+    })
+  }
 
   // Stream B: compile daily-cadence recap templates into drafts. Also
   // best-effort — template errors are reported in the response, never thrown.

@@ -29,6 +29,7 @@ import {
   requestTwoPersonApproval,
 } from '@/lib/admin/two-person-control'
 import { loadThemeRecord } from '@/lib/branding'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeAssetType, type BrandAssetType } from '@/lib/branding/assets'
 import {
   approveThemeRow,
@@ -642,6 +643,70 @@ export async function archiveBrandAsset(assetId: string): Promise<ActionResult> 
       resourceId: assetId,
     })
     revalidateLocalized('/admin/branding/assets')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* State → theme bindings (spec §42)                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Bind a published theme as a state's base palette. Supreme tier
+ * (`system.owner`): a binding changes what the public renders whenever the
+ * state lights, so it sits with the states tab, not the branding workflow.
+ * Only published themes are bindable — drafts shift underfoot.
+ */
+export async function setStateTheme(stateId: string, themeId: string): Promise<ActionResult> {
+  try {
+    const ctx = await assertCapability('system.owner')
+    const admin = createAdminClient()
+    const { data: theme, error: themeError } = await admin
+      .from('brand_themes')
+      .select('id, name, status')
+      .eq('id', themeId)
+      .maybeSingle()
+    if (themeError) return { ok: false, error: themeError.message }
+    if (!theme) return { ok: false, error: 'Theme not found.' }
+    if ((theme as { status: string }).status !== 'published') {
+      return { ok: false, error: 'Only published themes can be bound to a state.' }
+    }
+    const { error } = await admin
+      .from('system_state_themes')
+      .upsert({ state_id: stateId.trim().toUpperCase(), theme_id: themeId, created_by: ctx.user.id }, { onConflict: 'state_id' })
+    if (error) return { ok: false, error: error.message }
+    await auditEvent(ctx.user.id, {
+      action: 'state.theme_bound',
+      actorRole: ctx.roles.join(',') || null,
+      resourceType: 'system_state',
+      resourceId: stateId.trim().toUpperCase(),
+      metadata: { themeId, themeName: (theme as { name: string }).name },
+    })
+    revalidateLocalized('/admin/states')
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function clearStateTheme(stateId: string): Promise<ActionResult> {
+  try {
+    const ctx = await assertCapability('system.owner')
+    const admin = createAdminClient()
+    const { error } = await admin
+      .from('system_state_themes')
+      .delete()
+      .eq('state_id', stateId.trim().toUpperCase())
+    if (error) return { ok: false, error: error.message }
+    await auditEvent(ctx.user.id, {
+      action: 'state.theme_unbound',
+      actorRole: ctx.roles.join(',') || null,
+      resourceType: 'system_state',
+      resourceId: stateId.trim().toUpperCase(),
+    })
+    revalidateLocalized('/admin/states')
     return { ok: true }
   } catch (e) {
     return fail(e)

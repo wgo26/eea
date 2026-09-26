@@ -17,6 +17,8 @@ import {
   type SecurityEventRow,
 } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
+import { BlockIpButton, IpBlockManager } from './ip-block-manager'
+import { getBlockedIps } from '@/lib/security/ip-blocklist'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
 import { Tabs } from '@/components/admin/tabs'
 import { DataTable } from '@/components/admin/data-table'
@@ -145,12 +147,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
     : 'all'
   const page = Math.max(1, Number.parseInt(params.page ?? '1', 10) || 1)
 
-  const [events, counts, logins, suspicious, credentialChanges] = await Promise.all([
+  const [events, counts, logins, suspicious, credentialChanges, blockedIps] = await Promise.all([
     getSecurityEvents({ limit: PAGE_SIZE, page, category, from: params.from, to: params.to }),
     getSecurityCounts(),
     getFailedLoginAttempts({ windowDays: LOGIN_WINDOW_DAYS }),
     getSuspiciousActivity({ windowDays: ACTIVITY_WINDOW_DAYS }),
     getCredentialChanges({ limit: CREDENTIAL_LIMIT }),
+    getBlockedIps(),
   ])
 
   const hrefFor = (next: { category?: string; page?: number }) => {
@@ -354,9 +357,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
                     {logins.topIps.map((stat) => (
                       <li key={stat.ip} className="flex items-center justify-between gap-3 py-1.5">
                         <span className="truncate font-mono text-xs">{stat.ip}</span>
-                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                          {stat.count} {t.colAttempts.toLowerCase()} · {stat.blocked}{' '}
-                          {t.colRefused.toLowerCase()}
+                        <span className="flex shrink-0 items-center gap-2">
+                          <span className="text-xs tabular-nums text-muted-foreground">
+                            {stat.count} {t.colAttempts.toLowerCase()} · {stat.blocked}{' '}
+                            {t.colRefused.toLowerCase()}
+                          </span>
+                          <BlockIpButton ip={stat.ip} copy={t} />
                         </span>
                       </li>
                     ))}
@@ -392,6 +398,14 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
             </div>
           </>
         )}
+      </section>
+
+      <section className="space-y-4 rounded-lg border border-border bg-card p-4">
+        <div>
+          <h2 className="text-sm font-semibold">{t.blockedHeading}</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t.blockedBody}</p>
+        </div>
+        <IpBlockManager blocked={blockedIps} copy={t} />
       </section>
 
       <section className="space-y-4 rounded-lg border border-border bg-card p-4">

@@ -1,0 +1,68 @@
+﻿
+> eea@0.1.0 check
+> tsc --noEmit && eslint . && node scripts/find-bom.mjs && node scripts/find-bare-hrefs.mjs && node scripts/find-bg-images.mjs && node scripts/find-tiny-text.mjs && node scripts/verify-sitemap.mjs && node scripts/verify-migrations.mjs && node scripts/verify-crons.mjs && node scripts/verify-server-actions.mjs && node scripts/verify-anon-bundle.mjs && node scripts/verify-client-dictionary.mjs && node scripts/verify-unstable-cache.mjs && node scripts/verify-db-lint.mjs && node scripts/verify-admin-lib-size.mjs
+
+
+C:\Users\Fame\apps\eea\app\[locale]\(app)\admin\policies\about-section-forms.tsx
+  65:28  warning  Do not use `window.location.href` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination  @next/next/no-location-assign-relative-destination
+
+C:\Users\Fame\apps\eea\app\[locale]\(app)\admin\site-content\site-content-forms.tsx
+  72:28  warning  Do not use `window.location.href` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination  @next/next/no-location-assign-relative-destination
+
+C:\Users\Fame\apps\eea\app\[locale]\(app)\admin\states\state-theme-manager.tsx
+  6:10  warning  'Field' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Fame\apps\eea\app\[locale]\(app)\admin\templates\page.tsx
+  9:10  warning  'localizeStatus' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Fame\apps\eea\app\[locale]\(app)\admin\translations\page.tsx
+  35:9  warning  'base' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Fame\apps\eea\app\[locale]\(public)\map\page.tsx
+  1:10  warning  'notFound' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Fame\apps\eea\components\locations\location-map.tsx
+    5:13  warning  'L' is defined but never used                                                                                          @typescript-eslint/no-unused-vars
+  176:8   warning  React Hook useEffect has a missing dependency: 'markerClusterGroup'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\Fame\apps\eea\lib\observability\metrics.ts
+  119:10  warning  'worst' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Fame\apps\eea\lib\queries\timeline.ts
+  212:35  warning  'locale' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Fame\apps\eea\sentry.client.config.ts
+  11:19  warning  'context' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Fame\apps\eea\sentry.edge.config.ts
+  9:19  warning  'context' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Fame\apps\eea\sentry.server.config.ts
+  9:19  warning  'context' is defined but never used  @typescript-eslint/no-unused-vars
+
+Γ£û 13 problems (0 errors, 13 warnings)
+
+No UTF-8 BOMs found.
+No locale-less internal links found.
+No CSS backgroundImage media found.
+No sub-12px text utilities found.
+Sitemap routes verified: all static paths + dynamic segments resolve.
+Migration manifest OK: 81 migrations, latest 20261111000000_system_hardening.sql.
+node.exe : ERROR: Endpoint /api/cron/state-watchdog is declared in vercel.json but is never 
+called by scheduled-jobs.yml.
+At C:\Program Files\nodejs\npm.ps1:29 char:3
++   & $NODE_EXE $NPM_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ERROR: Endpoint...duled-jobs.yml.:String) [], Remot 
+   eException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ERROR: Cron schedule 0 8 * * 1 (/api/cron/credential-hygiene) is declared in vercel.json but has 
+no matching entry in scheduled-jobs.yml ΓÇö it will never fire on the Hostinger target.
+ERROR: Endpoint /api/cron/credential-hygiene is declared in vercel.json but is never called by 
+scheduled-jobs.yml.
+ERROR: Cron schedule 30 3 1 * * (/api/cron/audit-archive) is declared in vercel.json but has no 
+matching entry in scheduled-jobs.yml ΓÇö it will never fire on the Hostinger target.
+ERROR: Endpoint /api/cron/audit-archive is declared in vercel.json but is never called by 
+scheduled-jobs.yml.
+Cron manifest check FAILED ΓÇö 5 error(s).

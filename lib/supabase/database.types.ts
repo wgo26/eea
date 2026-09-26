@@ -821,6 +821,8 @@ export type Database = {
             request_id: string | null;
             source: string;
             metadata: Json;
+            prev_hash: string | null;
+            entry_hash: string | null;
             };
             Insert: {
             id?: string;
@@ -833,6 +835,8 @@ export type Database = {
             request_id?: string | null;
             source?: string;
             metadata?: Json;
+            prev_hash?: string | null;
+            entry_hash?: string | null;
             };
             Update: {
             id?: string | null;
@@ -845,6 +849,8 @@ export type Database = {
             request_id?: string | null;
             source?: string | null;
             metadata?: Json | null;
+            prev_hash?: string | null;
+            entry_hash?: string | null;
             };
             Relationships: [
                 {
@@ -855,6 +861,39 @@ export type Database = {
                     referencedColumns: ["id"],
                 },
             ];
+        }
+        audit_archives: {
+            Row: {
+            id: string;
+            filename: string;
+            sha256: string;
+            size_bytes: number;
+            from_ts: string | null;
+            to_ts: string | null;
+            row_count: number;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            filename: string;
+            sha256: string;
+            size_bytes?: number;
+            from_ts?: string | null;
+            to_ts?: string | null;
+            row_count?: number;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            filename?: string | null;
+            sha256?: string | null;
+            size_bytes?: number | null;
+            from_ts?: string | null;
+            to_ts?: string | null;
+            row_count?: number | null;
+            created_at?: string | null;
+            };
+            Relationships: [];
         }
         backup_jobs: {
             Row: {
@@ -886,6 +925,33 @@ export type Database = {
             last_run_result?: Json | null;
             created_at?: string | null;
             updated_at?: string | null;
+            };
+            Relationships: [];
+        }
+        blocked_ips: {
+            Row: {
+            ip: string;
+            reason: string | null;
+            blocked_by: string | null;
+            blocked_at: string;
+            expires_at: string | null;
+            created_at: string;
+            };
+            Insert: {
+            ip: string;
+            reason?: string | null;
+            blocked_by?: string | null;
+            blocked_at?: string;
+            expires_at?: string | null;
+            created_at?: string;
+            };
+            Update: {
+            ip?: string | null;
+            reason?: string | null;
+            blocked_by?: string | null;
+            blocked_at?: string | null;
+            expires_at?: string | null;
+            created_at?: string | null;
             };
             Relationships: [];
         }

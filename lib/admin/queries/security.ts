@@ -35,13 +35,15 @@ export const SECURITY_ACTIONS: Record<string, SecurityCategory> = {
   'auth.login.succeeded': 'auth',
   'auth.mfa.challenge': 'auth',
   'auth.logout': 'auth',
-  // §53 permission escalation
+  // §53 permission escalation + network enforcement
   'user:role:assign': 'permissions',
   'user:role:remove': 'permissions',
   'user:suspended': 'permissions',
   'user:banned': 'permissions',
   'user:active': 'permissions',
   'user:delete': 'permissions',
+  'security.ip_blocked': 'permissions',
+  'security.ip_unblocked': 'permissions',
   // §53 credential rotation / revocation
   'credential.created': 'credentials',
   'credential.rotated': 'credentials',

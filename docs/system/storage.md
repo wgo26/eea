@@ -32,8 +32,15 @@ uploads → media_assets (R2 / Supabase) ──mirror──▶ B2 (SHA-256 verif
   `last_error` first.
 - **Completed tasks purge after 30 days** automatically (nightly
   `db-maintenance` sweep) or on demand with **Purge completed**.
+- **Run restore drill** downloads a sample of origins next to their B2
+  mirrors and compares SHA-256 — proof a restore *would* work, without
+  overwriting anything. Run it monthly; a mismatch is a same-day
+  investigation (do not delete the origin).
+- **Scan orphans** lists B2 objects no ledger points at (mirrors, db-dumps,
+  audit archives). Report-only — orphans are never auto-deleted.
 - Any run that leaves failed tasks pages staff with a `storage.hygiene`
-  alert — the queue cannot rot silently.
+  alert — the queue cannot rot silently. Set `STORAGE_QUOTA_BYTES` to get an
+  80%-of-quota warning in the same alert plus a usage line on the tab.
 
 ## Automation & schedules (cron)
 

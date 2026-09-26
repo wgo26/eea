@@ -440,3 +440,36 @@ export async function getAuditActorOptions(limit = 100): Promise<AuditActorOptio
   }
   return [...byId.values()]
 }
+
+export type AuditArchiveInfo = {
+  filename: string
+  rowCount: number
+  toTs: string | null
+  createdAt: string | null
+} | null
+
+/** Newest cold-archive bundle, for the audit page's retention line. */
+export async function getLatestAuditArchive(): Promise<AuditArchiveInfo> {
+  if (!hasDatabase()) return null
+  try {
+    const { data } = await safe(
+      db()
+        .from('audit_archives')
+        .select('filename, row_count, to_ts, created_at')
+        .order('to_ts', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    )
+    const row = data as unknown as {
+      filename: string
+      row_count: number
+      to_ts: string | null
+      created_at: string | null
+    } | null
+    if (!row) return null
+    return { filename: row.filename, rowCount: row.row_count, toTs: row.to_ts, createdAt: row.created_at }
+  } catch (e) {
+    logger.error('admin', 'getLatestAuditArchive failed', { error: e })
+    return null
+  }
+}

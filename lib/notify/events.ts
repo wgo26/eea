@@ -33,7 +33,8 @@ export type NotifyEvent =
   | 'digest.ready_for_review'
   | 'credential.hygiene'
   | 'storage.hygiene'
-  | 'security.critical';
+  | 'security.critical'
+  | 'system.degraded';
 
 export type NotifyPayload = {
   event: NotifyEvent;
@@ -260,8 +261,8 @@ export function renderEvent(payload: NotifyPayload): RenderedNotify {
       return {
         title: 'Storage tasks need attention',
         titleFr: 'Tâches de stockage à vérifier',
-        body: `${S(d.failed)} failed storage task(s)${d.pending ? ` · ${S(d.pending)} still pending` : ''}. Open Storage & backup to retry.`,
-        bodyFr: `${S(d.failed)} tâche(s) de stockage en échec${d.pending ? ` · ${S(d.pending)} encore en attente` : ''}. Ouvrez Stockage & sauvegarde pour réessayer.`,
+        body: `${S(d.failed)} failed storage task(s)${d.pending ? ` · ${S(d.pending)} still pending` : ''}${d.quota ? ` · storage at ${S(d.quota)} of quota` : ''}. Open Storage & backup to retry.`,
+        bodyFr: `${S(d.failed)} tâche(s) de stockage en échec${d.pending ? ` · ${S(d.pending)} encore en attente` : ''}${d.quota ? ` · stockage à ${S(d.quota)} du quota` : ''}. Ouvrez Stockage & sauvegarde pour réessayer.`,
       };
     case 'security.critical':
       return {
@@ -269,6 +270,13 @@ export function renderEvent(payload: NotifyPayload): RenderedNotify {
         titleFr: 'Mode critique activé',
         body: `${S(d.title)} — the platform is in CRITICAL state. Open the incident console.`,
         bodyFr: `${S(d.title)} — la plateforme est en état CRITIQUE. Ouvrez la console d’incident.`,
+      };
+    case 'system.degraded':
+      return {
+        title: 'Platform health degraded',
+        titleFr: 'Santé de la plateforme dégradée',
+        body: `Telemetry tripped DEGRADED (${S(d.detail)}). Open Platform states to confirm or clear.`,
+        bodyFr: `La télémétrie a déclenché l’état DÉGRADÉ (${S(d.detail)}). Ouvrez les états de la plateforme pour confirmer ou effacer.`,
       };
   }
 }
@@ -300,6 +308,8 @@ export function defaultStaffPath(event: NotifyEvent): string {
       return '/admin/storage-backup';
     case 'security.critical':
       return '/admin/incidents';
+    case 'system.degraded':
+      return '/admin/states';
     case 'content.updated':
       return '/admin/trust-safety';
     case 'translation.gap':

@@ -2,11 +2,13 @@ import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
 import { requireCapability } from '@/lib/auth/guards'
-import { getAuditActorOptions, getAuditTrail, getAuditFilterOptions } from '@/lib/admin/queries'
+import { getAuditActorOptions, getAuditTrail, getAuditFilterOptions, getLatestAuditArchive } from '@/lib/admin/queries'
+import { formatDateTime } from '@/lib/admin/format'
 import { PageHeader } from '@/components/admin/page-header'
 import { ActiveFilters } from '@/components/admin/filter-pills'
 import { Pager } from '@/components/admin/pager'
 import { AuditTable } from './audit-table'
+import { ChainVerifyButton } from './chain-verify'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -41,7 +43,7 @@ export default async function Page({
   const origin =
     params.origin === 'system' || params.origin === 'moderation' ? params.origin : undefined
 
-  const [{ rows: entries, total }, filterOptions, actorOptions] = await Promise.all([
+  const [{ rows: entries, total }, filterOptions, actorOptions, latestArchive] = await Promise.all([
     getAuditTrail({
       limit: PAGE_SIZE,
       page,
@@ -56,6 +58,7 @@ export default async function Page({
     }),
     getAuditFilterOptions(),
     getAuditActorOptions(),
+    getLatestAuditArchive(),
   ])
   const actorName = actorOptions.find((a) => a.id === params.actor)?.name
 
@@ -181,6 +184,23 @@ export default async function Page({
       <AuditTable rows={entries} copy={t} common={dict.admin.common} locale={locale} />
 
       <Pager page={page} pageSize={PAGE_SIZE} total={total} hrefFor={pageHref} copy={dict.admin.common} />
+
+      <section className="space-y-2 rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            {latestArchive
+              ? t.archiveLine
+                  .replace('{filename}', latestArchive.filename)
+                  .replace('{count}', String(latestArchive.rowCount))
+                  .replace('{date}', latestArchive.toTs ? formatDateTime(latestArchive.toTs, locale) : '—')
+              : t.archiveNone}
+          </p>
+          <ChainVerifyButton copy={t} />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {t.retentionLine.replace('{days}', process.env.AUDIT_RETENTION_DAYS ?? '365')}
+        </p>
+      </section>
     </div>
   )
 }

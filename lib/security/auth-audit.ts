@@ -99,6 +99,24 @@ export async function recordAuthEvent(input: AuthAuditInput): Promise<void> {
     const identifier = input.identifier ? identifierHash(input.identifier) : null
     if (identifier) metadata.identifier = identifier
 
+    const createdAt = new Date().toISOString()
+    let prevHash: string | null = null
+    let entryHash: string | null = null
+    try {
+      const { chainEntryHash, latestChainHash } = await import('@/lib/security/audit-chain')
+      prevHash = await latestChainHash()
+      entryHash = chainEntryHash({
+        prevHash,
+        action: input.action,
+        resourceType: 'auth',
+        resourceId: input.actorId ?? identifier,
+        actorId: input.actorId ?? null,
+        createdAt,
+      })
+    } catch {
+      /* unchained write below */
+    }
+
     await createAdminClient()
       .from('audit_events')
       .insert({
@@ -108,6 +126,9 @@ export async function recordAuthEvent(input: AuthAuditInput): Promise<void> {
         resource_id: input.actorId ?? identifier,
         request_id: randomUUID(),
         source: 'auth',
+        created_at: createdAt,
+        prev_hash: prevHash,
+        entry_hash: entryHash,
         metadata: metadata as unknown as Json,
       } as InsertOf<'audit_events'>)
   } catch {

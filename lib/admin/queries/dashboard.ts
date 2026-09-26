@@ -185,7 +185,12 @@ export async function getOperationalAlerts(options?: { now?: Date }): Promise<Op
                     ((reportsRes.data ?? []) as { created_at: string | null }[])[0]?.created_at,
                     now,
                 ),
-                href: '/admin/safety',
+                // The reports queue is the trust-safety screen's reports tab — the
+                // route is `/admin/trust-safety`, not `/admin/safety` (which has never
+                // existed). The dashboard widget resolves its own link, so this href
+                // only became load-bearing when the shell's attention centre started
+                // rendering it on every admin page.
+                href: '/admin/trust-safety?tab=reports&status=open',
             })
         }
 

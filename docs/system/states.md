@@ -54,6 +54,18 @@ branding, widgets, content templates and the admin chrome react as one.
   activates inside / deactivates schedule-lit states outside, sweeps expired
   manual rows, compiles matching content templates (`state_id` + cadence),
   stamps a heartbeat (`36h` grace — watch `/api/ready` / automations strip).
+- `state-watchdog` every 15 min: lights `DEGRADED` from live telemetry
+  (`getSystemMetrics` — same verdict the dashboard renders), clears it on
+  recovery **only when the watchdog lit it** (manual activations are never
+  auto-cleared), stands down while an incident is open, never touches
+  operational states. Heartbeat grace 1h.
+- **Theme bindings:** a state may carry its own published palette
+  (`system_state_themes`, managed in the State themes section — published
+  themes only). The bound theme becomes the base palette whenever the state
+  lights; the state's visual profile still composes on top.
+- **Fan-out pause (behavior enforcement):** during `INCIDENT`/`CRITICAL` the
+  daily/weekly subscriber digests are skipped (logged, visible in the cron
+  result). Staff alerts, transactional mail and publishing are never paused.
 - Plugin manifests register idempotently per request (`ensurePluginStatesRegistered`
   in the admin layout, states page and cron). Adding a future state =
   manifest file + `PLUGIN_STATES` entry + migration seed row.

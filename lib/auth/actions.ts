@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { localePath, safeNextPath } from '@/lib/i18n/urls'
-import { checkRateLimit } from '@/lib/security/rate-limit'
+import { checkRateLimit, getClientIp } from '@/lib/security/rate-limit'
+import { isIpBlocked } from '@/lib/security/ip-blocklist'
 import { AUTH_AUDIT_ACTIONS, recordAuthEvent } from '@/lib/security/auth-audit'
 import { verifyTurnstileToken } from '@/lib/security/turnstile'
 import { SITE } from '@/lib/constants'
@@ -130,6 +131,16 @@ export async function signInWithPassword(
     })
     return { ok: false, error: 'rate_limited' }
   }
+  // Chief-managed network block: indistinguishable from bad credentials so a
+  // blocked scanner learns nothing, but the trail records the real reason.
+  if (await isIpBlocked(await getClientIp())) {
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.loginBlocked,
+      identifier: email,
+      detail: { reason: 'ip_blocked' },
+    })
+    return { ok: false, error: 'invalid' }
+  }
   const turnstileToken = formData.get('cf-turnstile-response')
   if (!(await verifyTurnstileToken(typeof turnstileToken === 'string' ? turnstileToken : null))) {
     await recordAuthEvent({
@@ -220,6 +231,9 @@ export async function signUpWithPassword(
   // fail-closed: signup writes an account and sends confirmation mail.
   const limited = await checkRateLimit('auth:signup', { max: 5, windowMs: 60 * 60_000, policy: 'fail-closed' })
   if (!limited.ok) return { ok: false, error: 'rate_limited' }
+  // Chief-managed network block: reads as throttling so a blocked scanner
+  // learns nothing.
+  if (await isIpBlocked(await getClientIp())) return { ok: false, error: 'rate_limited' }
   const turnstileToken = formData.get('cf-turnstile-response')
   if (!(await verifyTurnstileToken(typeof turnstileToken === 'string' ? turnstileToken : null))) {
     return { ok: false, error: 'captcha' }

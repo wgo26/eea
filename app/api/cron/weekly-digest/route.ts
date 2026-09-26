@@ -24,9 +24,22 @@ async function run(request: Request) {
   if (denied) return denied
   const startedAt = Date.now()
 
+  // Behavior-axis enforcement: no subscriber fan-out during incident /
+  // critical states (staff alerts and transactional mail are unaffected).
+  const { isPublicFanoutPaused } = await import('@/lib/platform/fanout')
+  const fanoutGate = await isPublicFanoutPaused()
+
   let weekly
   try {
-    weekly = await sendWeeklyDigest(7)
+    weekly = fanoutGate.paused
+      ? { paused: true, stateId: fanoutGate.stateId }
+      : await sendWeeklyDigest(7)
+    if (fanoutGate.paused) {
+      logger.info('cron/weekly-digest', 'public fan-out paused by system state', {
+        correlationId,
+        stateId: fanoutGate.stateId,
+      })
+    }
   } catch (err) {
     logger.error('cron/weekly-digest', 'weekly recap failed', {
       correlationId,

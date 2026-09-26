@@ -135,6 +135,26 @@ export async function auditEvent(actorId: string, entry: AuditEventInput): Promi
     // `audit_events` is service-role-write-only (SELECT-only RLS), so this
     // owns its client instead of taking the caller's cookie-scoped one.
     const supabase = createAdminClient()
+    const createdAt = new Date().toISOString()
+    // Tamper-evident chain (best-effort like everything here): the hash binds
+    // this entry to its predecessor. Without a chain key or on DB trouble the
+    // row still writes unchained — the trail must never break the action.
+    let prevHash: string | null = null
+    let entryHash: string | null = null
+    try {
+      const { chainEntryHash, latestChainHash } = await import('@/lib/security/audit-chain')
+      prevHash = await latestChainHash()
+      entryHash = chainEntryHash({
+        prevHash,
+        action: entry.action,
+        resourceType: entry.resourceType ?? entry.entityType ?? null,
+        resourceId: entry.resourceId ?? entry.entityId ?? null,
+        actorId,
+        createdAt,
+      })
+    } catch {
+      /* unchained write below */
+    }
     await supabase.from('audit_events').insert({
       action: entry.action,
       actor_id: actorId,
@@ -144,6 +164,9 @@ export async function auditEvent(actorId: string, entry: AuditEventInput): Promi
       request_id: entry.requestId ?? crypto.randomUUID(),
       source: entry.source ?? 'admin_dashboard',
       metadata: (entry.metadata ?? {}) as unknown as Json,
+      created_at: createdAt,
+      prev_hash: prevHash,
+      entry_hash: entryHash,
     })
   } catch {
     // Audit must never break the admin action itself.

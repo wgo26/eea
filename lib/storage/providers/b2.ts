@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
 import { storageConfig } from '../config'
 
 let client: S3Client | null = null
@@ -56,6 +56,32 @@ export async function headBackupObject(storageKey: string): Promise<boolean> {
     return true
   } catch {
     return false
+  }
+}
+
+/**
+ * Paginated key listing for orphan accounting (which B2 objects have no DB
+ * row pointing at them). Read-only — orphans are reported, never deleted:
+ * the mirror is the disaster-recovery copy.
+ */
+export async function listBackupKeys(prefix = '', maxKeys = 5000): Promise<string[]> {
+  const keys: string[] = []
+  let token: string | undefined
+  for (;;) {
+    const res = await getClient().send(
+      new ListObjectsV2Command({
+        Bucket: storageConfig.b2.bucket,
+        Prefix: prefix || undefined,
+        ContinuationToken: token,
+        MaxKeys: 1000,
+      }),
+    )
+    for (const obj of res.Contents ?? []) {
+      if (obj.Key) keys.push(obj.Key)
+      if (keys.length >= maxKeys) return keys
+    }
+    if (!res.IsTruncated) return keys
+    token = res.NextContinuationToken
   }
 }
 

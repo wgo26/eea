@@ -46,6 +46,7 @@ import {
 } from '@/lib/platform/state-engine'
 import { createAdminClient, type InsertOf, type UpdateOf } from '@/lib/supabase/admin'
 import { enqueueStaffAlert } from '@/lib/notify/queue'
+import { postOpsWebhook } from '@/lib/notify/webhook'
 import { logStateEvent, setStateActive } from '@/lib/admin/state-writes'
 import { sendNotificationToRole } from '@/lib/admin/notification-writes'
 import type { Json } from '@/lib/supabase/database.types'
@@ -600,6 +601,10 @@ export async function activateCriticalMode(
     // Best-effort page to every staff channel: critical mode changes what the
     // whole platform shows, so silence is not an option.
     void enqueueStaffAlert('security.critical', { title: current.title }, `/admin/incidents/${id}`)
+    // Out-of-band page: the in-app alert never wakes a sleeping chief.
+    void postOpsWebhook(
+      `CRITICAL mode activated — ${current.title} (incident ${id}). Open the incident console immediately.`,
+    )
     revalidateLocalized('/admin/incidents')
     revalidateLocalized(`/admin/incidents/${id}`)
     revalidateLocalized('/admin/dashboard')

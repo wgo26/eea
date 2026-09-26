@@ -139,6 +139,13 @@ const ADMIN_NAV_SPECS: AdminNavItemSpec[] = [
 
 const ADMIN_NAV_DOMAIN_ORDER: AdminNavDomain[] = ['command', 'editorial', 'safety', 'system']
 
+/**
+ * Every navigable admin section, before capability filtering. The identity chip
+ * renders "{visible} of {total} sections" against this so a Moderator can see
+ * how much of the console they cannot reach — the honest framing of a role set.
+ */
+export const ADMIN_NAV_TOTAL = ADMIN_NAV_SPECS.length
+
 function navItemFromSpec(
   spec: AdminNavItemSpec,
   locale: Locale,

@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { createHash } from 'node:crypto'
 import { storageConfig } from './config'
-import { uploadToB2, downloadFromB2 } from './providers/b2'
+import { uploadToB2, downloadFromB2, listBackupKeys } from './providers/b2'
 import { logger } from '@/lib/observability/logger'
 
 /**
@@ -171,6 +171,101 @@ export interface VerifyResult {
   verified: number
   mismatched: number
   errors: number
+}
+
+export type RestoreDrillRow = {
+  assetId: string
+  storageKey: string
+  ok: boolean
+  detail: string
+}
+
+/**
+ * Verified restore drill: proves a restore *would* work without overwriting
+ * anything. Downloads a sample of origins next to their B2 mirrors and
+ * compares SHA-256 — the safe version of a restore button (a one-click
+ * restore is a one-click overwrite, so drills verify while humans restore,
+ * see docs/disaster-recovery.md).
+ */
+export async function verifyRestoreSample(
+  supabase: SupabaseClient,
+  sampleSize = 5,
+): Promise<{ checked: number; passed: number; failed: number; rows: RestoreDrillRow[] }> {
+  const { data, error } = await supabase
+    .from('media_assets')
+    .select('id, storage_key, provider, mime_type')
+    .not('storage_key', 'is', null)
+    .not('backed_up_at', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(Math.max(sampleSize * 2, sampleSize))
+  if (error) throw error
+  const sample = ((data ?? []) as { id: string; storage_key: string | null; provider: string | null; mime_type: string | null }[])
+    .filter((row) => row.storage_key)
+    .slice(0, sampleSize)
+
+  const rows: RestoreDrillRow[] = []
+  for (const row of sample) {
+    const key = row.storage_key as string
+    try {
+      const [origin, mirror] = await Promise.all([fetchSource(supabase, row), downloadFromB2(key)])
+      const originHash = sha256Hex(origin.buffer)
+      const mirrorHash = sha256Hex(mirror.buffer)
+      if (originHash === mirrorHash) {
+        rows.push({ assetId: row.id, storageKey: key, ok: true, detail: `sha256 ${originHash.slice(0, 12)}…` })
+      } else {
+        rows.push({ assetId: row.id, storageKey: key, ok: false, detail: `mismatch (origin ${originHash.slice(0, 12)}… vs b2 ${mirrorHash.slice(0, 12)}…)` })
+      }
+    } catch (err) {
+      rows.push({ assetId: row.id, storageKey: key, ok: false, detail: err instanceof Error ? err.message : 'Drill failed' })
+    }
+  }
+  const passed = rows.filter((r) => r.ok).length
+  return { checked: rows.length, passed, failed: rows.length - passed, rows }
+}
+
+export type OrphanScan = {
+  totalKeys: number
+  orphanCount: number
+  /** Capped sample for display — the full list goes to the log, not the UI. */
+  sample: string[]
+}
+
+/**
+ * B2 orphan accounting: every object in the backup bucket should be
+ * referenced by exactly one ledger — `media_assets.storage_key` (mirrors),
+ * `db_dumps.filename` (under `db-dumps/`) or `audit_archives.filename`
+ * (under `audit-archive/`). Anything else is reported, never deleted: an
+ * "orphan" may be a leftover worth keeping, and the mirror is the
+ * disaster-recovery copy.
+ */
+export async function scanBackupOrphans(
+  supabase: SupabaseClient,
+): Promise<OrphanScan> {
+  const [keys, mediaRes, dumpsRes, archivesRes] = await Promise.all([
+    listBackupKeys(),
+    supabase.from('media_assets').select('storage_key').not('storage_key', 'is', null).not('backed_up_at', 'is', null),
+    supabase.from('db_dumps').select('filename'),
+    supabase.from('audit_archives').select('filename'),
+  ])
+  if (mediaRes.error) throw mediaRes.error
+  if (dumpsRes.error) throw dumpsRes.error
+  if (archivesRes.error && (archivesRes.error as { code?: string }).code !== 'PGRST205') throw archivesRes.error
+
+  const known = new Set<string>()
+  for (const row of ((mediaRes.data ?? []) as { storage_key: string | null }[])) {
+    if (row.storage_key) known.add(row.storage_key)
+  }
+  for (const row of ((dumpsRes.data ?? []) as { filename: string }[])) {
+    known.add(`db-dumps/${row.filename}`)
+  }
+  for (const row of ((archivesRes.data ?? []) as { filename: string }[])) {
+    known.add(`audit-archive/${row.filename}`)
+  }
+  const orphans = keys.filter((key) => !known.has(key))
+  if (orphans.length > 0) {
+    logger.warn('backup', 'orphan backup objects found', { totalKeys: keys.length, orphanCount: orphans.length, sample: orphans.slice(0, 20) })
+  }
+  return { totalKeys: keys.length, orphanCount: orphans.length, sample: orphans.slice(0, 25) }
 }
 
 /**

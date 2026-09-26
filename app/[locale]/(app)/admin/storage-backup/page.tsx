@@ -51,6 +51,18 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
     getFailedStorageTasks(),
   ])
 
+  // Optional capacity guardrail: STORAGE_QUOTA_BYTES (e.g. the R2 plan
+  // allowance). Unset = no quota display; the nightly hygiene alert fires
+  // when usage crosses 80% of a configured quota.
+  const quotaRaw = Number(process.env.STORAGE_QUOTA_BYTES ?? '')
+  const quotaBytes = Number.isFinite(quotaRaw) && quotaRaw > 0 ? Math.floor(quotaRaw) : null
+  const quotaHint =
+    quotaBytes != null
+      ? t.quotaUsed
+          .replace('{used}', formatBytes(stats.totalBytes))
+          .replace('{quota}', formatBytes(quotaBytes))
+      : undefined
+
   // Provider keys are internal enums — show human-readable names.
   const providerLabels: Record<string, string> = {
     r2: t.providerR2,
@@ -82,7 +94,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
 
       <StatGrid>
         <StatCard label={t.totalAssets} value={stats.totalAssets} />
-        <StatCard label={t.storageUsed} value={formatBytes(stats.totalBytes)} />
+        <StatCard label={t.storageUsed} value={formatBytes(stats.totalBytes)} hint={quotaHint} />
         <StatCard
           label={t.pendingBackup}
           value={stats.pendingBackup}

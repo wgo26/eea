@@ -2,8 +2,9 @@ import type { ReactNode } from 'react'
 import { requireStaff } from '@/lib/auth/guards'
 import { getAdminDisplayName } from '@/lib/admin/identity'
 import { getAdminRoles } from '@/lib/auth/roles'
-import { effectiveCapabilities } from '@/lib/auth/admin-roles'
-import { getPendingSubmissionCount, getActiveStates, getActiveIncident, getUnreadNotificationTotal, getPublicSiteSettings } from '@/lib/admin/queries'
+import { effectiveCapabilities, resolveAdminRoles } from '@/lib/auth/admin-roles'
+import { getShellContext } from '@/lib/admin/queries/shell'
+import { getActiveStates, getActiveIncident, getPublicSiteSettings } from '@/lib/admin/queries'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
@@ -43,15 +44,17 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   // without a legacy `admin` row still sees the entries they can operate.
   const adminRoles = await getAdminRoles(supabase, user.id)
   const caps = effectiveCapabilities(roles, adminRoles)
-  const [pendingCount, states, unreadNotifications] = await Promise.all([
-    // Badge-only micro-query: the layout never reads the other 11 stat
-    // queries, so the full getDashboardStats() fan-out stays on the
-    // dashboard page itself.
-    getPendingSubmissionCount(),
+  // One pass resolves everything the AppShell renders: the badge counts the
+  // sidebar needs, the derived operational alerts, the scheduler's health and
+  // the approvals this viewer can decide. Alert/scheduler reads are org-wide and
+  // degrade to empty rather than throwing, so the shell renders during an outage
+  // instead of taking the page down with it (see lib/admin/queries/shell.ts).
+  const [shell, states] = await Promise.all([
+    getShellContext({ userId: user.id, roles, adminRoles }),
     getActiveStates(),
-    // Spec §38: the sidebar badge is the recipient's own unread mail count.
-    getUnreadNotificationTotal(user.id),
   ])
+  const pendingCount = shell.pendingSubmissions
+  const unreadNotifications = shell.unreadNotifications
 
   // Spec §30: State → Semantic Tokens → Design System → Components. The
   // effective state resolves once per request here; the tokens ride the
@@ -115,12 +118,11 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
           <AdminTopbar
-            pendingCount={pendingCount}
             roles={roles}
-            adminRoles={adminRoles}
+            adminRoles={resolveAdminRoles(roles, adminRoles)}
+            shell={shell}
             displayName={displayName}
             email={user.email ?? ''}
-            unreadNotifications={unreadNotifications}
             logoUrl={siteSettings.logoUrl}
           />
           {!isNormal && (

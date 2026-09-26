@@ -4,7 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/observability/logger";
 import { getSessionUser } from "@/lib/auth/guards";
 import type { SubmitState } from "@/lib/public/types";
-import { checkRateLimit, type RateLimitOptions } from "@/lib/security/rate-limit";
+import { checkRateLimit, getClientIp, type RateLimitOptions } from "@/lib/security/rate-limit";
+import { isIpBlocked } from "@/lib/security/ip-blocklist";
 import { verifyTurnstileToken } from "@/lib/security/turnstile";
 import { honeypotTripped } from "@/lib/security/honeypot";
 import { enqueueStaffAlert, enqueueUser } from "@/lib/notify/queue";
@@ -92,6 +93,9 @@ async function guardPublicSubmission(
     // a limiter outage must block rather than allow unlimited submissions.
     const limited = await checkRateLimit(scope, { ...limits, policy: "fail-closed" });
     if (!limited.ok) return { ok: false, error: "rate_limited" };
+    // Chief-managed network block: reads as throttling so a blocked scanner
+    // learns nothing.
+    if (await isIpBlocked(await getClientIp())) return { ok: false, error: "rate_limited" };
     const tokenValue = formData.get("cf-turnstile-response");
     if (!(await verifyTurnstileToken(typeof tokenValue === "string" ? tokenValue : null))) {
         return { ok: false, error: "captcha" };

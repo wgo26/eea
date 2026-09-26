@@ -2,38 +2,27 @@ import Link from 'next/link'
 
 import { EmptyState } from '@/components/admin/empty-state'
 import { fillCopy } from '@/lib/admin/format'
-import type { SeverityCopy } from '@/lib/admin/labels'
-import type { AlertSeverity, OperationalAlert, PrioritizedAction } from '@/lib/admin/queries'
+import { ALERT_SEVERITY_TONE, type AlertCopy, type SeverityCopy } from '@/lib/admin/labels'
+import type { OperationalAlert, PrioritizedAction } from '@/lib/admin/queries'
 import { localePath } from '@/lib/i18n/urls'
 import type { Dictionary, Locale } from '@/lib/i18n'
 
-type Copy = Pick<
-  Dictionary['admin']['dashboard'],
-  | 'alertsHeading'
-  | 'alertsClear'
-  | 'alertIncident'
-  | 'alertSla'
-  | 'alertFailedJobs'
-  | 'alertFailedDeliveries'
-  | 'alertOpenReports'
-  | 'alertOldest'
-  | 'nextActions'
-  | 'actionsClear'
-  | 'actionResolveIncident'
-  | 'actionRestoreHealth'
-  | 'actionClearSlaBacklog'
-  | 'actionReviewSubmissions'
-  | 'actionTriageReports'
-  | 'actionClearFailedJobs'
-  | 'actionScheduleDrafts'
-  | 'actionPublishDrafts'
->
-
-const severityTone: Record<AlertSeverity, string> = {
-  critical: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200',
-  warning: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200',
-  info: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200',
-}
+type Copy = AlertCopy &
+  Pick<
+    Dictionary['admin']['dashboard'],
+    | 'alertsHeading'
+    | 'alertsClear'
+    | 'nextActions'
+    | 'actionsClear'
+    | 'actionResolveIncident'
+    | 'actionRestoreHealth'
+    | 'actionClearSlaBacklog'
+    | 'actionReviewSubmissions'
+    | 'actionTriageReports'
+    | 'actionClearFailedJobs'
+    | 'actionScheduleDrafts'
+    | 'actionPublishDrafts'
+  >
 
 /**
  * Phase 4.4 (spec §34.1 + §34.5) — the two questions the counters cannot answer:
@@ -47,6 +36,8 @@ const severityTone: Record<AlertSeverity, string> = {
  *
  * The alert row's target comes pre-built and locale-free from the query layer;
  * `localePath` is applied here, at the only place that knows the active locale.
+ * Alert copy and severity tone come from `lib/admin/labels`, the same module the
+ * AppShell's attention centre renders from, so the two can never disagree.
  */
 export function CommandCenter({
   alerts,
@@ -75,7 +66,7 @@ export function CommandCenter({
                   className="-mx-1.5 flex items-start gap-2 rounded-md px-1.5 py-1.5 transition-colors hover:bg-accent/50"
                 >
                   <span
-                    className={`mt-0.5 inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium ${severityTone[alert.severity]}`}
+                    className={`mt-0.5 inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium ${ALERT_SEVERITY_TONE[alert.severity]}`}
                   >
                     {severity[alert.severity]}
                   </span>
@@ -106,7 +97,7 @@ export function CommandCenter({
                   className="-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1.5 transition-colors hover:bg-accent/50"
                 >
                   <span
-                    className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${severityTone[action.severity]}`}
+                    className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${ALERT_SEVERITY_TONE[action.severity]}`}
                     title={severity[action.severity]}
                   >
                     {index + 1}

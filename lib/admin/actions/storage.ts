@@ -2,6 +2,7 @@
 
 import { assertCapability } from '@/lib/admin/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { scanBackupOrphans, verifyRestoreSample } from '@/lib/storage/backup'
 import { type ActionResult, audit, fail, revalidateLocalized, deleteStoredMedia } from './_shared'
 
 export async function queueStorageVerification(mediaId?: string): Promise<ActionResult & { count?: number }> {
@@ -77,6 +78,60 @@ export async function deleteMediaAsset(mediaId: string): Promise<ActionResult> {
 }
 
 /* ------------------------------------------------------------------ */
+/* Restore drill + orphan accounting                                 */
+/* ------------------------------------------------------------------ */
+
+export type RestoreDrillResult =
+  | { ok: true; checked: number; passed: number; failed: number; failures: string[] }
+  | { ok: false; error: string }
+
+/**
+ * Verified restore drill: downloads a sample of origins next to their B2
+ * mirrors and compares SHA-256. Proves a restore *would* work without
+ * overwriting anything — the safe version of a restore button.
+ */
+export async function runRestoreDrill(sampleSize = 5): Promise<RestoreDrillResult> {
+  try {
+    const { user } = await assertCapability('system.owner')
+    const admin = createAdminClient()
+    const sample = Math.min(Math.max(Math.floor(sampleSize) || 5, 1), 25)
+    const drill = await verifyRestoreSample(admin, sample)
+    await audit(admin, user.id, {
+      action: 'storage:restore_drill',
+      notes: `checked=${drill.checked} passed=${drill.passed} failed=${drill.failed}`,
+    })
+    revalidateLocalized('/admin/storage-backup')
+    if (drill.checked === 0) return { ok: false, error: 'No backed-up assets to drill against yet.' }
+    return {
+      ok: true,
+      checked: drill.checked,
+      passed: drill.passed,
+      failed: drill.failed,
+      failures: drill.rows.filter((r) => !r.ok).map((r) => `${r.storageKey}: ${r.detail}`),
+    }
+  } catch (e) { return fail(e) }
+}
+
+export type OrphanScanResult =
+  | { ok: true; totalKeys: number; orphanCount: number; sample: string[] }
+  | { ok: false; error: string }
+
+/** Report-only B2 orphan scan — orphans are listed, never deleted. */
+export async function scanStorageOrphans(): Promise<OrphanScanResult> {
+  try {
+    const { user } = await assertCapability('system.owner')
+    const admin = createAdminClient()
+    const scan = await scanBackupOrphans(admin)
+    await audit(admin, user.id, {
+      action: 'storage:orphan_scan',
+      notes: `keys=${scan.totalKeys} orphans=${scan.orphanCount}`,
+    })
+    revalidateLocalized('/admin/storage-backup')
+    return { ok: true, totalKeys: scan.totalKeys, orphanCount: scan.orphanCount, sample: scan.sample }
+  } catch (e) { return fail(e) }
+}
+
+/* ------------------------------------------------------------------ */
 /* Task queue operations                                             */
 /* ------------------------------------------------------------------ */
 
@@ -110,6 +165,7 @@ export async function retryFailedTasks(): Promise<ActionResult & { count?: numbe
 }
 
 /** Delete completed tasks older than the retention window (audit-logged). */
+
 export async function purgeCompletedTasks(): Promise<ActionResult & { count?: number }> {
   try {
     const { user } = await assertCapability('system.owner')

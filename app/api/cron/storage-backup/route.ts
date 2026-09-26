@@ -62,19 +62,29 @@ async function runBackup(request: Request) {
     }
     // Stale-data hygiene: failed tasks never retry themselves — page the
     // chief once per run while any exist so the queue cannot rot silently.
+    // The same alert carries the quota position when STORAGE_QUOTA_BYTES is
+    // configured and usage is at/over 80%.
     try {
       const { count: failed } = await supabase
         .from('storage_tasks')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'failed')
-      if ((failed ?? 0) > 0) {
+      let quota: string | null = null
+      const quotaRaw = Number(process.env.STORAGE_QUOTA_BYTES ?? '')
+      if (Number.isFinite(quotaRaw) && quotaRaw > 0) {
+        const { getStorageStats } = await import('@/lib/admin/queries')
+        const stats = await getStorageStats()
+        const pct = Math.round((stats.totalBytes / Math.floor(quotaRaw)) * 100)
+        if (pct >= 80) quota = `${pct}%`
+      }
+      if ((failed ?? 0) > 0 || quota) {
         const { count: pending } = await supabase
           .from('storage_tasks')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'pending')
         await enqueueStaffAlert(
           'storage.hygiene',
-          { failed: failed ?? 0, pending: pending ?? 0 },
+          { failed: failed ?? 0, pending: pending ?? 0, quota },
           '/admin/storage-backup',
         )
       }
