@@ -498,12 +498,105 @@ Work through both locales (`en` **and** `fr`) unless marked `[once]`.
 
 ---
 
+## 13. BRANDING PAINTS THE DOCUMENT, NEVER THE READER'S SETTINGS — ✅ enforced
+
+`lib/branding/` is live: a published theme now drives every page, not just the
+admin preview. These properties hold that and must keep holding.
+
+**The paint path**
+- `app/layout.tsx` renders `<BrandThemeStyle />` (first child of `<body>`), fed by
+  `loadDocumentTheme()` → `loadActiveThemeRecord()` (`unstable_cache`, `brand` tag).
+- The block is emitted **only when a theme is published**; on the baseline it renders
+  nothing, because `DEFAULT_BRAND_THEME` is a hand-maintained mirror of `globals.css`
+  and injecting it would overwrite later stylesheet edits with a stale copy.
+- Publishing invalidates `brand` + the public content tags; `archiveTheme` and
+  `revertToThemeVersion` also invalidate `brand` (defense in depth — their store
+  guards refuse a live row today).
+
+**Lock in these decisions**
+- 🔧 **Specificity is a safety property, not an accident.** The injected block may
+  state only `:root` and `.dark` (0,1,0). Reader settings live at
+  `html.high-contrast` (0,1,1) and `html.high-contrast.dark` (0,2,1) in
+  `globals.css` — branding beats the baseline on document **order**, accessibility
+  beats branding on **specificity**. Never add a class or element to the injected
+  selectors to "fix" a tie; `document.test.ts` asserts the exact selector list.
+- 🔧 **The document never composes the system state.** `resolveEffectiveTheme()`
+  reads `getActiveStates()`, which is uncached and untagged; calling it from a
+  layout bakes whichever state was live at generation time into up to 5 minutes of
+  static HTML, or forces every public page dynamic. The document theme is brand
+  only (`NORMAL_STATE_ID`). Wiring state atmosphere into the public document
+  requires caching + tagging that read first.
+- 🔧 **A failed active-theme read falls back to baseline quietly.** It now runs on
+  every page generation, so `logger.error` there is an event per render (177 in one
+  `next build`, each also reaching Sentry) for a *designed* fallback. Keep it a
+  once-per-process `warn`.
+- 🔧 Theme tokens reach CSS as a `<style>` string and CSP allows inline styles by
+  design (a nonce would cost ISR). `cssBlock` therefore filters values through an
+  allowlist; `updateThemeDraft` saves a draft whether or not it validates, so that
+  filter is the only thing between a stored string and every page. Extend it
+  deliberately — dropping a shipped value silently un-brands a surface.
+- 🔧 Every colour variable `globals.css` declares is either a `COLOR_VARIABLES`
+  token or listed in `DEFERRED_COLOR_VARIABLES`; `tokens.test.ts` fails on an
+  unaccounted var so a rebrand can't leave one surface on the old palette.
+
+**Known cosmetic tokens (do not assume these work)**
+- `radius.base` and `motion.ease/duration` DO affect the live page (`--radius` is
+  referenced 57× by compiled utilities, `--ease-standard` 3×).
+- `shadows.card/lift` do **not**: Tailwind inlines shadow theme values at build
+  (`--tw-shadow:<literal>`), and `shadow-card` currently generates no utility rule
+  at all. `typography.headingWeight/bodyLeading`, `spacing.density/sectionGap` and
+  `components.buttonShape/cardElevation` are emitted or edited but have **no
+  consumer in the design system** — those editor controls are inert. Making them
+  real needs utility work in `globals.css`, not more token plumbing.
+- `imagery.logoUrl/faviconUrl/socialImageUrl` and the site name resolve through
+  `loadBrandIdentity()` (published theme → `site_settings` → `lib/constants`),
+  which `app/layout.tsx` + `app/[locale]/layout.tsx` (titles), the
+  `/icon.svg` + `/favicon.ico` routes and `PublicShell` all read. Adding another
+  branding surface means reading it, not re-resolving it.
+
+**Acceptance**
+`npx next build` compiles and still prerenders every page with the brand block
+absent on the baseline; publishing a theme repaints public pages without a
+redeploy; a reader with high contrast enabled keeps the accessibility palette
+under any published brand.
+
+---
+
 *Keep this file honest: when a decision above changes, update it in the same PR that
 changes the code. When a P0 is fixed, tick its reference and move the item to the changelog
 below.*
 
 ## Changelog
 
+- 2026-09-25 — **Branding engine wired into the document (new item 13)**
+  (`tsc --noEmit` clean, eslint clean, `vitest run lib/branding` 100 green,
+  `next build` compiles and prerenders 188/188). The colour vocabulary is now
+  19 mapped tokens (`secondary`, `secondary-foreground`, `popover`,
+  `popover-foreground`, `input` added — the 5 with live consumers), with
+  `chart-*`/`sidebar-*` held in `DEFERRED_COLOR_VARIABLES` and a coverage test
+  that fails on any unaccounted variable in `globals.css`.
+  `lib/branding/document.ts` + `components/brand-theme-style.tsx` inject the
+  published theme as `:root`/`.dark` ahead of paint; the system-state layer is
+  deliberately excluded so ISR and the high-contrast ramp both survive.
+  `cssBlock` filters token values (no CSP backstop for inline styles, and
+  `updateThemeDraft` saves unvalidated drafts). `archiveTheme`/
+  `revertToThemeVersion` now invalidate the `brand` tag, and the per-render
+  failed-theme read is a once-per-process `warn` instead of a Sentry event.
+  **Same wave — one identity source + a simple colour editor:**
+  `lib/branding/identity.ts` resolves logo / favicon / social image / site name as
+  published theme → `site_settings` → `lib/constants`, and `app/layout.tsx`,
+  `app/[locale]/layout.tsx`, `/icon.svg`, `/favicon.ico` and `PublicShell` now all
+  read it — so a published theme changes the tab icon, the share card and the
+  `%s · <name>` title suffix (previously hardcoded, ignoring both sources). Both
+  metadata functions stay request-API-free and read only cached data, so
+  `next build` still emits every public page as static/ISR (verified: 190/190
+  pages, `●` with Revalidate 5m). `lib/branding/brand-colors.ts` +
+  `/admin/branding/colors` give non-designers three swatches (primary / secondary
+  / accent) whose foregrounds are DERIVED for maximum contrast and whose Save is
+  blocked while any pairing is unreadable; it creates a draft copying the live
+  theme's other tokens forward, never editing the published row. `brand-colors`
+  has no per-test isolation gap: 16 tests including a lightness sweep asserting
+  the chosen foreground is never the less-readable candidate.
 - 2026-09-24 — **Content social proof + share UX + deeper insights** (`tsc --noEmit`
   clean, eslint clean on touched files, `vitest run lib/content lib/admin`
   111 green, bare-href audit zero). Public detail pages (news, culture,

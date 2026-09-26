@@ -144,7 +144,7 @@ export function NoticeCard({ notice, dict, locale, className }: NoticeCardProps)
                             target="_blank"
                             rel="noopener noreferrer"
                             aria-label={dict.notices.shareWhatsapp}
-                            className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            className="inline-flex min-h-9 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                         >
                             <Share2 className="h-3.5 w-3.5" aria-hidden />
                             <span className="hidden sm:inline">{dict.common.share}</span>

@@ -51,6 +51,10 @@ yarn-error.log*
 /_spec.json
 .build-baseline.log
 build*.txt
+# Local build/run logs — a bare `npx next build > build.log` is otherwise
+# trackable and has already been committed by accident once.
+/build.log
+*.build.log
 repair.txt
 migrations-apply.txt
 checklist-dump.txt

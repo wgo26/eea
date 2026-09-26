@@ -559,7 +559,7 @@ export function SubmitForm({
                                     name="noticeType"
                                     required
                                     defaultValue=""
-                                    className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-sm shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                                    className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-base shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 md:text-sm"
                                 >
                                     <option value="" disabled>
                                         {f.noticeTypePlaceholder}
@@ -592,7 +592,7 @@ export function SubmitForm({
                                         name="category"
                                         required
                                         defaultValue=""
-                                        className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-sm shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                                        className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-base shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 md:text-sm"
                                     >
                                         <option value="" disabled>
                                             {f.categoryPlaceholder}
@@ -612,7 +612,7 @@ export function SubmitForm({
                                         id="currency"
                                         name="currency"
                                         defaultValue="XAF"
-                                        className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-sm shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                                        className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-base shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 md:text-sm"
                                     >
                                         {CURRENCIES.map((c) => (
                                             <option key={c} value={c}>

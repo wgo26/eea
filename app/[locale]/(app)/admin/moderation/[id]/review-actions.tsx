@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { approveSubmissionWithContent, rejectSubmission, updateSubmissionNotes, requestClarification, reopenSubmission } from '@/lib/admin/actions/moderation'
 import type { ContentDraftInput } from '@/lib/admin/actions/content'
+import { useContentTranslator } from '@/components/admin/translate-buttons'
 import { useToast } from '@/components/admin/toast'
 import {
   Dialog,
@@ -357,6 +358,27 @@ function ApproveDrawer({
   const [noticeType, setNoticeType] = useState(prefill.noticeType || 'other')
   const [organization, setOrganization] = useState(prefill.organization)
 
+  // Guarded translation instead of the literal "Copy English → French" the
+  // dialog shipped before — that path stored English text under locale 'fr'.
+  const { translate, translating } = useContentTranslator({
+    copy,
+    read: () => ({
+      en: { title: enTitle, excerpt: enExcerpt, body: enBody, seoDescription: '' },
+      fr: { title: frTitle, excerpt: frExcerpt, body: frBody, seoDescription: '' },
+    }),
+    write: (locale, f) => {
+      if (locale === 'fr') {
+        setFrTitle(f.title)
+        setFrExcerpt(f.excerpt)
+        setFrBody(f.body)
+      } else {
+        setEnTitle(f.title)
+        setEnExcerpt(f.excerpt)
+        setEnBody(f.body)
+      }
+    },
+  })
+
   async function handleApprove() {
     if (publish === 'schedule' && !scheduledFor.trim()) {
       addToast(copy.scheduledFor ?? 'Pick a date/time first.', 'error')
@@ -447,16 +469,12 @@ function ApproveDrawer({
               <input value={frTitle} onChange={(e) => setFrTitle(e.target.value)} className={inputCls} />
               <button
                 type="button"
-                onClick={() => {
-                  setFrTitle(enTitle)
-                  setFrExcerpt(enExcerpt)
-                  setFrBody(enBody)
-                }}
+                onClick={() => translate('en-fr')}
                 className="shrink-0 rounded-md border border-border px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
-                disabled={!enTitle.trim() && !enBody.trim()}
-                title={copy.copyFromEn}
+                disabled={(translating !== null) || (!enTitle.trim() && !enExcerpt.trim() && !enBody.trim())}
+                title={copy.translateEnToFr}
               >
-                {copy.copyFromEn}
+                {translating === 'en-fr' ? copy.translating : copy.translateEnToFr}
               </button>
             </div>
           </Field>

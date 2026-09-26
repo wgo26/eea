@@ -76,7 +76,7 @@ export function ListenButton({
             <button
                 type="button"
                 onClick={toggle}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
                 {state === "idle" ? (
                     <>
@@ -101,7 +101,7 @@ export function ListenButton({
                     onClick={stop}
                     aria-label={copy.stop}
                     title={copy.stop}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                     <Square className="h-3.5 w-3.5" aria-hidden />
                 </button>

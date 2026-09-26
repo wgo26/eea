@@ -77,7 +77,7 @@ export function SaveButton({
                 title={label}
                 aria-pressed={saved}
                 className={cn(
-                    "inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors disabled:opacity-50",
+                    "inline-flex h-9 w-9 items-center justify-center rounded-md border transition-colors disabled:opacity-50",
                     saved
                         ? variant === "heart"
                             ? "border-red-200 bg-red-50 text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-400"

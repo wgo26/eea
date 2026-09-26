@@ -83,7 +83,11 @@ export function TurnstileWidget() {
 
     return (
         <div className="space-y-2">
-            <div ref={containerRef} />
+            {/* Turnstile renders a fixed 300px widget; on viewports narrower
+                than 300px + page padding (iPhone SE in the focused shell) the
+                checkbox would sit partially off-screen and be untappable —
+                let the strip scroll instead. */}
+            <div ref={containerRef} className="overflow-x-auto" />
             <input type="hidden" name="cf-turnstile-response" value={token} />
         </div>
     );

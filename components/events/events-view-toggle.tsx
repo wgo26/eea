@@ -29,7 +29,7 @@ export function EventsViewToggle({
                 onClick={() => setView(next)}
                 aria-pressed={active}
                 className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-colors",
+                    "inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-colors",
                     active
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted text-muted-foreground hover:bg-accent",

@@ -7,6 +7,7 @@ import { themeInitScript } from "@/lib/theme";
 import { localeInitScript } from "@/lib/i18n/locale-init";
 import { SITE } from "@/lib/constants";
 import { DEFAULT_OG_IMAGE, TWITTER_CARD } from "@/lib/seo/og";
+import { loadBrandIdentity } from "@/lib/branding/identity";
 import { BrandThemeStyle } from "@/components/brand-theme-style";
 
 // Self-hosted via next/font/local (app/fonts/*.woff2) so dev/build never
@@ -43,15 +44,36 @@ const newsreader = localFont({
 export const viewport: Viewport = {
     width: 'device-width',
     initialScale: 1,
+    // Lets env(safe-area-inset-*) resolve non-zero on notched iPhones, so the
+    // fixed back-to-top FAB and cookie banner clear the home indicator.
+    viewportFit: 'cover',
     themeColor: '#0f172a',
     colorScheme: 'light dark',
 };
 
-export const metadata: Metadata = {
+/**
+ * Root metadata is brand-aware (gap 4): the site name and the social-share card
+ * resolve through `loadBrandIdentity()` (published theme -> site_settings ->
+ * constants), so publishing a theme with a `socialImageUrl` changes what a shared
+ * link previews instead of pinning the committed `og-default.png` forever, and
+ * renaming the site in /admin/site-content no longer needs a code change.
+ *
+ * ISR survives because this reads ONLY `unstable_cache`'d data (`brand` + `site`
+ * tags) and no request API — the Phase 4.1 rule for this layout, since reading
+ * `headers()` here would opt every route out of static generation. A missing
+ * database or failed read yields the shipped identity instead of throwing.
+ * Propagation is bounded by each page's own ISR window (5 min), the same
+ * contract the rest of the public chrome already has.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+    const identity = await loadBrandIdentity();
+    const shareImage = identity.socialImageUrl ?? DEFAULT_OG_IMAGE;
+    return {
     title: {
-        default: SITE.name,
+        default: identity.siteName,
         template: `%s · ${SITE.shortName}`,
-    },    description: SITE.description,
+    },
+    description: SITE.description,
     metadataBase: new URL(SITE.url),
     // Default social-share card (1200×630): inherited by every route that
     // does not define its own openGraph (homepage, section indexes,
@@ -60,21 +82,21 @@ export const metadata: Metadata = {
     // page-level openGraph fully replaces this one (documented behaviour).
     openGraph: {
         type: "website",
-        siteName: SITE.name,
-        images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: SITE.name }],
+        siteName: identity.siteName,
+        images: [{ url: shareImage, width: 1200, height: 630, alt: identity.siteName }],
     },
     twitter: {
         card: TWITTER_CARD,
-        images: [DEFAULT_OG_IMAGE],
+        images: [shareImage],
     },
     alternates: {
         types: { 'application/rss+xml': '/rss.xml' },
     },
     // Tab icon is dynamic: /icon.svg (and /favicon.ico) are route handlers
-
-    // that redirect to the uploaded site logo (see lib/site-icon.ts). This
-    // link makes browsers prefer the SVG-capable URL over bare /favicon.ico
-    // auto-discovery. Replaces the old static demo-mark app/icon.svg.
+    // that redirect to the brand logo (see lib/branding/identity.ts +
+    // lib/site-icon.ts). This link makes browsers prefer the SVG-capable URL
+    // over bare /favicon.ico auto-discovery. Replaces the old static
+    // demo-mark app/icon.svg.
     icons: {
         icon: "/icon.svg",
         apple: "/icons/icon-192.png",
@@ -84,7 +106,8 @@ export const metadata: Metadata = {
         title: SITE.shortName,
         statusBarStyle: "black-translucent",
     },
-};
+    };
+}
 
 /**
  * Root layout — document shell only (html/body, fonts, theme + locale

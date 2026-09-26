@@ -151,7 +151,7 @@ function FilterNav({ group, vertical }: { group: FilterGroup; vertical?: boolean
                     className={
                         vertical
                             ? pillClass(!activeKey)
-                            : "rounded-full px-3 py-1.5 text-xs font-bold transition-colors " +
+                            : "inline-flex min-h-9 items-center rounded-full px-3 py-1.5 text-xs font-bold transition-colors " +
                               (!activeKey
                                   ? "bg-primary text-primary-foreground"
                                   : "bg-muted text-muted-foreground hover:bg-accent")

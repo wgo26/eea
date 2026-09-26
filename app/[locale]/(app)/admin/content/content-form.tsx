@@ -7,6 +7,7 @@ import {
   saveContentItem,
   searchAuthors,
 } from "@/lib/admin/actions/content";
+import { draftShareInto } from "@/components/admin/share-drafter";
 import {
   useContentTranslator,
   TranslateButtons,
@@ -22,7 +23,6 @@ import {
   suggestExcerpt,
   suggestLocation,
   suggestSeoDescription,
-  suggestShareText,
   suggestSlug,
   suggestTags,
   type AutoFillField,
@@ -833,29 +833,23 @@ export function ContentForm({
   // Assist handlers — shared, was duplicated verbatim in both dialogs.
   const assist = {
     onExcerpt: () => {
-      const s = suggestExcerpt(v.enBody || v.frBody);
-      if (!s) {
-        addToast(copy.translateEmpty, "error");
-        return;
-      }
+      // Per-locale drafting: French fields take French prose only.
+      const enS = suggestExcerpt(v.enBody);
+      const frS = suggestExcerpt(v.frBody);
+      if (!enS && !frS) return addToast(copy.translateEmpty, "error");
       patch({
-        enExcerpt: v.enExcerpt.trim() ? v.enExcerpt : s,
-        frExcerpt: v.frExcerpt.trim() ? v.frExcerpt : s,
+        enExcerpt: v.enExcerpt.trim() ? v.enExcerpt : enS || v.enExcerpt,
+        frExcerpt: v.frExcerpt.trim() ? v.frExcerpt : frS || v.frExcerpt,
       });
       addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
     },
     onSeo: () => {
-      const s = suggestSeoDescription(
-        v.enTitle || v.frTitle,
-        v.enExcerpt || v.enBody,
-      );
-      if (!s) {
-        addToast(copy.translateEmpty, "error");
-        return;
-      }
+      const enS = suggestSeoDescription(v.enTitle, v.enExcerpt || v.enBody);
+      const frS = v.frTitle || v.frBody ? suggestSeoDescription(v.frTitle, v.frExcerpt || v.frBody) : "";
+      if (!enS && !frS) return addToast(copy.translateEmpty, "error");
       patch({
-        enSeo: v.enSeo.trim() ? v.enSeo : s,
-        frSeo: v.frSeo.trim() ? v.frSeo : s,
+        enSeo: v.enSeo.trim() ? v.enSeo : enS || v.enSeo,
+        frSeo: v.frSeo.trim() ? v.frSeo : frS || v.frSeo,
       });
       addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
     },
@@ -878,15 +872,15 @@ export function ContentForm({
       addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
     },
     onShare: () => {
-      const s = suggestShareText(v.enTitle || v.frTitle, v.enExcerpt || v.enBody);
-      if (!s) {
-        addToast(copy.translateEmpty, "error");
-        return;
-      }
-      patch({ shareText: s });
-      addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
-    },
-    /**
+      void draftShareInto({
+        title: v.enTitle || v.frTitle,
+        excerpt: v.enExcerpt || v.frExcerpt || "",
+        voice: v.voiceType || "formal",
+        locale: v.frTitle && !v.enTitle ? "fr" : "en",
+        enExcerpt: v.enExcerpt,
+        enBody: v.enBody,
+      }, copy, patch, addToast);
+    },    /**
      * One pass over every derived field the editor left empty — the collapse of
      * the five ✨ buttons above. Category / location are included, which is what
      * deletes two of the publish-readiness gates entirely.

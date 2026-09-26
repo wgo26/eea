@@ -123,6 +123,12 @@ export default async function Page({
         ]}
         actions={
           <div className="flex flex-wrap gap-2">
+            <Link
+              href={localePath(locale, '/admin/branding/colors')}
+              className="rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              {t.brandColorsNav}
+            </Link>
             <Link href={localePath(locale, '/admin/branding/assets')} className={btnCls}>
               {t.assetLibrary}
             </Link>

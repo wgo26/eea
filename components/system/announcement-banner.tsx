@@ -75,7 +75,7 @@ export function AnnouncementBanner({
     );
 
     return (
-        <div className="no-print w-full bg-primary text-primary-foreground">
+        <div className="no-print w-full bg-primary pt-[env(safe-area-inset-top)] text-primary-foreground">
             <div className="mx-auto flex w-full max-w-7xl items-center gap-2 px-4 py-2 text-sm md:px-6">
                 {url ? (
                     <a

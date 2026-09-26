@@ -48,7 +48,7 @@ export function EmptyState({
                 </p>
             ) : null}
             {actionLabel && actionHref ? (
-                <Button render={<Link href={actionHref} />} size="sm" className="mt-5">
+                <Button render={<Link href={actionHref} />} className="mt-5 min-h-11">
                     {actionLabel}
                 </Button>
             ) : null}

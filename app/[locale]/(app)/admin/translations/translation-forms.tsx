@@ -90,7 +90,14 @@ export function TranslationJobRowActions({ copy, job }: { copy: Copy; job: Trans
     setBusy(true)
     const result = await autoTranslateJob(job.id)
     setBusy(false)
-    addToast(result.ok ? copy.toastAutoDone : result.error, result.ok ? 'success' : 'error')
+    if (result.ok) {
+      addToast(
+        result.warnings.length > 0 ? `${copy.toastAutoDone} ${result.warnings.join(' ')}` : copy.toastAutoDone,
+        result.warnings.length > 0 ? 'info' : 'success',
+      )
+    } else {
+      addToast(result.error, 'error')
+    }
     router.refresh()
   }
 

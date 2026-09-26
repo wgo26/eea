@@ -56,7 +56,7 @@ export function ReadingModeToggle({ copy }: { copy: Dictionary["readingMode"] })
             aria-label={on ? copy.exit : copy.enter}
             title={on ? copy.exit : copy.enter}
             className={cn(
-                "inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
+                "inline-flex h-9 w-9 items-center justify-center rounded-md border transition-colors",
                 on
                     ? "border-primary/30 bg-primary/10 text-primary"
                     : "border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground",

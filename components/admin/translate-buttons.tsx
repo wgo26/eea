@@ -7,8 +7,10 @@ import { useToast } from '@/components/admin/toast'
 /**
  * Shared auto-translate for bilingual admin editors (content, moderation
  * review, fundraisers): fills the other locale's fields via the
- * DeepL-backed translateContentFields action. The editor reviews the result
- * before saving — nothing is written to the DB.
+ * intelligence-layer translateContentFields action (translation memory →
+ * editorial LLM → DeepL, language-guarded). The editor reviews the result
+ * before saving — nothing is written to the DB. Per-field notes (fallbacks,
+ * rejections) come back as warnings and are shown in the toast.
  */
 
 export type TranslatableFields = {
@@ -61,7 +63,12 @@ export function useContentTranslator({
         return
       }
       write(src === 'en' ? 'fr' : 'en', res.fields)
-      addToast(copy.toastTranslated, 'success')
+      const warnings = res.warnings ?? []
+      if (warnings.length > 0) {
+        addToast(`${copy.toastTranslated} ${warnings.join(' ')}`, 'info', { duration: 9000 })
+      } else {
+        addToast(copy.toastTranslated, 'success')
+      }
     } catch (e) {
       addToast(e instanceof Error ? e.message : 'Operation failed', 'error')
     } finally {

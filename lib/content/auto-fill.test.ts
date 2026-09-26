@@ -217,5 +217,26 @@ describe("draftRemainingFields", () => {
     expect(patch.enExcerpt).not.toContain("<");
     expect(patch.enExcerpt).not.toContain("story-blocks");
   });
+
+  it("never drafts French fields from English source text", () => {
+    // The regression that shipped English under locale 'fr': the one-click
+    // pass filled frExcerpt/frSeo with the same English-derived strings.
+    const { patch } = draftRemainingFields(baseInput());
+    expect(patch.enExcerpt).toBeTruthy();
+    expect(patch.frExcerpt).toBeUndefined();
+    expect(patch.frSeo).toBeUndefined();
+  });
+
+  it("drafts French fields from French prose when the editor wrote French", () => {
+    const { patch } = draftRemainingFields(
+      baseInput({
+        frTitle: "Reconstruction du marché de Bamenda",
+        frBody:
+          "Les commerçants du marché de Bamenda reconstruisent leurs étals après l’incendie qui a tout détruit.",
+      }),
+    );
+    expect(patch.frExcerpt).toContain("commerçants");
+    expect(patch.frSeo).toContain("marché");
+  });
 });
 

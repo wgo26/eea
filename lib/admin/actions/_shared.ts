@@ -8,6 +8,7 @@ import { storageConfig } from '@/lib/storage/config'
 import { type InsertOf, type UpdateOf, createAdminClient } from '@/lib/supabase/admin'
 import type { Json } from '@/lib/supabase/database.types'
 import { sanitizeBodyHtml } from '@/lib/security/html'
+import { logger } from '@/lib/observability/logger'
 
 /**
  * Server Functions for the admin section. Every mutation checks authorization
@@ -333,6 +334,33 @@ export async function deleteStoredMedia(
 }
 
 /**
+ * Columns whose absence means an un-applied migration, not a bad payload.
+ * Mirrors DRIFTABLE_TRANSLATION_COLUMNS in lib/admin/queries/content-ops.ts
+ * (read side): the editor opened fine because the read drops these, so the
+ * write must drop them too — otherwise every save fails on a database that
+ * has not caught up, which is worse than silently skipping the phase-4
+ * extras that stay null anyway.
+ */
+const DRIFTABLE_TRANSLATION_COLUMNS: readonly string[] = ['seo_description', 'byline', 'share_text', 'voice_type']
+
+/**
+ * PostgREST names the offending column two ways depending on the layer that
+ * rejected it: `Could not find the 'share_text' column of
+ * 'content_translations' in the schema cache` (PGRST204, cache miss) or
+ * `column content_translations.share_text does not exist` (42703, re-parsed
+ * SQL). Extract whichever droppable column it reports.
+ */
+function driftedColumnInError(error: { code?: string; message?: string } | null): string | null {
+  if (!error?.message) return null
+  for (const col of DRIFTABLE_TRANSLATION_COLUMNS) {
+    if (error.message.includes(`'${col}' column`) || error.message.includes(`content_translations.${col}`)) {
+      return col
+    }
+  }
+  return null
+}
+
+/**
  * Upsert the en/fr translations for a content item. SEO description and
  * byline are only written when the caller provides them (undefined = keep
  * the stored value), so an edit never silently wipes imported SEO text.
@@ -369,10 +397,25 @@ export async function upsertTranslations(
     // Phase 4 — WhatsApp share line + voice register (undefined = keep).
     if (t.shareText !== undefined) payload.share_text = t.shareText?.trim().slice(0, 280) || null
     if (t.voiceType !== undefined) payload.voice_type = t.voiceType ?? null
-    const { error } = await supabase.from('content_translations').upsert(
-      payload as InsertOf<'content_translations'>,
-      { onConflict: 'content_item_id,locale,voice' },
-    )
-    if (error) throw new Error(`Could not save the ${t.locale} translation: ${error.message}`)
+    // Drift-tolerant: if the database has not applied a migration providing
+    // one of the droppable columns, PostgREST rejects the whole upsert. Drop
+    // the named column and retry (bounded by the droppable list) so saving
+    // core content never depends on the optional phase extras.
+    for (let attempt = 0; attempt <= DRIFTABLE_TRANSLATION_COLUMNS.length; attempt++) {
+      const { error } = await supabase.from('content_translations').upsert(
+        payload as InsertOf<'content_translations'>,
+        { onConflict: 'content_item_id,locale,voice' },
+      )
+      if (!error) break
+      const drifted = driftedColumnInError(error)
+      if (!drifted || !(drifted in payload)) {
+        throw new Error(`Could not save the ${t.locale} translation: ${error.message}`)
+      }
+      logger.warn('admin', 'content_translations column missing — retrying the upsert without it', {
+        contentItemId,
+        missing: drifted,
+      })
+      delete payload[drifted]
+    }
   }
 }

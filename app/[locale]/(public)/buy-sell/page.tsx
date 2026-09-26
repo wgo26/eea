@@ -228,26 +228,26 @@ export default async function BuySellPage({
                             <span className="text-sm text-muted-foreground">
                                 {total} {total === 1 ? "listing" : "listings"}
                             </span>
-                            <span className="flex items-center gap-1 rounded-full border bg-muted/50 px-2 py-1 text-xs font-semibold text-muted-foreground">
-                                <Tag className="h-3 w-3" aria-hidden />
+                            <span className="flex items-center gap-0.5 rounded-full border bg-muted/50 px-2 py-1 text-xs font-semibold text-muted-foreground">
+                                <Tag className="mr-1 h-3 w-3" aria-hidden />
                                 {dict.buySell.sortBy}:
                                 <Link
                                     href={hrefL({ search, category, location, sort: "newest" })}
-                                    className={`ml-1 transition-colors ${sort === "newest" ? "text-foreground" : "hover:text-foreground"}`}
+                                    className={`inline-flex min-h-9 items-center rounded-full px-2 transition-colors ${sort === "newest" ? "text-foreground" : "hover:bg-accent hover:text-foreground"}`}
                                 >
                                     {dict.buySell.sortNewest}
                                 </Link>
                                 <span className="text-border">·</span>
                                 <Link
                                     href={hrefL({ search, category, location, sort: "price_asc" })}
-                                    className={`transition-colors ${sort === "price_asc" ? "text-foreground" : "hover:text-foreground"}`}
+                                    className={`inline-flex min-h-9 items-center rounded-full px-2 transition-colors ${sort === "price_asc" ? "text-foreground" : "hover:bg-accent hover:text-foreground"}`}
                                 >
                                     {dict.buySell.sortPriceAsc}
                                 </Link>
                                 <span className="text-border">·</span>
                                 <Link
                                     href={hrefL({ search, category, location, sort: "price_desc" })}
-                                    className={`transition-colors ${sort === "price_desc" ? "text-foreground" : "hover:text-foreground"}`}
+                                    className={`inline-flex min-h-9 items-center rounded-full px-2 transition-colors ${sort === "price_desc" ? "text-foreground" : "hover:bg-accent hover:text-foreground"}`}
                                 >
                                     {dict.buySell.sortPriceDesc}
                                 </Link>

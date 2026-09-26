@@ -4,6 +4,7 @@ import { SiteFooter } from '@/components/site-footer'
 import { AnnouncementBanner } from '@/components/system/announcement-banner'
 import { announcementId } from '@/lib/announcement'
 import { getPublicSiteSettings } from '@/lib/admin/queries'
+import { loadBrandIdentity } from '@/lib/branding/identity'
 import { getDictionary, type Locale } from '@/lib/i18n'
 import { getChromeStrings } from '@/lib/i18n/chrome'
 
@@ -15,15 +16,21 @@ import { getChromeStrings } from '@/lib/i18n/chrome'
  *
  * The footer's social links come from the admin-maintained site settings
  * (/admin/site-content → Footer social links); unset links hide the icon.
- * The header/footer brand (logo, name, tagline) comes from the same
- * settings (/admin/site-content → Brand & logo); unset values fall back to
- * the built-in Eye mark + wordmark.
+ * The header/footer brand (logo, name, tagline) comes from
+ * `loadBrandIdentity()`: the published theme's logo first, then the same
+ * settings (/admin/site-content → Brand & logo), then the built-in Eye mark +
+ * wordmark — so a rebrand published in /admin/branding repaints the chrome
+ * without a code change.
  *
  * A3: `locale` arrives from the [locale] segment via the (public) layout —
  * never from getRequestLocale() — so this shell stays ISR-compatible.
  */
 export async function PublicShell({ children, locale }: { children: ReactNode; locale: Locale }) {
-  const settings = await getPublicSiteSettings()
+  // Identity (logo/name/tagline) resolves through the brand layer so a published
+  // theme's logo wins over the day-to-day site setting, with site_settings and
+  // the built-in constants behind it. Both reads underneath are cached, so this
+  // stays ISR-compatible (A3). Social links keep coming from settings directly.
+  const [settings, identity] = await Promise.all([getPublicSiteSettings(), loadBrandIdentity()])
   const dict = getDictionary(locale)
   // A2: the every-page client chrome (header/footer) receives only this
   // small string slice as props, so the full dictionary — including the
@@ -64,13 +71,13 @@ export async function PublicShell({ children, locale }: { children: ReactNode; l
         />
       )}
       <SiteHeader
-        branding={{ logoUrl: settings.logoUrl, siteName: settings.siteName, siteTagline: settings.siteTagline, siteNameFr: settings.siteNameFr, siteTaglineFr: settings.siteTaglineFr }}
+        branding={{ logoUrl: identity.logoUrl, siteName: identity.siteName, siteTagline: identity.tagline, siteNameFr: identity.siteNameFr, siteTaglineFr: identity.taglineFr }}
         chrome={getChromeStrings(locale)}
       />
       <main id="main-content" tabIndex={-1} className="flex-1">{children}</main>
       <SiteFooter
         socialLinks={{ facebook: settings.facebookUrl, youtube: settings.youtubeUrl }}
-        branding={{ logoUrl: settings.logoUrl, siteName: settings.siteName, siteNameFr: settings.siteNameFr }}
+        branding={{ logoUrl: identity.logoUrl, siteName: identity.siteName, siteNameFr: identity.siteNameFr }}
         chrome={getChromeStrings(locale)}
       />
     </>

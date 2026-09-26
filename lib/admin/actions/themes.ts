@@ -480,6 +480,11 @@ export async function revertToThemeVersion(themeId: string, versionId: string): 
       metadata: { versionId, version: result.version, name: record?.name ?? null },
     })
     revalidateAdminTheme(themeId)
+    // Same defense in depth as `archiveTheme`: `restoreThemeVersion` refuses a
+    // live row, so this cannot change the public paint today. It is here so the
+    // invariant "any theme mutation refreshes the brand cache" holds without
+    // every caller having to re-read the store's guards.
+    revalidateBrandCache()
     return { ok: true, version: result.version }
   } catch (e) {
     return fail(e)

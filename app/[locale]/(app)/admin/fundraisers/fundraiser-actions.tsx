@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createFundraiser, updateFundraiser, closeFundraiser, reopenFundraiser, deleteFundraiser } from '@/lib/admin/actions/fundraisers'
+import { useContentTranslator } from '@/components/admin/translate-buttons'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import { useToast } from '@/components/admin/toast'
 import {
@@ -184,6 +185,25 @@ export function FundraiserCard({ row, copy, common, canDelete }: { row: Editable
   const [descEn, setDescEn] = useState(row.storyBodyEn ?? '')
   const [descFr, setDescFr] = useState(row.storyBodyFr ?? '')
 
+  // Guarded translation instead of the literal "Copy English → French" the
+  // card shipped before — that path stored English under locale 'fr'.
+  const { translate, translating } = useContentTranslator({
+    copy,
+    read: () => ({
+      en: { title: titleEn, excerpt: '', body: descEn, seoDescription: '' },
+      fr: { title: titleFr, excerpt: '', body: descFr, seoDescription: '' },
+    }),
+    write: (locale, f) => {
+      if (locale === 'fr') {
+        setTitleFr(f.title)
+        setDescFr(f.body)
+      } else {
+        setTitleEn(f.title)
+        setDescEn(f.body)
+      }
+    },
+  })
+
   async function handleSave() {
     setBusy(true)
     const result = await updateFundraiser(row.contentItemId, {
@@ -246,12 +266,12 @@ export function FundraiserCard({ row, copy, common, canDelete }: { row: Editable
                 <input value={titleFr} onChange={(e) => setTitleFr(e.target.value)} className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                 <button
                   type="button"
-                  onClick={() => { setTitleFr(titleEn); setDescFr(descEn) }}
-                  disabled={!titleEn.trim() && !descEn.trim()}
-                  title={copy.copyFromEn}
+                  onClick={() => translate('en-fr')}
+                  disabled={translating !== null || (!titleEn.trim() && !descEn.trim())}
+                  title={copy.translateEnToFr}
                   className="shrink-0 rounded-md border border-border px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
                 >
-                  {copy.copyFromEn}
+                  {translating === 'en-fr' ? copy.translating : copy.translateEnToFr}
                 </button>
               </div>
             </label>

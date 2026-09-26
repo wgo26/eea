@@ -63,7 +63,7 @@ export function LanguageSwitcher({ locale }: { locale: Locale }) {
           onClick={() => switchTo(l)}
           aria-pressed={l === locale}
           title={l === 'en' ? 'English' : 'Français'}
-          className={`rounded-full px-2 py-0.5 text-xs font-semibold tracking-wide transition-colors ${
+          className={`min-h-8 rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide transition-colors ${
             l === locale
               ? 'bg-primary text-primary-foreground'
               : 'text-muted-foreground hover:text-foreground'

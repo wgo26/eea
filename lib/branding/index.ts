@@ -121,13 +121,25 @@ const getCachedActiveTheme = unstable_cache(
   { tags: [CACHE_TAGS.brand], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
 )
 
+/**
+ * Reported once per process. This read now runs while generating every page, and
+ * the catch below is a designed fallback to the shipped baseline — not a fault.
+ * As `logger.error` it turned one recoverable condition (a missing or
+ * unreadable `brand_themes` table) into an event per render: 177 during a single
+ * `next build`, each of which also reaches Sentry via `captureException`.
+ */
+let unreadableReported = false
+
 /** The published theme record, or null when the platform runs on the baseline. */
 export async function loadActiveThemeRecord(): Promise<ThemeRecord | null> {
   if (!hasDatabase()) return null
   try {
     return await getCachedActiveTheme()
   } catch (e) {
-    logger.error('branding', 'loadActiveThemeRecord failed', { error: e })
+    if (!unreadableReported) {
+      unreadableReported = true
+      logger.warn('branding', 'active theme unreadable — rendering the shipped baseline', { error: e })
+    }
     return null
   }
 }

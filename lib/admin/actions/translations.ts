@@ -19,6 +19,9 @@ import { createHash } from 'node:crypto'
 import { assertCapability } from '@/lib/admin/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { translateTexts } from '@/lib/translate/deepl'
+import { localizeContent } from '@/lib/translate/localize'
+import { llmReady, llmLocalizeFields } from '@/lib/translate/prompts'
+import { lookupSegment } from '@/lib/translate/tm'
 import {
   auditEvent,
   fail,
@@ -219,11 +222,12 @@ function rememberSegment(sourceLocale: string, targetLocale: string, source: str
 
 /**
  * Machine-translate the job's source translation into the target locale via
- * DeepL, store it as the published translation and complete the job. The
- * acting admin is recorded as translator; a reviewer should still confirm
- * via `assignReviewer` for sensitive copy (spec §55).
+ * the localization pipeline (translation memory → editorial LLM → DeepL,
+ * with the language guard), store it as the published translation and
+ * complete the job. The acting admin is recorded as translator; a reviewer
+ * should still confirm via `assignReviewer` for sensitive copy (spec §55).
  */
-export async function autoTranslateJob(jobId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function autoTranslateJob(jobId: string): Promise<{ ok: true; warnings: string[] } | { ok: false; error: string }> {
   try {
     const ctx = await assertCapability('manageContent')
     const admin = createAdminClient()
@@ -252,20 +256,42 @@ export async function autoTranslateJob(jobId: string): Promise<{ ok: true } | { 
       return { ok: false, error: 'The source translation is empty — nothing to translate.' }
     }
 
-    const sourceLang = row.source_locale === 'en' ? ('EN' as const) : ('FR' as const)
-    const targetLang = row.target_locale === 'en' ? ('EN' as const) : ('FR' as const)
+    const from = row.source_locale === 'en' || row.source_locale === 'fr' ? row.source_locale : 'en'
+    const to = row.target_locale === 'en' || row.target_locale === 'fr' ? row.target_locale : from === 'en' ? 'fr' : 'en'
     let translated: { title: string; excerpt: string; body: string; seo: string }
+    let warnings: string[] = []
     try {
-      const [plain, htmlBody] = await Promise.all([
-        translateTexts([src.title ?? '', src.excerpt ?? '', src.seo_description ?? ''], { sourceLang, targetLang }),
-        translateTexts([src.body ?? ''], { sourceLang, targetLang, html: true }),
-      ])
-      translated = {
-        title: (plain[0] ?? '').slice(0, 300),
-        excerpt: plain[1] ?? '',
-        body: htmlBody[0] ?? '',
-        seo: (plain[2] ?? '').slice(0, 300),
+      const result = await localizeContent(
+        {
+          title: src.title ?? '',
+          excerpt: src.excerpt ?? '',
+          body: src.body ?? '',
+          seoDescription: src.seo_description ?? '',
+        },
+        from,
+        to,
+        {
+          deepl: translateTexts,
+          llmAvailable: llmReady(),
+          llmLocalize: llmLocalizeFields,
+          tmLookup: lookupSegment,
+        },
+      )
+      const filled = (['title', 'excerpt', 'body', 'seoDescription'] as const).filter((f) =>
+        (f === 'seoDescription' ? src.seo_description : f === 'title' ? src.title : f === 'excerpt' ? src.excerpt : src.body)?.trim(),
+      )
+      if (filled.length > 0 && filled.every((f) => result.engines[f] === 'source')) {
+        const error = result.warnings.join(' ') || 'Translation produced no usable output.'
+        await admin.from('translation_jobs').update({ status: 'failed', error_message: error }).eq('id', jobId)
+        return { ok: false, error }
       }
+      translated = {
+        title: result.fields.title,
+        excerpt: result.fields.excerpt,
+        body: result.fields.body,
+        seo: result.fields.seoDescription,
+      }
+      warnings = result.warnings
     } catch (e) {
       await admin
         .from('translation_jobs')
@@ -276,15 +302,15 @@ export async function autoTranslateJob(jobId: string): Promise<{ ok: true } | { 
 
     await upsertTranslations(admin, row.content_item_id, [
       {
-        locale: row.target_locale as 'en' | 'fr',
+        locale: to,
         title: translated.title || src.title || '',
         excerpt: translated.excerpt,
         body: translated.body,
         seoDescription: translated.seo || undefined,
       },
     ])
-    rememberSegment(row.source_locale, row.target_locale, src.title ?? '', translated.title)
-    rememberSegment(row.source_locale, row.target_locale, src.body ?? '', translated.body)
+    if (translated.title) rememberSegment(from, to, src.title ?? '', translated.title)
+    if (translated.body) rememberSegment(from, to, src.body ?? '', translated.body)
 
     await admin
       .from('translation_jobs')
@@ -295,11 +321,11 @@ export async function autoTranslateJob(jobId: string): Promise<{ ok: true } | { 
       actorRole: ctx.roles.join(',') || null,
       resourceType: 'translation_job',
       resourceId: jobId,
-      metadata: { contentItemId: row.content_item_id, targetLocale: row.target_locale },
+      metadata: { contentItemId: row.content_item_id, targetLocale: row.target_locale, warnings },
     })
     revalidateLocalized('/admin/translations')
     revalidateLocalized('/admin/content')
-    return { ok: true }
+    return { ok: true, warnings }
   } catch (e) {
     return fail(e)
   }

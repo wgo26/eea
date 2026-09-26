@@ -501,7 +501,7 @@ export const MediaUploader = memo(function MediaUploader({
             type="button"
             onClick={retryFailed}
             disabled={uploading}
-            className="inline-flex h-8 shrink-0 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className="inline-flex min-h-10 shrink-0 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 md:min-h-8"
           >
             {uploading ? c.uploading : c.retryFailed}
           </button>
@@ -510,27 +510,28 @@ export const MediaUploader = memo(function MediaUploader({
 
       {/* URL paste fallback */}
       {allowUrlPaste && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-muted-foreground">{c.or}</span>
           <input
             type="url"
+            inputMode="url"
             value={urlInput}
             onChange={(e) => { setUrlInput(e.target.value); setUrlError(null) }}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleUrlAdd() } }}
             placeholder={c.urlPlaceholder}
             className={cn(
-              'h-8 flex-1 rounded-md border border-border bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring',
+              'min-h-10 min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring md:min-h-8 md:text-sm',
               urlError && 'border-destructive',
             )}
           />
           <button
             type="button"
             onClick={handleUrlAdd}
-            className="h-8 inline-flex items-center rounded-md border border-border bg-background px-3 text-xs font-medium text-muted-foreground hover:bg-accent"
+            className="inline-flex min-h-10 items-center rounded-md border border-border bg-background px-3 text-xs font-medium text-muted-foreground hover:bg-accent md:min-h-8"
           >
             {c.addUrl}
           </button>
-          {urlError && <p className="text-xs text-destructive">{urlError}</p>}
+          {urlError && <p className="w-full text-xs text-destructive md:w-auto">{urlError}</p>}
         </div>
       )}
 

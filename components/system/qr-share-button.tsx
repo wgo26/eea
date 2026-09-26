@@ -55,7 +55,7 @@ export function QrShareButton({ url, copy }: { url: string; copy: QrCopy }) {
             <button
                 type="button"
                 onClick={openDialog}
-                className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
                 <QrCode className="h-4 w-4" aria-hidden />
                 {copy.button}

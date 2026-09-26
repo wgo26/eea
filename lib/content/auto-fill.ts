@@ -385,26 +385,39 @@ export function draftRemainingFields(input: AutoFillInput): AutoFillResult {
   const title = input.enTitle || input.frTitle;
   // Drafted from the prose, not from the generated section markup: an excerpt
   // that starts "<div class=story-blocks>" is worse than no excerpt.
-  const body = input.enBody || input.frBody;
-  const excerptSource = stripStoryBlocksFromBody(body);
+  const excerptSource = stripStoryBlocksFromBody(input.enBody || "");
+  // The French fields draft from FRENCH source text only. Drafting them from
+  // the English body is what filled frExcerpt/frSeo with English and shipped
+  // it; the fr pass exists to catch the fr-first editor, not to launder the
+  // en pass. Empty French source → empty suggestion: translation is the
+  // translate button's job (which runs the guarded pipeline), not this one.
+  const frExcerptSource = stripStoryBlocksFromBody(input.frBody || "");
+  const hasFrSource = Boolean((input.frTitle || input.frBody || "").trim());
 
   write("slug", input.slug ? null : suggestSlug(title));
 
   const excerpt = suggestExcerpt(excerptSource);
   if (excerpt) {
     write("enExcerpt", input.enExcerpt ? null : excerpt);
-    write("frExcerpt", input.frExcerpt ? null : excerpt);
+  }
+  const frExcerpt = suggestExcerpt(frExcerptSource);
+  if (hasFrSource && frExcerpt) {
+    write("frExcerpt", input.frExcerpt ? null : frExcerpt);
   }
 
-  const seoBase = input.enExcerpt || excerpt || excerptSource;
-  const seo = suggestSeoDescription(title, seoBase);
-  if (seo) {
-    write("enSeo", input.enSeo ? null : seo);
-    write("frSeo", input.frSeo ? null : seo);
+  const enSeo = suggestSeoDescription(input.enTitle || title, input.enExcerpt || excerpt || excerptSource);
+  if (enSeo) write("enSeo", input.enSeo ? null : enSeo);
+  if (hasFrSource) {
+    const frSeo = suggestSeoDescription(input.frTitle || title, input.frExcerpt || frExcerpt || frExcerptSource);
+    if (frSeo) write("frSeo", input.frSeo ? null : frSeo);
   }
 
   const existingTags = input.tags.split(",").map((t) => t.trim()).filter(Boolean);
-  const tags = suggestTags(`${input.enTitle} ${input.frTitle}`, body, existingTags);
+  const tags = suggestTags(
+    `${input.enTitle} ${input.frTitle}`,
+    stripStoryBlocksFromBody(input.enBody || "") + " " + stripStoryBlocksFromBody(input.frBody || ""),
+    existingTags,
+  );
   if (tags.length > 0) {
     const merged = [...existingTags, ...tags].join(", ");
     // Only a real change counts as drafted. Writing the same string back would
@@ -413,15 +426,17 @@ export function draftRemainingFields(input: AutoFillInput): AutoFillResult {
     if (merged !== input.tags) write("tags", merged);
   }
 
-  write("shareText", input.shareText ? null : suggestShareText(title, seoBase));
+  write("shareText", input.shareText ? null : suggestShareText(title, input.enExcerpt || excerpt || excerptSource));
 
+  const proseForTaxonomy =
+    stripStoryBlocksFromBody(input.enBody || "") + " " + stripStoryBlocksFromBody(input.frBody || "");
   if (!input.categoryId && !touched.has("categoryId")) {
-    const c = suggestCategory(title, body, input.categories);
+    const c = suggestCategory(title, proseForTaxonomy, input.categories);
     if (c) write("categoryId", c.id);
     else if (input.categories.length > 0) unresolved.push("categoryId");
   }
   if (!input.locationId && !touched.has("locationId")) {
-    const l = suggestLocation(title, body, input.locations);
+    const l = suggestLocation(title, proseForTaxonomy, input.locations);
     if (l) write("locationId", l.id);
     else if (input.locations.length > 0) unresolved.push("locationId");
   }

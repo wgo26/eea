@@ -29,7 +29,7 @@ export async function FocusedShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="border-b border-border/60 bg-background">
+      <header className="border-b border-border/60 bg-background pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between gap-3 px-4 md:px-6">
           <BackButton fallback={localePath(locale, '/')} label={dict.system.back} />
           <Link

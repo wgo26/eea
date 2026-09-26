@@ -7,6 +7,9 @@ import { syncContentTags } from '@/lib/admin/tags'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { type UpdateOf } from '@/lib/supabase/admin'
 import { translateTexts } from '@/lib/translate/deepl'
+import { localizeContent, draftShareText, isShareVoice } from '@/lib/translate/localize'
+import { llmReady, llmLocalizeFields, llmDraftShareLine } from '@/lib/translate/prompts'
+import { lookupSegment } from '@/lib/translate/tm'
 import { type ActionResult, audit, fail, revalidateLocalized, revalidatePublicContentCache, uniqueSlug, syncPhotos, deleteStoredMedia, upsertTranslations } from './_shared'
 
 export type { ContentDraftInput } from '../content-validation'
@@ -435,41 +438,93 @@ export type TranslateContentInput = {
 }
 
 export type TranslateContentResult =
-  | { ok: true; fields: { title: string; excerpt: string; body: string; seoDescription: string } }
+  | {
+      ok: true
+      fields: { title: string; excerpt: string; body: string; seoDescription: string }
+      /** Editor-facing notes: which fallbacks ran, which outputs were rejected. */
+      warnings: string[]
+    }
   | { ok: false; error: string }
 
 /**
- * Auto-translate content fields into the other locale via DeepL
- * (capability-gated, no DB write — the editor reviews before saving).
- * Plain fields translate in one request; the body goes as HTML so markup
- * and embedded media survive. Mirrors scripts/fill-fr.mjs (batch backfill).
+ * Auto-translate content fields into the other locale (capability-gated,
+ * no DB write — the editor reviews before saving). Intelligence layer:
+ * translation memory → editorial LLM (natural newsroom localization, not
+ * word-for-word) → DeepL, with a per-field language guard that keeps
+ * untranslated English out of French fields (and vice versa). Mirrors the
+ * job path in lib/admin/actions/translations.ts through the shared
+ * localizeContent orchestrator.
  */
 export async function translateContentFields(input: TranslateContentInput): Promise<TranslateContentResult> {
   try {
     await assertCapability('manageContent')
-    const sourceLang = input.sourceLocale === 'en' ? 'EN' as const : 'FR' as const
-    const targetLang = input.sourceLocale === 'en' ? 'FR' as const : 'EN' as const
-    const title = (input.title ?? '').slice(0, 2000)
-    const excerpt = (input.excerpt ?? '').slice(0, 8000)
-    const seoDescription = (input.seoDescription ?? '').slice(0, 2000)
-    const body = (input.body ?? '').slice(0, 100000)
-    if (!title.trim() && !excerpt.trim() && !body.trim() && !seoDescription.trim()) {
+    const from = input.sourceLocale
+    const to: 'en' | 'fr' = from === 'en' ? 'fr' : 'en'
+    const source = {
+      title: (input.title ?? '').slice(0, 2000),
+      excerpt: (input.excerpt ?? '').slice(0, 8000),
+      seoDescription: (input.seoDescription ?? '').slice(0, 2000),
+      body: (input.body ?? '').slice(0, 100000),
+    }
+    if (!source.title.trim() && !source.excerpt.trim() && !source.body.trim() && !source.seoDescription.trim()) {
       return { ok: false, error: 'Enter source text first.' }
     }
-    const [plain, htmlBody] = await Promise.all([
-      translateTexts([title, excerpt, seoDescription], { sourceLang, targetLang }),
-      translateTexts([body], { sourceLang, targetLang, html: true }),
-    ])
-    return {
-      ok: true,
-      fields: {
-        // Keep the 300-char column budget the batch backfill uses.
-        title: (plain[0] ?? '').slice(0, 300),
-        excerpt: plain[1] ?? '',
-        body: htmlBody[0] ?? '',
-        seoDescription: (plain[2] ?? '').slice(0, 300),
-      },
+    const result = await localizeContent(source, from, to, {
+      deepl: translateTexts,
+      llmAvailable: llmReady(),
+      llmLocalize: llmLocalizeFields,
+      tmLookup: lookupSegment,
+    })
+    const filled = (Object.keys(source) as (keyof typeof source)[]).filter((f) => source[f].trim())
+    if (filled.length > 0 && filled.every((f) => result.engines[f] === 'source')) {
+      return { ok: false, error: result.warnings.join(' ') || 'Translation produced no usable output.' }
     }
+    return { ok: true, fields: result.fields, warnings: result.warnings }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export type DraftShareLineResult =
+  | { ok: true; shareText: string; voice: 'formal' | 'pidgin' | 'camfranglais'; engine: 'llm' | 'deepl' }
+  | { ok: false; error: string }
+
+/**
+ * Draft the WhatsApp share line in a voice register (formal / pidgin /
+ * camfranglais) with the editorial model — register rewrites for diaspora
+ * readers, not translations. Capability-gated; returns text for the form,
+ * never writes to the DB.
+ */
+export async function draftShareLine(input: {
+  title: string
+  excerpt?: string
+  voice: string
+  locale: 'en' | 'fr'
+}): Promise<DraftShareLineResult> {
+  try {
+    await assertCapability('manageContent')
+    if (!isShareVoice(input.voice)) return { ok: false, error: 'Unknown voice register.' }
+    const title = (input.title ?? '').trim()
+    if (!title) return { ok: false, error: 'Enter a title first.' }
+    const draft = await draftShareText(
+      { title, excerpt: (input.excerpt ?? '').slice(0, 1500) },
+      {
+        voice: input.voice,
+        locale: input.locale,
+        llmAvailable: llmReady(),
+        llmDraft: llmDraftShareLine,
+        deepl: translateTexts,
+      },
+    )
+    if (!draft) {
+      return {
+        ok: false,
+        error: llmReady()
+          ? 'Could not draft a line that passed review — write it yourself.'
+          : 'Generation is not configured (LLM_API_KEY).',
+      }
+    }
+    return { ok: true, shareText: draft.text, voice: input.voice, engine: draft.engine }
   } catch (e) {
     return fail(e)
   }
