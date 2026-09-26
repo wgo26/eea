@@ -14,7 +14,6 @@ import { AdminCommandPalette } from './admin-command-palette'
 import { AdminIdentity } from './admin-identity'
 import { AdminAttention } from './admin-attention'
 import { AdminQuickActions } from './admin-quick-actions'
-import { AdminFloatingQuickActions } from './admin-floating-quick-actions'
 import { AdminPreferences } from './admin-preferences'
 import { SystemStateIndicator } from './system-state-indicator'
 import { useSystemState } from './state-provider'
@@ -178,8 +177,6 @@ export function AdminTopbar({
           />
         </div>
       </div>
-      {/* Floating Speed Dial for instant quick action access when scrolled */}
-      <AdminFloatingQuickActions items={items} />
     </header>
   )
 }

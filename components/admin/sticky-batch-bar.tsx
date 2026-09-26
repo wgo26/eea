@@ -129,8 +129,8 @@ export function StickyBatchBar({
   return (
     <>
       <div
-        className={cn(
-          'hide-while-printing',
+         className={cn(
+          'no-print',
           'fixed bottom-6 left-1/2 z-30 flex -translate-x-1/2 gap-1.5',
           'rounded-full border border-border/70 bg-background/95 px-3 py-1.5 shadow-lg',
           'backdrop-blur',

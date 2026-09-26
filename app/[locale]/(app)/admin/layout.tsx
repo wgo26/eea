@@ -20,6 +20,8 @@ import { stateNameKey } from '@/lib/platform/state-presentation'
 import { AdminSidebar } from '@/components/admin/sidebar'
 import { AdminTopbar } from '@/components/admin/topbar'
 import { AdminFooter } from '@/components/admin/admin-footer'
+import { AdminFloatingQuickActions } from '@/components/admin/admin-floating-quick-actions'
+import { buildAdminNavGroups } from '@/components/admin/nav-items'
 import { SkipLink } from '@/components/system/skip-link'
 import { AdminClientWrapper } from '@/components/admin/admin-client-wrapper'
 import { AdminErrorBoundary } from '@/components/admin/error-boundary'
@@ -109,6 +111,15 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   // the signup-time fallback (see lib/admin/identity.ts).
   const displayName = await getAdminDisplayName(user)
   const siteSettings = await getPublicSiteSettings()
+  const navGroups = buildAdminNavGroups(
+    locale,
+    dict,
+    roles,
+    pendingCount,
+    adminRoles,
+    unreadNotifications,
+  )
+  const navItems = navGroups.flatMap((group) => group.items)
 
   return (
     <AdminClientWrapper>
@@ -195,6 +206,10 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           />
         </div>
       </SystemStateProvider>
+
+      {/* FAB rendered outside the overflow-x-clip container so the fixed
+          positioning is relative to the viewport, not the shell wrapper. */}
+      <AdminFloatingQuickActions items={navItems} />
     </AdminClientWrapper>
   )
 }

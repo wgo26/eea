@@ -203,9 +203,9 @@ export function MobileReaderPill({
     return (
         <div
             ref={pillRef}
-            className={cn(
-                "fixed bottom-4 left-1/2 z-[40] flex -translate-x-1/2",
-                "hide-while-printing",
+        className={cn(
+            "fixed bottom-4 left-1/2 z-[40] flex -translate-x-1/2",
+            "no-print",
                 "transition-all duration-300 ease-out",
                 "high-contrast:border high-contrast:border-foreground",
             )}

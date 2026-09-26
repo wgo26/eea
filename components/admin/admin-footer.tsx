@@ -81,7 +81,7 @@ export function AdminFooter({
   rows.push(fillCopy(t.auditRetention, { days: retentionDays }))
 
   return (
-    <footer className="mt-auto border-t border-border/60 px-4 py-1.5 md:px-6 lg:px-8">
+    <footer className="sticky bottom-0 z-10 border-t border-border/60 bg-background/95 backdrop-blur px-4 py-1.5 md:px-6 lg:px-8">
       {/* min-h-[32px] holds the strip's height exactly, so the row never grows a
           second line on a narrow viewport: `truncate` + `overflow-hidden` let the
           least important facts go first instead of re-flowing the shell. */}
