@@ -21,7 +21,6 @@ import { AdminSidebar } from '@/components/admin/sidebar'
 import { AdminTopbar } from '@/components/admin/topbar'
 import { AdminFooter } from '@/components/admin/admin-footer'
 import { AdminFloatingQuickActions } from '@/components/admin/admin-floating-quick-actions'
-import { buildAdminNavGroups } from '@/components/admin/nav-items'
 import { SkipLink } from '@/components/system/skip-link'
 import { AdminClientWrapper } from '@/components/admin/admin-client-wrapper'
 import { AdminErrorBoundary } from '@/components/admin/error-boundary'
@@ -111,15 +110,6 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   // the signup-time fallback (see lib/admin/identity.ts).
   const displayName = await getAdminDisplayName(user)
   const siteSettings = await getPublicSiteSettings()
-  const navGroups = buildAdminNavGroups(
-    locale,
-    dict,
-    roles,
-    pendingCount,
-    adminRoles,
-    unreadNotifications,
-  )
-  const navItems = navGroups.flatMap((group) => group.items)
 
   return (
     <AdminClientWrapper>
@@ -208,8 +198,20 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       </SystemStateProvider>
 
       {/* FAB rendered outside the overflow-x-clip container so the fixed
-          positioning is relative to the viewport, not the shell wrapper. */}
-      <AdminFloatingQuickActions items={navItems} />
+          positioning is relative to the viewport, not the shell wrapper.
+
+          The nav entries are built inside the client component, not here: this
+          layout is a Server Component and `AdminNavItem.icon` is a lucide
+          function reference, so passing `items` across the boundary throws
+          React #441 ("Only plain objects can be passed to Client Components")
+          and takes down every `/admin/*` route at once. Same reason the topbar
+          builds its own groups — see components/admin/topbar.tsx. */}
+      <AdminFloatingQuickActions
+        roles={roles}
+        adminRoles={adminRoles}
+        pendingCount={pendingCount}
+        unreadNotifications={unreadNotifications}
+      />
     </AdminClientWrapper>
   )
 }

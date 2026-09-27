@@ -6,7 +6,9 @@ import { Plus } from 'lucide-react'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
 import { useLocaleFromPath } from '@/components/site-header'
-import { type AdminNavItem } from './nav-items'
+import { type AppRole } from '@/lib/auth/types'
+import { type AdminRole } from '@/lib/auth/admin-roles'
+import { buildAdminNavGroups } from './nav-items'
 import { QUICK_ACTIONS } from './admin-quick-actions'
 import { cn } from '@/lib/utils'
 
@@ -29,9 +31,15 @@ export type FabAction = {
 }
 
 export function AdminFloatingQuickActions({
-  items,
+  roles,
+  adminRoles = [],
+  pendingCount = 0,
+  unreadNotifications = 0,
 }: {
-  items: AdminNavItem[]
+  roles: AppRole[]
+  adminRoles?: AdminRole[]
+  pendingCount?: number
+  unreadNotifications?: number
 }) {
   const [open, setOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
@@ -42,6 +50,16 @@ export function AdminFloatingQuickActions({
   const locale = useLocaleFromPath()
   const dict = getDictionary(locale)
   const topbar = dict.admin.topbar
+  // Built here (client side) rather than handed down by the admin layout: the
+  // entries carry lucide icon components, which cannot cross the RSC boundary.
+  const items = buildAdminNavGroups(
+    locale,
+    dict,
+    roles,
+    pendingCount,
+    adminRoles,
+    unreadNotifications,
+  ).flatMap((group) => group.items)
   const visible = new Map(items.map((item) => [item.key, item]))
 
   const actions = QUICK_ACTIONS.flatMap((action) => {
