@@ -106,10 +106,10 @@ export default async function Page() {
             <p className="text-xs text-muted-foreground">{t.description}</p>
           </div>
           <div className="flex gap-2">
-            <form action={runOpsDigestNow}>
+            <form action={async () => { await runOpsDigestNow() }}>
               <Button type="submit" variant="outline" size="sm">Run daily digest now</Button>
             </form>
-            <form action={runWeeklyDigestNow}>
+            <form action={async () => { await runWeeklyDigestNow() }}>
               <Button type="submit" variant="outline" size="sm">Run weekly digest now</Button>
             </form>
           </div>
@@ -138,17 +138,17 @@ export default async function Page() {
                   </div>
                   <div className="flex items-center gap-2">
                     {!slot.pinned && !slot.removed && (
-                      <form action={() => setSlotPinned(slot.id, true)}>
+                      <form action={async () => { await setSlotPinned(slot.id, true) }}>
                         <Button type="submit" variant="outline" size="sm">{t.pin}</Button>
                       </form>
                     )}
                     {!slot.removed && (
-                      <form action={() => setSlotRemoved(slot.id, true)}>
+                      <form action={async () => { await setSlotRemoved(slot.id, true) }}>
                         <Button type="submit" variant="outline" size="sm">{t.drop}</Button>
                       </form>
                     )}
                     {slot.removed && (
-                      <form action={() => setSlotRemoved(slot.id, false)}>
+                      <form action={async () => { await setSlotRemoved(slot.id, false) }}>
                         <Button type="submit" variant="outline" size="sm">{t.restore}</Button>
                       </form>
                     )}
@@ -170,7 +170,7 @@ export default async function Page() {
         <h2 className="text-sm font-medium">{t.introTitle}</h2>
         <p className="text-xs text-muted-foreground">Preview and override tonight's AI intro and subject.</p>
         <div className="rounded-lg border border-border bg-card p-4">
-          <form action={(data: FormData) => setDigestIntroOverride(data.get('locale') as 'en' | 'fr', data.get('intro') as string, data.get('subject') as string)}>
+          <form action={async (data: FormData) => { await setDigestIntroOverride(data.get('locale') as 'en' | 'fr', data.get('intro') as string, data.get('subject') as string) }}>
             <div className="grid gap-3 md:grid-cols-2">
               <div>
                 <label className="block text-xs font-medium">{t.introSubjectLabel}</label>
@@ -223,7 +223,7 @@ export default async function Page() {
                         <StatusBadge status={sub.isActive ? 'active' : 'inactive'} label={sub.isActive ? 'Active' : 'Inactive'} />
                       </td>
                       <td className="py-2 px-3">
-                        <form action={() => toggleDigestSubscriber(sub.id, !sub.isActive)}>
+                        <form action={async () => { await toggleDigestSubscriber(sub.id, !sub.isActive) }}>
                           <Button type="submit" variant="ghost" size="sm">
                             {sub.isActive ? 'Deactivate' : 'Activate'}
                           </Button>
@@ -243,22 +243,22 @@ export default async function Page() {
         <h2 className="text-sm font-medium">Test send (to your account)</h2>
         <div className="rounded-lg border border-border bg-card p-4 flex flex-col gap-3 md:flex-row md:items-end">
           <div className="flex gap-2">
-            <form action={(data: FormData) => sendTestDigest(data.get('locale') as 'en' | 'fr', 'daily')}>
-              <input type="hidden" name="locale" value={locale} />
-              <Button type="submit">Send daily test (EN)</Button>
-            </form>
-            <form action={(data: FormData) => sendTestDigest(data.get('locale') as 'en' | 'fr', 'daily')}>
-              <input type="hidden" name="locale" value={locale === 'en' ? 'fr' : 'en'} />
-              <Button type="submit" variant="outline">Send daily test (FR)</Button>
-            </form>
-            <form action={(data: FormData) => sendTestDigest(data.get('locale') as 'en' | 'fr', 'weekly')}>
-              <input type="hidden" name="locale" value={locale} />
-              <Button type="submit" variant="outline">Send weekly test (EN)</Button>
-            </form>
-            <form action={(data: FormData) => sendTestDigest(data.get('locale') as 'en' | 'fr', 'weekly')}>
-              <input type="hidden" name="locale" value={locale === 'en' ? 'fr' : 'en'} />
-              <Button type="submit" variant="outline">Send weekly test (FR)</Button>
-            </form>
+             <form action={async (data: FormData) => { await sendTestDigest(data.get('locale') as 'en' | 'fr', 'daily') }}>
+               <input type="hidden" name="locale" value={locale} />
+               <Button type="submit">Send daily test (EN)</Button>
+             </form>
+             <form action={async (data: FormData) => { await sendTestDigest(data.get('locale') as 'en' | 'fr', 'daily') }}>
+               <input type="hidden" name="locale" value={locale === 'en' ? 'fr' : 'en'} />
+               <Button type="submit" variant="outline">Send daily test (FR)</Button>
+             </form>
+             <form action={async (data: FormData) => { await sendTestDigest(data.get('locale') as 'en' | 'fr', 'weekly') }}>
+               <input type="hidden" name="locale" value={locale} />
+               <Button type="submit" variant="outline">Send weekly test (EN)</Button>
+             </form>
+             <form action={async (data: FormData) => { await sendTestDigest(data.get('locale') as 'en' | 'fr', 'weekly') }}>
+               <input type="hidden" name="locale" value={locale === 'en' ? 'fr' : 'en'} />
+               <Button type="submit" variant="outline">Send weekly test (FR)</Button>
+             </form>
           </div>
         </div>
       </section>
@@ -316,7 +316,7 @@ export default async function Page() {
                         Draft ready
                       </a>
                     )}
-                    <form action={() => compileTemplateNow(tpl.id)}>
+                    <form action={async () => { await compileTemplateNow(tpl.id) }}>
                       <Button type="submit" variant="outline" size="sm">Compile now</Button>
                     </form>
                   </div>

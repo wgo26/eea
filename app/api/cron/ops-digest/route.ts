@@ -162,8 +162,8 @@ async function deliverPublicDigest(correlationId: string): Promise<DigestDeliver
         fr: 'Eagle Eye Africa — résumé du jour',
       },
       introOverride: {
-        en: enOverride,
-        fr: frOverride,
+        en: enOverride ? { intro: enOverride.intro ?? '', subject: enOverride.subject ?? '' } : undefined,
+        fr: frOverride ? { intro: frOverride.intro ?? '', subject: frOverride.subject ?? '' } : undefined,
       },
     })
     // Only stamp slots when delivery actually went out — an all-failed run
