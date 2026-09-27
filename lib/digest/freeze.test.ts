@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { hasFrozenStories, parseDigestFreeze } from './freeze'
+import { dedupeStories, hasFrozenStories, parseDigestFreeze } from './freeze'
+import type { BriefStory } from './brief'
 
 const story = (overrides: Record<string, unknown> = {}) => ({
   title: 'Market fire reopens',
@@ -56,5 +57,35 @@ describe('hasFrozenStories', () => {
     expect(hasFrozenStories({ en: [], fr: [story()] })).toBe(true)
     expect(hasFrozenStories({ en: [], fr: [] })).toBe(false)
     expect(hasFrozenStories({})).toBe(false)
+  })
+})
+
+describe('dedupeStories (updated content never re-queues)', () => {
+  const s = (overrides: Partial<BriefStory> & { title: string }): BriefStory => ({
+    type: 'news',
+    path: '/news/x',
+    ...overrides,
+  })
+  it('drops ids already delivered, keeps new ones', () => {
+    const seenIds = new Set(['id-1'])
+    const seenPaths = new Set<string>()
+    const out = dedupeStories(
+      [s({ title: 'old', contentItemId: 'id-1', path: '/news/old' }), s({ title: 'new', contentItemId: 'id-2', path: '/news/new' })],
+      seenIds,
+      seenPaths,
+    )
+    expect(out.map((r) => r.title)).toEqual(['new'])
+  })
+  it('falls back to path for pre-v2 freezes without ids', () => {
+    const out = dedupeStories(
+      [s({ title: 'a', path: '/news/a' }), s({ title: 'b', path: '/news/b' })],
+      new Set(),
+      new Set(['/news/a']),
+    )
+    expect(out.map((r) => r.title)).toEqual(['b'])
+  })
+  it('carries contentItemId off the freeze RPC', () => {
+    const parsed = parseDigestFreeze({ en: [story({ contentItemId: 'id-9' })] })
+    expect(parsed.en?.[0].contentItemId).toBe('id-9')
   })
 })

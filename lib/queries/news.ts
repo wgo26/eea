@@ -810,16 +810,48 @@ export async function getOtherNews(
 }
 
 /**
- * Category-aware related stories for the article page: same category first
- * (newest first), then newest overall to fill the limit — excluding the
- * current article. Phase 4.1: cached (tag `news`).
+ * Category-aware related stories for the article page: P5 semantic first
+ * (embedding neighbours of this article), then same category newest, then
+ * newest overall to fill — excluding the current article.
+ * Semantic is best-effort (missing key/column/RPC → heuristic only).
+ * Phase 4.1: cached (tag `news`).
  */
 const getCachedRelatedNews = unstable_cache(
     async (articleId: string, categoryId: string | null, locale: Locale, limit: number): Promise<NewsArticle[]> => {
         const seen = new Set<string>([articleId]);
         const out: NewsArticle[] = [];
 
-        if (categoryId) {
+        // P5 semantic pass: neighbours by embedding, resolved to cards.
+        try {
+            const { semanticRelatedIds } = await import('@/lib/ai/related');
+            const ids = await semanticRelatedIds(articleId, limit);
+            if (ids.length > 0) {
+                const { data } = await createAdminClient()
+                    .from('content_items')
+                    .select('id')
+                    .in('id', ids)
+                    .limit(limit);
+                void data;
+                // Card resolution reuses the heuristic queries below per id
+                // order: fetch each neighbour through the published selector.
+                for (const nid of ids) {
+                    if (out.length >= limit) break;
+                    if (seen.has(nid)) continue;
+                    const { data: one } = await publishedNews().eq('id', nid).limit(1);
+                    const row = ((one ?? []) as unknown as RawStoryRow[])[0];
+                    if (!row) continue;
+                    const card = toCard(row, locale);
+                    if (card && !seen.has(card.id)) {
+                        seen.add(card.id);
+                        out.push(card);
+                    }
+                }
+            }
+        } catch {
+            /* semantic unavailable — heuristic below fills */
+        }
+
+        if (categoryId && out.length < limit) {
             const { data, error } = await publishedNews()
                 .eq("category_id", categoryId)
                 .neq("id", articleId)

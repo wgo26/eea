@@ -24,6 +24,7 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
+import { loadManifest, MANIFEST_PATH } from "../lib/seed/manifest.mjs";
 
 // --- env (parse .env manually; no dotenv dependency) ---
 const env = readFileSync(new URL("../.env", import.meta.url), "utf8");
@@ -111,6 +112,39 @@ async function demoSlugs(table, column, slugs) {
 
 async function main() {
     log("Checking Eagle Eye Africa for leftover demo data…\n");
+
+    // ---- Preset-pack rows, read from the manifest rather than guessed from slugs.
+    // This is the parity check: scripts/seed.mjs records every row it wrote, so
+    // "is this database seeded?" is answered from facts instead of from a list
+    // that can drift. Rows still present keep the exit code at 1, exactly like the
+    // legacy identifier hits below — a seeded database is not a clean one.
+    const manifest = loadManifest(MANIFEST_PATH);
+    if (manifest.rows.length === 0) {
+        log("[preset packs] manifest empty — nothing recorded by scripts/seed.mjs");
+    } else {
+        log(`[preset packs] ${manifest.rows.length} row(s) recorded from ${manifest.packs.length} pack(s)`);
+        let seededRemaining = 0;
+        let checked = 0;
+        for (const row of manifest.rows) {
+            // Adopted rows are excluded: they existed before the seed, so their
+            // presence says nothing about whether demo data is still installed.
+            if (row.undo === "none") continue;
+            let q = db.from(row.table).select("*", { count: "exact", head: true });
+            for (const [column, value] of Object.entries(row.pk)) {
+                q = value === null ? q.is(column, null) : q.eq(column, value);
+            }
+            const { count: n, error } = await q;
+            checked += 1;
+            if (error) continue; // table absent on this project — not a hit
+            if ((n ?? 0) > 0) seededRemaining += 1;
+        }
+        log(`  ${seededRemaining}/${checked} recorded row(s) still present`);
+        if (seededRemaining > 0) {
+            log("  X DEMO REMAINING — undo with: node scripts/teardown-demo.mjs");
+            demoHits += seededRemaining;
+        }
+    }
+    log("");
 
     log("[demo identifiers]");
     await demoSlugs("content_items", "slug", DEMO_CONTENT_SLUGS);

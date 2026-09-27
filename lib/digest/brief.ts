@@ -22,6 +22,8 @@ export type BriefStory = {
     path: string;
     /** Pidgin/Camfranglais share line (optional). */
     shareText?: string | null;
+    /** Stable id for cross-issue dedupe (freeze v2+). Absent on older freezes. */
+    contentItemId?: string | null;
     /** Taxonomy snapshot from the digest slot — carried for personalized
      *  follow-brief filtering, ignored by the renderer. */
     locationId?: string | null;
@@ -130,11 +132,16 @@ export const BRIEF_MAX_CHARS = 1500;
 
 export function buildDailyBrief(
     sections: BriefSections,
-    options: { locale: "en" | "fr"; dateLabel: string; siteUrl: string; digestPath: string; framing?: "standard" | "diaspora" },
+    options: { locale: "en" | "fr"; dateLabel: string; siteUrl: string; digestPath: string; framing?: "standard" | "diaspora"; intro?: string | null; subject?: string | null },
 ): { title: string; body: string } {
     const copy = COPY[options.locale];
     const heading = options.framing === "diaspora" ? DIASPORA_HEADING[options.locale] : copy.heading;
     const lines: string[] = [`*${heading} — ${options.dateLabel}*`];
+    // P3 — AI intro line (regenerated per issue, previewed in /admin/digest).
+    // Rendered second so the heading stays scannable; budgeted like a story
+    // line so the WhatsApp template cap still holds.
+    const intro = (options.intro ?? "").trim().slice(0, 220);
+    if (intro) lines.push(`_${intro}_`);
     for (const { key, emoji, labelKey } of SECTION_META) {
         const stories = sections[key];
         if (stories.length === 0) continue;
@@ -146,7 +153,7 @@ export function buildDailyBrief(
         }
     }
     lines.push(``, `${copy.fullBrief}: ${options.siteUrl}${options.digestPath}`, copy.stopLine);
-    const title = options.locale === "fr" ? "Eagle Eye Africa — résumé du jour" : "Eagle Eye Africa — daily digest";
+    const title = (options.subject ?? "").trim().slice(0, 70) || (options.locale === "fr" ? "Eagle Eye Africa — résumé du jour" : "Eagle Eye Africa — daily digest");
     let body = lines.join("\n");
     if (body.length > BRIEF_MAX_CHARS) {
         body = `${body.slice(0, BRIEF_MAX_CHARS - 1)}…`;

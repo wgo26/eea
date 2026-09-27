@@ -26,8 +26,10 @@ export async function translateTexts(
   texts: string[],
   opts: { sourceLang: DeepLLang; targetLang: DeepLLang; html?: boolean },
 ): Promise<string[]> {
-  const key = process.env.DEEPL_API_KEY
-  if (!key) throw new Error('Translation is not configured (DEEPL_API_KEY).')
+  // Vault-first: Admin → Secrets credential `deepl-api-key`, else env.
+  const { getDeeplApiKey } = await import('@/lib/ai/settings')
+  const { key } = await getDeeplApiKey()
+  if (!key) throw new Error('Translation is not configured (Admin → Secrets → AI provider, or DEEPL_API_KEY).')
 
   const results = new Array<string>(texts.length).fill('')
   const pending: { index: number; text: string }[] = []

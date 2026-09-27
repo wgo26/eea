@@ -23,6 +23,7 @@ import {
   type WidgetId,
 } from '@/lib/admin/widget-layout'
 import { DemoDataCard } from './demo-data-card'
+import { MorningBriefCard } from './morning-brief-card'
 import { PageHeader } from '@/components/admin/page-header'
 import { CommandCenter } from '@/components/admin/command-center'
 import { GlanceStrip } from '@/components/admin/glance-strip'
@@ -155,6 +156,9 @@ export default async function Page() {
 
       {/* Is everything OK right now? One scannable status row (§34.3/§34.4). */}
       <GlanceStrip health={health} alerts={alerts} stats={stats} copy={t} severity={severity} locale={locale} />
+
+      {/* P5 — morning brief: today's 5 moves (AI prose, offline fallback). */}
+      <MorningBriefCard />
 
       {/* §34.1 + §34.5 — what requires attention, and what to do about it. */}
       <CommandCenter alerts={alerts} actions={actions} copy={t} severity={severity} locale={locale} />

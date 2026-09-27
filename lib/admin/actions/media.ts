@@ -48,6 +48,40 @@ export type MediaSearchRow = {
   archivedAt: string | null
 }
 
+export type MediaMissingAltRow = {
+  id: string
+  publicUrl: string
+  caption: string | null
+}
+
+/**
+ * P6 — alt-text backfill queue: newest image assets with no alt text and a
+ * reachable public URL. Bounded (default 20) so the vision pass is a
+ * reviewable batch, not an unbounded spend. `media.manage` (the archive
+ * role) may list; describing runs through `aiImageAlt`, which admits the
+ * media desk as well as the content desk.
+ */
+export async function listMediaMissingAlt(limit = 20): Promise<MediaMissingAltRow[]> {
+  await assertCapability('media.manage')
+  try {
+    const admin = createAdminClient()
+    const { data } = await admin
+      .from('media_assets')
+      .select('id, public_url, caption')
+      .eq('kind', 'image')
+      .is('alt_text', null)
+      .not('public_url', 'is', null)
+      .is('archived_at', null)
+      .order('created_at', { ascending: false })
+      .limit(Math.min(Math.max(limit, 1), 50))
+    return ((data ?? []) as unknown as { id: string; public_url: string | null; caption: string | null }[])
+      .filter((r) => r.public_url?.startsWith('http'))
+      .map((r) => ({ id: r.id, publicUrl: r.public_url as string, caption: r.caption }))
+  } catch {
+    return []
+  }
+}
+
 function fraction(n: unknown): number | null {
   const v = typeof n === 'number' ? n : Number(n)
   if (!Number.isFinite(v) || v < 0 || v > 1) return null

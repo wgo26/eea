@@ -1,15 +1,25 @@
 /**
- * Removes the demo content created by scripts/seed-demo.mjs,
- * scripts/seed-fundraisers.mjs and scripts/seed-notify.mjs, plus the demo
- * polls seeded by migration 20260902000000_community_polls.sql.
+ * Removes everything the seed machinery wrote, in two passes.
  *
- * Idempotent and scoped: it only touches rows that match the exact slugs /
- * slot keys used by the seeders, so real editorial content is never affected.
- * Deleting a content_item cascades through translations, media, listings,
- * notices, events, fundraisers, tags, saved_content, corrections, and
- * relationships (schema-level ON DELETE CASCADE); homepage slots, ad slots /
- * campaigns, and polls are cleared explicitly here because their FKs are
- * SET NULL and do not cascade.
+ * PASS 1 — the manifest (presets/ + scripts/seed.mjs). Every row the preset packs
+ * created is recorded with its primary key in scripts/.demo-seed-manifest.json,
+ * so removal is exact: no slug pattern matching, no risk of sweeping a real
+ * article that happens to share a name. Rows the seed merely *adopted* (a place
+ * or category that already existed) are recorded `undo: "none"` and deliberately
+ * left standing — deleting an operator's "bamenda" would detach every story
+ * filed under it through the SET NULL foreign keys.
+ *
+ * PASS 2 — the legacy lists below, for rows created by the older seeders
+ * (scripts/seed-demo.mjs, seed-fundraisers.mjs, seed-notify.mjs) and the demo
+ * polls from migration 20260902000000, which predate any manifest. These match
+ * exact slugs/keys, so real editorial content is never affected. Deleting a
+ * content_item cascades through translations, media, listings, notices, events,
+ * fundraisers, tags, saved_content, corrections and relationships (schema-level
+ * ON DELETE CASCADE); homepage slots, ad slots/campaigns and polls are cleared
+ * explicitly because their FKs are SET NULL and do not cascade.
+ *
+ * Skip pass 2 with --manifest-only (what to use once the old seeders are gone).
+ * Limit pass 1 to specific packs with --packs=tax-tags,tax-locations.
  *
  * Deliberately NOT deleted: the About/Legal policy versions
  * (migration 20260905000000_about_legal.sql / scripts/seed-about-legal.mjs) —
@@ -20,6 +30,8 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
+import { loadManifest, saveManifest, forgetPacks, MANIFEST_PATH } from "../lib/seed/manifest.mjs";
+import { undoManifest } from "../lib/seed/undo.mjs";
 
 // --- env (parse .env manually; no dotenv dependency) ---
 const env = readFileSync(new URL("../.env", import.meta.url), "utf8");
@@ -99,6 +111,35 @@ async function countRows(table, filter) {
 
 async function main() {
     log("Tearing down Eagle Eye Africa demo content…");
+    // ---- PASS 1: the manifest, which is exact. ----
+    const argv = process.argv.slice(2);
+    const onlyPacks = (argv.find((a) => a.startsWith("--packs=")) ?? "").slice(8).split(",").filter(Boolean);
+    const manifest = loadManifest(MANIFEST_PATH);
+    if (manifest.rows.length === 0) {
+        log("  manifest: empty — no preset packs have written anything");
+    } else {
+        log(`  manifest: ${manifest.rows.length} row(s) from ${manifest.packs.length} pack(s)` +
+            (onlyPacks.length ? `, filtered to ${onlyPacks.join(", ")}` : ""));
+        const undo = await undoManifest({ db, manifest, packIds: onlyPacks, log });
+        for (const problem of undo.errors) log(`  ! ${problem}`);
+        if (undo.packsComplete.length) {
+            forgetPacks(manifest, undo.packsComplete);
+            saveManifest(manifest);
+        } else {
+            log("  manifest unchanged (no pack fully undone — its rows stay recorded for a retry)");
+        }
+        const adopted = manifest.rows.filter((r) => r.undo === "none").length;
+        log(`  manifest: ${undo.undone} undone, ${undo.failed} failed` +
+            (adopted ? `, ${adopted} adopted row(s) left in place on purpose` : ""));
+    }
+
+    if (argv.includes("--manifest-only")) {
+        log("Done (--manifest-only: legacy slug sweep skipped).");
+        return;
+    }
+
+    // ---- PASS 2: rows the older seeders created, which predate any manifest. ----
+
 
     // 1. Polls (migration-seeded demo polls). Votes/options cascade from the poll_id FK.
     for (const slug of POLL_SLUGS) {

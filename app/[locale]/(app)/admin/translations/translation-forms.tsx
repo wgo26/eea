@@ -91,8 +91,16 @@ export function TranslationJobRowActions({ copy, job }: { copy: Copy; job: Trans
     const result = await autoTranslateJob(job.id)
     setBusy(false)
     if (result.ok) {
+      // P6 provenance: dominant engine across the four fields (tm = free
+      // memory hit, llm = editorial model, deepl = fallback, source = kept).
+      const tally = Object.values(result.engines) as string[]
+      const rank = ['llm', 'deepl', 'tm', 'source']
+      const dominant = rank.find((e) => tally.includes(e)) ?? 'source'
+      const suffix = dominant === 'source' ? '' : ` (${dominant === 'tm' ? 'memory' : dominant === 'llm' ? 'AI · llm' : 'DeepL'})`
       addToast(
-        result.warnings.length > 0 ? `${copy.toastAutoDone} ${result.warnings.join(' ')}` : copy.toastAutoDone,
+        result.warnings.length > 0
+          ? `${copy.toastAutoDone}${suffix} ${result.warnings.join(' ')}`
+          : `${copy.toastAutoDone}${suffix}`,
         result.warnings.length > 0 ? 'info' : 'success',
       )
     } else {

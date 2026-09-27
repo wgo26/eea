@@ -7,6 +7,16 @@ import {
   saveContentItem,
   searchAuthors,
 } from "@/lib/admin/actions/content";
+import {
+  aiClassifySuggest,
+  aiDraftRemaining,
+  aiHeadlines,
+  aiImageAlt,
+  aiRepurpose,
+  aiTagsSuggest,
+  aiVerification,
+  getAiStatus,
+} from "@/lib/admin/actions/ai";
 import { draftShareInto } from "@/components/admin/share-drafter";
 import {
   useContentTranslator,
@@ -27,7 +37,7 @@ import {
   suggestTags,
   type AutoFillField,
 } from "@/lib/content/auto-fill";
-import { mergeStoryBlocksIntoBody } from "@/lib/content/blocks";
+import { bodyHasStoryBlocks, mergeStoryBlocksIntoBody } from "@/lib/content/blocks";
 import {
   clearDraft,
   draftKey,
@@ -830,11 +840,184 @@ export function ContentForm({
         v.frTitle,
         v.locationId,
         v.categoryId,
-        Boolean(v.newPhotos.find((p) => p.isCover)?.url),
+        Boolean(v.newPhotos.length > 0),
         v.frExcerpt ?? "",
         copy,
       );
   const needsReadiness = !isEdit && v.publish !== "draft";
+
+  // Honest intelligence-layer status: offline smart fill vs real LLM.
+  // Fetched once per mount; failure = offline (never blocks the form).
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiModel, setAiModel] = useState<string | undefined>(undefined);
+  const [draftingAi, setDraftingAi] = useState(false);
+  // P2 co-pilot state: headline options, verification suggestion, alt progress.
+  const [headlines, setHeadlines] = useState<{ locale: "en" | "fr"; items: string[] } | null>(null);
+  const [headlinesWorking, setHeadlinesWorking] = useState<null | "en" | "fr">(null);
+  const [verifyState, setVerifyState] = useState<{
+    badge: string;
+    reasons: string[];
+    checklist: string[];
+  } | null>(null);
+  const [verifyWorking, setVerifyWorking] = useState(false);
+  const [altWorking, setAltWorking] = useState(false);
+  // P5 repurpose engine: one story → every surface.
+  const [repurpose, setRepurpose] = useState<{
+    whatsapp: string;
+    social: string;
+    micro: string;
+    pidgin: string;
+    emailSubject: string;
+  } | null>(null);
+  const [repurposeWorking, setRepurposeWorking] = useState(false);
+
+  async function handleRepurpose() {
+    if (repurposeWorking) return;
+    const title = v.enTitle || v.frTitle;
+    const body = v.enBody || v.frBody;
+    if (!title.trim() && !body.trim()) {
+      addToast(copy.translateEmpty, "error");
+      return;
+    }
+    setRepurposeWorking(true);
+    try {
+      const res = await aiRepurpose({
+        title,
+        excerpt: v.enExcerpt || v.frExcerpt || "",
+        body,
+        locale: v.frTitle && !v.enTitle ? "fr" : "en",
+      });
+      if (!res.ok) {
+        addToast(res.error, "error");
+        return;
+      }
+      setRepurpose({
+        whatsapp: res.whatsapp,
+        social: res.social,
+        micro: res.micro,
+        pidgin: res.pidgin,
+        emailSubject: res.emailSubject,
+      });
+      addToast(`${copy.toastAssisted ?? copy.toastTranslated} (AI · repurpose)`, "success");
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : "Repurpose failed.", "error");
+    } finally {
+      setRepurposeWorking(false);
+    }
+  }
+  useEffect(() => {
+    getAiStatus()
+      .then((s) => {
+        setAiEnabled(s.enabled);
+        setAiModel(s.configured ? s.model : undefined);
+      })
+      .catch(() => {
+        setAiEnabled(false);
+      });
+  }, []);
+
+  async function handleDraftAi() {
+    if (draftingAi) return;
+    setDraftingAi(true);
+    try {
+      const res = await aiDraftRemaining({
+        enTitle: v.enTitle,
+        frTitle: v.frTitle,
+        enBody: v.enBody,
+        frBody: v.frBody,
+        skip: [...touched] as string[],
+        categories: categoryOptions,
+        locations,
+        knownTags: v.tags.split(",").map((t) => t.trim()).filter(Boolean),
+        voice: v.voiceType || "formal",
+      });
+      if (!res.ok) {
+        // Offline / budget / kill-switch: fall back to deterministic pass so
+        // one click still does something useful, and say which engine ran.
+        const fallback = draftRemainingFields({
+          type: v.type,
+          enTitle: v.enTitle,
+          frTitle: v.frTitle,
+          enBody: v.enBody,
+          frBody: v.frBody,
+          enExcerpt: v.enExcerpt,
+          frExcerpt: v.frExcerpt,
+          enSeo: v.enSeo,
+          frSeo: v.frSeo,
+          slug: v.slug,
+          tags: v.tags,
+          shareText: v.shareText,
+          categoryId: v.categoryId,
+          locationId: v.locationId,
+          authorName: v.authorName,
+          categories: categoryOptions,
+          locations,
+          touched: touched as ReadonlySet<AutoFillField>,
+        });
+        if (fallback.applied.length > 0) patch(fallback.patch);
+        addToast(`${res.error} — offline fill applied instead.`, "info");
+        return;
+      }
+      // Auto-apply policy: Tier 1 writes empty form fields (review-before-save);
+      // category/location only arrive here when confidence >= 0.6, else notes.
+      patch(res.patch as Partial<FormValues>);
+      const n = Object.keys(res.patch).length;
+      const suffix = res.notes.length > 0 ? ` ${res.notes.join(" ")}` : "";
+      addToast(`AI drafted ${n} field(s) (AI · ${aiModel ?? "llm"}) — review before saving.${suffix}`, "success");
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : "AI draft failed.", "error");
+    } finally {
+      setDraftingAi(false);
+    }
+  }
+
+  async function handleHeadlines(target: "en" | "fr") {
+    if (headlinesWorking) return;
+    const topic = target === "en" ? v.enTitle || v.frTitle : v.frTitle || v.enTitle;
+    const body = target === "en" ? v.enBody || v.frBody : v.frBody || v.enBody;
+    if (!topic.trim() && !body.trim()) {
+      addToast(copy.translateEmpty, "error");
+      return;
+    }
+    setHeadlinesWorking(target);
+    try {
+      const res = await aiHeadlines({ topic, body, locale: target });
+      if (!res.ok || !("headlines" in res) || !res.headlines?.length) {
+        addToast(res.ok ? copy.translateEmpty : res.error, "error");
+        return;
+      }
+      setHeadlines({ locale: target, items: res.headlines.slice(0, 3) });
+      addToast(`${copy.toastAssisted ?? copy.toastTranslated} (AI · headlines ${target.toUpperCase()})`, "success");
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : "AI headlines failed.", "error");
+    } finally {
+      setHeadlinesWorking(null);
+    }
+  }
+
+  async function handleVerify() {
+    if (verifyWorking) return;
+    const title = v.enTitle || v.frTitle;
+    const body = v.enBody || v.frBody;
+    if (!title.trim() && !body.trim()) {
+      addToast(copy.translateEmpty, "error");
+      return;
+    }
+    setVerifyWorking(true);
+    try {
+      const res = await aiVerification({ title, body });
+      if (!res.ok) {
+        addToast(res.error, "error");
+        return;
+      }
+      setVerifyState({ badge: res.badge, reasons: res.reasons.slice(0, 4), checklist: res.checklist.slice(0, 6) });
+      addToast(`${copy.toastAssisted ?? copy.toastTranslated} (AI · verification)`, "success");
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : "AI verification failed.", "error");
+    } finally {
+      setVerifyWorking(false);
+    }
+  }
 
   // Assist handlers — shared, was duplicated verbatim in both dialogs.
   const assist = {
@@ -861,6 +1044,36 @@ export function ContentForm({
     },
     onTags: () => {
       const existing = v.tags.split(",").map((t) => t.trim()).filter(Boolean);
+      // AI-first: entity extraction mapped to the site vocabulary; offline
+      // keyword counting stays the instant fallback (and the path when AI off).
+      if (aiEnabled) {
+        void (async () => {
+          try {
+            const res = await aiTagsSuggest({
+              title: `${v.enTitle} ${v.frTitle}`.trim(),
+              body: `${v.enBody} ${v.frBody}`.trim(),
+              existing,
+            });
+            if (res.ok && "tags" in res && res.tags?.length) {
+              patch({ tags: [...existing, ...res.tags].join(", ") });
+              const suffix =
+                "places" in res && res.places?.length ? ` — places: ${res.places.join(", ")}` : "";
+              addToast(`${copy.toastAssisted ?? copy.toastTranslated} (AI · entities)${suffix}`, "success");
+              return;
+            }
+          } catch {
+            /* fall through to offline */
+          }
+          const s = suggestTags(`${v.enTitle} ${v.frTitle}`, `${v.enBody} ${v.frBody}`, existing);
+          if (s.length === 0) {
+            addToast(copy.translateEmpty, "error");
+            return;
+          }
+          patch({ tags: [...existing, ...s].join(", ") });
+          addToast(`${copy.toastAssisted ?? copy.toastTranslated} (offline)`, "success");
+        })();
+        return;
+      }
       const s = suggestTags(
         `${v.enTitle} ${v.frTitle}`,
         `${v.enBody} ${v.frBody}`,
@@ -871,7 +1084,7 @@ export function ContentForm({
         return;
       }
       patch({ tags: [...existing, ...s].join(", ") });
-      addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
+      addToast(`${copy.toastAssisted ?? copy.toastTranslated} (offline)`, "success");
     },
     onSlug: () => {
       patch({ slug: suggestSlug(v.enTitle || v.frTitle) });
@@ -928,24 +1141,104 @@ export function ContentForm({
       );
     },
     onCategory: () => {
+      // AI-first with confidence gate: >=0.6 auto-applies, below stays a
+      // suggestion toast; offline word-match is the fallback.
+      if (aiEnabled && categoryOptions.length > 0) {
+        void (async () => {
+          try {
+            const res = await aiClassifySuggest({
+              title: v.enTitle || v.frTitle,
+              body: v.enBody || v.frBody,
+              categories: categoryOptions,
+              locations,
+            });
+            if (res.ok && "categoryId" in res && res.categoryId) {
+              if (res.confidence >= 0.6) {
+                patch({ categoryId: res.categoryId });
+                markTouched("categoryId");
+                addToast(
+                  `${copy.toastAssisted ?? copy.toastTranslated} (AI · ${Math.round(res.confidence * 100)}%)`,
+                  "success",
+                );
+                return;
+              }
+              addToast(
+                `${"rationale" in res && res.rationale ? `${res.rationale.slice(0, 200)} ` : ""}${copy.assistUnsure}`,
+                "error",
+              );
+              return;
+            }
+          } catch {
+            /* fall through to offline */
+          }
+          const s = suggestCategory(v.enTitle || v.frTitle, v.enBody || v.frBody, categoryOptions);
+          if (!s) {
+            addToast(`${copy.assistUnsure} (offline)`, "error");
+            return;
+          }
+          patch({ categoryId: s.id });
+          markTouched("categoryId");
+          addToast(`${copy.toastAssisted ?? copy.toastTranslated} (offline)`, "success");
+        })();
+        return;
+      }
       const s = suggestCategory(v.enTitle || v.frTitle, v.enBody || v.frBody, categoryOptions);
       if (!s) {
-        addToast(copy.assistUnsure, "error");
+        addToast(`${copy.assistUnsure} (offline)`, "error");
         return;
       }
       patch({ categoryId: s.id });
       markTouched("categoryId");
-      addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
+      addToast(`${copy.toastAssisted ?? copy.toastTranslated} (offline)`, "success");
     },
     onLocation: () => {
+      if (aiEnabled && locations.length > 0) {
+        void (async () => {
+          try {
+            const res = await aiClassifySuggest({
+              title: v.enTitle || v.frTitle,
+              body: v.enBody || v.frBody,
+              categories: categoryOptions,
+              locations,
+            });
+            if (res.ok && "locationId" in res && res.locationId) {
+              if (res.confidence >= 0.6) {
+                patch({ locationId: res.locationId });
+                markTouched("locationId");
+                addToast(
+                  `${copy.toastAssisted ?? copy.toastTranslated} (AI · ${Math.round(res.confidence * 100)}%)`,
+                  "success",
+                );
+                return;
+              }
+              addToast(
+                `${"rationale" in res && res.rationale ? `${res.rationale.slice(0, 200)} ` : ""}${copy.assistUnsure}`,
+                "error",
+              );
+              return;
+            }
+          } catch {
+            /* fall through to offline */
+          }
+          const s = suggestLocation(v.enTitle || v.frTitle, v.enBody || v.frBody, locations);
+          if (!s) {
+            addToast(`${copy.assistUnsure} (offline)`, "error");
+            return;
+          }
+          patch({ locationId: s.id });
+          markTouched("locationId");
+          addToast(`${copy.toastAssisted ?? copy.toastTranslated} (offline)`, "success");
+        })();
+        return;
+      }
       const s = suggestLocation(v.enTitle || v.frTitle, v.enBody || v.frBody, locations);
       if (!s) {
-        addToast(copy.assistUnsure, "error");
+        addToast(`${copy.assistUnsure} (offline)`, "error");
         return;
       }
       patch({ locationId: s.id });
       markTouched("locationId");
-      addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
+      addToast(`${copy.toastAssisted ?? copy.toastTranslated} (offline)`, "success");
     },
     /**
      * Fills alt text on every photo that lacks it, and the post credit from the
@@ -954,6 +1247,62 @@ export function ContentForm({
      */
     onAlt: () => {
       const title = v.enTitle || v.frTitle;
+      // AI-first vision pass: describe each photo missing alt via the vision
+      // model; per-photo fallback stays the offline caption/filename heuristic
+      // so one vision failure never blocks the other 19 photos.
+      if (aiEnabled) {
+        const missing = v.newPhotos.filter(
+          (p) => !p.alt?.trim() && p.kind !== "video" && p.kind !== "audio" && p.url.startsWith("http"),
+        );
+        if (missing.length > 0 && !altWorking) {
+          setAltWorking(true);
+          void (async () => {
+            try {
+              const next = [...v.newPhotos];
+              let aiCount = 0;
+              for (let i = 0; i < next.length; i++) {
+                const p = next[i]!;
+                if (p.alt?.trim() || p.kind === "video" || p.kind === "audio") continue;
+                if (!p.url.startsWith("http")) {
+                  const off = suggestAltFromCaption(p.caption, title, p.url);
+                  if (off) {
+                    next[i] = { ...p, alt: off };
+                  }
+                  continue;
+                }
+                try {
+                  const res = await aiImageAlt({ imageUrl: p.url, title });
+                  if (res.ok && "alt" in res && res.alt?.trim()) {
+                    next[i] = { ...p, alt: res.alt.trim().slice(0, 200) };
+                    aiCount += 1;
+                    continue;
+                  }
+                } catch {
+                  /* per-photo fallback below */
+                }
+                const off = suggestAltFromCaption(p.caption, title, p.url);
+                if (off) next[i] = { ...p, alt: off };
+              }
+              const credit = v.credit.trim() ? v.credit : suggestCredit("", v.authorName || v.byline);
+              patch({ newPhotos: next, ...(credit !== v.credit.trim() ? { credit } : {}) });
+              const total = next.filter(
+                (p, idx) => p.alt?.trim() && !v.newPhotos[idx]?.alt?.trim(),
+              ).length;
+              if (total === 0 && credit === v.credit.trim()) {
+                addToast(copy.assistNothingToDo, "success");
+              } else {
+                addToast(
+                  `${copy.assistDraftedCount.replace("{n}", String(total || 1))} (AI vision · ${aiCount} described)`,
+                  "success",
+                );
+              }
+            } finally {
+              setAltWorking(false);
+            }
+          })();
+          return;
+        }
+      }
       let changed = 0;
       const newPhotos = v.newPhotos.map((p) => {
         if (p.alt?.trim() || p.kind === "video" || p.kind === "audio") return p;
@@ -968,7 +1317,7 @@ export function ContentForm({
         return;
       }
       patch({ newPhotos, ...(credit !== v.credit.trim() ? { credit } : {}) });
-      addToast(copy.assistDraftedCount.replace("{n}", String(changed || 1)), "success");
+      addToast(`${copy.assistDraftedCount.replace("{n}", String(changed || 1))} (offline)`, "success");
     },
   };
 
@@ -1082,7 +1431,7 @@ export function ContentForm({
             alt: p.alt,
             caption: p.caption,
             credit: p.credit,
-            isCover: false,
+            isCover: p.is_cover ?? false,
           }))
         : undefined,
     [isEdit, data],
@@ -1178,7 +1527,97 @@ export function ContentForm({
         {copy.translateHint ? (
           <p className="text-xs text-muted-foreground">{copy.translateHint}</p>
         ) : null}
-        <ContentAssistButtons copy={copy} {...assist} />
+        <ContentAssistButtons
+          copy={copy}
+          {...assist}
+          aiEnabled={aiEnabled}
+          aiModel={aiModel}
+          onDraftAi={handleDraftAi}
+          draftingAi={draftingAi}
+        />
+        {/* P2 — AI headline options (EN/FR pickers, apply-on-tap). */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void handleHeadlines("en")}
+            disabled={!aiEnabled || headlinesWorking !== null}
+            className={btnSecondary}
+            title={aiEnabled ? undefined : (copy.assistAiOff as string | undefined)}
+          >
+            {headlinesWorking === "en" ? (copy.assistHeadlinesWorking as string) : `${copy.assistHeadlines as string} EN`}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleHeadlines("fr")}
+            disabled={!aiEnabled || headlinesWorking !== null}
+            className={btnSecondary}
+            title={aiEnabled ? undefined : (copy.assistAiOff as string | undefined)}
+          >
+            {headlinesWorking === "fr" ? (copy.assistHeadlinesWorking as string) : `${copy.assistHeadlines as string} FR`}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleVerify()}
+            disabled={!aiEnabled || verifyWorking}
+            className={btnSecondary}
+            title={aiEnabled ? undefined : (copy.assistAiOff as string | undefined)}
+          >
+            {verifyWorking ? (copy.assistVerifyWorking as string) : (copy.assistVerify as string)}
+          </button>
+        </div>
+        {headlines ? (
+          <div role="status" className="grid gap-1.5 rounded-md border border-border bg-muted/40 p-2.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              AI headlines · {headlines.locale.toUpperCase()}
+            </p>
+            {headlines.items.map((h) => (
+              <div key={h} className="flex items-center justify-between gap-2 text-sm">
+                <span className="min-w-0 flex-1 truncate">{h}</span>
+                <button
+                  type="button"
+                  className={btnGhost}
+                  onClick={() => {
+                    patch(headlines.locale === "en" ? { enTitle: h } : { frTitle: h });
+                    addToast(`${copy.toastAssisted ?? copy.toastTranslated} (AI · headline)`, "success");
+                  }}
+                >
+                  {copy.assistApplyHeadline as string}
+                </button>
+              </div>
+            ))}
+            <button type="button" className="justify-self-start text-xs text-muted-foreground hover:text-foreground" onClick={() => setHeadlines(null)}>
+              ×
+            </button>
+          </div>
+        ) : null}
+        {verifyState ? (
+          <div role="status" className="grid gap-1.5 rounded-md border border-border bg-muted/40 p-2.5 text-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              AI verification · {verifyState.badge}
+            </p>
+            {verifyState.reasons.map((r) => (
+              <p key={r} className="text-xs text-muted-foreground">• {r}</p>
+            ))}
+            {verifyState.checklist.map((c) => (
+              <p key={c} className="text-xs">☐ {c}</p>
+            ))}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={btnSecondary}
+                onClick={() => {
+                  patch({ verification: verifyState.badge });
+                  addToast(`${copy.toastAssisted ?? copy.toastTranslated} (AI · verification)`, "success");
+                }}
+              >
+                {copy.assistVerifyApply as string}: {verifyState.badge}
+              </button>
+              <button type="button" className={btnGhost} onClick={() => setVerifyState(null)}>
+                ×
+              </button>
+            </div>
+          </div>
+        ) : null}
         <BilingualExcerpts
           copy={copy}
           enExcerpt={v.enExcerpt}
@@ -1222,21 +1661,26 @@ export function ContentForm({
             if (count > 1 && excerpt && !v.enExcerpt.trim())
               patch({ enExcerpt: excerpt });
           }}
-          onBlockAdded={
-            isEdit
-              ? () => {
-                  // FR-13: on existing content never auto-append; the editor
-                  // inserts explicitly via "Insert sections into body".
-                  return false;
-                }
-              : () => {
-                  if (!v.enBody.trim()) {
-                    addToast(copy.blocksInserted, "success");
-                    return true;
-                  }
-                  return false;
-                }
-          }
+           onBlockAdded={
+             isEdit
+               ? () => {
+                   // Auto-insert story sections into an existing body only when
+                   // the body doesn't already contain story-blocks markup —
+                   // avoids duplicating on re-open of a post that already has them.
+                   if (!bodyHasStoryBlocks(v.enBody)) {
+                     addToast(copy.blocksInserted, "success");
+                     return true;
+                   }
+                   return false;
+                 }
+               : () => {
+                   if (!v.enBody.trim()) {
+                     addToast(copy.blocksInserted, "success");
+                     return true;
+                   }
+                   return false;
+                 }
+           }
         />
       </Section>
 
@@ -1632,6 +2076,63 @@ export function ContentForm({
             </select>
           </Field>
         </div>
+      </Section>
+
+      {/* 6b — P5 Distribution: one story → every surface (apply-on-tap). */}
+      <Section title={copy.repurposeTitle as string}>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void handleRepurpose()}
+            disabled={!aiEnabled || repurposeWorking}
+            className={btnSecondary}
+            title={aiEnabled ? undefined : (copy.assistAiOff as string | undefined)}
+          >
+            {repurposeWorking ? (copy.repurposeWorking as string) : (copy.repurposeRun as string)}
+          </button>
+        </div>
+        {repurpose ? (
+          <div className="grid gap-2">
+            {(
+              [
+                ["whatsapp", copy.repurposeWhatsapp],
+                ["social", copy.repurposeSocial],
+                ["micro", copy.repurposeMicro],
+                ["pidgin", copy.repurposePidgin],
+                ["emailSubject", copy.repurposeSubject],
+              ] as const
+            ).map(([key, label]) => (
+              <div key={key} className="rounded-md border border-border bg-muted/40 p-2.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label as string}</p>
+                <p className="mt-1 text-sm">{repurpose[key]}</p>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className={btnGhost}
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(repurpose[key]);
+                      addToast(copy.repurposeCopy as string, "success");
+                    }}
+                  >
+                    {copy.repurposeCopy as string}
+                  </button>
+                  {key === "whatsapp" || key === "pidgin" ? (
+                    <button
+                      type="button"
+                      className={btnGhost}
+                      onClick={() => {
+                        patch({ shareText: repurpose[key].slice(0, 280) });
+                        addToast(`${copy.toastAssisted ?? copy.toastTranslated} (AI · repurpose)`, "success");
+                      }}
+                    >
+                      {copy.repurposeApplyShare as string}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </Section>
 
       {/* 7 — Publishing: modes/schedule for create; dates for edit. */}

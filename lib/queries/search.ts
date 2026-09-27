@@ -215,6 +215,25 @@ export async function getSearchResults(options: {
         }),
     );
     const ftsRows = ((ftsData ?? []) as unknown as FtsMatch[]).filter((m) => Boolean(m.item_id));
+    // P5 semantic fusion: when keyword search is thin (e.g. "Bamenda 2026
+    // infrastructure" with synonyms), embedding neighbours fill the gap.
+    // Best-effort — failure or no key resolves to keyword-only.
+    if (!ftsError && ftsRows.length < Math.ceil(limit / 2)) {
+        try {
+            const { embedText, findSimilar } = await import('@/lib/ai/embeddings');
+            const vec = await embedText(phrase);
+            const hits = await findSimilar(vec, { threshold: 0.6, count: limit });
+            const seen = new Set(ftsRows.map((m) => m.item_id));
+            for (const h of hits) {
+                if (seen.has(h.id)) continue;
+                seen.add(h.id);
+                ftsRows.push({ item_id: h.id, rank: 0.5 * h.similarity } as unknown as FtsMatch);
+                if (ftsRows.length >= limit) break;
+            }
+        } catch {
+            /* keyword-only */
+        }
+    }
     if (ftsError || ftsRows.length === 0) return empty;
 
     const rankById = new Map(ftsRows.map((m) => [m.item_id, m]));

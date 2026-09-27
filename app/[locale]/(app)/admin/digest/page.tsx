@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/admin/page-header'
 import { EmptyState } from '@/components/admin/empty-state'
 import { formatRelative } from '@/lib/admin/format'
 import { SlotRowActions, type SlotCopy } from './slot-actions'
+import { DigestIntroPanel } from './intro-actions'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -77,6 +78,12 @@ export default async function Page() {
                   {t.storyCount.replace('{count}', String(open.length))}
                 </span>
               </header>
+              <DigestIntroPanel
+                copy={t}
+                locale={issueLocale === 'fr' ? 'fr' : 'en'}
+                dateLabel={issueDate ?? ''}
+                headlines={open.map((s) => s.title).slice(0, 12)}
+              />
               {open.length === 0 ? (
                 <p className="px-4 py-3 text-xs text-muted-foreground">{t.allDropped}</p>
               ) : (

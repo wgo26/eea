@@ -135,9 +135,9 @@ export const ADMIN_NAV_SPECS: AdminNavItemSpec[] = [
   // Newsroom — making the paper.
   { key: 'content', path: '/admin/content', capability: 'manageContent', icon: FileText, domain: 'newsroom' },
   { key: 'emergency', path: '/admin/emergency', capability: 'manageContent', icon: Radio, domain: 'newsroom' },
-  { key: 'digest', path: '/admin/digest', capability: 'manageContent', icon: CalendarClock, domain: 'newsroom' },
+  { key: 'digest', path: '/admin/digest', capability: 'manageContent', icon: CalendarClock, domain: 'newsroom', badgeTone: 'neutral' },
   { key: 'templates', path: '/admin/templates', capability: 'manageContent', icon: FileStack, domain: 'newsroom' },
-  { key: 'translations', path: '/admin/translations', capability: 'manageContent', icon: Languages, domain: 'newsroom' },
+  { key: 'translations', path: '/admin/translations', capability: 'manageContent', icon: Languages, domain: 'newsroom', badgeTone: 'neutral' },
   { key: 'automations', path: '/admin/automations', capability: 'manageContent', icon: Zap, domain: 'newsroom' },
   // Community — the readers: what they report, what they vote on, what we owe them.
   { key: 'moderation', path: '/admin/moderation', capability: 'moderate', icon: ShieldCheck, domain: 'community', badgeTone: 'alert' },
@@ -185,14 +185,33 @@ const ADMIN_NAV_DOMAIN_ORDER: AdminNavDomain[] = ['command', 'newsroom', 'commun
  */
 export const ADMIN_NAV_TOTAL = ADMIN_NAV_SPECS.length
 
+/** Live queue counts for badged entries (all optional — absent means no badge). */
+export type AdminNavBadges = {
+  translations?: number
+  digest?: number
+}
+
 function navItemFromSpec(
   spec: AdminNavItemSpec,
   locale: Locale,
   dict: Dictionary,
   pendingCount: number,
   unreadNotifications: number,
+  badges: AdminNavBadges = {},
 ): AdminNavItem {
-  const badge = spec.key === 'moderation' ? pendingCount : spec.key === 'inbox' ? unreadNotifications : undefined
+  // P6: translations + digest join moderation/inbox as badged queues so no
+  // work queue is discoverable only by opening its page. Tones stay quiet
+  // (neutral) except moderation's alert — badges inform, only one shouts.
+  const badge =
+    spec.key === 'moderation'
+      ? pendingCount
+      : spec.key === 'inbox'
+        ? unreadNotifications
+        : spec.key === 'translations'
+          ? badges.translations
+          : spec.key === 'digest'
+            ? badges.digest
+            : undefined
   return {
     key: spec.key,
     path: spec.path,
@@ -212,10 +231,11 @@ export function buildAdminNavItems(
   pendingCount = 0,
   adminRoles: AdminRole[] = [],
   unreadNotifications = 0,
+  badges: AdminNavBadges = {},
 ): AdminNavItem[] {
   const caps = effectiveCapabilities(roles, adminRoles)
   return ADMIN_NAV_SPECS.filter((spec) => hasSpecCapability(spec, caps)).map((spec) =>
-    navItemFromSpec(spec, locale, dict, pendingCount, unreadNotifications),
+    navItemFromSpec(spec, locale, dict, pendingCount, unreadNotifications, badges),
   )
 }
 
@@ -232,12 +252,13 @@ export function buildAdminNavGroups(
   pendingCount = 0,
   adminRoles: AdminRole[] = [],
   unreadNotifications = 0,
+  badges: AdminNavBadges = {},
 ): AdminNavGroup[] {
   const caps = effectiveCapabilities(roles, adminRoles)
   const groups = new Map<AdminNavDomain, AdminNavItem[]>()
   for (const spec of ADMIN_NAV_SPECS) {
     if (!hasSpecCapability(spec, caps)) continue
-    const item = navItemFromSpec(spec, locale, dict, pendingCount, unreadNotifications)
+    const item = navItemFromSpec(spec, locale, dict, pendingCount, unreadNotifications, badges)
     const list = groups.get(spec.domain)
     if (list) list.push(item)
     else groups.set(spec.domain, [item])

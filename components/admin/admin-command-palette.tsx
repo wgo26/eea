@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CornerDownLeft, Search } from 'lucide-react'
+import { CornerDownLeft, Search, Zap } from 'lucide-react'
 import {
   CommandDialog,
   CommandEmpty,
@@ -90,6 +90,28 @@ export function AdminCommandPalette({ groups }: { groups: AdminNavGroup[] }) {
       : [],
   )
 
+  /**
+   * P6 — AI command group: one jump per surface that owns an AI control.
+   * Keyed off nav items like QUICK_ACTIONS, so visibility follows the same
+   * capability filter — a role that cannot open the page never sees its AI
+   * command. Labels reuse the destination's sidebar label under the
+   * language-neutral "AI ·" token, so only the heading needs dictionary copy.
+   */
+  const AI_COMMANDS: { key: SidebarKey; href: string }[] = [
+    { key: 'content', href: '/admin/content' },
+    { key: 'digest', href: '/admin/digest' },
+    { key: 'moderation', href: '/admin/moderation' },
+    { key: 'dashboard', href: '/admin/dashboard' },
+    { key: 'insights', href: '/admin/insights' },
+    { key: 'automations', href: '/admin/automations' },
+    { key: 'secrets', href: '/admin/secrets' },
+  ]
+  const aiCommands = AI_COMMANDS.flatMap((action) =>
+    visibleKeys.has(action.key)
+      ? [{ label: `AI · ${dict.admin.sidebar[action.key]}`, href: localePath(locale, action.href) }]
+      : [],
+  )
+
   return (
     <>
       <button
@@ -111,6 +133,17 @@ export function AdminCommandPalette({ groups }: { groups: AdminNavGroup[] }) {
             <CommandGroup heading={dict.admin.dashboard.quickActions}>
               {quickActions.map((action) => (
                 <CommandItem key={action.href} value={`action ${action.label}`} onSelect={() => go(action.href)}>
+                  {action.label}
+                  <CommandShortcut><CornerDownLeft className="h-3 w-3" /></CommandShortcut>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+          {aiCommands.length > 0 && (
+            <CommandGroup heading={dict.admin.topbar.aiActions}>
+              {aiCommands.map((action) => (
+                <CommandItem key={action.href} value={`ai ${action.label}`} onSelect={() => go(action.href)}>
+                  <Zap className="h-4 w-4" aria-hidden />
                   {action.label}
                   <CommandShortcut><CornerDownLeft className="h-3 w-3" /></CommandShortcut>
                 </CommandItem>

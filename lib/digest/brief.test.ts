@@ -91,6 +91,23 @@ describe("Daily Brief (Differentiator #9)", () => {
         expect(frDiaspora.body).toContain("LE PAYS");
     });
 
+    it("renders the AI intro second and honors an AI subject", () => {
+        const sections = groupBriefStories([story({ title: "News", type: "news", path: "/news/n" })]);
+        const { title, body } = buildDailyBrief(sections, {
+            locale: "en",
+            dateLabel: "2026-09-21",
+            siteUrl: "https://example.org",
+            digestPath: "/en/digest",
+            intro: "Bamenda woke up busy today.",
+            subject: "Custom AI subject line here",
+        });
+        expect(title).toBe("Custom AI subject line here");
+        const headingIdx = body.indexOf("TODAY'S EAGLE EYE");
+        const introIdx = body.indexOf("Bamenda woke up busy today.");
+        expect(headingIdx).toBeGreaterThanOrEqual(0);
+        expect(introIdx).toBeGreaterThan(headingIdx);
+    });
+
     it("truncates to the template-safe cap", () => {
         const sections = groupBriefStories(
             Array.from({ length: 30 }, (_, i) =>

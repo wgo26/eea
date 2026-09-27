@@ -11,6 +11,11 @@ export type AssistCopy = {
   assistGroupLabel: string;
   /** The single one-click drafter and the granular disclosure label. */
   assistAll: string;
+  /** Honest labels: offline vs LLM. Optional so old dictionaries still type. */
+  assistAllOffline?: string;
+  assistAi?: string;
+  assistAiWorking?: string;
+  assistAiOff?: string;
   assistMore: string;
   /** Category / location / alt draft actions. */
   assistCategory: string;
@@ -27,6 +32,9 @@ export type AssistCopy = {
 type Props = {
   copy: AssistCopy;
   disabled?: boolean;
+  /** Honest engine mode: offline heuristics vs real LLM. Never render ✨ as AI when offline. */
+  aiEnabled?: boolean;
+  aiModel?: string;
   onExcerpt: () => void;
   onSeo: () => void;
   onTags: () => void;
@@ -34,6 +42,9 @@ type Props = {
   onShare: () => void;
   /** One pass that drafts every empty derived field at once. */
   onDraftAll?: () => void;
+  /** True AI pass (Tier 1). Rendered separately so provenance is visible. */
+  onDraftAi?: () => void;
+  draftingAi?: boolean;
   onCategory?: () => void;
   onLocation?: () => void;
   onAlt?: () => void;
@@ -52,12 +63,16 @@ type Props = {
 export function ContentAssistButtons({
   copy,
   disabled,
+  aiEnabled,
+  aiModel,
   onExcerpt,
   onSeo,
   onTags,
   onSlug,
   onShare,
   onDraftAll,
+  onDraftAi,
+  draftingAi,
   onCategory,
   onLocation,
   onAlt,
@@ -73,9 +88,27 @@ export function ContentAssistButtons({
       <div className="flex flex-wrap items-center gap-2">
         {onDraftAll ? (
           <button type="button" onClick={onDraftAll} disabled={disabled} className={primary}>
-            {copy.assistAll}
+            {aiEnabled ? copy.assistAll : (copy.assistAllOffline ?? copy.assistAll)}
           </button>
         ) : null}
+        {onDraftAi ? (
+          <button
+            type="button"
+            onClick={onDraftAi}
+            disabled={disabled || draftingAi || !aiEnabled}
+            className={primary}
+            title={aiEnabled ? `LLM: ${aiModel ?? ''}`.trim() : (copy.assistAiOff ?? 'AI off — configure LLM_API_KEY')}
+          >
+            {draftingAi ? (copy.assistAiWorking ?? 'Drafting with AI…') : (copy.assistAi ?? '✨ Draft with AI')}
+          </button>
+        ) : null}
+        <span
+          role="status"
+          className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${aiEnabled ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'border-border bg-muted text-muted-foreground'}`}
+          title={aiEnabled ? `LLM: ${aiModel ?? ''}`.trim() : 'Offline heuristics only — no model connected'}
+        >
+          {aiEnabled ? `AI on${aiModel ? ` · ${aiModel}` : ''}` : 'Offline smart fill'}
+        </span>
         <button
           type="button"
           onClick={() => setMore((m) => !m)}

@@ -8,7 +8,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { type UpdateOf } from '@/lib/supabase/admin'
 import { translateTexts } from '@/lib/translate/deepl'
 import { localizeContent, draftShareText, isShareVoice } from '@/lib/translate/localize'
-import { llmReady, llmLocalizeFields, llmDraftShareLine } from '@/lib/translate/prompts'
+import { llmLocalizeFields, llmDraftShareLine } from '@/lib/translate/prompts'
+import { llmReadyAsync } from '@/lib/translate/llm'
 import { lookupSegment } from '@/lib/translate/tm'
 import { type ActionResult, audit, fail, revalidateLocalized, revalidatePublicContentCache, uniqueSlug, syncPhotos, applyStoryCredit, deleteStoredMedia, upsertTranslations } from './_shared'
 
@@ -488,7 +489,7 @@ export async function translateContentFields(input: TranslateContentInput): Prom
     }
     const result = await localizeContent(source, from, to, {
       deepl: translateTexts,
-      llmAvailable: llmReady(),
+      llmAvailable: await llmReadyAsync(),
       llmLocalize: llmLocalizeFields,
       tmLookup: lookupSegment,
     })
@@ -528,7 +529,7 @@ export async function draftShareLine(input: {
       {
         voice: input.voice,
         locale: input.locale,
-        llmAvailable: llmReady(),
+        llmAvailable: await llmReadyAsync(),
         llmDraft: llmDraftShareLine,
         deepl: translateTexts,
       },
@@ -536,9 +537,9 @@ export async function draftShareLine(input: {
     if (!draft) {
       return {
         ok: false,
-        error: llmReady()
+        error: await llmReadyAsync()
           ? 'Could not draft a line that passed review — write it yourself.'
-          : 'Generation is not configured (LLM_API_KEY).',
+          : 'Generation is not configured (Admin → Secrets → AI provider).',
       }
     }
     return { ok: true, shareText: draft.text, voice: input.voice, engine: draft.engine }

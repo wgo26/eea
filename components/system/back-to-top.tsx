@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -10,8 +11,13 @@ const SHOW_AFTER_PX = 600;
  * Floating scroll-to-top button. Appears once the reader scrolls past one
  * screenful, hides at the top, and smooth-scrolls back on activation.
  * Mounted once in the [locale] layout so every route gets it.
+ *
+ * Skipped on /admin routes — the admin shell provides its own floating quick
+ * actions FAB in the same bottom-right corner, so rendering BackToTop there too
+ * would overlap and compete for the same screen real estate.
  */
 export function BackToTop({ label }: { label: string }) {
+    const pathname = usePathname() ?? "";
     const [visible, setVisible] = useState(false);
 
     useEffect(() => {
@@ -20,6 +26,8 @@ export function BackToTop({ label }: { label: string }) {
         window.addEventListener("scroll", onScroll, { passive: true });
         return () => window.removeEventListener("scroll", onScroll);
     }, []);
+
+    if (pathname.startsWith("/admin")) return null;
 
     return (
         <button

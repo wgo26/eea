@@ -90,11 +90,17 @@ export type OrgFacts = {
   /** Scheduled posts past their publish time that the plan job did not run.
    *  Same definition of "overdue" as getScheduledQueue() in ./publish-plans. */
   overdueScheduled: number
+  /** Translation jobs waiting (pending/in_progress) — the sidebar badge. */
+  translationQueue: number
+  /** Digest slots accumulated, unsent, not dropped — tonight's send size. */
+  digestOpen: number
 }
 
 export const EMPTY_ORG_FACTS: OrgFacts = {
   pendingApprovals: 0,
   overdueScheduled: 0,
+  translationQueue: 0,
+  digestOpen: 0,
 }
 
 /**
@@ -108,7 +114,7 @@ export const EMPTY_ORG_FACTS: OrgFacts = {
  */
 async function getOrgFacts(): Promise<OrgFacts> {
   const now = new Date().toISOString()
-  const [approvals, overdue] = await Promise.all([
+  const [approvals, overdue, translations, digest] = await Promise.all([
     safe(
       db()
         .from('two_person_approvals')
@@ -124,10 +130,27 @@ async function getOrgFacts(): Promise<OrgFacts> {
         .not('scheduled_for', 'is', null)
         .lte('scheduled_for', now),
     ),
+    // P6 sidebar badges: two more indexed head-counts in the same round-trip,
+    // uncached like every other queue read (see the caching note above).
+    safe(
+      db()
+        .from('translation_jobs')
+        .select('id', { count: 'exact', head: true })
+        .in('status', ['pending', 'in_progress']),
+    ),
+    safe(
+      db()
+        .from('digest_slots')
+        .select('id', { count: 'exact', head: true })
+        .is('sent_at', null)
+        .eq('removed', false),
+    ),
   ])
   return {
     pendingApprovals: approvals.count ?? 0,
     overdueScheduled: overdue.count ?? 0,
+    translationQueue: translations.count ?? 0,
+    digestOpen: digest.count ?? 0,
   }
 }
 

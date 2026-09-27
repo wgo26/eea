@@ -5,11 +5,9 @@ import 'server-only'
  *
  * OpenAI-compatible chat-completions only (that surface is the lowest common
  * denominator — OpenAI, OpenRouter, Kilo Gateway, Gemini's compat mode,
- * Groq and local servers all speak it), configured entirely by env:
- *   LLM_API_KEY   — required; the layer is disabled without it (DeepL keeps
- *                   running as the fallback engine).
- *   LLM_BASE_URL  — default https://api.openai.com/v1
- *   LLM_MODEL     — default gpt-4o-mini
+ * Groq and local servers all speak it), configured by vault-first runtime
+ * (`lib/ai/settings.ts`: admin UI credential `llm-api-key` → env
+ * `LLM_API_KEY` → disabled, DeepL keeps running as the fallback engine).
  *
  * Never import from client components: call through a capability-guarded
  * server action.
@@ -21,11 +19,64 @@ export function llmConfigured(): boolean {
   return Boolean(process.env.LLM_API_KEY)
 }
 
-function config(): { endpoint: string; model: string; key: string } {
-  const key = process.env.LLM_API_KEY
-  if (!key) throw new Error('Generation is not configured (LLM_API_KEY).')
-  const base = (process.env.LLM_BASE_URL ?? 'https://api.openai.com/v1').replace(/\/+$/, '')
-  return { endpoint: `${base}/chat/completions`, model: process.env.LLM_MODEL ?? 'gpt-4o-mini', key }
+/**
+ * Intelligence-layer status for honest UI. The content form's ✨ buttons
+ * used to look identical whether an LLM was behind them or not (false
+ * positive) — callers use this to label `Smart fill (offline)` vs
+ * `Draft with AI (model)` and to show provenance per field.
+ */
+export type LlmStatus = {
+  configured: boolean
+  model: string
+  providerHost: string
+  visionModel: string
+  budgetTokensDay: number
+  /** Kill-switch env: LLM_DISABLED=1 forces offline even with a key set. */
+  disabled: boolean
+  enabled: boolean
+}
+
+function providerHost(): string {
+  try {
+    const base = process.env.LLM_BASE_URL ?? 'https://api.openai.com/v1'
+    return new URL(base).host
+  } catch {
+    return 'unconfigured'
+  }
+}
+
+export function getLlmStatus(): LlmStatus {
+  const configured = llmConfigured()
+  const disabled = process.env.LLM_DISABLED === '1'
+  const budgetRaw = Number(process.env.LLM_BUDGET_TOKENS_DAY ?? '200000')
+  return {
+    configured,
+    model: process.env.LLM_MODEL ?? 'gpt-4o-mini',
+    providerHost: providerHost(),
+    visionModel: process.env.LLM_VISION_MODEL ?? process.env.LLM_MODEL ?? 'gpt-4o-mini',
+    budgetTokensDay: Number.isFinite(budgetRaw) && budgetRaw > 0 ? budgetRaw : 200000,
+    disabled,
+    enabled: configured && !disabled,
+  }
+}
+
+/**
+ * Vault-aware config: admin UI credential first, env fallback. All
+ * transports use this.
+ */
+async function configAsync(): Promise<{ endpoint: string; model: string; key: string }> {
+  const { getLlmRuntime } = await import('@/lib/ai/settings')
+  const rt = await getLlmRuntime()
+  if (!rt.apiKey) throw new Error('Generation is not configured (set it in Admin → Secrets → AI provider, or LLM_API_KEY).')
+  if (rt.disabled) throw new Error('AI drafting is paused (Admin → Secrets → AI provider, or LLM_DISABLED=1).')
+  return { endpoint: `${rt.baseUrl}/chat/completions`, model: rt.model, key: rt.apiKey }
+}
+
+/** Vault-aware readiness for capability-guarded actions (key in vault counts). */
+export async function llmReadyAsync(): Promise<boolean> {
+  const { getLlmRuntime } = await import('@/lib/ai/settings')
+  const rt = await getLlmRuntime()
+  return rt.enabled
 }
 
 /**
@@ -37,7 +88,7 @@ export async function chatCompletion(
   messages: LlmMessage[],
   opts: { temperature?: number; maxTokens?: number; timeoutMs?: number } = {},
 ): Promise<string> {
-  const { endpoint, model, key } = config()
+  const { endpoint, model, key } = await configAsync()
   const timeoutMs = opts.timeoutMs ?? 60_000
   for (let attempt = 1; attempt <= 3; attempt++) {
     let res: Response
@@ -128,4 +179,82 @@ function parseJsonLoose(raw: string): unknown {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
+}
+
+/**
+ * Vision completion: same chat-completions transport with an image_url
+ * content part. Used for alt-text / caption drafting and creative QA.
+ * Falls back to text-only when the provider rejects images.
+ */
+export async function chatVision(
+  prompt: string,
+  imageUrl: string,
+  opts: { maxTokens?: number; timeoutMs?: number } = {},
+): Promise<string> {
+  const { endpoint, model, key } = await configAsync()
+  const { getLlmRuntime } = await import('@/lib/ai/settings')
+  const visionModel = (await getLlmRuntime()).visionModel || model
+  const timeoutMs = opts.timeoutMs ?? 60_000
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model: visionModel,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: imageUrl } },
+          ],
+        },
+      ],
+      temperature: 0.2,
+      max_tokens: opts.maxTokens ?? 500,
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(`Vision generation failed (${res.status}).${detail ? ` ${detail.slice(0, 200)}` : ''}`)
+  }
+  const json = (await res.json()) as { choices?: { message?: { content?: string } }[] }
+  const text = json.choices?.[0]?.message?.content?.trim()
+  if (!text) throw new Error('Vision returned an empty response.')
+  return text
+}
+
+/**
+ * Best-effort usage log. The `llm_calls` table (migration
+ * 20261114000000) may not exist on older deploys — failure here must
+ * never fail the editorial action it instruments.
+ */
+export async function logLlmCall(row: {
+  action: string
+  model: string
+  tokensIn?: number | null
+  tokensOut?: number | null
+  latencyMs?: number | null
+  status?: string
+  contentItemId?: string | null
+}): Promise<void> {
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    // Cast: llm_calls exists post-migration 20261114000000; generated
+    // database.types lags until `npm run types:db` regenerates.
+    const db = createAdminClient() as unknown as {
+      from: (t: string) => { insert: (r: Record<string, unknown>) => Promise<unknown> }
+    }
+    await db.from('llm_calls').insert({
+      action: row.action.slice(0, 80),
+      model: row.model.slice(0, 120),
+      tokens_in: row.tokensIn ?? null,
+      tokens_out: row.tokensOut ?? null,
+      latency_ms: row.latencyMs ?? null,
+      status: (row.status ?? 'ok').slice(0, 20),
+      content_item_id: row.contentItemId ?? null,
+    })
+  } catch {
+    /* table missing or RLS — observability only */
+  }
 }

@@ -25,6 +25,12 @@ export type DigestDeliverOptions = {
   sentOn: string
   cadence: 'daily' | 'weekly'
   subject: { en: string; fr: string }
+  /**
+   * P3 — admin-previewed intro/subject override (from /admin/digest
+   * Regenerate). When absent the send path resolves its own AI intro
+   * best-effort (flag + key gated, offline = no intro line).
+   */
+  introOverride?: Partial<Record<'en' | 'fr', { intro: string; subject: string }>>
   /** Defaults to all active digest_subscribers; personalized senders pass their own recipients. */
   recipients?: PersonalRecipient[]
   /** Personalized variants default to false — only site-wide issues belong in the public archive. */
@@ -67,6 +73,39 @@ async function activeSubscribers(): Promise<PersonalRecipient[]> {
 
 const empty = (): DigestDelivery => ({ emailed: 0, whatsapped: 0, skipped: 0 })
 
+/**
+ * P3 — best-effort AI intro per locale. Returns null when the layer is
+ * off/unconfigured/over budget (the brief renders identically to before —
+ * no intro line, default subject). Never throws: a failed intro must not
+ * fail the nightly fan-out. An admin `introOverride` (previewed in
+ * /admin/digest) wins over a fresh generation.
+ */
+async function resolveAiIntro(
+  locale: 'en' | 'fr',
+  dateLabel: string,
+  stories: BriefStory[],
+  override?: { intro: string; subject: string },
+): Promise<{ intro: string | null; subject: string | null }> {
+  if (override && (override.intro.trim() || override.subject.trim())) {
+    return { intro: override.intro.trim().slice(0, 220) || null, subject: override.subject.trim().slice(0, 70) || null }
+  }
+  try {
+    const { getLlmRuntime } = await import('@/lib/ai/settings')
+    const { getAppFlag } = await import('@/lib/automation/flags')
+    const rt = await getLlmRuntime()
+    if (!rt.apiKey || rt.disabled) return { intro: null, subject: null }
+    if (!(await getAppFlag<boolean>('ai.digest_intro', true))) return { intro: null, subject: null }
+    const { llmDigestIntro } = await import('@/lib/translate/prompts')
+    const { logLlmCall } = await import('@/lib/translate/llm')
+    const out = await llmDigestIntro({ locale, dateLabel, headlines: stories.map((x) => x.title).slice(0, 12) })
+    await logLlmCall({ action: 'ai.digest_intro_send', model: rt.model, status: 'ok' })
+    return { intro: out.intro.trim().slice(0, 220) || null, subject: out.subject.trim().slice(0, 70) || null }
+  } catch (e) {
+    logger.warn('digest/intro', 'AI intro fell back to offline', { error: e instanceof Error ? e.message.slice(0, 120) : 'error', locale })
+    return { intro: null, subject: null }
+  }
+}
+
 /** Render + send the brief to each recipient, then archive one issue per served locale. */
 export async function deliverDigest(options: DigestDeliverOptions): Promise<DigestDelivery> {
   const out = empty()
@@ -93,10 +132,23 @@ export async function deliverDigest(options: DigestDeliverOptions): Promise<Dige
     fr: { emailed: 0, whatsapped: 0 },
   }
 
+  // P3 — resolve one AI intro per served locale (cached per delivery, not
+  // per recipient, so 500 subscribers cost 2 LLM calls, not 500).
+  const introCache = new Map<'en' | 'fr', { intro: string | null; subject: string | null }>()
+  const introFor = async (locale: 'en' | 'fr'): Promise<{ intro: string | null; subject: string | null }> => {
+    const hit = introCache.get(locale)
+    if (hit) return hit
+    const pool = locale === 'fr' ? frStories : enStories
+    const val = await resolveAiIntro(locale, options.dateLabel, pool.length > 0 ? pool : [...enStories, ...frStories].slice(0, 12), options.introOverride?.[locale])
+    introCache.set(locale, val)
+    return val
+  }
+
   for (const s of subs) {
     const fr = /^fr/i.test(s.locale ?? '')
     const locale: 'en' | 'fr' = fr ? 'fr' : 'en'
     const stories = storiesFor(fr)
+    const ai = await introFor(locale)
     // W18 — diaspora framing: same stories, "home, today" heading for
     // readers following home from abroad.
     const { title, body } = buildDailyBrief(groupBriefStories(stories), {
@@ -105,6 +157,8 @@ export async function deliverDigest(options: DigestDeliverOptions): Promise<Dige
       siteUrl: SITE.url,
       digestPath: fr ? '/fr/digest' : '/en/digest',
       framing: s.diasporaMode ? 'diaspora' : 'standard',
+      intro: ai.intro,
+      subject: ai.subject ?? options.subject[locale],
     })
     const url = `${SITE.url}/${locale}/digest`
     if (archiveStories[locale].length === 0) {
@@ -135,12 +189,13 @@ export async function deliverDigest(options: DigestDeliverOptions): Promise<Dige
   for (const locale of ['en', 'fr'] as const) {
     const counts = perLocaleDelivered[locale]
     if (counts.emailed + counts.whatsapped === 0) continue
+    const archivedSubject = introCache.get(locale)?.subject?.trim() || options.subject[locale]
     const { error: archiveError } = await db.from('digest_issues').upsert(
       {
         sent_on: options.sentOn,
         locale,
         cadence: options.cadence,
-        subject: options.subject[locale],
+        subject: archivedSubject,
         stories: archiveStories[locale],
         emailed: counts.emailed,
         whatsapped: counts.whatsapped,
@@ -232,33 +287,55 @@ export async function sendPersonalBriefs(
 }
 
 /**
- * Weekly recap (A5): aggregate the last `windowDays` of published items into
- * one issue sent Mondays. Reads published content directly (slots roll on),
- * so a missed week still covers its full window.
+ * Weekly recap (A5): aggregate the last `windowDays` of FIRST-published
+ * items into one issue sent Mondays. Reads published content directly
+ * (slots roll on), so a missed week still covers its full window.
+ *
+ * Duplicate-proof: filters on first_published_at (edits bump updated_at,
+ * never first_published_at) AND excludes ids already frozen into
+ * digest_slots with sent_at set — an edit can never re-enter as "this week".
  */
 export async function sendWeeklyDigest(windowDays = 7): Promise<DigestDelivery & { stories: number }> {
   const db = createAdminClient()
   const since = new Date(Date.now() - windowDays * 86_400_000).toISOString()
+  // ids already delivered via the daily slots must not re-send in weekly
+  const { data: sent } = await db
+    .from('digest_slots')
+    .select('content_item_id')
+    .not('sent_at', 'is', null)
+    .limit(5000)
+  const sentIds = new Set(((sent ?? []) as { content_item_id: string }[]).map((r) => r.content_item_id))
+  // first_published_at is new (migration 20261114000000) — fall back to
+  // published_at on rows/deployments where it is still null.
   const { data, error } = await db
     .from('content_items')
-    .select('id, type, slug, is_featured, published_at, translations:content_translations(locale, title, share_text)')
+    .select('id, type, slug, is_featured, published_at, first_published_at, updated_at, translations:content_translations(locale, title, share_text)')
     .eq('status', 'published')
     .eq('is_archived', false)
-    .gte('published_at', since)
     .order('is_featured', { ascending: false })
     .order('published_at', { ascending: false })
-    .limit(60)
+    .limit(120)
   if (error || !data) {
     logger.error('digest/weekly', 'source fetch failed', { error: error?.message ?? 'no data' })
     return { ...empty(), stories: 0 }
   }
-  const rows = data as unknown as {
+  const rows = (data as unknown as {
     id: string
     type: string | null
     slug: string | null
     is_featured: boolean
+    published_at: string | null
+    first_published_at?: string | null
+    updated_at?: string | null
     translations: { locale: string; title: string | null; share_text: string | null }[] | { locale: string; title: string | null; share_text: string | null } | null
-  }[]
+  }[]).filter((r) => {
+    if (sentIds.has(r.id)) return false
+    // An edit bumps updated_at but not first_published_at — only the
+    // first go-live date counts for weekly inclusion.
+    const first = r.first_published_at ?? r.published_at
+    if (!first) return false
+    return Date.parse(first) >= Date.parse(since)
+  }).slice(0, 60)
 
   const SECTION_PATH: Record<string, string> = {
     photo_story: 'photo-stories',
@@ -281,6 +358,7 @@ export async function sendWeeklyDigest(windowDays = 7): Promise<DigestDelivery &
         type: r.type ?? 'news',
         path: `/${SECTION_PATH[r.type ?? 'news'] ?? 'news'}/${r.slug ?? r.id}`,
         shareText: tx?.share_text ?? null,
+        contentItemId: r.id,
       })
     }
   }

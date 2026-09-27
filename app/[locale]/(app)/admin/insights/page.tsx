@@ -7,6 +7,7 @@ import { StatCard, StatGrid } from '@/components/admin/stat-card'
 import { EmptyState } from '@/components/admin/empty-state'
 import { DailyLineChart, BreakdownBarChart, LocaleDonut, FunnelChart } from '@/components/admin/insights-charts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { RetroPanel } from './retro-panel'
 
 /**
  * W13 — aggregate-only product Insights (audits H1–H5 metrics).
@@ -219,6 +220,21 @@ export default async function Page() {
               <p className="mt-2 text-xs text-muted-foreground">{t.proofHint}</p>
             </CardContent>
           </Card>
+
+          {/* P5 — weekly retro narrator (generate-on-tap, aggregates only). */}
+          <RetroPanel
+            copy={t}
+            locale={locale === 'fr' ? 'fr' : 'en'}
+            stats={{
+              views14d: insights.views14d,
+              views7d: insights.views7d,
+              shares14d: insights.shares14d,
+              shares7d: insights.shares7d,
+              published: insights.funnel.published,
+              submissions: insights.funnel.submissionsReceived,
+            }}
+            topTitles={insights.topContent.slice(0, 8).map((r) => r.title)}
+          />
 
           {/* Top content tables */}
           <div className="grid gap-5 lg:grid-cols-2">

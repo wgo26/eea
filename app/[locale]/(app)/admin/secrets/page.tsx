@@ -12,6 +12,7 @@ import { isSecretStorageConfigured } from '@/lib/security/credential-manager'
 import { PageHeader } from '@/components/admin/page-header'
 import { EmptyState } from '@/components/admin/empty-state'
 import { DataTable, type Column } from '@/components/admin/data-table'
+import { AiProviderCard } from './ai-provider-card'
 import { StatusBadge } from '@/components/admin/status-badge'
 import { formatDateTime, formatRelative } from '@/lib/admin/format'
 import type { CredentialStatus } from '@/lib/security/credential-manager'
@@ -162,6 +163,8 @@ export default async function Page({
           {t.storageMissing}
         </p>
       )}
+
+      <AiProviderCard copy={t} />
 
       <form method="GET" className="flex flex-wrap items-center gap-1.5">
         <select name="status" defaultValue={params.status ?? ''} aria-label={t.colStatus} className={selectCls}>

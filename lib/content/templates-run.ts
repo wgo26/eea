@@ -172,6 +172,42 @@ async function ensureTranslations(contentItemId: string, titles: { en: string; f
   }
 }
 
+/**
+ * P6 — best-effort LLM recap lede, prepended to the deterministic intro.
+ * Runs without a user (cron), so no capability assert: vault runtime +
+ * the ai.digest_intro flag gate it, and any failure resolves to the plain
+ * intro. Never rewrites existing prose — callers use it only where they
+ * would otherwise write a fresh `buildTemplateIntro`.
+ */
+async function aiTemplateIntro(
+  config: TemplateConfig,
+  items: TemplateSourceItem[],
+  locale: 'en' | 'fr',
+  windowLabel: string,
+): Promise<string> {
+  const fallback = buildTemplateIntro(config, items.length, locale, windowLabel)
+  try {
+    const { getLlmRuntime } = await import('@/lib/ai/settings')
+    const rt = await getLlmRuntime()
+    if (!rt.apiKey || rt.disabled) return fallback
+    const { getAppFlag } = await import('@/lib/automation/flags')
+    if (!(await getAppFlag<boolean>('ai.digest_intro', true))) return fallback
+    const headlines = items
+      .map((i) => (i.translations.find((t) => t.locale === locale && t.title) ?? i.translations.find((t) => t.title))?.title)
+      .filter((h): h is string => Boolean(h))
+      .slice(0, 10)
+    if (headlines.length === 0) return fallback
+    const { llmDigestIntro } = await import('@/lib/translate/prompts')
+    const { logLlmCall } = await import('@/lib/translate/llm')
+    const out = await llmDigestIntro({ locale, dateLabel: windowLabel, headlines })
+    await logLlmCall({ action: 'ai.template_lede', model: rt.model, status: 'ok' })
+    const lede = out.intro.trim().slice(0, 220)
+    return lede ? `${lede} ${fallback}` : fallback
+  } catch {
+    return fallback
+  }
+}
+
 /** Compile one template. Idempotent per cycle: a living re-run with no new sources is a no-op. */
 export async function compileTemplate(templateId: string): Promise<CompileResult> {
   try {
@@ -223,7 +259,8 @@ export async function compileTemplate(templateId: string): Promise<CompileResult
       for (const locale of ['en', 'fr'] as const) {
         const generatedBlocks = blocksFromBody(bodies[locale])
         const newBlocks = buildTemplateBlocks(config, fresh, locale, SITE.url)
-        const bodyBase = bodies[locale] || buildTemplateIntro(config, windowItems.length, locale, windowLabel)
+        const bodyBase =
+          bodies[locale] || (await aiTemplateIntro(config, windowItems, locale, windowLabel))
         merged[locale] = mergeStoryBlocksIntoBody(bodyBase, serializeStoryBlocks([...generatedBlocks, ...newBlocks]))
       }
       await ensureTranslations(draft.id, titles, merged)
@@ -254,7 +291,7 @@ export async function compileTemplate(templateId: string): Promise<CompileResult
     const bodies: Record<'en' | 'fr', string> = { en: '', fr: '' }
     for (const locale of ['en', 'fr'] as const) {
       bodies[locale] = mergeStoryBlocksIntoBody(
-        buildTemplateIntro(config, windowItems.length, locale, windowLabel),
+        await aiTemplateIntro(config, windowItems, locale, windowLabel),
         serializeStoryBlocks(buildTemplateBlocks(config, windowItems, locale, SITE.url)),
       )
     }

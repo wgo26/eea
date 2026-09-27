@@ -31,6 +31,7 @@ export const CRON_GRACE_HOURS: Record<string, number> = {
   'ops-digest': 36,
   'weekly-digest': 8 * 24,
   'publish-plans': 1,
+  embeddings: 36,
   'db-maintenance': 36,
   'storage-backup': 36,
   'db-dump': 60,

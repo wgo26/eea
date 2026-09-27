@@ -16,6 +16,7 @@ import {
   adminBackToSiteHref,
   adminHomeHref,
   buildAdminNavGroups,
+  type AdminNavBadges,
   type AdminNavItem,
 } from './nav-items'
 import {
@@ -150,18 +151,20 @@ export function AdminSidebar({
   roles,
   adminRoles = [],
   unreadNotifications = 0,
+  badges = {},
   logoUrl = null,
 }: {
   pendingCount?: number
   roles: AppRole[]
   adminRoles?: AdminRole[]
   unreadNotifications?: number
+  badges?: AdminNavBadges
   logoUrl?: string | null
 }) {
   const pathname = usePathname() ?? ''
   const locale: Locale = useLocaleFromPath()
   const dict = getDictionary(locale)
-  const groups = buildAdminNavGroups(locale, dict, roles, pendingCount, adminRoles, unreadNotifications)
+  const groups = buildAdminNavGroups(locale, dict, roles, pendingCount, adminRoles, unreadNotifications, badges)
   const { rail, toggleRail } = useSidebarRail()
   const { collapsed, toggleDomain } = useCollapsedDomains()
   const { paths: recentPaths, pushPath } = useRecentPaths()

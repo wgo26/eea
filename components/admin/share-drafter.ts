@@ -43,7 +43,7 @@ export async function draftShareInto(
       return
     }
     patch({ shareText: s })
-    addToast(copy.toastAssisted ?? copy.toastTranslated, 'success')
+    addToast(`${copy.toastAssisted ?? copy.toastTranslated} (offline)`, 'success')
   }
   if (!input.title.trim()) {
     applyDeterministic()
@@ -57,7 +57,14 @@ export async function draftShareInto(
   }).catch(() => null)
   if (res?.ok) {
     patch({ shareText: res.shareText })
-    addToast(copy.toastAssisted ?? copy.toastTranslated, 'success')
+    // Honest provenance: LLM voice vs DeepL formal vs offline fallback
+    // must not share one silent success message (the false-positive fix).
+    addToast(
+      res.engine === 'llm'
+        ? `${copy.toastAssisted ?? copy.toastTranslated} (AI · ${res.voice})`
+        : `${copy.toastAssisted ?? copy.toastTranslated} (DeepL · formal)`,
+      'success',
+    )
     return
   }
   applyDeterministic()

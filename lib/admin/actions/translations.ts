@@ -20,7 +20,8 @@ import { assertCapability } from '@/lib/admin/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { translateTexts } from '@/lib/translate/deepl'
 import { localizeContent } from '@/lib/translate/localize'
-import { llmReady, llmLocalizeFields } from '@/lib/translate/prompts'
+import { llmLocalizeFields } from '@/lib/translate/prompts'
+import { llmReadyAsync } from '@/lib/translate/llm'
 import { lookupSegment } from '@/lib/translate/tm'
 import {
   auditEvent,
@@ -227,7 +228,11 @@ function rememberSegment(sourceLocale: string, targetLocale: string, source: str
  * complete the job. The acting admin is recorded as translator; a reviewer
  * should still confirm via `assignReviewer` for sensitive copy (spec §55).
  */
-export async function autoTranslateJob(jobId: string): Promise<{ ok: true; warnings: string[] } | { ok: false; error: string }> {
+export type TranslationEngines = Record<'title' | 'excerpt' | 'body' | 'seoDescription', 'tm' | 'llm' | 'deepl' | 'source'>
+
+export async function autoTranslateJob(
+  jobId: string,
+): Promise<{ ok: true; warnings: string[]; engines: TranslationEngines } | { ok: false; error: string }> {
   try {
     const ctx = await assertCapability('manageContent')
     const admin = createAdminClient()
@@ -260,6 +265,7 @@ export async function autoTranslateJob(jobId: string): Promise<{ ok: true; warni
     const to = row.target_locale === 'en' || row.target_locale === 'fr' ? row.target_locale : from === 'en' ? 'fr' : 'en'
     let translated: { title: string; excerpt: string; body: string; seo: string }
     let warnings: string[] = []
+    let engines: TranslationEngines = { title: 'source', excerpt: 'source', body: 'source', seoDescription: 'source' }
     try {
       const result = await localizeContent(
         {
@@ -272,7 +278,7 @@ export async function autoTranslateJob(jobId: string): Promise<{ ok: true; warni
         to,
         {
           deepl: translateTexts,
-          llmAvailable: llmReady(),
+          llmAvailable: await llmReadyAsync(),
           llmLocalize: llmLocalizeFields,
           tmLookup: lookupSegment,
         },
@@ -292,6 +298,8 @@ export async function autoTranslateJob(jobId: string): Promise<{ ok: true; warni
         seo: result.fields.seoDescription,
       }
       warnings = result.warnings
+      // P6 provenance: which engine produced each field (tm/llm/deepl).
+      engines = result.engines
     } catch (e) {
       await admin
         .from('translation_jobs')
@@ -321,11 +329,11 @@ export async function autoTranslateJob(jobId: string): Promise<{ ok: true; warni
       actorRole: ctx.roles.join(',') || null,
       resourceType: 'translation_job',
       resourceId: jobId,
-      metadata: { contentItemId: row.content_item_id, targetLocale: row.target_locale, warnings },
+      metadata: { contentItemId: row.content_item_id, targetLocale: row.target_locale, warnings, engines },
     })
     revalidateLocalized('/admin/translations')
     revalidateLocalized('/admin/content')
-    return { ok: true, warnings }
+    return { ok: true, warnings, engines }
   } catch (e) {
     return fail(e)
   }

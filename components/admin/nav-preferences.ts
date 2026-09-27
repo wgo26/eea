@@ -23,6 +23,7 @@ export const SIDEBAR_RAIL_KEY = 'eea-admin-sidebar-rail'
 export const SIDEBAR_GROUPS_KEY = 'eea-admin-sidebar-groups'
 export const TABLE_DENSITY_KEY = 'eea-admin-table-density'
 export const SIDEBAR_RECENTS_KEY = 'eea-admin-sidebar-recents'
+export const QUICK_ACTIONS_KEY = 'eea-admin-quick-actions'
 
 type Persisted<T> = {
   subscribe: (listener: () => void) => () => void
@@ -201,4 +202,54 @@ export function useRecentPaths(): { paths: string[]; pushPath: (path: string) =>
     recentsStore.set([path, ...recentsStore.getSnapshot().filter((p) => p !== path)].slice(0, RECENTS_LIMIT))
   }, [])
   return { paths, pushPath }
+}
+
+/**
+ * Configurable quick actions (Phase E). Lets an operator choose which admin
+ * destinations appear in the floating FAB, so the most-used screens (e.g.
+ * Content + Emergency for ops teams, Polls/Fundraisers for org staff) surface
+ * on first open instead of behind the dropdown. Defaults to all available
+ * keys when unset or when a stored key is no longer in the user's capability
+ * set (revoked roles never leave a dead entry in the FAB).
+ *
+ * The store persists the subset of QUICK_ACTIONS keys the operator keeps;
+ * the FAB resolves those keys against the current visible nav at render time,
+ * so switching language or losing a capability simply drops the missing entry.
+ */
+const quickActionsStore = persisted<string[]>(
+  QUICK_ACTIONS_KEY,
+  [],
+  (raw) => {
+    try {
+      const parsed: unknown = JSON.parse(raw)
+      return Array.isArray(parsed)
+        ? parsed.filter((v): v is string => typeof v === 'string')
+        : []
+    } catch {
+      return []
+    }
+  },
+  JSON.stringify,
+)
+
+export function useQuickActionKeys(): {
+  keys: string[]
+  toggleKey: (key: string) => void
+  setKeys: (keys: string[]) => void
+} {
+  const keys = useSyncExternalStore(
+    quickActionsStore.subscribe,
+    quickActionsStore.getSnapshot,
+    quickActionsStore.getServerSnapshot,
+  )
+  const toggleKey = useCallback((key: string) => {
+    const current = quickActionsStore.getSnapshot()
+    quickActionsStore.set(
+      current.includes(key)
+        ? current.filter((k) => k !== key)
+        : [...current, key],
+    )
+  }, [])
+  const setKeys = useCallback((next: string[]) => quickActionsStore.set(next), [])
+  return { keys, toggleKey, setKeys }
 }

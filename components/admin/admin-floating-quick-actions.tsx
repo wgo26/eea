@@ -35,11 +35,13 @@ export function AdminFloatingQuickActions({
   adminRoles = [],
   pendingCount = 0,
   unreadNotifications = 0,
+  badges = {},
 }: {
   roles: AppRole[]
   adminRoles?: AdminRole[]
   pendingCount?: number
   unreadNotifications?: number
+  badges?: { translations?: number; digest?: number }
 }) {
   const [open, setOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
@@ -59,6 +61,7 @@ export function AdminFloatingQuickActions({
     pendingCount,
     adminRoles,
     unreadNotifications,
+    badges,
   ).flatMap((group) => group.items)
   const visible = new Map(items.map((item) => [item.key, item]))
 

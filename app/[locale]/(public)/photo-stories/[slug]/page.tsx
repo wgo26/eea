@@ -219,16 +219,44 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                 dict={dict}
             />
 
-            {/* Essay gallery with lightbox (spec §3.2) */}
-            <section className="mt-8" aria-label={dict.photoStories.gallery}>
-                <GalleryGrid photos={story.photos} storyTitle={story.title} dict={dict} />
-            </section>
+            {/* Cover hero figure: the cover photograph leads as a full-width
+                feature, then the essay prose, then the supporting gallery. */}
+            {story.photos.length > 0 && story.imageUrl ? (
+                <figure className="mt-8">
+                    <div className="relative aspect-[16/9] w-full overflow-hidden rounded-3xl bg-muted">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                            src={story.imageUrl}
+                            alt={story.photos[0].alt ?? story.title}
+                            className="h-full w-full object-cover"
+                        />
+                    </div>
+                    {(story.photos[0].caption || story.credit) ? (
+                        <figcaption className="mt-2 text-xs text-muted-foreground">
+                            {story.photos[0].caption}
+                            {story.photos[0].caption && story.credit ? " — " : ""}
+                            {story.credit ? `${dict.hero.by} ${story.credit}` : null}
+                        </figcaption>
+                    ) : null}
+                </figure>
+            ) : null}
 
             {/* Essay prose */}
             {/* Essay prose (plain drafts) or sanitized sections (built/imports). */}
             {story.body ? (
                 <section id="article-body" className="mt-12" aria-label={story.title}>
                     <StoryBody body={story.body} bodyHtml={bodyHtml} />
+                </section>
+            ) : null}
+
+            {/* Supporting gallery: remaining photos after the cover */}
+            {story.photos.length > 1 ? (
+                <section className="mt-12" aria-label={dict.photoStories.gallery}>
+                    <GalleryGrid
+                        photos={story.photos.slice(1)}
+                        storyTitle={story.title}
+                        dict={dict}
+                    />
                 </section>
             ) : null}
 

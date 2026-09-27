@@ -71,3 +71,8 @@ eea-read-build.cjs
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# seed manifest: records the rows scripts/seed.mjs wrote in THIS project.
+# Local runtime state (like .demosrc.json) ? teardown reads it, so it is
+# never committed; delete it and teardown falls back to the legacy slug lists.
+scripts/.demo-seed-manifest.json

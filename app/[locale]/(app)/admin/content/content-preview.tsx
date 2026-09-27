@@ -125,37 +125,37 @@ export function ContentPreview({
             <p className="p-6 text-center text-sm text-muted-foreground">{common.previewEmpty}</p>
           ) : (
             <article className={device === 'mobile' ? 'p-4' : 'p-6 md:p-8'}>
-              {cover ? (
-                <figure className="mb-4">
-                  <div className="relative aspect-video w-full overflow-hidden rounded-md bg-muted">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- unsaved blob URLs can't use next/image */}
-                    <img src={cover} alt={coverPhoto?.alt?.trim() ?? ''} className="h-full w-full object-cover" />
-                  </div>
-                  {coverCaption || coverCredit ? (
-                    <figcaption className="flex flex-wrap items-baseline justify-between gap-2 pt-2 text-xs text-muted-foreground">
-                      <span className="min-w-0 flex-1 leading-relaxed">{coverCaption || title}</span>
-                      {coverCredit ? (
-                        <span className="shrink-0 font-semibold">
-                          {copy.photographerCredit}: {coverCredit}
-                        </span>
-                      ) : null}
-                    </figcaption>
-                  ) : null}
-                </figure>
-              ) : (
-                <div className="mb-4 aspect-video w-full rounded-md bg-muted" aria-hidden />
-              )}
-              <h2 className={`font-heading font-semibold leading-tight ${device === 'mobile' ? 'text-lg' : 'text-2xl'}`}>
-                {title || copy.untitled}
-              </h2>
-              {excerpt ? (
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{excerpt}</p>
-              ) : null}
-              <ArticleBodyView
-                prose={prose}
-                blocks={blocks}
-                className={`article-body mt-4 text-foreground/90 ${device === 'mobile' ? 'text-sm leading-relaxed' : 'text-base leading-[1.8]'}`}
-              />
+               {excerpt ? (
+                 <p className="mb-4 text-sm leading-relaxed text-muted-foreground">{excerpt}</p>
+               ) : null}
+               {cover ? (
+                 <figure className="mb-4">
+                   <div className="relative aspect-video w-full overflow-hidden rounded-md bg-muted">
+                     {/* eslint-disable-next-line @next/next/no-img-element -- unsaved blob URLs can't use next/image */}
+                     <img src={cover} alt={coverPhoto?.alt?.trim() ?? ''} className="h-full w-full object-cover" />
+                   </div>
+                   {coverCaption || coverCredit ? (
+                     <figcaption className="flex flex-wrap items-baseline justify-between gap-2 pt-2 text-xs text-muted-foreground">
+                       <span className="min-w-0 flex-1 leading-relaxed">{coverCaption || title}</span>
+                       {coverCredit ? (
+                         <span className="shrink-0 font-semibold">
+                           {copy.photographerCredit}: {coverCredit}
+                         </span>
+                       ) : null}
+                     </figcaption>
+                   ) : null}
+                 </figure>
+               ) : (
+                 <div className="mb-4 aspect-video w-full rounded-md bg-muted" aria-hidden />
+               )}
+               <h2 className={`font-heading font-semibold leading-tight ${device === 'mobile' ? 'text-lg' : 'text-2xl'}`}>
+                 {title || copy.untitled}
+               </h2>
+               <ArticleBodyView
+                 prose={prose}
+                 blocks={blocks}
+                 className={`article-body mt-4 text-foreground/90 ${device === 'mobile' ? 'text-sm leading-relaxed' : 'text-base leading-[1.8]'}`}
+               />
             </article>
           )}
         </div>

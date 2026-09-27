@@ -110,5 +110,410 @@ export async function llmDraftShareLine(input: {
 }
 
 export function llmReady(): boolean {
-  return llmConfigured()
+  return llmConfigured() && process.env.LLM_DISABLED !== '1'
+}
+
+/* ------------------------------------------------------------------ */
+/* Tier 1 — true content drafting (requires LLM_API_KEY). Every fn     */
+/* abstains (throws or returns null-ish) rather than guessing, so the  */
+/* Tier 0 deterministic heuristics stay the honest fallback.           */
+/* ------------------------------------------------------------------ */
+
+/** 3 headline options + SEO/WhatsApp variants for the form's title row. */
+export async function llmDraftHeadlines(input: { topic: string; body: string; locale: Lang }): Promise<string[]> {
+  const system = [
+    'You are a Cameroon newsroom headline desk. Write 3 distinct, accurate headlines.',
+    'Rules: max 90 chars each, no clickbait that misrepresents the story, keep proper nouns/numbers exact.',
+    'Reply with ONLY a JSON object: {"headlines": [string, string, string]}',
+  ].join('\n')
+  const out = await chatJson<{ headlines: string[] }>(
+    [
+      { role: 'system', content: system },
+      { role: 'user', content: JSON.stringify({ topic: input.topic.slice(0, 500), body: input.body.slice(0, 3000), locale: input.locale }) },
+    ],
+    (v): v is { headlines: string[] } =>
+      !!v && typeof v === 'object' && Array.isArray((v as Record<string, unknown>).headlines) &&
+      ((v as { headlines: unknown[] }).headlines.length >= 1) &&
+      ((v as { headlines: unknown[] }).headlines.every((h) => typeof h === 'string')),
+    { maxTokens: 600, temperature: 0.7 },
+  )
+  return out.headlines.map((h) => h.trim()).filter(Boolean).slice(0, 3)
+}
+
+/** Editorial excerpt + SEO pair rewritten for the target locale. */
+export async function llmDraftExcerptSeo(input: {
+  title: string
+  body: string
+  locale: Lang
+}): Promise<{ excerpt: string; seoDescription: string }> {
+  const system = [
+    `You are the excerpt desk. Write in ${LOCALE_NAME[input.locale]} newsroom prose.`,
+    'excerpt: 1-2 sentences, max 280 chars, the lead — not the first sentence copied.',
+    'seoDescription: max 155 chars, click-worthy for search, not a literal translation.',
+    'Reply with ONLY JSON: {"excerpt": string, "seoDescription": string}',
+  ].join('\n')
+  return chatJson<{ excerpt: string; seoDescription: string }>(
+    [
+      { role: 'system', content: system },
+      { role: 'user', content: JSON.stringify({ title: input.title.slice(0, 500), body: input.body.slice(0, 4000) }) },
+    ],
+    (v): v is { excerpt: string; seoDescription: string } => {
+      if (!v || typeof v !== 'object') return false
+      const r = v as Record<string, unknown>
+      return typeof r.excerpt === 'string' && typeof r.seoDescription === 'string'
+    },
+    { maxTokens: 800, temperature: 0.4 },
+  )
+}
+
+/** Entity/tag extraction mapped against the site's existing tag vocabulary. */
+export async function llmSuggestEntities(input: {
+  title: string
+  body: string
+  knownTags: string[]
+}): Promise<{ tags: string[]; entities: { people: string[]; places: string[]; orgs: string[] } }> {
+  const system = [
+    'Extract tags + named entities from a Cameroon community story.',
+    `Known site tags: ${input.knownTags.slice(0, 60).join(', ') || '(none)'}. Prefer reusing a known tag (exact match) over inventing a near-duplicate.`,
+    'Max 8 tags, lowercase, no hashtags. People/places/orgs: as named in text.',
+    'Reply with ONLY JSON: {"tags": string[], "people": string[], "places": string[], "orgs": string[]}',
+  ].join('\n')
+  const out = await chatJson<{ tags: string[]; people: string[]; places: string[]; orgs: string[] }>(
+    [
+      { role: 'system', content: system },
+      { role: 'user', content: JSON.stringify({ title: input.title.slice(0, 500), body: input.body.slice(0, 4000) }) },
+    ],
+    (v): v is { tags: string[]; people: string[]; places: string[]; orgs: string[] } => {
+      if (!v || typeof v !== 'object') return false
+      const r = v as Record<string, unknown>
+      return Array.isArray(r.tags) && Array.isArray(r.people) && Array.isArray(r.places) && Array.isArray(r.orgs)
+    },
+    { maxTokens: 800, temperature: 0.3 },
+  )
+  const clean = (xs: unknown): string[] => (Array.isArray(xs) ? xs.filter((x): x is string => typeof x === 'string').map((x) => x.trim()).filter(Boolean).slice(0, 8) : [])
+  return { tags: clean(out.tags), entities: { people: clean(out.people), places: clean(out.places), orgs: clean(out.orgs) } }
+}
+
+export type AiClassification = {
+  categoryId: string | null
+  locationId: string | null
+  confidence: number
+  rationale: string
+  alternatives: { id: string; name: string }[]
+}
+
+/**
+ * Classify title+body against the site's real taxonomy ids (passed in).
+ * Returns null-ids + low confidence when unclear — the form keeps the
+ * select honestly empty rather than mis-shipping the post site-wide.
+ */
+export async function llmClassify(input: {
+  title: string
+  body: string
+  categories: { id: string; name: string }[]
+  locations: { id: string; name: string }[]
+}): Promise<AiClassification> {
+  const system = [
+    'Classify a Cameroon community post against the provided taxonomy. IDs must come verbatim from the lists.',
+    'If the text gives no clear answer, return null ids with confidence 0 and explain why.',
+    'Reply with ONLY JSON: {"categoryId": string|null, "locationId": string|null, "confidence": number, "rationale": string, "alternatives": [{"id": string, "name": string}]}',
+  ].join('\n')
+  return chatJson<AiClassification>(
+    [
+      { role: 'system', content: system },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          title: input.title.slice(0, 500),
+          body: input.body.slice(0, 4000),
+          categories: input.categories.slice(0, 80),
+          locations: input.locations.slice(0, 120),
+        }),
+      },
+    ],
+    (v): v is AiClassification => {
+      if (!v || typeof v !== 'object') return false
+      const r = v as Record<string, unknown>
+      return (
+        (r.categoryId === null || typeof r.categoryId === 'string') &&
+        (r.locationId === null || typeof r.locationId === 'string') &&
+        typeof r.confidence === 'number' &&
+        typeof r.rationale === 'string'
+      )
+    },
+    { maxTokens: 800, temperature: 0.2 },
+  )
+}
+
+/** Verification-badge suggestion + fact-check checklist for the editor. */
+export async function llmVerificationSuggest(input: { title: string; body: string }): Promise<{
+  badge: 'verified' | 'community_submission' | 'official_source' | 'developing'
+  reasons: string[]
+  checklist: string[]
+}> {
+  const system = [
+    'You are a verification editor. Suggest ONE badge: verified (confirmed by evidence/official doc), official_source (published by an identified org), community_submission (single witness account), developing (still unfolding).',
+    'Also list 3-5 concrete checks (call X, confirm date, verify location).',
+    'Reply with ONLY JSON: {"badge": string, "reasons": string[], "checklist": string[]}',
+  ].join('\n')
+  return chatJson<{ badge: 'verified' | 'community_submission' | 'official_source' | 'developing'; reasons: string[]; checklist: string[] }>(
+    [
+      { role: 'system', content: system },
+      { role: 'user', content: JSON.stringify({ title: input.title.slice(0, 500), body: input.body.slice(0, 4000) }) },
+    ],
+    (v): v is { badge: 'verified' | 'community_submission' | 'official_source' | 'developing'; reasons: string[]; checklist: string[] } => {
+      if (!v || typeof v !== 'object') return false
+      const r = v as Record<string, unknown>
+      return typeof r.badge === 'string' && Array.isArray(r.reasons) && Array.isArray(r.checklist)
+    },
+    { maxTokens: 800, temperature: 0.2 },
+  )
+}
+
+/**
+ * P4 — moderation triage (opt-in, flag ai.moderation_triage, default OFF).
+ * Scores a community submission for spam/scam/toxicity/PII exposure and
+ * suggests ONE action. Advisory only: the reviewer always decides; nothing
+ * auto-rejects. Abstains (low scores + "review normally") on benign text.
+ */
+export async function llmModerationTriage(input: { text: string; hasPhotos: boolean }): Promise<{
+  spam: number
+  scam: number
+  toxicity: number
+  pii: boolean
+  overall: number
+  flags: string[]
+  suggestedAction: 'approve' | 'review' | 'clarify' | 'reject'
+  rationale: string
+}> {
+  const system = [
+    'You are a trust & safety triage assistant for a Cameroon community news platform.',
+    'Score 0..1: spam (ads, link dumps,重复 promos), scam (fake giveaways, money requests, impersonation), toxicity (hate, threats, harassment). pii: true if phone/email/ID/address of a PRIVATE person is exposed.',
+    'overall = max(spam, scam, toxicity) (+0.2 if pii, capped 1). suggestedAction: reject if overall>=0.85, clarify if 0.6-0.85, review if 0.35-0.6, approve below.',
+    'flags: short tags like ["link-dump", "money-request", "phone-exposed"]. rationale: 1-2 sentences for the human reviewer.',
+    'Reply with ONLY JSON: {"spam": number, "scam": number, "toxicity": number, "pii": boolean, "overall": number, "flags": string[], "suggestedAction": string, "rationale": string}',
+  ].join('\n')
+  return chatJson<{
+    spam: number
+    scam: number
+    toxicity: number
+    pii: boolean
+    overall: number
+    flags: string[]
+    suggestedAction: 'approve' | 'review' | 'clarify' | 'reject'
+    rationale: string
+  }>(
+    [
+      { role: 'system', content: system },
+      { role: 'user', content: JSON.stringify({ text: input.text.slice(0, 4000), hasPhotos: input.hasPhotos }) },
+    ],
+    (v): v is {
+      spam: number
+      scam: number
+      toxicity: number
+      pii: boolean
+      overall: number
+      flags: string[]
+      suggestedAction: 'approve' | 'review' | 'clarify' | 'reject'
+      rationale: string
+    } => {
+      if (!v || typeof v !== 'object') return false
+      const r = v as Record<string, unknown>
+      return (
+        typeof r.spam === 'number' &&
+        typeof r.scam === 'number' &&
+        typeof r.toxicity === 'number' &&
+        typeof r.pii === 'boolean' &&
+        typeof r.overall === 'number' &&
+        Array.isArray(r.flags) &&
+        typeof r.suggestedAction === 'string' &&
+        typeof r.rationale === 'string'
+      )
+    },
+    { maxTokens: 600, temperature: 0.1 },
+  )
+}
+
+/**
+ * P5 — repurpose engine: one story → every distribution surface.
+ * Returns channel-ready copy; the form applies per-output on tap.
+ */
+export async function llmRepurpose(input: {
+  title: string
+  excerpt: string
+  body: string
+  locale: Lang
+}): Promise<{
+  whatsapp: string
+  social: string
+  micro: string
+  pidgin: string
+  emailSubject: string
+}> {
+  const system = [
+    `You are the distribution desk for a Cameroon news site (${LOCALE_NAME[input.locale]}). Repurpose one story for every surface.`,
+    'whatsapp: 1-2 line share text, max 280 chars, at most one emoji. social: single post, max 240 chars, no hashtag spam. micro: Eye-on-the-Street 50-100 word vignette. pidgin: the whatsapp line rewritten in Cameroonian Pidgin. emailSubject: under 70 chars.',
+    'Never invent facts not in the source. Keep proper nouns/numbers exact.',
+    'Reply with ONLY JSON: {"whatsapp": string, "social": string, "micro": string, "pidgin": string, "emailSubject": string}',
+  ].join('\n')
+  return chatJson<{
+    whatsapp: string
+    social: string
+    micro: string
+    pidgin: string
+    emailSubject: string
+  }>(
+    [
+      { role: 'system', content: system },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          title: input.title.slice(0, 500),
+          excerpt: input.excerpt.slice(0, 1000),
+          body: input.body.slice(0, 3500),
+        }),
+      },
+    ],
+    (v): v is { whatsapp: string; social: string; micro: string; pidgin: string; emailSubject: string } => {
+      if (!v || typeof v !== 'object') return false
+      const r = v as Record<string, unknown>
+      return ['whatsapp', 'social', 'micro', 'pidgin', 'emailSubject'].every((k) => typeof r[k] === 'string')
+    },
+    { maxTokens: 1200, temperature: 0.6 },
+  )
+}
+
+/**
+ * P5 — morning editor brief: 5 prioritized bullets from the overnight
+ * numbers. Pure writer; the data assembly lives in lib/ai/briefing.ts.
+ */
+export async function llmMorningBrief(input: {
+  locale: Lang
+  stats: Record<string, number | string>
+}): Promise<{ bullets: string[] }> {
+  const system = [
+    'You are the night editor handing over to a solo operator. Write EXACTLY 5 bullets, most urgent first, each starting with a verb and naming the count + where to click (e.g. "Clear 4 pending submissions in Moderation").',
+    'No fluff, no greeting, no 6th bullet. If everything is zero, say what to build instead of what to clear.',
+    'Reply with ONLY JSON: {"bullets": [string, string, string, string, string]}',
+  ].join('\n')
+  return chatJson<{ bullets: string[] }>(
+    [
+      { role: 'system', content: system },
+      { role: 'user', content: JSON.stringify({ locale: input.locale, stats: input.stats }) },
+    ],
+    (v): v is { bullets: string[] } =>
+      !!v && typeof v === 'object' && Array.isArray((v as Record<string, unknown>).bullets),
+    { maxTokens: 600, temperature: 0.4 },
+  )
+}
+
+/**
+ * P5 — weekly retro narrator for /admin/insights: what grew, what flopped,
+ * 3 bets for next week. Numbers in, prose out; the page passes aggregates.
+ */
+export async function llmWeeklyRetro(input: {
+  locale: Lang
+  stats: Record<string, number | string>
+  topTitles: string[]
+}): Promise<{ grew: string; flopped: string; bets: string[] }> {
+  const system = [
+    'You are the analyst for a solo-run community news platform. Read the week’s aggregates and write a tight retro.',
+    'grew: one sentence on the clearest win with its number. flopped: one sentence on the clearest miss with its number. bets: exactly 3 concrete next-week actions, each under 20 words.',
+    'Reply with ONLY JSON: {"grew": string, "flopped": string, "bets": [string, string, string]}',
+  ].join('\n')
+  return chatJson<{ grew: string; flopped: string; bets: string[] }>(
+    [
+      { role: 'system', content: system },
+      { role: 'user', content: JSON.stringify({ locale: input.locale, stats: input.stats, top: input.topTitles.slice(0, 8) }) },
+    ],
+    (v): v is { grew: string; flopped: string; bets: string[] } => {
+      if (!v || typeof v !== 'object') return false
+      const r = v as Record<string, unknown>
+      return typeof r.grew === 'string' && typeof r.flopped === 'string' && Array.isArray(r.bets)
+    },
+    { maxTokens: 800, temperature: 0.5 },
+  )
+}
+
+/**
+ * P6-final — trust & safety drafters. Both produce a *starting* resolution
+ * note the reviewer edits before saving: the register prints what they
+ * approve, so the draft must be neutral, factual and short.
+ */
+export async function llmDraftCorrectionNote(input: {
+  correctionText: string
+  contentTitle: string
+  locale: Lang
+}): Promise<{ note: string }> {
+  const system = [
+    `Write a public correction-register note in ${LOCALE_NAME[input.locale]} (max 280 chars).`,
+    'Shape: what the reader reported → what the newsroom changed → no blame, no legalese, no reporter identity.',
+    'If the report is vague, write the note as a verification statement ("We re-checked … and confirm …").',
+    'Reply with ONLY JSON: {"note": string}',
+  ].join('\n')
+  return chatJson<{ note: string }>(
+    [
+      { role: 'system', content: system },
+      {
+        role: 'user',
+        content: JSON.stringify({ report: input.correctionText.slice(0, 1500), story: input.contentTitle.slice(0, 300) }),
+      },
+    ],
+    (v): v is { note: string } => !!v && typeof v === 'object' && typeof (v as Record<string, unknown>).note === 'string',
+    { maxTokens: 400, temperature: 0.3 },
+  )
+}
+
+export async function llmDraftReportResponse(input: {
+  reportType: string
+  subject: string
+  description: string
+  contentTitle: string
+  locale: Lang
+}): Promise<{ note: string }> {
+  const system = [
+    `Write an internal resolution note in ${LOCALE_NAME[input.locale]} (max 280 chars) for a community report.`,
+    'State the finding plainly (upheld / no violation / needs edit), the action taken, and the next step if any. Never promise takedowns unconditionally.',
+    'Reply with ONLY JSON: {"note": string}',
+  ].join('\n')
+  return chatJson<{ note: string }>(
+    [
+      { role: 'system', content: system },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          type: input.reportType.slice(0, 100),
+          subject: input.subject.slice(0, 300),
+          details: input.description.slice(0, 1500),
+          story: input.contentTitle.slice(0, 300),
+        }),
+      },
+    ],
+    (v): v is { note: string } => !!v && typeof v === 'object' && typeof (v as Record<string, unknown>).note === 'string',
+    { maxTokens: 400, temperature: 0.3 },
+  )
+}
+
+/** WhatsApp digest intro + subject lines (per locale, char-budgeted). */
+export async function llmDigestIntro(input: {
+  locale: Lang
+  dateLabel: string
+  headlines: string[]
+}): Promise<{ intro: string; subject: string }> {
+  const system = [
+    `Write a 1-2 line WhatsApp digest intro in ${LOCALE_NAME[input.locale]} + an email subject under 70 chars. Warm, specific, no emoji spam (max one).`,
+    'Reply with ONLY JSON: {"intro": string, "subject": string}',
+  ].join('\n')
+  return chatJson<{ intro: string; subject: string }>(
+    [
+      { role: 'system', content: system },
+      { role: 'user', content: JSON.stringify({ date: input.dateLabel, headlines: input.headlines.slice(0, 12) }) },
+    ],
+    (v): v is { intro: string; subject: string } => {
+      if (!v || typeof v !== 'object') return false
+      const r = v as Record<string, unknown>
+      return typeof r.intro === 'string' && typeof r.subject === 'string'
+    },
+    { maxTokens: 400, temperature: 0.6 },
+  )
 }

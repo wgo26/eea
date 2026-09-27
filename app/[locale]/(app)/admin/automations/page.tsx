@@ -39,12 +39,13 @@ export default async function Page() {
   const t = dict.admin.automations
   const common = dict.admin.common
 
-  const [plans, templates, heartbeats, queue, upcoming] = await Promise.all([
+  const [plans, templates, heartbeats, queue, upcoming, ai] = await Promise.all([
     getPublishPlans(),
     getContentTemplates(),
     getCronHeartbeatHealth(),
     getScheduledQueue(10),
     getUpcomingReleases(),
+    import('@/lib/admin/actions/ai').then((m) => m.getAiStatus().catch(() => null)),
   ])
 
   return (
@@ -57,6 +58,35 @@ export default async function Page() {
           { label: t.title },
         ]}
       />
+
+      {/* Intelligence-layer status (P1 honesty, P3/P4 flags) */}
+      <section className="rounded-lg border border-border bg-card p-4">
+        <h2 className="text-sm font-medium">{t.aiTitle}</h2>
+        {!ai ? (
+          <p className="mt-2 text-xs text-muted-foreground">{t.aiOff}</p>
+        ) : ai.enabled ? (
+          <div className="mt-2 space-y-1.5">
+            <p className="text-xs text-emerald-700 dark:text-emerald-300">
+              {t.aiOn
+                .replace('{model}', ai.model)
+                .replace('{used}', String(ai.tokensUsedToday))
+                .replace('{budget}', String(ai.budgetTokensDay))}
+              {' · '}
+              {ai.providerHost}
+              {' · '}
+              {ai.keySource === 'vault' ? t.aiSourceVault : t.aiSourceEnv}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {t.aiFlags}: {Object.entries(ai.flags).map(([k, on]) => `${k.split('.')[1]} ${on ? '✓' : '✗'}`).join(' · ')}
+            </p>
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-muted-foreground">{t.aiOff}</p>
+        )}
+        <a href={localePath(locale, '/admin/secrets')} className="mt-2 inline-block text-xs font-medium text-primary hover:underline">
+          {t.aiManageKeys}
+        </a>
+      </section>
 
       {/* E1 — scheduler health strip */}
       <section className="rounded-lg border border-border bg-card p-4">

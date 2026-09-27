@@ -47,6 +47,7 @@ export function AdminFooter({
   schedulerIssueCount,
   canSeeScheduler,
   retentionDays,
+  aiFact,
 }: {
   locale: Locale
   /** This session's 2FA standing; null when it could not be determined. */
@@ -57,6 +58,8 @@ export function AdminFooter({
   canSeeScheduler: boolean
   /** `AUDIT_RETENTION_DAYS`, as the nightly purge reads it. */
   retentionDays: number
+  /** Intelligence-layer standing (P6); null omits the row (see layout). */
+  aiFact: { on: boolean; model: string; source: string } | null
 }) {
   const dict = getDictionary(locale)
   const t = dict.admin.footer
@@ -79,6 +82,20 @@ export function AdminFooter({
   }
 
   rows.push(fillCopy(t.auditRetention, { days: retentionDays }))
+
+  // P6 — the layer's standing on every screen: model + key source when on,
+  // a plain "off" when the vault and env are both empty. The row is metadata
+  // only (no budget numbers — those live on /admin/automations).
+  if (aiFact) {
+    rows.push(
+      aiFact.on
+        ? fillCopy(t.aiOn, {
+            model: aiFact.model || 'llm',
+            source: aiFact.source === 'vault' ? t.aiSourceVault : t.aiSourceEnv,
+          })
+        : t.aiOff,
+    )
+  }
 
   return (
     <footer className="sticky bottom-0 z-10 border-t border-border/60 bg-background/95 backdrop-blur px-4 py-1.5 md:px-6 lg:px-8">

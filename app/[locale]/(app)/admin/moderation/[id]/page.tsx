@@ -10,6 +10,7 @@ import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { formatRelative } from '@/lib/admin/format'
 import { FileText } from 'lucide-react'
 import { ReviewActions } from './review-actions'
+import { TriagePanel } from './triage-panel'
 import type { ContentType } from '@/lib/auth/roles'
 
 export async function generateMetadata(): Promise<{ title: string }> {
@@ -200,6 +201,11 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
         {/* Sidebar: submitter, consent, decisions */}
         <div className="space-y-4">
+          <TriagePanel
+            copy={t}
+            text={payloadEntries.map((e) => `${e.key}: ${e.value}`).join('\n').slice(0, 4000)}
+            hasPhotos={payloadEntries.some((e) => /http/i.test(e.value) || /photo|image/i.test(e.key))}
+          />
           <section className="rounded-lg border border-border bg-card p-4">
             <h2 className="text-sm font-medium">{t.submitter}</h2>
             <p className="mt-1.5 text-sm">{submission.guestName ?? t.anonymous}</p>

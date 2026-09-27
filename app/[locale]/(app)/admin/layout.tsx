@@ -69,9 +69,17 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   // so the shell renders during an outage instead of taking the page down with it
   // (see lib/admin/queries/shell.ts; the assurance read and the freshness
   // contract are in lib/admin/shell-context.ts).
-  const [shell, states] = await Promise.all([
+  const [shell, states, aiFact] = await Promise.all([
     getAdminShellContext({ userId: user.id, roles, adminRoles }),
     getActiveStates(),
+    // P6 footer fact: metadata only, and only for staff who may act on it —
+    // everyone else gets no row rather than a standing they cannot change.
+    (async () => {
+      if (!caps.has('manageContent')) return null
+      const { getAiShellFact } = await import('@/lib/ai/settings')
+      const fact = await getAiShellFact()
+      return fact ? { on: fact.on, model: fact.model, source: fact.source } : null
+    })(),
   ])
   const pendingCount = shell.pendingSubmissions
   const unreadNotifications = shell.unreadNotifications
@@ -138,6 +146,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               roles={roles}
               adminRoles={adminRoles}
               unreadNotifications={unreadNotifications}
+              badges={{ translations: shell.org.translationQueue, digest: shell.org.digestOpen }}
               logoUrl={siteSettings.logoUrl}
             />
           </div>
@@ -193,6 +202,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             schedulerIssueCount={shell.schedulerIssues.length}
             canSeeScheduler={caps.has('system.owner')}
             retentionDays={getAuditRetentionDays()}
+            aiFact={aiFact}
           />
         </div>
       </SystemStateProvider>
@@ -211,6 +221,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         adminRoles={adminRoles}
         pendingCount={pendingCount}
         unreadNotifications={unreadNotifications}
+        badges={{ translations: shell.org.translationQueue, digest: shell.org.digestOpen }}
       />
     </AdminClientWrapper>
   )

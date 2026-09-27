@@ -11,6 +11,7 @@ import { Pager } from '@/components/admin/pager'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
 import { formatBytes, formatDate } from '@/lib/admin/format'
 import { MediaArchiveActions, MediaRightsCell } from './media-actions'
+import { AltBackfillPanel } from './alt-backfill-panel'
 
 /**
  * Media archive (spec §6, plan Phase 5.3).
@@ -164,6 +165,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
           { label: t.title },
         ]}
       />
+
+      <AltBackfillPanel copy={t} />
 
       <StatGrid>
         <StatCard label={t.statTotal} value={total} />

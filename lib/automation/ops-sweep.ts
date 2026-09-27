@@ -40,7 +40,74 @@ export type AutoOpsSummary = {
   pollsClosed?: number
   milestones?: number
   expiryBatches?: number
+  /** P4 — publish-readiness gaps on recent live content (advisory counts). */
+  seoGaps?: number
+  /** P4 — photos missing alt text on recent live content (advisory count). */
+  mediaGaps?: number
   errors?: string[]
+}
+
+/* ------------------------------------------------------------------ */
+/* P4 — SEO sweep: recent published items missing excerpt/SEO/location */
+/* ------------------------------------------------------------------ */
+
+export async function runSeoSweep(): Promise<number> {
+  const db = createAdminClient()
+  const { data: recent } = await db
+    .from('content_items')
+    .select('id, location_id, translations:content_translations(locale, excerpt, seo_description)')
+    .eq('status', 'published')
+    .eq('is_archived', false)
+    .gte('published_at', new Date(Date.now() - 7 * 86_400_000).toISOString())
+    .order('published_at', { ascending: false })
+    .limit(100)
+  const rows = ((recent ?? []) as unknown as {
+    id: string
+    location_id: string | null
+    translations: { locale: string; excerpt: string | null; seo_description: string | null }[] | { locale: string; excerpt: string | null; seo_description: string | null } | null
+  }[])
+  let gaps = 0
+  for (const row of rows) {
+    const txs = Array.isArray(row.translations) ? row.translations : row.translations ? [row.translations] : []
+    const en = txs.find((t) => t.locale === 'en')
+    if (!row.location_id || !en?.excerpt?.trim() || !en?.seo_description?.trim()) gaps += 1
+  }
+  if (gaps > 0) {
+    const { sendNotificationToRole } = await import('@/lib/admin/notification-writes')
+    await sendNotificationToRole(db, 'editor', {
+      source: 'automation',
+      category: 'action_required',
+      title: `${gaps} recent ${gaps === 1 ? 'story is' : 'stories are'} missing SEO/location polish`,
+      body: 'Excerpt, SEO description or location is empty on last-7-day publishes. The content form’s Draft with AI fills them in one pass.',
+      linkPath: '/admin/content',
+    }).catch(() => {})
+  }
+  return gaps
+}
+
+/* ------------------------------------------------------------------ */
+/* P4 — media QA sweep: recent photos missing alt text                 */
+/* ------------------------------------------------------------------ */
+
+export async function runMediaQaSweep(): Promise<number> {
+  const db = createAdminClient()
+  const { count } = await db
+    .from('media_assets')
+    .select('id', { count: 'exact', head: true })
+    .is('alt_text', null)
+    .gte('created_at', new Date(Date.now() - 7 * 86_400_000).toISOString())
+  const gaps = count ?? 0
+  if (gaps > 0) {
+    const { sendNotificationToRole } = await import('@/lib/admin/notification-writes')
+    await sendNotificationToRole(db, 'editor', {
+      source: 'automation',
+      category: 'action_required',
+      title: `${gaps} recent ${gaps === 1 ? 'photo lacks' : 'photos lack'} alt text`,
+      body: 'Screen readers and search skip them. Open the story → Draft missing alt text (AI vision when the key is set).',
+      linkPath: '/admin/content',
+    }).catch(() => {})
+  }
+  return gaps
 }
 
 async function logGuarded(db: AdminDb, action: string, contentItemId: string, withinDays = 7): Promise<boolean> {
@@ -511,6 +578,20 @@ export async function runAutoOpsSweep(): Promise<AutoOpsSummary> {
     }],
     ['D4 expiry batch', async () => {
       summary.expiryBatches = await sendExpiryBatch()
+    }],
+    ['P4 SEO sweep', async () => {
+      summary.seoGaps = await runSeoSweep()
+    }],
+    ['P4 media QA sweep', async () => {
+      summary.mediaGaps = await runMediaQaSweep()
+    }],
+    ['P5 embedding backfill', async () => {
+      try {
+        const { aiEmbedMissing } = await import('@/lib/admin/actions/ai')
+        await aiEmbedMissing(50)
+      } catch {
+        /* best-effort: embeddings never break the sweep */
+      }
     }],
     ['C5 stuck scheduled', async () => {
       await alertStuckScheduledItems()

@@ -13,11 +13,10 @@ import { AdminMobileNav } from './admin-mobile-nav'
 import { AdminCommandPalette } from './admin-command-palette'
 import { AdminIdentity } from './admin-identity'
 import { AdminAttention } from './admin-attention'
-import { AdminQuickActions } from './admin-quick-actions'
 import { AdminPreferences } from './admin-preferences'
 import { SystemStateIndicator } from './system-state-indicator'
 import { useSystemState } from './state-provider'
-import { useRecentPaths, useSidebarRail } from './nav-preferences'
+import { useSidebarRail } from './nav-preferences'
 import { EnvIndicator } from './env-indicator'
 import { ADMIN_NAV_TOTAL, buildAdminNavGroups } from './nav-items'
 import { AdminBreadcrumbs } from './admin-breadcrumbs'
@@ -29,8 +28,8 @@ import { SHORTCUT_ATTR, SHORTCUT_KEY_LABEL, SHORTCUT_MODIFIER } from './nav-styl
  * constructing them in a Server Component and passing them to the mobile nav or
  * the palette would ship functions across the boundary (React #441).
  *
- * Four interactive things, and deliberately no more: START work (quick actions),
- * FIND anything (⌘K), SEE what waits (attention), KNOW who you are (identity).
+ * Four interactive things, and deliberately no more: FIND anything (⌘K), SEE
+ * what waits (attention), KNOW who you are (identity).
  * Preferences takes the only fifth slot, because theme / language / density are
  * per-device controls an operator reaches for mid-task.
  *
@@ -67,7 +66,6 @@ export function AdminTopbar({
   const items = groups.flatMap((group) => group.items)
   const systemState = useSystemState()
   const { rail, toggleRail } = useSidebarRail()
-  const { paths } = useRecentPaths()
 
   // Section-state chips for the breadcrumb, keyed by canonical path. Both values
   // are ones the layout already resolved — this renders them beside the section
@@ -77,15 +75,6 @@ export function AdminTopbar({
     '/admin/moderation': { count: shell.pendingSubmissions, label: topbarCopy.waitingShort },
     '/admin/content': { count: shell.org.overdueScheduled, label: topbarCopy.overdueShort },
   }
-
-  // Recents persist as locale-free paths and resolve against the CURRENT visible
-  // nav, so revoking a capability or switching language can never leave a stale
-  // or unauthorized entry in the menu.
-  const byPath = new Map(items.map((item) => [item.path, item]))
-  const recents = paths.flatMap((path) => {
-    const item = byPath.get(path)
-    return item ? [item] : []
-  })
 
   const dashboardHref = localePath(locale, '/admin/dashboard')
   const collapseLabel = rail ? dict.admin.sidebar.expandNav : dict.admin.sidebar.collapseNav
@@ -138,9 +127,10 @@ export function AdminTopbar({
           <AdminCommandPalette groups={groups} />
         </div>
 
-        {/* Right zone — start, status, attention, identity. */}
+        {/* Right zone — status, attention, identity.
+            Quick actions live in the floating FAB (admin-floating-quick-actions);
+            see app/[locale]/(app)/admin/layout.tsx. */}
         <div className="flex shrink-0 items-center gap-2">
-          <AdminQuickActions items={items} recents={recents} />
 
           <EnvIndicator locale={locale} className="hidden 2xl:inline-flex" />
           {systemState && (
