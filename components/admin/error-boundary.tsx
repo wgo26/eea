@@ -1,6 +1,7 @@
 'use client'
 
 import { Component, type ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 
 /**
  * Admin error boundary (plan Phase 5.7, spec §59).
@@ -31,8 +32,14 @@ export function AdminErrorBoundary({
   /** Locale-prefixed dashboard URL — required so FR admins stay in FR. */
   dashboardHref: string
 }) {
+  // The layout persists across client-side navigations, so without this a
+  // tripped boundary keeps showing the error card on every subsequent admin
+  // page until a full reload. Keying the inner boundary by pathname remounts
+  // it on navigation: the crash stays contained to the page that crashed.
+  const pathname = usePathname()
   return (
     <ErrorBoundaryInner
+      key={pathname}
       title={title}
       message={message}
       retryLabel={retryLabel}
@@ -64,7 +71,10 @@ class ErrorBoundaryInner extends Component<InnerProps, InnerState> {
 
   componentDidCatch(error: Error): void {
     // Client-side log only — never ships error internals to analytics.
-    console.error('[admin] section error:', error.message)
+    // The stack is logged too: production React minifies the message
+    // (e.g. "error #441"), and the component stack is the only way to tell
+    // which widget crashed.
+    console.error('[admin] section error:', error.message, error.stack)
   }
 
   private retry = (): void => {

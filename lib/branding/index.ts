@@ -72,7 +72,7 @@ export interface ThemeVersionRow {
 }
 
 const THEME_COLUMNS = `id, name, version, tokens, status, is_active, created_by, created_at, updated_at,
-  approved_by, approved_at, preview_token, creator:profiles(display_name, full_name)`
+  approved_by, approved_at, preview_token, creator:profiles!brand_themes_created_by_fkey(display_name, full_name)`
 
 function actorName(value: unknown): string | null {
   const actor = (Array.isArray(value) ? value[0] : value) as
