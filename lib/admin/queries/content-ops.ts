@@ -349,6 +349,20 @@ const CONTENT_SELECT = `id, type, slug, status, verification, is_featured, is_ar
   cover:media_assets(public_url),
   author:profiles!content_items_author_id_fkey(display_name)`
 
+const CONTENT_SORTABLE: Record<string, { column: 'published_at' | 'updated_at' }> = {
+  published: { column: 'published_at' },
+  updated: { column: 'updated_at' },
+}
+
+function parseSortKey(sort?: string): ['published_at' | 'updated_at', 'asc' | 'desc'] {
+  if (sort) {
+    const [field, dir] = sort.split('_')
+    const col = CONTENT_SORTABLE[field]?.column
+    if (col && (dir === 'asc' || dir === 'desc')) return [col, dir]
+  }
+  return ['updated_at', 'desc']
+}
+
 export async function getContentItems(options?: {
   status?: string | 'all'
   type?: ContentType | 'all'
@@ -356,6 +370,8 @@ export async function getContentItems(options?: {
   limit?: number
   offset?: number
   locale?: Locale
+  /** Combined sort key, e.g. `published_desc` or `updated_asc`. Defaults to `updated_desc`. */
+  sort?: string
 }): Promise<{ rows: ContentRow[]; total: number }> {
   const status = options?.status ?? 'all'
   const type = options?.type ?? 'all'
@@ -364,10 +380,12 @@ export async function getContentItems(options?: {
   const offset = options?.offset ?? 0
   const locale = options?.locale ?? 'en'
 
+  const [sortField, sortDir] = parseSortKey(options?.sort)
+
   let query = db()
     .from('content_items')
     .select(CONTENT_SELECT, { count: 'exact' })
-    .order('updated_at', { ascending: false })
+    .order(sortField, { ascending: sortDir === 'asc' })
     .range(offset, offset + limit - 1)
 
   if (status !== 'all') query = query.eq('status', status)

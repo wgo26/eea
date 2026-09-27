@@ -1312,6 +1312,11 @@ export const appStringsFr = {
       listingDetails: 'Détails de l&#39;annonce',
       noticeDetails: 'Détails de l\'avis',
       eventDetails: 'Détails de l\'événement',
+      sortField: 'Trier par',
+      sortUpdatedDesc: 'Mis à jour — plus récent d’abord',
+      sortUpdatedAsc: 'Mis à jour — plus ancien d’abord',
+      sortPublishedDesc: 'Publié — plus récent d’abord',
+      sortPublishedAsc: 'Publié — plus ancien d’abord',
     },
     taxonomy: {
       title: 'Taxonomie & lieux',
