@@ -8,13 +8,12 @@ import { PageHeader } from '@/components/admin/page-header'
 import { Tabs } from '@/components/admin/tabs'
 import { Pager } from '@/components/admin/pager'
 import { FilterPills, SearchBar, ActiveFilters } from '@/components/admin/filter-pills'
-import { TypeFilter } from '@/components/admin/type-filter'
+import { TypeFilter, SortFilter } from '@/components/admin/type-filter'
 import { EmptyState } from '@/components/admin/empty-state'
 import { ContentTable } from './content-table'
 import Link from 'next/link'
 import { ContentCreateDialog } from './content-dialogs'
 import { HomepageCuration } from './homepage-curation'
-import { SortFilter } from '@/components/admin/sort-filter'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -46,6 +45,8 @@ const SORT_OPTIONS = [
 ] as const
 
 const VALID_SORTS = SORT_OPTIONS.map((s) => s.key)
+const VALID_STATUSES = STATUS_TABS.map((s) => s.key)
+const VALID_TYPES = TYPE_FILTERS.map((f) => f.key)
 
 export default async function Page({
   searchParams,
@@ -61,8 +62,8 @@ export default async function Page({
   const tc = dict.admin.common
 
   const params = await searchParams
-  const status = params.status || 'all'
-  const type = (params.type as 'all' | 'photo_story' | 'news' | 'listing' | 'notice' | 'culture' | 'micro_story') || 'all'
+  const status = VALID_STATUSES.includes(params.status as typeof VALID_STATUSES[number]) ? params.status! : 'all'
+  const type = (VALID_TYPES.includes(params.type as typeof VALID_TYPES[number]) ? params.type : 'all') as 'all' | 'photo_story' | 'news' | 'listing' | 'notice' | 'culture' | 'micro_story'
   const activeTab = params.tab || 'content'
   const search = params.q || undefined
   const sort = VALID_SORTS.includes(params.sort as typeof VALID_SORTS[number]) ? params.sort! : 'updated_desc'
@@ -88,9 +89,24 @@ export default async function Page({
   const locationOptions = locations.map((l) => ({ id: l.id, name: l.name }))
 
   const base = localePath(locale, '/admin/content')
+  // Single helper so every link preserves the full filter state — one place
+  // to update when a new filter (like `sort`) is added, instead of N
+  // hand-built template strings drifting apart.
+  const listHref = (overrides: { status?: string; type?: string; sort?: string; q?: string; page?: number; tab?: string } = {}) => {
+    const s = overrides.status ?? status
+    const ty = overrides.type ?? type
+    const so = overrides.sort ?? sort
+    const query = overrides.q !== undefined ? overrides.q : search
+    const tb = overrides.tab ?? 'content'
+    const p = overrides.page ?? 1
+    const qs = `tab=${tb}&status=${s}&type=${ty}&sort=${so}${query ? `&q=${encodeURIComponent(query)}` : ''}${p > 1 ? `&page=${p}` : ''}`
+    return `${base}?${qs}`
+  }
   const listQuery = `tab=content&status=${status}&type=${type}&sort=${sort}${search ? `&q=${encodeURIComponent(search)}` : ''}`
-  const statusHref = (key: string) => `${base}?tab=content&status=${key}&type=${type}&sort=${sort}${search ? `&q=${encodeURIComponent(search)}` : ''}`
-  const searchAction = `${base}?tab=content&status=${status}&type=${type}&sort=${sort}`
+  const statusHref = (key: string) => listHref({ status: key })
+  // Search submits via GET hidden inputs (see SearchBar `hidden`), so the
+  // action is the bare list URL — query-string actions get dropped by
+  // browsers on GET submits.
   // The row-title edit deep-link travels to ContentTable (a Client Component)
   // as a plain STRING prefix; the table appends the row id. Closures cannot
   // cross the server → client boundary — React throws "Functions cannot be
@@ -132,7 +148,7 @@ export default async function Page({
           { key: 'homepage', label: t.tabHomepage, count: slots.length },
         ]}
         active={activeTab}
-        hrefFor={(key) => `${base}?tab=${key}&status=${status}&type=${type}&sort=${sort}`}
+        hrefFor={(key) => listHref({ tab: key })}
       />
 
       {activeTab === 'homepage' ? (
@@ -148,69 +164,69 @@ export default async function Page({
               }))}
               active={status}
             />
-             <div className="flex flex-wrap items-center gap-2">
-               <TypeFilter
-                 value={type}
-                 options={TYPE_FILTERS.map((f) => ({ key: f.key, label: tf[f.dictKey] }))}
-                 action={base}
-                 ariaLabel={t.type}
-                 hidden={{ tab: 'content', status, q: search, sort }}
-               />
-               <SortFilter
-                 value={sort}
-                 options={SORT_OPTIONS.map((s) => ({ key: s.key, label: t[s.dictKey] }))}
-                 action={base}
-                 ariaLabel={t.sortField}
-                 hidden={{ tab: 'content', status, type, q: search }}
-               />
-               <SearchBar
-                 name="q"
-                 defaultValue={search}
-                 placeholder={tc.searchPlaceholder}
-                 action={searchAction}
-                 className="w-full sm:w-64"
-               />
-             </div>
-
-           {/* Progressive disclosure (Phase D): the applied filters are the
-               exception, not the chrome — surface them as removable chips so
-               an editor never wonders whether the list is filtered. */}
-           <ActiveFilters
-             chips={[
-               ...(status !== 'all'
-                 ? [{
-                     key: 'status',
-                     label: `${t.colStatus}: ${t[STATUS_TABS.find((s) => s.key === status)!.dictKey]}`,
-                     removeHref: `${base}?tab=content&type=${type}&sort=${sort}${search ? `&q=${encodeURIComponent(search)}` : ''}`,
-                   }]
-                 : []),
-               ...(type !== 'all'
-                 ? [{
-                     key: 'type',
-                     label: tf[TYPE_FILTERS.find((f) => f.key === type)!.dictKey],
-                     removeHref: `${base}?tab=content&status=${status}&sort=${sort}${search ? `&q=${encodeURIComponent(search)}` : ''}`,
-                   }]
-                 : []),
-               ...(sort !== 'updated_desc'
-                 ? [{
-                     key: 'sort',
-                     label: `${t.sortField}: ${t[SORT_OPTIONS.find((s) => s.key === sort)!.dictKey]}`,
-                     removeHref: `${base}?tab=content&status=${status}&type=${type}${search ? `&q=${encodeURIComponent(search)}` : ''}`,
-                   }]
-                 : []),
-               ...(search
-                 ? [{
-                     key: 'q',
-                     label: `${tc.search}: ${search}`,
-                     removeHref: `${base}?tab=content&status=${status}&type=${type}&sort=${sort}`,
-                   }]
-                 : []),
-             ]}
-             clearAllHref={`${base}?tab=content`}
-             labels={tc}
-           />
-
+            <div className="flex flex-wrap items-center gap-2">
+              <TypeFilter
+                value={type}
+                options={TYPE_FILTERS.map((f) => ({ key: f.key, label: tf[f.dictKey] }))}
+                action={base}
+                ariaLabel={t.type}
+                hidden={{ tab: 'content', status, q: search, sort }}
+              />
+              <SortFilter
+                value={sort}
+                options={SORT_OPTIONS.map((s) => ({ key: s.key, label: t[s.dictKey] }))}
+                action={base}
+                ariaLabel={t.sortField}
+                hidden={{ tab: 'content', status, type, q: search }}
+              />
+              <SearchBar
+                name="q"
+                defaultValue={search}
+                placeholder={tc.searchPlaceholder}
+                action={base}
+                hidden={{ tab: 'content', status, type, sort }}
+                className="w-full sm:w-64"
+              />
+            </div>
           </div>
+
+          {/* Progressive disclosure (Phase D): the applied filters are the
+              exception, not the chrome — surface them as removable chips so
+              an editor never wonders whether the list is filtered. */}
+          <ActiveFilters
+            chips={[
+              ...(status !== 'all'
+                ? [{
+                    key: 'status',
+                    label: `${t.colStatus}: ${t[STATUS_TABS.find((s) => s.key === status)?.dictKey ?? 'statusAll']}`,
+                    removeHref: listHref({ status: 'all' }),
+                  }]
+                : []),
+              ...(type !== 'all'
+                ? [{
+                    key: 'type',
+                    label: tf[TYPE_FILTERS.find((f) => f.key === type)?.dictKey ?? 'all'],
+                    removeHref: listHref({ type: 'all' }),
+                  }]
+                : []),
+              ...(sort !== 'updated_desc'
+                ? [{
+                    key: 'sort',
+                    label: `${t.sortField}: ${t[SORT_OPTIONS.find((s) => s.key === sort)?.dictKey ?? 'sortUpdatedDesc']}`,
+                    removeHref: listHref({ sort: 'updated_desc' }),
+                  }]
+                : []),
+              ...(search
+                ? [{
+                    key: 'q',
+                    label: `${tc.search}: ${search}`,
+                    removeHref: listHref({ q: '' }),
+                  }]
+                : []),
+            ]}
+            clearAllHref={`${base}?tab=content`}
+            labels={tc}
+          />
 
           {content.total === 0 ? (
             <EmptyState
@@ -235,7 +251,7 @@ export default async function Page({
               page={page}
               pageSize={PAGE_SIZE}
               total={content.total}
-              hrefFor={(p) => `${base}?tab=content&status=${status}&type=${type}&sort=${sort}${search ? `&q=${encodeURIComponent(search)}` : ''}&page=${p}`}
+              hrefFor={(p) => listHref({ page: p })}
               copy={dict.admin.common}
             />
             </>

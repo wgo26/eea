@@ -356,7 +356,11 @@ const CONTENT_SORTABLE: Record<string, { column: 'published_at' | 'updated_at' }
 
 function parseSortKey(sort?: string): ['published_at' | 'updated_at', 'asc' | 'desc'] {
   if (sort) {
-    const [field, dir] = sort.split('_')
+    // Split on the LAST underscore so future keys with underscores keep
+    // working (`published_desc` → field `published`, dir `desc`).
+    const idx = sort.lastIndexOf('_')
+    const field = idx > 0 ? sort.slice(0, idx) : sort
+    const dir = idx > 0 ? sort.slice(idx + 1) : ''
     const col = CONTENT_SORTABLE[field]?.column
     if (col && (dir === 'asc' || dir === 'desc')) return [col, dir]
   }
@@ -382,20 +386,39 @@ export async function getContentItems(options?: {
 
   const [sortField, sortDir] = parseSortKey(options?.sort)
 
-  let query = db()
-    .from('content_items')
-    .select(CONTENT_SELECT, { count: 'exact' })
-    .order(sortField, { ascending: sortDir === 'asc' })
-    .range(offset, offset + limit - 1)
+  // Fail-safe like getSubmissions: missing env / DB hiccup resolves to an
+  // empty list rather than crashing the page into the error boundary.
+  if (!hasDatabase()) return { rows: [], total: 0 }
+  try {
+    let query = db()
+      .from('content_items')
+      .select(CONTENT_SELECT, { count: 'exact' })
+      // Drafts/scheduled items have NULL published_at — keep them last in
+      // both directions so "Published — oldest first" still opens with real
+      // publish dates instead of a wall of never-published rows.
+      .order(sortField, { ascending: sortDir === 'asc', nullsFirst: false })
+      // Tiebreaker: identical timestamps (bulk imports share a second) would
+      // otherwise drift rows across pages on every reload.
+      .order('id', { ascending: true })
+      .range(offset, offset + limit - 1)
 
-  if (status !== 'all') query = query.eq('status', status)
-  if (type !== 'all') query = query.eq('type', type)
-  if (search) query = query.or(`slug.ilike.%${search}%,translations.title.ilike.%${search}%`)
+    if (status !== 'all') query = query.eq('status', status)
+    if (type !== 'all') query = query.eq('type', type)
+    if (search) {
+      // Sanitize or() metacharacters (commas break the expression, %/_ widen
+      // the scan) — same pattern as getSubmissions.
+      const phrase = search.replace(/[,()%\\*]/g, ' ').replace(/[%_]/g, '').trim().slice(0, 80)
+      if (phrase) query = query.or(`slug.ilike.%${phrase}%,translations.title.ilike.%${phrase}%`)
+    }
 
-  const { data, count } = await safe(query)
-  return {
-    rows: ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => mapContentRow(row, locale)),
-    total: count ?? 0,
+    const { data, count } = await safe(query)
+    return {
+      rows: ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => mapContentRow(row, locale)),
+      total: count ?? 0,
+    }
+  } catch (e) {
+    logger.error('admin', 'getContentItems failed, returning empty list', { error: e })
+    return { rows: [], total: 0 }
   }
 }
 

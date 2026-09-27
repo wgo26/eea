@@ -122,15 +122,25 @@ export function SearchBar({
   placeholder,
   action,
   className,
+  hidden,
 }: {
   name?: string
   defaultValue?: string
   placeholder?: string
   action?: string
   className?: string
+  /**
+   * Preserved query params (tab, status, type, sort…). Rendered as hidden
+   * inputs because browsers DROP the action URL's own query string on GET
+   * submits — without these a search would reset the active filters.
+   */
+  hidden?: Record<string, string | undefined>
 }) {
   return (
     <form method="GET" action={action} className={cn('relative', className)}>
+      {Object.entries(hidden ?? {}).map(([field, val]) =>
+        val ? <input key={field} type="hidden" name={field} value={val} /> : null,
+      )}
       <input
         type="search"
         name={name}
