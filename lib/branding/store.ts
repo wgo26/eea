@@ -98,6 +98,13 @@ export type CreateThemeParams = {
   changeSummary?: string | null
 }
 
+/**
+ * How many version slots to step past when every candidate is already taken.
+ * A draft re-using a name collides once per existing version of that name, so
+ * this only has to outrun realistic iteration (and a lost insert race).
+ */
+const MAX_VERSION_ATTEMPTS = 25
+
 /** A new named theme in `draft`, with its first immutable snapshot. */
 export async function createThemeRow(params: CreateThemeParams): Promise<VersionedResult> {
   try {
@@ -105,30 +112,64 @@ export async function createThemeRow(params: CreateThemeParams): Promise<Version
     const name = params.name.trim()
     if (!name) return { ok: false, error: 'A theme name is required.' }
 
-    const { data, error } = await admin
-      .from('brand_themes')
-      .insert({
-        name,
-        version: params.tokens.version?.trim() || '1.0',
-        tokens: params.tokens as unknown as Json,
-        status: 'draft',
-        is_active: false,
-        created_by: params.createdBy,
-        preview_token: crypto.randomUUID(),
-      } as InsertOf<'brand_themes'>)
-      .select('id, version')
-      .single()
-    if (error || !data) return { ok: false, error: error?.message ?? 'Could not create the theme.' }
+    // `brand_themes` is unique on (name, version) — re-using a name is how a
+    // designer iterates on the same identity, which is the point. But every
+    // "create a draft" surface seeds its tokens FROM an existing theme (the live
+    // one in /admin/branding/colors, the cloned row in /admin/branding/new) and
+    // tokens carry that theme's `version`, so the new draft asks for a version
+    // that name already owns. Inserting it as-is raised a raw
+    // `brand_themes_name_version_key` violation and dumped Postgres' text on
+    // the admin. Claim the next free minor instead, retrying on 23505 exactly as
+    // writeSnapshot does, so two admins drafting from one theme both succeed
+    // rather than the later one losing a race it cannot see.
+    let version = params.tokens.version?.trim() || '1.0'
+    let created: { id: string; version: string } | null = null
+    let blocker: string | null = null
+    for (let attempt = 0; attempt < MAX_VERSION_ATTEMPTS; attempt += 1) {
+      const { data, error } = await admin
+        .from('brand_themes')
+        .insert({
+          name,
+          version,
+          tokens: params.tokens as unknown as Json,
+          status: 'draft',
+          is_active: false,
+          created_by: params.createdBy,
+          preview_token: crypto.randomUUID(),
+        } as InsertOf<'brand_themes'>)
+        .select('id, version')
+        .single()
+
+      if (!error && data) {
+        created = data as { id: string; version: string }
+        break
+      }
+      // Anything that is not "that version is taken" will not be fixed by
+      // asking for a different version, so surface it rather than loop.
+      if ((error as { code?: string } | null)?.code !== '23505') {
+        return { ok: false, error: error?.message ?? 'Could not create the theme.' }
+      }
+      blocker = error?.message ?? null
+      version = nextMinorVersion(version)
+    }
+
+    if (!created) {
+      logger.error('branding', 'createThemeRow exhausted its version attempts', { name, error: blocker })
+      return {
+        ok: false,
+        error: `A draft named "${name}" already exists at every version up to ${version}. Give this one a new name.`,
+      }
+    }
 
     const snapshot = await writeSnapshot({
-      themeId: data.id,
-      version: data.version,
+      themeId: created.id,
+      version: created.version,
       tokens: params.tokens,
       changeSummary: params.changeSummary ?? 'Initial draft',
       actorId: params.createdBy,
     })
     if (!snapshot.ok) return { ok: false, error: snapshot.error }
-    return { ok: true, id: data.id, version: snapshot.version }
+    return { ok: true, id: created.id, version: snapshot.version }
   } catch (e) {
     logger.error('branding', 'createThemeRow failed', { error: e })
     return { ok: false, error: e instanceof Error ? e.message : 'Could not create the theme.' }

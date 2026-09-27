@@ -4,6 +4,7 @@ import type { Locale } from "@/lib/i18n";
 
 export type DigestIssue = {
     sentOn: string;
+    locale: string;
     subject: string;
     cadence: 'daily' | 'weekly';
     /** Story snapshots stored by the ops-digest cron ({title, section path}). */
@@ -44,6 +45,7 @@ export async function getDigestArchive(
         }
         return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => ({
             sentOn: row.sent_on as string,
+            locale: row.locale as string,
             subject: row.subject as string,
             cadence: row.cadence === 'weekly' ? 'weekly' : 'daily',
             stories: Array.isArray(row.stories) ? (row.stories as { title: string; path: string }[]) : [],

@@ -7,6 +7,7 @@ import { compileTemplatesForCadence } from '@/lib/content/templates-run'
 import { buildTomorrowQueue, runAutoOpsSweep } from '@/lib/automation/ops-sweep'
 import { deliverDigest, sendPersonalBriefs, type DigestDelivery } from '@/lib/digest/deliver'
 import { parseDigestFreeze, hasFrozenStories, type FrozenDigest } from '@/lib/digest/freeze'
+import { getAppFlag } from '@/lib/automation/flags'
 import type { BriefStory } from '@/lib/digest/brief'
 
 export const dynamic = 'force-dynamic'
@@ -144,6 +145,13 @@ async function deliverPublicDigest(correlationId: string): Promise<DigestDeliver
       storiesByLocale = { en: briefStories }
     }
     const today = new Date().toISOString().slice(0, 10)
+
+    // Fetch admin intro override from flags
+    const [enOverride, frOverride] = await Promise.all([
+      getAppFlag<{ intro: string | null; subject: string | null } | null>(`digest.intro_override.en`, null),
+      getAppFlag<{ intro: string | null; subject: string | null } | null>(`digest.intro_override.fr`, null),
+    ])
+
     const delivery = await deliverDigest({
       storiesByLocale,
       dateLabel: today,
@@ -152,6 +160,10 @@ async function deliverPublicDigest(correlationId: string): Promise<DigestDeliver
       subject: {
         en: 'Eagle Eye Africa — daily digest',
         fr: 'Eagle Eye Africa — résumé du jour',
+      },
+      introOverride: {
+        en: enOverride,
+        fr: frOverride,
       },
     })
     // Only stamp slots when delivery actually went out — an all-failed run
