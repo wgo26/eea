@@ -1,15 +1,8 @@
 import type { ReactNode } from 'react'
-import dynamic from 'next/dynamic'
 import { PublicShell } from '@/components/shells/public-shell'
+import { InstallPromptHost } from '@/components/system/install-prompt-host'
 import { getDictionary, resolveLocale } from '@/lib/i18n'
 import { loadBrandIdentity } from '@/lib/branding/identity'
-
-// Client-only (no SSR): eligibility reads localStorage + matchMedia, which
-// have no server answer — server-rendering it would hydrate a mismatch.
-const InstallPrompt = dynamic(
-    () => import('@/components/system/install-prompt').then((m) => m.InstallPrompt),
-    { ssr: false },
-)
 
 /**
  * Public route group — the ONLY place the browsing chrome (header + footer)
@@ -38,7 +31,7 @@ export default async function PublicGroupLayout({
     return (
         <>
             <PublicShell locale={locale}>{children}</PublicShell>
-            <InstallPrompt siteName={identity.siteName} copy={dict.pwa} />
+            <InstallPromptHost siteName={identity.siteName} copy={dict.pwa} />
         </>
     )
 }
