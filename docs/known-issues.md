@@ -153,6 +153,21 @@ was deleted — do not recreate it.)
 - **Dependency hygiene (P2):** `.github/dependabot.yml` (weekly npm, monthly
   GitHub Actions, grouped dev updates) + an advisory `npm audit
   --audit-level=high` step in `ci.yml`.
+- **Deploy build no longer dies on Turbopack's PostCSS loader pool.**
+  `npm run build` runs `scripts/build.mjs`, which retries with webpack when the
+  build host cannot start a loader child process. Upstream bug:
+  [vercel/next.js#96412](https://github.com/vercel/next.js/issues/96412)
+  (Turbopack spawns a `node` pool for `postcss.config.mjs`; on a small container
+  the child dies before IPC → `node process exited before we could connect to it
+  with exit status: 0`). Symptom is misleading: it names a CSS file — usually the
+  virtual `inter_<hash>.module.css` that `next/font/local` synthesizes for
+  `inter` in `app/layout.tsx`, which does not exist on disk — and the named asset
+  changes between runs. **Do not debug the CSS.** Details and the diagnostic
+  log markers are in `deploy/hostinger-business.md` §Build robustness. The
+  fallback is verified equivalent here (both bundlers emit all 4 woff2 files +
+  `--font-sans`/`--font-display` and prerender every page). Re-check whether this
+  wrapper is still needed when Turbopack fixes the spawn failure — deleting it is
+  as simple as `"build": "next build"`.
 
 ## Audit fixes (D1–D6) applied per due-diligence audit
 

@@ -58,6 +58,14 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  experimental: {
+    // Only affects the webpack path, which scripts/build.mjs uses as the
+    // fallback bundler. Reduces peak memory during that compile at a small
+    // time cost — worthwhile because the fallback exists precisely for
+    // memory-constrained build hosts (Hostinger's container builder). No
+    // effect on the default Turbopack build.
+    webpackMemoryOptimizations: true,
+  },
   images: {
     // AVIF-first negotiation: ~50% smaller than WebP at equal quality, with
     // WebP as the negotiated fallback for AVIF-less clients — the WebP-only

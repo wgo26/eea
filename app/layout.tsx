@@ -9,6 +9,7 @@ import { SITE } from "@/lib/constants";
 import { DEFAULT_OG_IMAGE, TWITTER_CARD } from "@/lib/seo/og";
 import { loadBrandIdentity } from "@/lib/branding/identity";
 import { BrandThemeStyle } from "@/components/brand-theme-style";
+import { SiteJsonLd } from "@/components/system/site-jsonld";
 
 // Self-hosted via next/font/local (app/fonts/*.woff2) so dev/build never
 // hits fonts.googleapis.com — no network dependency, no proxy config needed.
@@ -68,6 +69,11 @@ export const viewport: Viewport = {
 export async function generateMetadata(): Promise<Metadata> {
     const identity = await loadBrandIdentity();
     const shareImage = identity.socialImageUrl ?? DEFAULT_OG_IMAGE;
+    // Search-console ownership proofs are deploy config, not code: paste the
+    // codes from Google Search Console / Bing Webmaster Tools into the env
+    // (see .env.example) and the meta tags appear — no content strings.
+    const googleVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION?.trim() || undefined;
+    const bingVerification = process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION?.trim() || undefined;
     return {
     title: {
         default: identity.siteName,
@@ -109,6 +115,14 @@ export async function generateMetadata(): Promise<Metadata> {
         title: SITE.shortName,
         statusBarStyle: "black-translucent",
     },
+    ...(googleVerification || bingVerification
+        ? {
+              verification: {
+                  ...(googleVerification ? { google: googleVerification } : {}),
+                  ...(bingVerification ? { other: { "msvalidate.01": bingVerification } } : {}),
+              },
+          }
+        : {}),
     };
 }
 
@@ -151,6 +165,9 @@ export default async function RootLayout({ children }: RootLayoutProps) {
             )}
         >
             <body className="flex min-h-full flex-col">
+                {/* Site-wide Organization + WebSite schema (SEO): crawlers read
+                    it on every page without per-page duplication. */}
+                <SiteJsonLd />
                 {/* Published brand tokens, ahead of the pre-paint bootstrap so a
                     theme is applied before the .dark class lands. See
                     components/brand-theme-style.tsx for why this sits in body. */}

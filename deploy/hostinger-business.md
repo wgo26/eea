@@ -260,6 +260,62 @@ what you expect.
 - [ ] Public media loads from R2.
 - [ ] No server-only key appears in browser source or responses.
 
+## Build robustness on the Hostinger builder
+
+`npm run build` does not call `next build` directly — it runs
+`scripts/build.mjs`, which builds with Turbopack and **retries with webpack** if
+the host cannot run a build helper process.
+
+The failure this guards against looks like a CSS error but is not one:
+
+```
+FATAL: An unexpected Turbopack error occurred.
+[project]/app/inter_68f53a0d.module.css [app-rsc] (css module)
+Caused by:
+- Execution of evaluate_webpack_loader failed
+- creating new process
+- node process exited before we could connect to it with exit status: 0
+ERROR: Failed to build the application
+```
+
+Turbopack executes `postcss.config.mjs` (`@tailwindcss/postcss`) in a pool of
+spawned `node` children. On a constrained container those children can die at
+boot, before the IPC handshake. The file named in the panic is incidental —
+`inter_<hash>.module.css` is a virtual module `next/font/local` synthesizes for
+the `inter` font in `app/layout.tsx`, not a file on disk, and the reported asset
+moves between runs. Do not "fix" the named CSS file.
+
+The retry is trustworthy because Sentry's `withSentryConfig` injects a `webpack`
+function, which makes Next run the webpack compile in-process
+(`useBuildWorker: false`) — so the fallback has no loader children to lose.
+
+If a deploy fails, read `[eea build] attempt 1/2` in the build log:
+
+- **attempt 1 fails, attempt 2 succeeds** → the host is under-provisioned.
+  Turbopack will keep working intermittently; consider a larger plan.
+- **both attempts fail with the same spawn error** → the container cannot fork
+  at all. This is a Hostinger plan/resource problem, not an app problem; open a
+  support ticket quoting `evaluate_webpack_loader` and `creating new process`.
+- **`no bundler fallback`** → a genuine application error (types, config, or
+  prerender). Fix the code; the wrapper deliberately does not hide these.
+
+Dials, all set in hPanel environment variables and never required:
+
+| Variable | Effect |
+| --- | --- |
+| `EEA_BUILD_BUNDLER=webpack` | Skip Turbopack entirely (use if the plan is chronically under-memory) |
+| `EEA_BUILD_STRICT=1` | Never change bundlers; fail on the first error (makes CI strict) |
+| `EEA_BUILD_MAX_HEAP_MB=2048` | Set `--max-old-space-size` for the build process |
+
+`EEA_BUILD_MAX_HEAP_MB` is intentionally opt-in: `NODE_OPTIONS` is inherited by
+every build worker, so a blanket heap cap is multiplied across the prerender
+pool and can consume the very memory it was meant to protect. Only set it if
+you know the plan's real RAM — inside a container, `os.totalmem()` reports the
+host's memory, not the cgroup limit, so it cannot be inferred reliably.
+
+To reproduce locally, `npm run build:webpack` forces the webpack path and
+`npm run build:turbopack` forces Turbopack-then-fallback.
+
 ## Important limitation
 
 If hPanel does not expose a persistent Node.js server, custom environment variables, or
