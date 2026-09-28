@@ -5,8 +5,9 @@ import { getInsights, type TopContentRow } from '@/lib/admin/analytics'
 import { PageHeader } from '@/components/admin/page-header'
 import { StatCard, StatGrid } from '@/components/admin/stat-card'
 import { EmptyState } from '@/components/admin/empty-state'
-import { DailyLineChart, BreakdownBarChart, LocaleDonut, FunnelChart } from '@/components/admin/insights-charts'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { TrafficChart, BreakdownBarChart, LocaleDonut, FunnelChart, shortDayLabel } from '@/components/admin/insights-charts'
+import { MeterBar } from '@/components/admin/viz'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { RetroPanel } from './retro-panel'
 
 /**
@@ -115,31 +116,56 @@ export default async function Page() {
         <EmptyState message={t.noData} />
       ) : (
         <>
-          {/* Summary KPIs */}
+          {/* KPI strip — answers "how much, how fast, what peaked" */}
           <StatGrid>
             <StatCard label={t.views14d} value={insights.views14d} />
             <StatCard
               label={t.views7d}
               value={insights.views7d}
+              hint={`${t.prior7d}: ${insights.viewsPrior7d.toLocaleString()}`}
               {...(insights.deltaPct != null
                 ? { trend: { value: insights.deltaPct, positive: insights.deltaPct >= 0 } }
                 : {})}
             />
-            <StatCard label={t.prior7d} value={insights.viewsPrior7d} />
-            <StatCard label={t.shares14d} value={insights.shares14d} />
-            <StatCard label={t.shares7d} value={insights.shares7d} />
-            <StatCard label={t.proofVisibleCount} value={insights.proofVisibleCount} />
+            <StatCard
+              label={t.shares14d}
+              value={insights.shares14d}
+              hint={`${t.shares7d}: ${insights.shares7d.toLocaleString()}`}
+              {...(insights.sharesDeltaPct != null
+                ? { trend: { value: insights.sharesDeltaPct, positive: insights.sharesDeltaPct >= 0 } }
+                : {})}
+            />
+            <StatCard
+              label={t.engagementRate}
+              value={insights.engagementRate != null ? `${insights.engagementRate}%` : '—'}
+              hint={t.engagementHint}
+            />
+            <StatCard
+              label={t.avgPerDay}
+              value={insights.avgPerDay}
+              hint={insights.peakDay ? `${t.peakDay}: ${shortDayLabel(insights.peakDay.day, locale)} (${insights.peakDay.count.toLocaleString()})` : undefined}
+            />
+            <StatCard
+              label={t.bestSurface}
+              value={insights.bestSurface ? insights.bestSurface.key : '—'}
+              hint={insights.bestSurface ? insights.bestSurface.count.toLocaleString() : undefined}
+            />
           </StatGrid>
 
-          {/* Daily trend — area line chart */}
+          {/* Hero — traffic views vs shares */}
           <Card>
             <CardHeader>
-              <CardTitle className={sectionHeadingCls}>{t.daily}</CardTitle>
+              <CardTitle className={sectionHeadingCls}>{t.trafficTitle}</CardTitle>
+              <CardDescription>{t.trafficHint}</CardDescription>
             </CardHeader>
             <CardContent>
-              <DailyLineChart
+              <TrafficChart
                 daily={insights.daily}
-                ariaLabel={`${t.daily} — ${t.views14d}: ${insights.views14d.toLocaleString()}`}
+                dailyShares={insights.dailyShares}
+                ariaLabel={`${t.trafficTitle} — ${t.views14d}: ${insights.views14d.toLocaleString()}, ${t.shares14d}: ${insights.shares14d.toLocaleString()}`}
+                viewsLabel={t.views}
+                sharesLabel={t.colShares}
+                locale={locale === 'fr' ? 'fr' : 'en'}
               />
             </CardContent>
           </Card>
@@ -149,6 +175,7 @@ export default async function Page() {
             <Card>
               <CardHeader>
                 <CardTitle className={sectionHeadingCls}>{t.bySurface}</CardTitle>
+                <CardDescription>{t.rankedHint}</CardDescription>
               </CardHeader>
               <CardContent>
                 <BreakdownBarChart
@@ -160,6 +187,7 @@ export default async function Page() {
             <Card>
               <CardHeader>
                 <CardTitle className={sectionHeadingCls}>{t.byLocale}</CardTitle>
+                <CardDescription>{t.localeHint}</CardDescription>
               </CardHeader>
               <CardContent>
                 <LocaleDonut rows={insights.byLocale} ariaLabel={t.byLocale} />
@@ -168,6 +196,7 @@ export default async function Page() {
             <Card>
               <CardHeader>
                 <CardTitle className={sectionHeadingCls}>{t.byPlace}</CardTitle>
+                <CardDescription>{t.rankedHint}</CardDescription>
               </CardHeader>
               <CardContent>
                 <BreakdownBarChart
@@ -179,43 +208,59 @@ export default async function Page() {
           </div>
 
           {/* Conversion funnel */}
-          <Card>
-            <CardHeader>
-              <CardTitle className={sectionHeadingCls}>{t.funnelTitle}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <FunnelChart
-                funnel={insights.funnel}
-                ariaLabel={t.funnelTitle}
-              />
-            </CardContent>
-          </Card>
+          <div className="grid gap-5 lg:grid-cols-5">
+            <Card className="lg:col-span-3">
+              <CardHeader>
+                <CardTitle className={sectionHeadingCls}>{t.funnelTitle}</CardTitle>
+                <CardDescription>{t.funnelHint}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <FunnelChart
+                  funnel={insights.funnel}
+                  ariaLabel={t.funnelTitle}
+                  labels={[t.funnelViews, t.funnelSubmitted, t.funnelPublished]}
+                  endToEndLabel={t.funnelEndToEnd}
+                />
+              </CardContent>
+            </Card>
 
-          {/* Shares by voice register */}
-          <Card>
-            <CardHeader>
-              <CardTitle className={sectionHeadingCls}>{t.shareVoiceTitle}</CardTitle>
-              <p className="text-xs text-muted-foreground">{t.shareVoiceHint}</p>
-            </CardHeader>
-            <CardContent>
-              <BreakdownBarChart
-                rows={insights.shareByVoice}
-                ariaLabel={t.shareVoiceTitle}
-                color="#16a34a"
-              />
-            </CardContent>
-          </Card>
+            {/* Shares by voice register */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className={sectionHeadingCls}>{t.shareVoiceTitle}</CardTitle>
+                <CardDescription>{t.shareVoiceHint}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <BreakdownBarChart
+                  rows={insights.shareByVoice}
+                  ariaLabel={t.shareVoiceTitle}
+                  color="#16a34a"
+                />
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Lifetime per-content counters */}
           <Card>
             <CardHeader>
               <CardTitle className={sectionHeadingCls}>{t.totalsTitle}</CardTitle>
+              <CardDescription>{t.proofCoverageHint}</CardDescription>
             </CardHeader>
             <CardContent>
               <StatGrid>
                 <StatCard label={t.totalViews} value={insights.totalContentViews} />
                 <StatCard label={t.totalShares} value={insights.totalContentShares} />
-                <StatCard label={t.proofVisibleCount} value={insights.proofVisibleCount} />
+                <StatCard label={t.publishedItems} value={insights.publishedItems} />
+                <StatCard
+                  label={t.proofCoverage}
+                  value={insights.proofCoveragePct != null ? `${insights.proofCoveragePct}%` : '—'}
+                  hint={`${insights.proofVisibleCount.toLocaleString()} / ${insights.publishedItems.toLocaleString()}`}
+                  footer={
+                    insights.proofCoveragePct != null ? (
+                      <MeterBar value={insights.proofCoveragePct} max={100} tone="emerald" />
+                    ) : undefined
+                  }
+                />
               </StatGrid>
               <p className="mt-2 text-xs text-muted-foreground">{t.proofHint}</p>
             </CardContent>

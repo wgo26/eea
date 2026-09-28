@@ -37,11 +37,29 @@ export type TopContentRow = {
 
 export type Insights = {
   daily: DayCount[] // last 14 days, zero-filled
+  /** Zero-filled daily share taps (same 14-day window as `daily`). */
+  dailyShares: DayCount[]
   views14d: number
   views7d: number
   viewsPrior7d: number
   /** percent change 7d vs prior 7d; null when prior7 = 0 */
   deltaPct: number | null
+  /** Zero-filled daily share taps split for the traffic chart. */
+  sharesPrior7d: number
+  /** percent change shares 7d vs prior 7d; null when prior = 0 */
+  sharesDeltaPct: number | null
+  /** Mean views per day over the 14-day window. */
+  avgPerDay: number
+  /** Peak traffic day in the window (null when no traffic). */
+  peakDay: DayCount | null
+  /** Highest-traffic surface in the window (null when no traffic). */
+  bestSurface: BreakdownRow | null
+  /** shares14d / views14d * 100; null when views14d = 0 */
+  engagementRate: number | null
+  /** published / submissionsReceived * 100 over the window; null when no submissions */
+  publishRate: number | null
+  /** submissionsReceived / submitPageViews * 100; null when no submit views */
+  submitConversion: number | null
   bySurface: BreakdownRow[]
   byLocale: BreakdownRow[]
   byPlace: BreakdownRow[] // top 10, place-agnostic rows excluded
@@ -58,14 +76,27 @@ export type Insights = {
   totalContentShares: number
   /** Items with public proof visible (>15 views or >10 shares). */
   proofVisibleCount: number
+  /** Published, unarchived items counted for lifetime totals. */
+  publishedItems: number
+  /** proofVisibleCount / publishedItems * 100; null when no items */
+  proofCoveragePct: number | null
 }
 
 const EMPTY: Insights = {
   daily: [],
+  dailyShares: [],
   views14d: 0,
   views7d: 0,
   viewsPrior7d: 0,
   deltaPct: null,
+  sharesPrior7d: 0,
+  sharesDeltaPct: null,
+  avgPerDay: 0,
+  peakDay: null,
+  bestSurface: null,
+  engagementRate: null,
+  publishRate: null,
+  submitConversion: null,
   bySurface: [],
   byLocale: [],
   byPlace: [],
@@ -78,6 +109,8 @@ const EMPTY: Insights = {
   totalContentViews: 0,
   totalContentShares: 0,
   proofVisibleCount: 0,
+  publishedItems: 0,
+  proofCoveragePct: null,
 }
 
 const DAY_MS = 86_400_000
@@ -120,12 +153,23 @@ export async function getInsights(): Promise<Insights> {
     }[]
 
     // Zero-fill the 14-day series so the chart has a stable x-axis.
+    // `daily` counts every beacon surface; `dailyShares` counts only the
+    // aggregate share-* taps so the traffic chart can overlay both lines.
+    const isShareSurface = (s: string) => s.startsWith('share-')
     const byDay = new Map<string, number>()
-    for (const r of rows) byDay.set(r.day, (byDay.get(r.day) ?? 0) + r.count)
+    const byShareDay = new Map<string, number>()
+    for (const r of rows) {
+      byDay.set(r.day, (byDay.get(r.day) ?? 0) + r.count)
+      if (isShareSurface(r.surface)) {
+        byShareDay.set(r.day, (byShareDay.get(r.day) ?? 0) + r.count)
+      }
+    }
     const daily: DayCount[] = []
+    const dailyShares: DayCount[] = []
     for (let offset = WINDOW_DAYS - 1; offset >= 0; offset--) {
       const day = utcDay(offset)
       daily.push({ day, count: byDay.get(day) ?? 0 })
+      dailyShares.push({ day, count: byShareDay.get(day) ?? 0 })
     }
 
     const sevenAgo = utcDay(6) // last 7 days: [today-6 … today]
@@ -147,6 +191,16 @@ export async function getInsights(): Promise<Insights> {
       10,
     )
 
+    // Headline derivations — all pure over the rows above, so the KPI strip
+    // can answer "how fast, what peaked, where" without new queries.
+    const peakDay = daily.reduce<DayCount | null>(
+      (best, d) => (!best || d.count > best.count ? { ...d } : best),
+      null,
+    )
+    const peakDayOrNull = peakDay && peakDay.count > 0 ? peakDay : null
+    const bestSurface = bySurface.length > 0 && bySurface[0].count > 0 ? bySurface[0] : null
+    const avgPerDay = views14d > 0 ? Math.round((views14d / WINDOW_DAYS) * 10) / 10 : 0
+
     // Funnel: beacon counter for the submit page + operational counts over
     // the same 14-day window (counts only — never row data).
     const submitPageViews = sum(rows.filter((r) => r.surface === 'submit'))
@@ -165,10 +219,16 @@ export async function getInsights(): Promise<Insights> {
     if (pubErr) throw new Error(pubErr.message)
 
     // Share taps: aggregate share-* surfaces over the same window.
-    const isShareSurface = (s: string) => s.startsWith('share-')
     const shareRows = rows.filter((r) => isShareSurface(r.surface))
     const shares14d = sum(shareRows)
     const shares7d = sum(shareRows.filter((r) => r.day >= sevenAgo))
+    const sharesPrior7d = sum(
+      shareRows.filter((r) => r.day >= priorFrom && r.day <= priorTo),
+    )
+    const sharesDeltaPct =
+      sharesPrior7d > 0 ? Math.round(((shares7d - sharesPrior7d) / sharesPrior7d) * 100) : null
+    const engagementRate =
+      views14d > 0 ? Math.round((shares14d / views14d) * 1000) / 10 : null
     const shareByVoice = group(
       shareRows.map((r) => ({
         key: r.surface.replace(/^share-/, ''),
@@ -250,19 +310,42 @@ export async function getInsights(): Promise<Insights> {
       .or('view_count.gt.15,share_count.gt.10')
     if (proofErr) throw new Error(proofErr.message)
 
+    const publishedItems = (totals ?? []).length
+    const proofCoveragePct =
+      publishedItems > 0 && (proofVisibleCount ?? 0) > 0
+        ? Math.round(((proofVisibleCount ?? 0) / publishedItems) * 1000) / 10
+        : publishedItems > 0
+          ? 0
+          : null
+
+    const received = submissionsReceived ?? 0
+    const made = published ?? 0
+    const publishRate = received > 0 ? Math.round((made / received) * 1000) / 10 : null
+    const submitConversion =
+      submitPageViews > 0 ? Math.round((received / submitPageViews) * 1000) / 10 : null
+
     return {
       daily,
+      dailyShares,
       views14d,
       views7d,
       viewsPrior7d,
       deltaPct,
+      sharesPrior7d,
+      sharesDeltaPct,
+      avgPerDay,
+      peakDay: peakDayOrNull,
+      bestSurface,
+      engagementRate,
+      publishRate,
+      submitConversion,
       bySurface,
       byLocale,
       byPlace,
       funnel: {
         submitPageViews,
-        submissionsReceived: submissionsReceived ?? 0,
-        published: published ?? 0,
+        submissionsReceived: received,
+        published: made,
       },
       shares14d,
       shares7d,
@@ -272,6 +355,8 @@ export async function getInsights(): Promise<Insights> {
       totalContentViews,
       totalContentShares,
       proofVisibleCount: proofVisibleCount ?? 0,
+      publishedItems,
+      proofCoveragePct,
     }
   } catch (err) {
     logger.error('admin/analytics', 'getInsights failed', {

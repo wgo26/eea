@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
     SLA_CRITICAL_HOURS,
     SLA_WARNING_HOURS,
+    formatRate,
     oldestPendingHours,
     pctOf,
     publishingTrend,
+    ratePct,
     slaTone,
 } from "./insights";
 
@@ -91,5 +93,19 @@ describe("pctOf", () => {
     it("clamps out-of-range inputs instead of overflowing a meter", () => {
         expect(pctOf(150, 100)).toBe(100);
         expect(pctOf(-10, 100)).toBe(0);
+    });
+});
+
+describe("ratePct / formatRate", () => {
+    it("returns null on zero totals and rounds small rates to one decimal", () => {
+        expect(ratePct(5, 0)).toBeNull();
+        expect(ratePct(1, 200)).toBe(0.5);
+        expect(ratePct(1, 4)).toBe(25);
+        expect(ratePct(-3, 100)).toBe(0);
+    });
+
+    it("never renders NaN", () => {
+        expect(formatRate(null)).toBe("—");
+        expect(formatRate(12.5)).toBe("12.5%");
     });
 });

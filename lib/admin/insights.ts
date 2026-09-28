@@ -77,3 +77,19 @@ export function pctOf(value: number, total: number): number {
   if (total <= 0) return 0
   return Math.min(100, Math.max(0, (value / total) * 100))
 }
+
+/**
+ * Insights rate helper — shares-per-100-views style percentages with one
+ * decimal below 10% and whole numbers above (matches the funnel footer and
+ * the engagement KPI so rates read identically everywhere).
+ */
+export function ratePct(part: number, whole: number): number | null {
+  if (whole <= 0) return null
+  const raw = (Math.max(0, part) / whole) * 100
+  return raw >= 10 ? Math.round(raw) : Math.round(raw * 10) / 10
+}
+
+/** Format a rate for display (`null` → em-dash, never "NaN%"). */
+export function formatRate(rate: number | null): string {
+  return rate == null ? '—' : `${rate}%`
+}
