@@ -4,7 +4,7 @@ import * as React from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { AlertCircle, Check, CheckCircle2, Info, Loader2, LocateFixed, MapPin } from "lucide-react";
+import { AlertCircle, Check, Info, Loader2, LocateFixed, MapPin } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -359,12 +359,22 @@ export function SubmitForm({
 
     const goStep = (next: number) => {
         if (next > step) {
-            // Validate only the visible step before advancing.
+            // Validate the always-visible contact card plus the visible step
+            // before advancing. (Hidden steps are display:none — browsers bar
+            // them from constraint validation — so each step is checked on
+            // the way through, and the contact card is checked every time.)
             const root = stepRef.current;
             if (root) {
-                const required = Array.from(
-                    root.querySelectorAll<HTMLElement>("[data-step-active='true'] [required]"),
-                );
+                const form = formRef.current;
+                const contactRequired = form
+                    ? Array.from(form.querySelectorAll<HTMLElement>("#submit-contact [required]"))
+                    : [];
+                const required = [
+                    ...contactRequired,
+                    ...Array.from(
+                        root.querySelectorAll<HTMLElement>("[data-step-active='true'] [required]"),
+                    ),
+                ];
                 for (const el of required) {
                     const input = el as HTMLInputElement;
                     if (!input.checkValidity()) {
@@ -435,20 +445,8 @@ export function SubmitForm({
         setReviewValues(next);
     }
 
-    if (state.ok) {
-        return (
-            <div className="rounded-2xl border bg-card p-8 text-center">
-                <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" aria-hidden />
-                <p className="mt-3 font-bold">{dict.submit.successTitle}</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    {dict.submit.successBody}
-                </p>
-                <Button render={<Link href={localePath(locale, "/submit/confirmation")} />} className="mt-4">
-                    {dict.submit.successTitle}
-                </Button>
-            </div>
-        );
-    }
+    // Success navigates to /submit/confirmation via the effect above — no
+    // inline success card here (it used to flash before the redirect).
 
     const isPhoto = type === "photo-story";
     const isNews = type === "news";
@@ -483,30 +481,12 @@ export function SubmitForm({
                 </div>
             ) : null}
 
-            {/* Stepper */}
-            <ol className="flex items-center gap-2 text-xs font-medium" aria-label={s.label}>
-                {[s.one, s.two, s.three].map((label, i) => (
-                    <li key={label} className="flex flex-1 items-center gap-2">
-                        <span
-                            aria-current={step === i ? "step" : undefined}
-                            className={
-                                step === i
-                                    ? "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
-                                    : step > i
-                                      ? "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"
-                                      : "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
-                            }
-                        >
-                            {i + 1}
-                        </span>
-                        <span className={step === i ? "text-foreground" : "text-muted-foreground"}>{label}</span>
-                        {i < 2 ? <span className="h-px flex-1 bg-border" aria-hidden /> : null}
-                    </li>
-                ))}
-            </ol>
+            {/* Step progress lives in the shell (FocusedStepProgress, driven by
+                FormStepContext) — the single stepper. A second inline copy
+                used to render here and showed double step numbers. */}
 
             {/* Contact card — collapsed for signed-in contributors */}
-            <div className="rounded-2xl border bg-muted/30 p-4">
+            <div id="submit-contact" className="rounded-2xl border bg-muted/30 p-4">
             {initial?.name && !showContact ? (
                 <div className="flex items-center justify-between gap-3 text-sm">
                     <p className="inline-flex items-center gap-2">
@@ -798,12 +778,19 @@ export function SubmitForm({
                     </div>
 
                     {state.error ? (
-                        <p className="text-sm text-destructive">
+                        <p className="text-sm text-destructive" role="alert">
                             {state.error === "rate_limited"
                                 ? dict.submit.errorRateLimited
                                 : state.error === "captcha"
                                   ? dict.submit.errorCaptcha
-                                  : dict.submit.errorGeneric}
+                                  : state.error === "missing_name" ||
+                                      state.error === "missing_contact" ||
+                                      state.error === "missing_consent" ||
+                                      state.error === "missing_content"
+                                    ? dict.submit.errorRequired
+                                    : state.error === "duplicate"
+                                      ? dict.submit.errorDuplicate
+                                      : dict.submit.errorGeneric}
                         </p>
                     ) : null}
 

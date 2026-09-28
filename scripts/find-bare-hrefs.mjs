@@ -39,6 +39,10 @@ for (const file of files) {
       if (
         !/^\/(en|fr)(\/|$)/.test(target) &&
         !/^\/(api|_next)/.test(target) &&
+        // Locale-independent root metadata routes (same class as the
+        // sitemap/robots exemptions): the PWA manifest served by
+        // app/manifest.ts is installability infrastructure, not content.
+        !/^\/(manifest\.webmanifest|sitemap\.xml|robots\.txt)$/.test(target) &&
         !/\$\{/.test(literal[0])
       ) {
         issues.push(`${file}:${i + 1}  LITERAL  ${line.trim().slice(0, 120)}`);

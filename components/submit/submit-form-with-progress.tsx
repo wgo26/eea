@@ -7,9 +7,9 @@ import { useFormStep } from "@/lib/submit/form-step-context";
 import type { Dictionary } from "@/lib/i18n";
 
 /**
- * Interim client wrapper that reads the controlled step from
- * `FormStepContext` and passes it down to `SubmitForm`, keeping the
- * shell-level progress tracker and the inline stepper in sync.
+ * Client wrapper that reads the controlled step from `FormStepContext` and
+ * passes it down to `SubmitForm`. The shell-level `FocusedStepProgress` is
+ * the single visible stepper — `SubmitForm` renders no stepper of its own.
  */
 function SubmitFormControlled({
     type,

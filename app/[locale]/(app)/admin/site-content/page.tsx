@@ -8,6 +8,7 @@ import {
 } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { AdvertiseSectionEditor, AnnouncementForm, FlagsForm, SiteBrandingForm, SiteLinksForm } from './site-content-forms'
+import { PwaCard } from './pwa-card'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -64,6 +65,8 @@ export default async function Page({
             site_tagline_fr: settings.site_tagline_fr,
           }}
         />
+        {/* Live proof that the install experience follows the brand above. */}
+        <PwaCard copy={t} />
       </section>
 
       <section className="space-y-3">

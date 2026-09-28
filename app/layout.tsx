@@ -97,9 +97,12 @@ export async function generateMetadata(): Promise<Metadata> {
     // lib/site-icon.ts). This link makes browsers prefer the SVG-capable URL
     // over bare /favicon.ico auto-discovery. Replaces the old static
     // demo-mark app/icon.svg.
+    // The Apple touch icon is rendered from the same live logo
+    // (app/app-icons/[name]/route.ts) so "Add to Home Screen" uses the
+    // project logo, not a stale committed PNG.
     icons: {
         icon: "/icon.svg",
-        apple: "/icons/icon-192.png",
+        apple: "/app-icons/apple-touch-icon.png",
     },
     appleWebApp: {
         capable: true,

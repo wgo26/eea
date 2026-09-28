@@ -3481,7 +3481,7 @@ export const appStringsEn = {
       notSet: 'Not set',
       brandingTitle: 'Brand & logo',
       brandingBody:
-        'Site name, tagline and logo shown in the header and footer. Upload a logo file or paste an image URL — clear the logo to return to the built-in mark. The same logo feeds the browser tab icon.',
+        'Site name, tagline and logo shown in the header and footer. Upload a logo file or paste an image URL — clear the logo to return to the built-in mark. The same logo feeds the browser tab icon and every home-screen app icon.',
       logoLabel: 'Logo image',
       logoHint: 'PNG or SVG, wide logo works best. Upload a file or paste https://… or /… path.',
       uploadLogo: 'Upload logo',
@@ -3500,6 +3500,16 @@ export const appStringsEn = {
       toastBrandingSaved: 'Branding saved.',
       errorImageUrl: 'Enter a full https:// URL or a site path starting with /.',
       errorUpload: 'Upload failed. Try a PNG, JPG or SVG under 5 MB.',
+      pwaTitle: 'App install (PWA)',
+      pwaBody:
+        'What readers get when they install the site to their home screen. Everything below follows the logo and name above automatically — save branding and these update within minutes, no rebuild.',
+      pwaNameLabel: 'App name',
+      pwaIconsLabel: 'Home-screen icons',
+      pwaIconsHint: 'Standard · large · maskable (Android) · Apple touch',
+      pwaManifestLabel: 'Manifest',
+      pwaThemeLabel: 'Theme color',
+      pwaOfflineLabel: 'Offline fallback',
+      pwaNoLogo: 'No custom logo yet — icons show the built-in mark until you upload one.',
       announcementTitle: 'Announcement banner',
       announcementBody:
         'A dismissible notice above the header on every public page — maintenance, events, breaking news. Each language falls back to the other; clearing both texts turns the banner off.',

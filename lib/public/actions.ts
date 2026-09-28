@@ -70,6 +70,88 @@ const SUBMISSION_TYPES = [
     "buy_sell",
 ] as const;
 
+/**
+ * Allowlist mirrors for the submit form enums. Client `required` attributes
+ * and `<select>` options are bypassable with a direct POST, so the server
+ * re-validates every constrained value. Keep in sync with:
+ * - `NOTICE_TYPE_META` keys (`lib/notice-types.ts`) + the notice `<select>`
+ *   in `components/submit/submit-form.tsx`,
+ * - the buy-sell category `<select>` in the same file,
+ * - `CURRENCIES` in the same file.
+ */
+const NOTICE_TYPE_KEYS = [
+    "public_notice",
+    "lost_found",
+    "road_closure",
+    "community_alert",
+    "missing_person",
+    "service_announcement",
+    "government_notice",
+    "school_notice",
+    "organization_notice",
+    "other",
+] as const;
+
+const BUY_SELL_CATEGORIES = [
+    "phones",
+    "vehicles",
+    "property",
+    "furniture",
+    "fashion",
+    "jobs",
+    "agriculture",
+    "household",
+    "business",
+    "other",
+] as const;
+
+const SUBMIT_CURRENCIES = ["XAF", "XOF", "CDF", "USD", "EUR", "NGN", "GHS"] as const;
+
+/**
+ * Per-type minimum content for `submitStory`. Returns the SubmitState error
+ * code when the payload cannot produce a reviewable submission, or null when
+ * it passes. This is the server-side twin of the form's `required`
+ * attributes — without it a direct POST with a single free-text field would
+ * land a content-less row in the moderation queue.
+ */
+function validateSubmissionContent(
+    submissionType: string,
+    payload: Record<string, string>,
+): string | null {
+    switch (submissionType) {
+        case "photo_story":
+            return payload.what ? null : "missing_content";
+        case "news":
+        case "culture":
+            return payload.headline && payload.description ? null : "missing_content";
+        case "notice":
+            if (
+                !payload.noticeType ||
+                !(NOTICE_TYPE_KEYS as readonly string[]).includes(payload.noticeType)
+            ) {
+                return "missing_content";
+            }
+            return payload.item && payload.message ? null : "missing_content";
+        case "buy_sell":
+            if (
+                !payload.category ||
+                !(BUY_SELL_CATEGORIES as readonly string[]).includes(payload.category)
+            ) {
+                return "missing_content";
+            }
+            return payload.item && payload.description ? null : "missing_content";
+        default:
+            return "missing_content";
+    }
+}
+
+/** Canonical title key used by the duplicate-submit guard below. */
+function submissionTitleKey(payload: Record<string, string>): string {
+    return (payload.headline || payload.item || payload.what || payload.message || "")
+        .trim()
+        .slice(0, 120);
+}
+
 function str(value: FormDataEntryValue | null): string {
     if (typeof value === "string") return value.trim();
     return "";
@@ -156,13 +238,18 @@ export async function submitStory(
     }
 
     const guestName = str(formData.get("contributorName")) || profileName;
-    const guestEmail = str(formData.get("email")) || profileEmail;
+    let guestEmail = str(formData.get("email")) || profileEmail;
     const guestPhone = str(formData.get("phone")) || profilePhone;
     const consentConfirmed = formData.get("consent") === "on";
     const rightsConfirmed = formData.get("rights") === "on";
 
     if (!guestName) return { ok: false, error: "missing_name" };
-    if (submissionType !== "buy_sell" && !guestEmail && !guestPhone) {
+    // A malformed email is worse than none: the guest expects a receipt and
+    // editors lose their contact channel. Drop it, then require at least one
+    // working contact — marketplace listings without a seller contact are
+    // unreviewable (and scam-prone), so buy_sell is NOT exempt.
+    if (guestEmail && !isEmail(guestEmail)) guestEmail = "";
+    if (!guestEmail && !guestPhone) {
         return { ok: false, error: "missing_contact" };
     }
     if (!consentConfirmed || !rightsConfirmed) {
@@ -212,6 +299,25 @@ export async function submitStory(
     if (!payload.location && payload.location_text) {
         payload.location = payload.location_text;
     }
+    // Constrained selects are free-text on a direct POST — keep only
+    // allowlisted values so junk enums never reach the queue. Optional fields
+    // (price/currency/dates) fall back to "absent" instead of failing: the
+    // editor decides them. Required ones are enforced by
+    // validateSubmissionContent below.
+    if (payload.currency && !(SUBMIT_CURRENCIES as readonly string[]).includes(payload.currency)) {
+        delete payload.currency;
+    }
+    if (payload.price && !/^\d+(\.\d{1,2})?$/.test(payload.price)) {
+        delete payload.price;
+    }
+    for (const key of ["date", "expiry"] as const) {
+        if (payload[key] && Number.isNaN(Date.parse(payload[key]))) {
+            delete payload[key];
+        }
+    }
+
+    const contentError = validateSubmissionContent(submissionType, payload);
+    if (contentError) return { ok: false, error: contentError };
 
     if (Object.keys(payload).length === 0) {
         return { ok: false, error: "missing_content" };
@@ -237,6 +343,37 @@ export async function submitStory(
                 delete payload.location_id;
             }
         }
+        // Duplicate-submit guard (mirrors the advertise 7-day check): a
+        // double-click, retry, or double-tab within minutes with the same
+        // title must not pile identical rows into the moderation queue. One
+        // indexed recent-pendings lookup for this identity, compared in JS
+        // (payload JSON matching is not index-friendly in PostgREST).
+        const titleKey = submissionTitleKey(payload);
+        if (titleKey) {
+            try {
+                const since = new Date(Date.now() - 10 * 60_000).toISOString();
+                let dupQuery = supabase
+                    .from("submissions")
+                    .select("payload")
+                    .eq("submission_type", submissionType)
+                    .eq("status", "pending")
+                    .gte("created_at", since)
+                    .limit(10);
+                if (submittedBy) dupQuery = dupQuery.eq("submitted_by", submittedBy);
+                else if (guestEmail) dupQuery = dupQuery.eq("guest_email", guestEmail);
+                else if (guestPhone) dupQuery = dupQuery.eq("guest_phone", guestPhone);
+                const { data: recent } = await dupQuery;
+                const isDuplicate = ((recent ?? []) as { payload: unknown }[]).some(
+                    (r) =>
+                        r.payload &&
+                        typeof r.payload === "object" &&
+                        submissionTitleKey(r.payload as Record<string, string>) === titleKey,
+                );
+                if (isDuplicate) return { ok: false, error: "duplicate" };
+            } catch {
+                // Guard outage must never block a genuine submission.
+            }
+        }
         const { error } = await supabase.from("submissions").insert({
             submission_type: submissionType,
             submitted_by: submittedBy,
@@ -251,6 +388,22 @@ export async function submitStory(
         if (error) {
             logger.error("submitStory", "insert failed", { error: error.message });
             return { ok: false, error: "db" };
+        }
+        // The submission supersedes any saved draft for this user+type — drop
+        // it so the next visit opens a clean form instead of re-offering
+        // already-submitted text via initialDraft. Best-effort: never fails
+        // the submission.
+        if (submittedBy) {
+            try {
+                await supabase
+                    .from("submissions")
+                    .delete()
+                    .eq("submitted_by", submittedBy)
+                    .eq("submission_type", submissionType)
+                    .eq("status", "draft");
+            } catch {
+                /* draft cleanup is best-effort */
+            }
         }
         // Notify (best-effort, never fails the submission): staff get a
         // moderation alert, signed-in contributors get an in-app receipt.

@@ -592,6 +592,13 @@ badges: {
     savedEmpty: 'Rien d’enregistré — ouvrez un article et touchez « Enregistrer hors ligne ».',
     openSaved: 'Ouvrir les articles enregistrés',
   },
+  pwa: {
+    installTitle: 'Installer l’application',
+    installBody: 'Ajoutez {site} à votre écran d’accueil pour lire plus vite, hors ligne, et publier en un geste.',
+    installAction: 'Installer',
+    installDismiss: 'Plus tard',
+    installIosBody: 'Sur iPhone : touchez Partager, puis « Sur l’écran d’accueil » pour installer {site}.',
+  },
   search: {
     title: 'Recherche',
     placeholder: 'Rechercher histoires, avis, annonces…',
@@ -730,6 +737,7 @@ badges: {
     reviewSla: 'La plupart des soumissions sont examinées sous 2 jours ouvrés.',
     errorGeneric: 'Une erreur est survenue. Veuillez réessayer.',
     errorRequired: 'Veuillez remplir tous les champs obligatoires.',
+    errorDuplicate: 'Cela ressemble à un doublon — il a déjà été reçu il y a un instant. Vérifiez votre e-mail ou votre compte au lieu de renvoyer.',
     errorRateLimited: 'Trop de soumissions depuis votre réseau pour le moment. Réessayez dans quelques minutes.',
     errorCaptcha: 'Veuillez compléter la vérification humaine puis réessayer.',
     draftRestored: 'Votre brouillon non envoyé a été restauré.',

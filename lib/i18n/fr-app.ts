@@ -3487,7 +3487,7 @@ export const appStringsFr = {
       notSet: 'Non défini',
       brandingTitle: 'Marque & logo',
       brandingBody:
-        'Nom du site, slogan et logo affichés dans l’en-tête et le pied de page. Téléversez un fichier logo ou collez une URL d’image — videz le logo pour revenir au sigle intégré. Le même logo alimente l’icône de l’onglet navigateur.',
+        'Nom du site, slogan et logo affichés dans l’en-tête et le pied de page. Téléversez un fichier logo ou collez une URL d’image — videz le logo pour revenir au sigle intégré. Le même logo alimente l’icône de l’onglet navigateur et toutes les icônes d’écran d’accueil.',
       logoLabel: 'Image du logo',
       logoHint: 'PNG ou SVG, un logo large convient le mieux. Téléversez un fichier ou collez https://… ou un chemin /…',
       uploadLogo: 'Téléverser le logo',
@@ -3506,6 +3506,16 @@ export const appStringsFr = {
       toastBrandingSaved: 'Marque enregistrée.',
       errorImageUrl: 'Saisissez une URL https:// complète ou un chemin commençant par /.',
       errorUpload: 'Échec du téléversement. Essayez un PNG, JPG ou SVG de moins de 5 Mo.',
+      pwaTitle: 'Installation de l’app (PWA)',
+      pwaBody:
+        'Ce que les lecteurs obtiennent en installant le site sur leur écran d’accueil. Tout ci-dessous suit automatiquement le logo et le nom ci-dessus — enregistrez et ces éléments se mettent à jour en quelques minutes, sans reconstruction.',
+      pwaNameLabel: 'Nom de l’app',
+      pwaIconsLabel: 'Icônes d’écran d’accueil',
+      pwaIconsHint: 'Standard · grand · maskable (Android) · Apple touch',
+      pwaManifestLabel: 'Manifeste',
+      pwaThemeLabel: 'Couleur du thème',
+      pwaOfflineLabel: 'Page hors ligne',
+      pwaNoLogo: 'Aucun logo personnalisé — les icônes affichent le sigle intégré jusqu’au téléversement.',
       announcementTitle: 'Bandeau d’annonce',
       announcementBody:
         'Un avis masquable au-dessus de l’en-tête sur chaque page publique — maintenance, événements, dernières nouvelles. Chaque langue utilise l’autre par défaut ; vider les deux textes désactive le bandeau.',

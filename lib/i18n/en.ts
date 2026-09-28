@@ -624,6 +624,7 @@ export const en = {
     reviewSla: 'Most submissions are reviewed within 2 working days.',
     errorGeneric: 'Something went wrong. Please try again.',
     errorRequired: 'Please fill in all required fields.',
+    errorDuplicate: 'This looks like a duplicate — it was already received a moment ago. Check your email or account for confirmation instead of resending.',
     errorRateLimited: 'Too many submissions from your network right now. Please try again in a few minutes.',
     errorCaptcha: 'Please complete the human-verification step and try again.',
     // Draft autosave: the form restores unsent fields after a dropped connection.
@@ -1281,6 +1282,13 @@ valuesTitle: 'What we stand for',
     savedTitle: 'Saved for offline',
     savedEmpty: 'Nothing saved yet — open any story and tap “Save offline”.',
     openSaved: 'Open saved articles',
+  },
+  pwa: {
+    installTitle: 'Install the app',
+    installBody: 'Add {site} to your home screen for faster reading, offline stories and one-tap submit.',
+    installAction: 'Install',
+    installDismiss: 'Not now',
+    installIosBody: 'On iPhone: tap Share, then “Add to Home Screen” to install {site}.',
   },
   digest: {
     title: 'Daily digest',
