@@ -275,6 +275,8 @@ export async function saveAdvertiseSection(input: {
 const SITE_SETTING_KEYS = [
   'social_facebook_url',
   'social_youtube_url',
+  'contact_email',
+  'contact_whatsapp',
   'site_logo_url',
   'site_name',
   'site_tagline',
@@ -298,6 +300,25 @@ const ANNOUNCEMENT_TEXT_KEYS = ['announcement_text_en', 'announcement_text_fr'] 
 
 /** Feature-flag keys: only the literals 'true'/'false' are stored. */
 const FEATURE_FLAG_KEYS = ['feature_reading_mode', 'feature_event_reminders', 'feature_text_to_speech'] as const
+
+/** Public contact email: plain address — rendered in a mailto: link. */
+const CONTACT_EMAIL_KEYS = ['contact_email'] as const
+
+/** Public WhatsApp number: international format — rendered as a wa.me link. */
+const CONTACT_WHATSAPP_KEYS = ['contact_whatsapp'] as const
+
+function validateContactEmail(value: string): string | null {
+  if (value.length > 160) return null
+  const clean = value.trim()
+  if (/[\s<>"]/.test(clean)) return null
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean) ? clean : null
+}
+
+function validateWhatsappNumber(value: string): string | null {
+  const clean = value.trim().replace(/[\s-]/g, '')
+  if (!/^\+\d{7,15}$/.test(clean)) return null
+  return value.trim()
+}
 
 function validateFeatureFlag(value: string): string | null {
   return value === 'true' || value === 'false' ? value : null
@@ -369,6 +390,12 @@ export async function saveSiteSetting(input: {
       } else if ((FEATURE_FLAG_KEYS as readonly string[]).includes(input.key)) {
         valid = validateFeatureFlag(value)
         if (!valid) return { ok: false, error: 'Invalid flag value.' }
+      } else if ((CONTACT_EMAIL_KEYS as readonly string[]).includes(input.key)) {
+        valid = validateContactEmail(value)
+        if (!valid) return { ok: false, error: 'Enter a valid email address.' }
+      } else if ((CONTACT_WHATSAPP_KEYS as readonly string[]).includes(input.key)) {
+        valid = validateWhatsappNumber(value)
+        if (!valid) return { ok: false, error: 'Enter the WhatsApp number in international format, e.g. +XXX XXX XXX XXX.' }
       } else if (input.key === 'site_logo_url') {
         valid = validateImageUrl(value)
         if (!valid) return { ok: false, error: 'Enter a full https:// URL or a site path starting with /.' }

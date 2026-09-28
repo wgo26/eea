@@ -55,21 +55,28 @@ export function StickyBatchBar({
   const { addToast } = useToast()
   const [loading, setLoading] = useState(false)
   const [pendingAction, setPendingAction] = useState<BatchAction | null>(null)
-  const [overlayUp, setOverlayUp] = useState(false)
+  // Overlay presence is external DOM state: read it lazily for the first
+  // paint (SSR-safe), then only from event callbacks — never synchronously
+  // inside the effect body, which cascades renders.
+  const [overlayUp, setOverlayUp] = useState<boolean>(() =>
+    typeof document === 'undefined'
+      ? false
+      : Boolean(
+          document.querySelector(
+            '[data-slot="alert-dialog-overlay"],[data-slot="sheet-overlay"],[data-slot="dialog-overlay"],[data-slot="drawer-overlay"],[role="alertdialog"]',
+          ),
+        ),
+  )
 
   useEffect(() => {
-    function check(): boolean {
-      return Boolean(
-        document.querySelector(
-          '[data-slot="alert-dialog-overlay"],[data-slot="sheet-overlay"],[data-slot="dialog-overlay"],[data-slot="drawer-overlay"],[role="alertdialog"]',
+    function poll() {
+      setOverlayUp(
+        Boolean(
+          document.querySelector(
+            '[data-slot="alert-dialog-overlay"],[data-slot="sheet-overlay"],[data-slot="dialog-overlay"],[data-slot="drawer-overlay"],[role="alertdialog"]',
+          ),
         ),
       )
-    }
-
-    setOverlayUp(check())
-
-    function poll() {
-      setOverlayUp(check())
     }
 
     window.addEventListener('focusin', poll)

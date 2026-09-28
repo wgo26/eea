@@ -7,7 +7,7 @@ import {
   getSiteSettingsAdmin,
 } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
-import { AdvertiseSectionEditor, AnnouncementForm, FlagsForm, SiteBrandingForm, SiteLinksForm } from './site-content-forms'
+import { AdvertiseSectionEditor, AnnouncementForm, ContactChannelsForm, FlagsForm, SiteBrandingForm, SiteLinksForm } from './site-content-forms'
 import { PwaCard } from './pwa-card'
 
 export async function generateMetadata(): Promise<{ title: string }> {
@@ -84,6 +84,11 @@ export default async function Page({
       <section className="space-y-3">
         <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.footerTitle}</h2>
         <SiteLinksForm copy={t} settings={settings} />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.contactChannelsTitle}</h2>
+        <ContactChannelsForm copy={t} settings={settings} />
       </section>
 
       <section className="space-y-3">

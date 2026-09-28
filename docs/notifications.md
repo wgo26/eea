@@ -93,6 +93,10 @@ best-effort, never fails the submission):
   correction), bilingual, with a "one-off receipt, not a subscription" footer;
 - no marketing, no bulk, no decision follow-ups — moderation outcomes stay
   staff-side; signed-in users additionally get the in-app loop.
+- guests who later create an account with the same email inherit their
+  submissions (`claimGuestSubmissions` on /account/submissions load, plus
+  row-claim on resubmit), so later decisions reach their inbox; the receipt
+  email tells them exactly how to track.
 - unconfigured/invalid SMTP = logged skip, intake still succeeds.
 
 The public daily digest is strictly opt-in at `/digest` (double purpose:

@@ -168,7 +168,7 @@ export default async function Page() {
       {/* AI Intro Override */}
       <section className="space-y-3">
         <h2 className="text-sm font-medium">{t.introTitle}</h2>
-        <p className="text-xs text-muted-foreground">Preview and override tonight's AI intro and subject.</p>
+        <p className="text-xs text-muted-foreground">Preview and override tonight&apos;s AI intro and subject.</p>
         <div className="rounded-lg border border-border bg-card p-4">
           <form action={async (data: FormData) => { await setDigestIntroOverride(data.get('locale') as 'en' | 'fr', data.get('intro') as string, data.get('subject') as string) }}>
             <div className="grid gap-3 md:grid-cols-2">

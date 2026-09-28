@@ -93,7 +93,8 @@ export default async function Page({
           name="q"
           defaultValue={search}
           placeholder={tc.searchPlaceholder}
-          action={`${base}?tab=${tab}&status=${status}`}
+          action={base}
+          hidden={{ tab, status }}
         />
       </div>
 

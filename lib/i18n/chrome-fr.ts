@@ -56,6 +56,7 @@ footer: {
     terms: 'Conditions d\'utilisation',
     privacy: 'Politique de confidentialité',
     guidelines: 'Règles de la communauté',
+    guide: 'Guide communautaire',
     copyright: 'Droit d\'auteur & retrait',
     contact: 'Contact',
     rights: 'Tous droits réservés.',

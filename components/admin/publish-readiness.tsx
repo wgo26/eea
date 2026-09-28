@@ -72,6 +72,8 @@ export function buildReadinessChecks(
         whatsappNumber?: string;
         organizationName?: string;
         noticeType?: string;
+        /** Photos without alt text — the "Draft missing alt text" assist fills these. */
+        missingAltCount?: number;
     }
 ): ReadinessCheck[] {
     const checks: ReadinessCheck[] = [
@@ -162,6 +164,19 @@ export function buildReadinessChecks(
                 passed: tagCount >= 1,
             });
         }
+    }
+
+    // Accessibility: an image story must not publish with blank alt text.
+    // Only evaluated when photos exist; the assist layer drafts them in one tap.
+    if (typeof opts?.missingAltCount === 'number' && hasCoverPhoto) {
+        checks.push({
+            key: 'alt',
+            label: (copy.readinessNeedsAlt ?? 'Alt text on every photo ({n} missing)').replace(
+                '{n}',
+                String(opts.missingAltCount),
+            ),
+            passed: opts.missingAltCount === 0,
+        });
     }
 
     return checks;

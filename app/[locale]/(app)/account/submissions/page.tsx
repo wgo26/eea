@@ -17,6 +17,7 @@ import { Pager } from "@/components/admin/pager";
 import { WithdrawSubmissionButton } from "@/components/account/withdraw-submission-button";
 import { ResubmitSubmissionButton } from "@/components/account/resubmit-submission-button";
 import { ModerationTimeline, stageForStatus } from "@/components/submit/moderation-timeline";
+import { claimGuestSubmissions } from "@/lib/account/listings-actions";
 
 export async function generateMetadata(): Promise<{ title: string }> {
     const locale = await getRequestLocale();
@@ -66,6 +67,12 @@ export default async function Page({
     const e = dict.account.empty;
     const common = dict.admin.common;
     const { supabase, user } = await requireUser("/account/submissions");
+
+    // Guest-claim backfill (non-blocking): readers who submitted as guests
+    // before creating this account inherit those rows, so future editorial
+    // decisions notify their inbox. Past rows are visible regardless via the
+    // guest_email match below.
+    void claimGuestSubmissions();
 
     const params = await searchParams;
     const rawPage = Number(params.page ?? "1");

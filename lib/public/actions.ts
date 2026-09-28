@@ -152,6 +152,17 @@ function submissionTitleKey(payload: Record<string, string>): string {
         .slice(0, 120);
 }
 
+/**
+ * Full fingerprint for the duplicate guard: title plus the body field. Title
+ * alone false-positives when one person files two different stories under
+ * similar headlines ("Market fire") within minutes; the body makes that
+ * collision near-impossible while a true double-click still matches exactly.
+ */
+function submissionFingerprint(payload: Record<string, string>): string {
+    const body = (payload.description || payload.message || "").trim().slice(0, 200);
+    return `${submissionTitleKey(payload)}|${body}`;
+}
+
 function str(value: FormDataEntryValue | null): string {
     if (typeof value === "string") return value.trim();
     return "";
@@ -348,6 +359,7 @@ export async function submitStory(
         // title must not pile identical rows into the moderation queue. One
         // indexed recent-pendings lookup for this identity, compared in JS
         // (payload JSON matching is not index-friendly in PostgREST).
+        const fingerprint = submissionFingerprint(payload);
         const titleKey = submissionTitleKey(payload);
         if (titleKey) {
             try {
@@ -367,7 +379,7 @@ export async function submitStory(
                     (r) =>
                         r.payload &&
                         typeof r.payload === "object" &&
-                        submissionTitleKey(r.payload as Record<string, string>) === titleKey,
+                        submissionFingerprint(r.payload as Record<string, string>) === fingerprint,
                 );
                 if (isDuplicate) return { ok: false, error: "duplicate" };
             } catch {

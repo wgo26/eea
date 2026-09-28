@@ -7,44 +7,15 @@ import {
   saveContentItem,
   searchAuthors,
 } from "@/lib/admin/actions/content";
-import {
-  aiClassifySuggest,
-  aiDraftRemaining,
-  aiHeadlines,
-  aiImageAlt,
-  aiRepurpose,
-  aiTagsSuggest,
-  aiVerification,
-  getAiStatus,
-} from "@/lib/admin/actions/ai";
-import { draftShareInto } from "@/components/admin/share-drafter";
+import { approveSubmissionWithContent } from "@/lib/admin/actions/moderation";
 import {
   useContentTranslator,
   TranslateButtons,
 } from "@/components/admin/translate-buttons";
 import { ContentAssistButtons } from "@/components/admin/content-assist-buttons";
 import { StoryBlocksEditor } from "@/components/admin/story-blocks-editor";
-import type { StoryBlocksCopy } from "@/components/admin/story-blocks-editor";
-import {
-  draftRemainingFields,
-  suggestAltFromCaption,
-  suggestCategory,
-  suggestCredit,
-  suggestExcerpt,
-  suggestLocation,
-  suggestSeoDescription,
-  suggestSlug,
-  suggestTags,
-  type AutoFillField,
-} from "@/lib/content/auto-fill";
 import { bodyHasStoryBlocks, mergeStoryBlocksIntoBody } from "@/lib/content/blocks";
-import {
-  clearDraft,
-  draftKey,
-  isDraftWorthRestoring,
-  readDraft,
-  writeDraft,
-} from "@/lib/content/draft-autosave";
+import { clearDraft, draftKey } from "@/lib/content/draft-autosave";
 import { useAdminMutation } from "@/components/admin/confirm-dialog";
 import { useToast } from "@/components/admin/toast";
 import {
@@ -68,623 +39,58 @@ import {
 } from "./bilingual-fields";
 import type { Dictionary } from "@/lib/i18n";
 import type { ContentEditData } from "@/lib/admin/queries";
+import {
+  CONTENT_TYPES,
+  TYPE_DICT_KEYS,
+  formatDraftAge,
+  payloadFromForm,
+  useContentForm,
+  type ContentType,
+  type FormValues,
+} from "./form/values";
+import {
+  Section,
+  mediaUploaderCopy,
+  storyBlocksCopy,
+  useDraftAutosave,
+} from "./form/shell";
+import { useContentAssist } from "./form/assist";
+
+// The value model lives in ./form/values so the moderation approve form builds
+// the same payload this one does. Re-exported because content-preview.tsx and
+// the dialog shells already import FormValues from this module.
+export type { FormValues } from "./form/values";
 
 type Copy = Dictionary["admin"]["content"];
 type CommonCopy = Dictionary["admin"]["common"];
 type TypeFilters = Dictionary["admin"]["typeFilters"];
 type Option = { id: string; name: string; slug?: string };
 
-// Phase 4 — 'micro_story' is the Eye on the Street one-photo format
-// (Differentiator #8); it shares the news detail template + categories.
-const CONTENT_TYPES = [
-  "photo_story",
-  "news",
-  "listing",
-  "notice",
-  "culture",
-  "micro_story",
-] as const;
-type ContentType = (typeof CONTENT_TYPES)[number];
-
-// The dictionary labels are camelCase; the DB values are snake_case. Without
-// this map the type select silently falls back to raw values (photo_story…).
-const TYPE_DICT_KEYS: Record<ContentType, keyof TypeFilters> = {
-  photo_story: "photoStory",
-  news: "news",
-  listing: "listings",
-  notice: "notices",
-  culture: "culture",
-  micro_story: "microStory",
-};
 
 const inputCls = ui.input;
 const btnPrimary = ui.btnPrimary;
 const btnSecondary = ui.btnSecondary;
 const btnGhost = ui.btnGhost;
 
-/** One attachment URL per line, optional " - caption" suffix. */
-function attachmentList(raw: string, kind: "video" | "audio" | "document") {
-  return raw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [url, ...rest] = line.split(/\s+-\s+/);
-      return { url, kind, caption: rest.join(" - ") || undefined };
-    });
-}
-
-/** Shared StoryBlocksEditor copy mapping (was duplicated per dialog). */
-function storyBlocksCopy(copy: Copy): StoryBlocksCopy {
-  return {
-    sectionTitle: copy.blocksTitle,
-    sectionHint: copy.blocksHint,
-    addBlock: copy.blocksAdd,
-    addTextSection: copy.blocksAddText,
-    addImageSection: copy.blocksAddImage,
-    addVideoSection: copy.blocksAddVideo,
-    addGallerySection: copy.blocksAddGallery,
-    addCtaSection: copy.blocksAddCta,
-    addDividerSection: copy.blocksAddDivider,
-    insertIntoBody: copy.blocksInsert,
-    inserted: copy.blocksInserted,
-    empty: copy.blocksEmpty,
-    headingLabel: copy.blocksHeading,
-    headingPlaceholder: copy.blocksHeadingPh,
-    bodyLabel: copy.blocksBody,
-    bodyPlaceholder: copy.blocksBodyPh,
-    imageLabel: copy.blocksImage,
-    imagePlaceholder: copy.blocksImagePh,
-    uploadImage: copy.blocksUploadImage,
-    altLabel: copy.blocksAlt,
-    captionLabel: copy.blocksCaption,
-    layoutLabel: copy.blocksLayout,
-    layoutTop: copy.blocksLayoutTop,
-    layoutLeft: copy.blocksLayoutLeft,
-    layoutRight: copy.blocksLayoutRight,
-    moveUp: copy.blocksMoveUp,
-    moveDown: copy.blocksMoveDown,
-    removeBlock: copy.blocksRemove,
-    blockTitle: copy.blocksBlock,
-    pickFromPhotos: copy.blocksPickPhotos,
-    pickManyPhotos: copy.blocksPickManyPhotos,
-    videoUrlLabel: copy.blocksVideoUrl,
-    videoUrlPlaceholder: copy.blocksVideoUrlPh,
-    videoThumbnailLabel: copy.blocksVideoThumbnail,
-    galleryImages: copy.blocksGalleryImages,
-    ctaTextLabel: copy.blocksCtaText,
-    ctaTextPlaceholder: copy.blocksCtaTextPh,
-    ctaLinkLabel: copy.blocksCtaLink,
-    ctaLinkPlaceholder: copy.blocksCtaLinkPh,
-    removeImage: copy.blocksRemoveImage,
-  };
-}
-
-/** Shared MediaUploader copy mapping (was duplicated per dialog). */
-function mediaUploaderCopy(common: CommonCopy, copy: Copy) {
-  return {
-    pickerCopy: {
-      title: common.mediaLibrary,
-      search: common.mediaLibrary,
-      searchPlaceholder: common.mediaSearchPlaceholder,
-      noResults: common.mediaNoResults,
-      loading: common.mediaLoading,
-      cancel: common.mediaCancel,
-      select: common.mediaSelect,
-      images: common.mediaImages,
-      all: common.mediaAll,
-      reuse: common.mediaReuse,
-    },
-    copy: {
-      label: copy.photosLabel,
-      hint: copy.photosHint,
-      browseFiles: common.browseFiles,
-      dropHere: common.dropHere,
-      or: common.orPasteUrl,
-      urlPlaceholder: "https://…",
-      addUrl: common.addUrl,
-      existing: copy.photosExisting,
-      altLabel: common.altLabel,
-      captionLabel: common.captionLabel,
-      creditLabel: copy.photographerCredit,
-      cover: common.cover,
-      setCover: common.setCover,
-      uploading: common.photoUploading,
-      uploadError: common.photoUploadError,
-      tooLarge: common.photoTooLarge,
-      wrongType: common.photoWrongType,
-      empty: common.noPhotos,
-    },
-  };
-}
-
-/** Labeled form region — the sections shared by create and edit. */
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="grid gap-3 border-t border-border pt-4 first:border-t-0 first:pt-0">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
-      </h3>
-      {children}
-    </section>
-  );
-}
-
-/** Listing extension row shared by create + save payloads. */
-function typeListing(v: FormValues) {
-  return {
-    price: v.price ? Number(v.price) : null,
-    currency: v.currency || "XAF",
-    contactPhone: v.contactPhone.trim() || null,
-    contactEmail: v.contactEmail.trim() || null,
-    whatsappNumber: v.whatsappNumber.trim() || null,
-    sellerName: v.sellerName.trim() || null,
-  };
-}
-
-/** Notice extension row. Create falls back to the global expiry date. */
-function typeNotice(v: FormValues, expiryFallback: boolean) {
-  return {
-    noticeType: v.noticeType,
-    organizationName: v.organization.trim() || null,
-    contactPhone: v.contactPhone.trim() || null,
-    isOfficial: v.verification === "official_source" || v.isOfficial,
-    noticeDate: v.noticeDate ? new Date(v.noticeDate).toISOString() : null,
-    expiryDate: v.noticeExpiry
-      ? new Date(v.noticeExpiry).toISOString()
-      : expiryFallback && v.expiresAt
-        ? new Date(v.expiresAt).toISOString()
-        : null,
-  };
-}
-
-/** Culture/event extension row shared by create + save payloads. */
-function typeEvent(v: FormValues) {
-  return {
-    startsAt: v.eventStartsAt
-      ? new Date(v.eventStartsAt).toISOString()
-      : null,
-    endsAt: v.eventEndsAt ? new Date(v.eventEndsAt).toISOString() : null,
-    venueName: v.venueName.trim() || null,
-    ticketUrl: v.ticketUrl.trim() || null,
-    organizerName: v.organizerName.trim() || null,
-    organizerPhone: v.organizerPhone.trim() || null,
-    organizerEmail: v.organizerEmail.trim() || null,
-  };
-}
-
-/** One grouped state object replaces ~40 individual useState hooks. */
-export type FormValues = {
-  type: ContentType;
-  publish: "now" | "schedule" | "draft";
-  scheduledFor: string;
-  expiresAt: string;
-  /** Edit only: empty input keeps the stored publish date. */
-  publishedAt: string;
-  slug: string;
-  tags: string;
-  byline: string;
-  shareText: string;
-  voiceType: string;
-  enTitle: string;
-  frTitle: string;
-  enExcerpt: string;
-  frExcerpt: string;
-  enBody: string;
-  frBody: string;
-  enSeo: string;
-  frSeo: string;
-  credit: string;
-  verification: string;
-  locationId: string;
-  categoryId: string;
-  videos: string;
-  audios: string;
-  documents: string;
-  newPhotos: UploadedPhoto[];
-  /** Edit only: ids of existing photos kept on save. */
-  keepIds: string[];
-  authorId: string | null;
-  authorName: string;
-  noticeType: string;
-  organization: string;
-  noticeDate: string;
-  noticeExpiry: string;
-  isOfficial: boolean;
-  price: string;
-  currency: string;
-  sellerName: string;
-  contactPhone: string;
-  contactEmail: string;
-  whatsappNumber: string;
-  eventStartsAt: string;
-  eventEndsAt: string;
-  venueName: string;
-  ticketUrl: string;
-  organizerName: string;
-  organizerPhone: string;
-  organizerEmail: string;
-};
-
-/** Row → form values. Create mode calls it with no row (blank form). */
-export function formFromRow(
-  data?: NonNullable<ContentEditData>,
-): FormValues {
-  return {
-    type: data?.type ?? "news",
-    publish: "now",
-    scheduledFor: "",
-    expiresAt: data?.expiresAt ? data.expiresAt.slice(0, 10) : "",
-    publishedAt: data?.publishedAt ? data.publishedAt.slice(0, 16) : "",
-    slug: data?.slug ?? "",
-    tags: data
-      ? data.tags.map((t) => t.name).filter(Boolean).join(", ")
-      : "",
-    byline: data?.byline ?? "",
-    shareText: data?.shareText ?? "",
-    voiceType: data?.voiceType ?? "",
-    enTitle: data?.enTitle ?? "",
-    frTitle: data?.frTitle ?? "",
-    enExcerpt: data?.enExcerpt ?? "",
-    frExcerpt: data?.frExcerpt ?? "",
-    enBody: data?.enBody ?? "",
-    frBody: data?.frBody ?? "",
-    enSeo: data?.enSeoDescription ?? "",
-    frSeo: data?.frSeoDescription ?? "",
-    // The credit is stored per media row (media_assets.photographer_credit),
-    // not on the post — so the field has to be rebuilt from the photos or it
-    // renders blank on every edit. Saving a blank field then wiped the stored
-    // credit (payloadFromForm sends `null`), which is why a credit "disappeared"
-    // after any unrelated edit. Cover first, then any photo that carries one.
-    credit:
-      data?.photos.find((p) => p.credit?.trim())?.credit?.trim() ?? "",
-    verification: data?.verification ?? "community_submission",
-    locationId: data?.locationId ?? "",
-    categoryId: data?.categoryId ?? "",
-    videos: "",
-    audios: "",
-    documents: "",
-    newPhotos: [],
-    keepIds: data ? data.photos.map((p) => p.id) : [],
-    authorId: data?.authorId ?? null,
-    authorName: data?.authorName ?? "",
-    noticeType: data?.notice?.noticeType ?? "other",
-    organization: data?.notice?.organizationName ?? "",
-    noticeDate: data?.notice?.noticeDate
-      ? data.notice.noticeDate.slice(0, 10)
-      : "",
-    noticeExpiry: data?.notice?.expiryDate
-      ? data.notice.expiryDate.slice(0, 10)
-      : "",
-    isOfficial: data?.notice?.isOfficial ?? false,
-    price: data?.listing?.price != null ? String(data.listing.price) : "",
-    currency: data?.listing?.currency ?? "XAF",
-    sellerName: data?.listing?.sellerName ?? "",
-    contactPhone: data?.listing?.contactPhone ?? "",
-    contactEmail: data?.listing?.contactEmail ?? "",
-    whatsappNumber: data?.listing?.whatsappNumber ?? "",
-    eventStartsAt: data?.event?.startsAt
-      ? data.event.startsAt.slice(0, 16)
-      : "",
-    eventEndsAt: data?.event?.endsAt ? data.event.endsAt.slice(0, 16) : "",
-    venueName: data?.event?.venueName ?? "",
-    ticketUrl: data?.event?.ticketUrl ?? "",
-    organizerName: data?.event?.organizerName ?? "",
-    organizerPhone: data?.event?.organizerPhone ?? "",
-    organizerEmail: data?.event?.organizerEmail ?? "",
-  };
-}
-
-/**
- * Grouped form state shared by create + edit. Returns the values object and
- * a partial `patch` updater so the 40+ fields stay in one useState.
- * `baseline` is the serialized form the dialog opened with — the sticky dock
- * compares it against the current values to show the unsaved-changes state.
- *
- * `markTouched` records the derived fields the editor typed into by hand. The
- * auto-fill pass never overwrites a touched field, which is what makes it
- * honest to run repeatedly: the boring fields are derived, so they re-derive —
- * but only while nobody has claimed one.
- */
-export function useContentForm(data?: NonNullable<ContentEditData>) {
-  const [values, setValues] = useState<FormValues>(() => formFromRow(data));
-  const [baseline, setBaseline] = useState<string>(() => JSON.stringify(formFromRow(data)));
-  const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set());
-  // Stable identity so the memoized field/media/section subtrees below can
-  // actually skip their re-render: with `setValues` being the only dependency,
-  // `patch` is created once and never changes.
-  const patch = useCallback((p: Partial<FormValues>) => {
-    setValues((prev) => ({ ...prev, ...p }));
-  }, []);
-
-  const markTouched = useCallback((field: string) => {
-    setTouched((prev) => (prev.has(field) ? prev : new Set(prev).add(field)));
-  }, []);
-  const reset = () => {
-    const next = formFromRow(data);
-    setValues(next);
-    setBaseline(JSON.stringify(next));
-    setTouched(new Set());
-  };
-  const dirty = baseline !== JSON.stringify(values);
-  return { values, patch, reset, setValues, dirty, touched, markTouched };
-}
-
-/**
- * Debounced local autosave for an unsaved form (see lib/content/draft-autosave).
- *
- * Returns the banner state plus restore/discard actions. A draft is offered,
- * never applied, and writing is skipped until the first change after mount —
- * otherwise merely opening a post would create a "newer" draft that shadows the
- * saved row on next open.
- */
-function useDraftAutosave(opts: {
-  keyName: string;
-  values: FormValues;
-  dirty: boolean;
-  /** Row's own last-update time in epoch ms (0 for create mode). */
-  savedAtMs: number;
-  setValues: (next: FormValues) => void;
-}) {
-  const { keyName, values, dirty, savedAtMs, setValues } = opts;
-  const [pending, setPending] = useState<StoredDraftView | null>(null);
-  const skipFirstWrite = useRef(true);
-
-  // Offer a recoverable draft exactly once per mount.
-  useEffect(() => {
-    const stored = readDraft<FormValues>(keyName);
-    if (isDraftWorthRestoring(stored, savedAtMs)) {
-      setPending({ savedAt: stored.savedAt, values: stored.values });
-    }
-    // Deliberately mount-only: re-reading on every keyName change would fight
-    // the editor's own typing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (skipFirstWrite.current) {
-      skipFirstWrite.current = false;
-      return;
-    }
-    if (!dirty) return;
-    const t = setTimeout(() => writeDraft(keyName, values), 800);
-    return () => clearTimeout(t);
-  }, [values, dirty, keyName]);
-
-  const restore = useCallback(() => {
-    if (!pending) return;
-    setValues(pending.values);
-    setPending(null);
-  }, [pending, setValues]);
-
-  const discard = useCallback(() => {
-    clearDraft(keyName);
-    setPending(null);
-  }, [keyName]);
-
-  return { pending, restore, discard };
-}
-
-type StoredDraftView = { savedAt: number; values: FormValues };
 
 
-export type SavePayload = Parameters<typeof saveContentItem>[1];
-export type CreatePayload = Parameters<typeof createContentItem>[0];
 
-export type FormPayload =
-  | { kind: "save"; contentItemId: string; draft: SavePayload }
-  | { kind: "create"; input: CreatePayload };
 
-/**
- * Human "saved 12 min ago" for the draft-recovery banner. The copy is
- * dictionary-driven so the phrasing is localised rather than assembled here.
- */
-function formatDraftAge(
-  savedAtMs: number,
-  copy: Copy,
-  now = Date.now(),
-): string {
-  const mins = Math.max(0, Math.round((now - savedAtMs) / 60000));
-  if (mins < 1) return copy.draftSavedAgo;
-  if (mins < 60) return copy.draftSavedMinutesAgo.replace("{n}", String(mins));
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return copy.draftSavedHoursAgo.replace("{n}", String(hours));
-  return copy.draftSavedDaysAgo.replace("{n}", String(Math.round(hours / 24)));
-}
 
-/**
- * Form values → server-action payload. Byte-compatible with the payloads the
- * old create/edit dialogs sent to `createContentItem` / `saveContentItem`
- * (same keys, same null/undefined keep-vs-clear semantics). Callers validate
- * first (price numeric, schedule date present) and toast on the result.
- */
-export function payloadFromForm(
-  v: FormValues,
-  data: NonNullable<ContentEditData> | null,
-): FormPayload {
-  const type = data ? data.type : v.type;
-  const isListing = type === "listing";
-  const isNotice = type === "notice";
-  const isCulture = type === "culture";
 
-  if (data) {
-    // ---- save existing item (payload mirrors the old ContentEditForm) ----
-    const draft: SavePayload = {
-      slugBase: v.enTitle.trim() || data.slug || data.type,
-      // Permalink: empty input falls back to the stored slug (never cleared).
-      slug: v.slug.trim() || data.slug || undefined,
-      // Publish date: empty input leaves the stored value untouched.
-      publishedAt: v.publishedAt
-        ? new Date(v.publishedAt).toISOString()
-        : undefined,
-      // Expiry: empty input clears a previously set expiry.
-      expiresAt: v.expiresAt ? new Date(v.expiresAt).toISOString() : null,
-      verification: (v.verification || null) as never,
-      locationId: v.locationId || null,
-      categoryId: v.categoryId || null,
-      authorId: v.authorId || null,
-      photographerCredit: v.credit.trim() || null,
-      // Share text + voice fan out to both locale rows — but only when the
-      // editor touched them (undefined = keep stored, so opening the drawer
-      // never wipes an existing share line).
-      translations: [
-        {
-          locale: "en",
-          title: v.enTitle,
-          excerpt: v.enExcerpt,
-          body: v.enBody,
-          seoDescription: v.enSeo,
-          byline: v.byline,
-          shareText:
-            v.shareText !== (data.shareText ?? "")
-              ? v.shareText.trim().slice(0, 280) || null
-              : undefined,
-          voiceType:
-            v.voiceType !== (data.voiceType ?? "")
-              ? ((v.voiceType || null) as
-                  | "formal"
-                  | "pidgin"
-                  | "camfranglais"
-                  | null)
-              : undefined,
-        },
-        {
-          locale: "fr",
-          title: v.frTitle,
-          excerpt: v.frExcerpt,
-          body: v.frBody,
-          seoDescription: v.frSeo,
-          byline: v.byline,
-          shareText:
-            v.shareText !== (data.shareText ?? "")
-              ? v.shareText.trim().slice(0, 280) || null
-              : undefined,
-          voiceType:
-            v.voiceType !== (data.voiceType ?? "")
-              ? ((v.voiceType || null) as
-                  | "formal"
-                  | "pidgin"
-                  | "camfranglais"
-                  | null)
-              : undefined,
-        },
-      ],
-      tags: v.tags.split(",").map((t) => t.trim()).filter(Boolean),
-      photos: v.newPhotos.map((p) => ({
-        url: p.url,
-        alt: p.alt,
-        caption: p.caption,
-        credit: p.credit,
-        assetId: p.assetId,
-        kind: p.kind,
-        mimeType: p.mimeType,
-        durationSeconds: p.durationSeconds,
-      })),
-      keepPhotoIds: v.keepIds,
-      attachments: [
-        ...attachmentList(v.videos, "video"),
-        ...attachmentList(v.audios, "audio"),
-        ...attachmentList(v.documents, "document"),
-      ],
-    };
-    if (isListing) draft.listing = typeListing(v);
-    if (isNotice) draft.notice = typeNotice(v, false);
-    if (isCulture) draft.event = typeEvent(v);
-    return { kind: "save", contentItemId: data.id, draft };
-  }
 
-  // ---- create new item (payload mirrors the old ContentCreateDialog) ----
-  const draft: CreatePayload["draft"] = {
-    slugBase: v.enTitle.trim() || type,
-    slug: v.slug.trim() || undefined,
-    verification: (v.verification || null) as never,
-    locationId: v.locationId || null,
-    categoryId: v.categoryId || null,
-    authorId: v.authorId || null,
-    photographerCredit: v.credit.trim() || null,
-    translations: [
-      {
-        locale: "en",
-        title: v.enTitle,
-        excerpt: v.enExcerpt,
-        body: v.enBody,
-        seoDescription: v.enSeo.trim() || null,
-        byline: v.byline.trim() || null,
-        shareText: v.shareText.trim().slice(0, 280) || undefined,
-        voiceType: (v.voiceType || undefined) as
-          | "formal"
-          | "pidgin"
-          | "camfranglais"
-          | undefined,
-      },
-      {
-        locale: "fr",
-        title: v.frTitle,
-        excerpt: v.frExcerpt,
-        body: v.frBody,
-        seoDescription: v.frSeo.trim() || null,
-        byline: v.byline.trim() || null,
-        shareText: v.shareText.trim().slice(0, 280) || undefined,
-        voiceType: (v.voiceType || undefined) as
-          | "formal"
-          | "pidgin"
-          | "camfranglais"
-          | undefined,
-      },
-    ],
-    tags: v.tags.split(",").map((t) => t.trim()).filter(Boolean),
-    // assetId/kind/mime passthrough lets syncPhotos link the already-stored
-    // upload row instead of inserting a duplicate URL-only row (null
-    // storage_key, which the DB rejects).
-    photos: v.newPhotos.map((p) => ({
-      url: p.url,
-      alt: p.alt,
-      caption: p.caption,
-      credit: p.credit,
-      assetId: p.assetId,
-      kind: p.kind,
-      mimeType: p.mimeType,
-      durationSeconds: p.durationSeconds,
-    })),
-    attachments: [
-      ...attachmentList(v.videos, "video"),
-      ...attachmentList(v.audios, "audio"),
-      ...attachmentList(v.documents, "document"),
-    ],
-  };
-  if (type === "listing") draft.listing = typeListing(v);
-  if (type === "notice") draft.notice = typeNotice(v, true);
-  if (type === "culture") draft.event = typeEvent(v);
-  return {
-    kind: "create",
-    input: {
-      type,
-      draft,
-      publish: v.publish,
-      scheduledFor:
-        v.publish === "schedule"
-          ? new Date(v.scheduledFor).toISOString()
-          : undefined,
-      expiresAt: v.expiresAt ? new Date(v.expiresAt).toISOString() : null,
-    },
-  };
-}
 
 export type ContentFormProps = {
-  /** create = blank form + publish modes; edit = prefilled, no mode switch. */
-  mode: "create" | "edit";
+  /** create = blank form + publish modes; edit = prefilled, no mode switch.
+   *  approve = the create form seeded from a submission, submitting through
+   *  approveSubmissionWithContent so the submission is claimed in the same step. */
+  mode: "create" | "edit" | "approve";
   copy: Copy;
   common: CommonCopy;
   typeFilters: TypeFilters;
   locations: Option[];
   categoriesByType: Record<string, Option[]>;
-  /** Edit mode: the loaded row. Create mode: undefined. */
+  /** Edit mode: the loaded row. Create/approve mode: undefined. */
   data?: NonNullable<ContentEditData>;
   /** Edit mode appends a children slot (ContentHistory) above the footer. */
   children?: React.ReactNode;
@@ -693,14 +99,34 @@ export type ContentFormProps = {
   tab?: "editor" | "preview";
   /** Called after a successful save (the dialog closes itself). */
   onDone: () => void;
+  /**
+   * Approve mode: the submission being turned into a post. The form submits
+   * through approveSubmissionWithContent, which claims the submission and
+   * creates the item in one step — so a reviewer is never left with an approved
+   * row that has no content behind it.
+   */
+  approve?: {
+    submissionId: string
+    /** Field values mapped off the submission payload (see lib/content/submission-prefill). */
+    prefill: Partial<FormValues>
+    /** Which payload keys could not be placed, so the reviewer knows what to read. */
+    unmapped?: string[]
+    /** Submission type, which fixes the content type (the type select stays locked). */
+    submissionType?: string
+  };
 };
 
 /**
- * The single content form behind both admin dialogs. Six labeled sections —
- * Details, Story, Media, Classification, type-specific, SEO, Publishing —
- * replace the two ~500-line duplicated form bodies. Payload construction is
- * byte-compatible with the actions it calls (createContentItem /
- * saveContentItem validate through content-validation.ts).
+ * The single content form behind every surface that writes a post: the Content
+ * screen's create and edit dialogs, and the moderation approve dialog. Six
+ * labeled sections — Details, Story, Media, Classification, type-specific, SEO,
+ * Publishing — plus the preview pane, autosave and the intelligence layer.
+ *
+ * It exists because two hand-maintained copies of one form drift: the approve
+ * dialog shipped without story blocks, tags, slug, SEO, byline, share line,
+ * event fields, alt text, media library, preview, keyboard save or autosave, so
+ * a post approved from the queue was a lesser artifact than one created in
+ * Content, and the editor had to reopen the edit drawer to finish it.
  */
 export function ContentForm({
   mode,
@@ -713,14 +139,16 @@ export function ContentForm({
   children,
   tab = "editor",
   onDone,
+  approve,
 }: ContentFormProps) {
   const { run, loading } = useAdminMutation();
   const { addToast } = useToast();
   const isEdit = mode === "edit" && !!data;
+  const isApprove = mode === "approve";
   const locale = useLocaleFromPath();
 
   const { values: v, patch, dirty, reset, setValues, touched, markTouched } =
-    useContentForm(data);
+    useContentForm(data, isApprove ? approve?.prefill : undefined);
 
   // Taxonomy options for the current type, shared by the selects and the
   // auto-fill pass. `categoriesByType` is already loaded for the dialog, so
@@ -729,8 +157,16 @@ export function ContentForm({
     () => categoriesByType[v.type] ?? [],
     [categoriesByType, v.type],
   );
+  // Approve mode gets its own slot: two submissions open at once must not
+  // share the blank "new" draft the create dialog uses.
+  const draftSlot =
+    isEdit && data
+      ? data.id
+      : isApprove && approve
+        ? `submission-${approve.submissionId}`
+        : null;
   const localDraft = useDraftAutosave({
-    keyName: draftKey(isEdit && data ? data.id : null),
+    keyName: draftKey(draftSlot),
     values: v,
     dirty,
     savedAtMs: isEdit && data?.updatedAt ? Date.parse(data.updatedAt) : 0,
@@ -843,524 +279,51 @@ export function ContentForm({
         Boolean(v.newPhotos.length > 0),
         v.frExcerpt ?? "",
         copy,
+        {
+          missingAltCount: v.newPhotos.filter(
+            (p) => !p.alt?.trim() && p.kind !== "video" && p.kind !== "audio",
+          ).length,
+        },
       );
   const needsReadiness = !isEdit && v.publish !== "draft";
 
-  // Honest intelligence-layer status: offline smart fill vs real LLM.
-  // Fetched once per mount; failure = offline (never blocks the form).
-  const [aiEnabled, setAiEnabled] = useState(false);
-  const [aiModel, setAiModel] = useState<string | undefined>(undefined);
-  const [draftingAi, setDraftingAi] = useState(false);
-  // P2 co-pilot state: headline options, verification suggestion, alt progress.
-  const [headlines, setHeadlines] = useState<{ locale: "en" | "fr"; items: string[] } | null>(null);
-  const [headlinesWorking, setHeadlinesWorking] = useState<null | "en" | "fr">(null);
-  const [verifyState, setVerifyState] = useState<{
-    badge: string;
-    reasons: string[];
-    checklist: string[];
-  } | null>(null);
-  const [verifyWorking, setVerifyWorking] = useState(false);
-  const [altWorking, setAltWorking] = useState(false);
-  // P5 repurpose engine: one story → every surface.
-  const [repurpose, setRepurpose] = useState<{
-    whatsapp: string;
-    social: string;
-    micro: string;
-    pidgin: string;
-    emailSubject: string;
-  } | null>(null);
-  const [repurposeWorking, setRepurposeWorking] = useState(false);
-
-  async function handleRepurpose() {
-    if (repurposeWorking) return;
-    const title = v.enTitle || v.frTitle;
-    const body = v.enBody || v.frBody;
-    if (!title.trim() && !body.trim()) {
-      addToast(copy.translateEmpty, "error");
-      return;
-    }
-    setRepurposeWorking(true);
-    try {
-      const res = await aiRepurpose({
-        title,
-        excerpt: v.enExcerpt || v.frExcerpt || "",
-        body,
-        locale: v.frTitle && !v.enTitle ? "fr" : "en",
-      });
-      if (!res.ok) {
-        addToast(res.error, "error");
-        return;
-      }
-      setRepurpose({
-        whatsapp: res.whatsapp,
-        social: res.social,
-        micro: res.micro,
-        pidgin: res.pidgin,
-        emailSubject: res.emailSubject,
-      });
-      addToast(`${copy.toastAssisted ?? copy.toastTranslated} (AI · repurpose)`, "success");
-    } catch (e) {
-      addToast(e instanceof Error ? e.message : "Repurpose failed.", "error");
-    } finally {
-      setRepurposeWorking(false);
-    }
-  }
-  useEffect(() => {
-    getAiStatus()
-      .then((s) => {
-        setAiEnabled(s.enabled);
-        setAiModel(s.configured ? s.model : undefined);
-      })
-      .catch(() => {
-        setAiEnabled(false);
-      });
-  }, []);
-
-  async function handleDraftAi() {
-    if (draftingAi) return;
-    setDraftingAi(true);
-    try {
-      const res = await aiDraftRemaining({
-        enTitle: v.enTitle,
-        frTitle: v.frTitle,
-        enBody: v.enBody,
-        frBody: v.frBody,
-        skip: [...touched] as string[],
-        categories: categoryOptions,
-        locations,
-        knownTags: v.tags.split(",").map((t) => t.trim()).filter(Boolean),
-        voice: v.voiceType || "formal",
-      });
-      if (!res.ok) {
-        // Offline / budget / kill-switch: fall back to deterministic pass so
-        // one click still does something useful, and say which engine ran.
-        const fallback = draftRemainingFields({
-          type: v.type,
-          enTitle: v.enTitle,
-          frTitle: v.frTitle,
-          enBody: v.enBody,
-          frBody: v.frBody,
-          enExcerpt: v.enExcerpt,
-          frExcerpt: v.frExcerpt,
-          enSeo: v.enSeo,
-          frSeo: v.frSeo,
-          slug: v.slug,
-          tags: v.tags,
-          shareText: v.shareText,
-          categoryId: v.categoryId,
-          locationId: v.locationId,
-          authorName: v.authorName,
-          categories: categoryOptions,
-          locations,
-          touched: touched as ReadonlySet<AutoFillField>,
-        });
-        if (fallback.applied.length > 0) patch(fallback.patch);
-        addToast(`${res.error} — offline fill applied instead.`, "info");
-        return;
-      }
-      // Auto-apply policy: Tier 1 writes empty form fields (review-before-save);
-      // category/location only arrive here when confidence >= 0.6, else notes.
-      patch(res.patch as Partial<FormValues>);
-      const n = Object.keys(res.patch).length;
-      const suffix = res.notes.length > 0 ? ` ${res.notes.join(" ")}` : "";
-      addToast(`AI drafted ${n} field(s) (AI · ${aiModel ?? "llm"}) — review before saving.${suffix}`, "success");
-    } catch (e) {
-      addToast(e instanceof Error ? e.message : "AI draft failed.", "error");
-    } finally {
-      setDraftingAi(false);
-    }
-  }
-
-  async function handleHeadlines(target: "en" | "fr") {
-    if (headlinesWorking) return;
-    const topic = target === "en" ? v.enTitle || v.frTitle : v.frTitle || v.enTitle;
-    const body = target === "en" ? v.enBody || v.frBody : v.frBody || v.enBody;
-    if (!topic.trim() && !body.trim()) {
-      addToast(copy.translateEmpty, "error");
-      return;
-    }
-    setHeadlinesWorking(target);
-    try {
-      const res = await aiHeadlines({ topic, body, locale: target });
-      if (!res.ok || !("headlines" in res) || !res.headlines?.length) {
-        addToast(res.ok ? copy.translateEmpty : res.error, "error");
-        return;
-      }
-      setHeadlines({ locale: target, items: res.headlines.slice(0, 3) });
-      addToast(`${copy.toastAssisted ?? copy.toastTranslated} (AI · headlines ${target.toUpperCase()})`, "success");
-    } catch (e) {
-      addToast(e instanceof Error ? e.message : "AI headlines failed.", "error");
-    } finally {
-      setHeadlinesWorking(null);
-    }
-  }
-
-  async function handleVerify() {
-    if (verifyWorking) return;
-    const title = v.enTitle || v.frTitle;
-    const body = v.enBody || v.frBody;
-    if (!title.trim() && !body.trim()) {
-      addToast(copy.translateEmpty, "error");
-      return;
-    }
-    setVerifyWorking(true);
-    try {
-      const res = await aiVerification({ title, body });
-      if (!res.ok) {
-        addToast(res.error, "error");
-        return;
-      }
-      setVerifyState({ badge: res.badge, reasons: res.reasons.slice(0, 4), checklist: res.checklist.slice(0, 6) });
-      addToast(`${copy.toastAssisted ?? copy.toastTranslated} (AI · verification)`, "success");
-    } catch (e) {
-      addToast(e instanceof Error ? e.message : "AI verification failed.", "error");
-    } finally {
-      setVerifyWorking(false);
-    }
-  }
-
-  // Assist handlers — shared, was duplicated verbatim in both dialogs.
-  const assist = {
-    onExcerpt: () => {
-      // Per-locale drafting: French fields take French prose only.
-      const enS = suggestExcerpt(v.enBody);
-      const frS = suggestExcerpt(v.frBody);
-      if (!enS && !frS) return addToast(copy.translateEmpty, "error");
-      patch({
-        enExcerpt: v.enExcerpt.trim() ? v.enExcerpt : enS || v.enExcerpt,
-        frExcerpt: v.frExcerpt.trim() ? v.frExcerpt : frS || v.frExcerpt,
-      });
-      addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
-    },
-    onSeo: () => {
-      const enS = suggestSeoDescription(v.enTitle, v.enExcerpt || v.enBody);
-      const frS = v.frTitle || v.frBody ? suggestSeoDescription(v.frTitle, v.frExcerpt || v.frBody) : "";
-      if (!enS && !frS) return addToast(copy.translateEmpty, "error");
-      patch({
-        enSeo: v.enSeo.trim() ? v.enSeo : enS || v.enSeo,
-        frSeo: v.frSeo.trim() ? v.frSeo : frS || v.frSeo,
-      });
-      addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
-    },
-    onTags: () => {
-      const existing = v.tags.split(",").map((t) => t.trim()).filter(Boolean);
-      // AI-first: entity extraction mapped to the site vocabulary; offline
-      // keyword counting stays the instant fallback (and the path when AI off).
-      if (aiEnabled) {
-        void (async () => {
-          try {
-            const res = await aiTagsSuggest({
-              title: `${v.enTitle} ${v.frTitle}`.trim(),
-              body: `${v.enBody} ${v.frBody}`.trim(),
-              existing,
-            });
-            if (res.ok && "tags" in res && res.tags?.length) {
-              patch({ tags: [...existing, ...res.tags].join(", ") });
-              const suffix =
-                "places" in res && res.places?.length ? ` — places: ${res.places.join(", ")}` : "";
-              addToast(`${copy.toastAssisted ?? copy.toastTranslated} (AI · entities)${suffix}`, "success");
-              return;
-            }
-          } catch {
-            /* fall through to offline */
-          }
-          const s = suggestTags(`${v.enTitle} ${v.frTitle}`, `${v.enBody} ${v.frBody}`, existing);
-          if (s.length === 0) {
-            addToast(copy.translateEmpty, "error");
-            return;
-          }
-          patch({ tags: [...existing, ...s].join(", ") });
-          addToast(`${copy.toastAssisted ?? copy.toastTranslated} (offline)`, "success");
-        })();
-        return;
-      }
-      const s = suggestTags(
-        `${v.enTitle} ${v.frTitle}`,
-        `${v.enBody} ${v.frBody}`,
-        existing,
-      );
-      if (s.length === 0) {
-        addToast(copy.translateEmpty, "error");
-        return;
-      }
-      patch({ tags: [...existing, ...s].join(", ") });
-      addToast(`${copy.toastAssisted ?? copy.toastTranslated} (offline)`, "success");
-    },
-    onSlug: () => {
-      patch({ slug: suggestSlug(v.enTitle || v.frTitle) });
-      addToast(copy.toastAssisted ?? copy.toastTranslated, "success");
-    },
-    onShare: () => {
-      void draftShareInto({
-        title: v.enTitle || v.frTitle,
-        excerpt: v.enExcerpt || v.frExcerpt || "",
-        voice: v.voiceType || "formal",
-        locale: v.frTitle && !v.enTitle ? "fr" : "en",
-        enExcerpt: v.enExcerpt,
-        enBody: v.enBody,
-      }, copy, patch, addToast);
-    },    /**
-     * One pass over every derived field the editor left empty — the collapse of
-     * the five ✨ buttons above. Category / location are included, which is what
-     * deletes two of the publish-readiness gates entirely.
-     */
-    onDraftAll: () => {
-      const result = draftRemainingFields({
-        type: v.type,
-        enTitle: v.enTitle,
-        frTitle: v.frTitle,
-        enBody: v.enBody,
-        frBody: v.frBody,
-        enExcerpt: v.enExcerpt,
-        frExcerpt: v.frExcerpt,
-        enSeo: v.enSeo,
-        frSeo: v.frSeo,
-        slug: v.slug,
-        tags: v.tags,
-        shareText: v.shareText,
-        categoryId: v.categoryId,
-        locationId: v.locationId,
-        authorName: v.authorName,
-        categories: categoryOptions,
-        locations,
-        touched: touched as ReadonlySet<AutoFillField>,
-      });
-      if (result.applied.length === 0) {
-        addToast(
-          result.unresolved.length > 0 ? copy.assistUnsure : copy.assistNothingToDo,
-          result.unresolved.length > 0 ? "error" : "success",
-        );
-        return;
-      }
-      patch(result.patch);
-      addToast(
-        result.unresolved.length > 0
-          ? copy.assistUnsure
-          : copy.assistDraftedCount.replace("{n}", String(result.applied.length)),
-        result.unresolved.length > 0 ? "error" : "success",
-      );
-    },
-    onCategory: () => {
-      // AI-first with confidence gate: >=0.6 auto-applies, below stays a
-      // suggestion toast; offline word-match is the fallback.
-      if (aiEnabled && categoryOptions.length > 0) {
-        void (async () => {
-          try {
-            const res = await aiClassifySuggest({
-              title: v.enTitle || v.frTitle,
-              body: v.enBody || v.frBody,
-              categories: categoryOptions,
-              locations,
-            });
-            if (res.ok && "categoryId" in res && res.categoryId) {
-              if (res.confidence >= 0.6) {
-                patch({ categoryId: res.categoryId });
-                markTouched("categoryId");
-                addToast(
-                  `${copy.toastAssisted ?? copy.toastTranslated} (AI · ${Math.round(res.confidence * 100)}%)`,
-                  "success",
-                );
-                return;
-              }
-              addToast(
-                `${"rationale" in res && res.rationale ? `${res.rationale.slice(0, 200)} ` : ""}${copy.assistUnsure}`,
-                "error",
-              );
-              return;
-            }
-          } catch {
-            /* fall through to offline */
-          }
-          const s = suggestCategory(v.enTitle || v.frTitle, v.enBody || v.frBody, categoryOptions);
-          if (!s) {
-            addToast(`${copy.assistUnsure} (offline)`, "error");
-            return;
-          }
-          patch({ categoryId: s.id });
-          markTouched("categoryId");
-          addToast(`${copy.toastAssisted ?? copy.toastTranslated} (offline)`, "success");
-        })();
-        return;
-      }
-      const s = suggestCategory(v.enTitle || v.frTitle, v.enBody || v.frBody, categoryOptions);
-      if (!s) {
-        addToast(`${copy.assistUnsure} (offline)`, "error");
-        return;
-      }
-      patch({ categoryId: s.id });
-      markTouched("categoryId");
-      addToast(`${copy.toastAssisted ?? copy.toastTranslated} (offline)`, "success");
-    },
-    onLocation: () => {
-      if (aiEnabled && locations.length > 0) {
-        void (async () => {
-          try {
-            const res = await aiClassifySuggest({
-              title: v.enTitle || v.frTitle,
-              body: v.enBody || v.frBody,
-              categories: categoryOptions,
-              locations,
-            });
-            if (res.ok && "locationId" in res && res.locationId) {
-              if (res.confidence >= 0.6) {
-                patch({ locationId: res.locationId });
-                markTouched("locationId");
-                addToast(
-                  `${copy.toastAssisted ?? copy.toastTranslated} (AI · ${Math.round(res.confidence * 100)}%)`,
-                  "success",
-                );
-                return;
-              }
-              addToast(
-                `${"rationale" in res && res.rationale ? `${res.rationale.slice(0, 200)} ` : ""}${copy.assistUnsure}`,
-                "error",
-              );
-              return;
-            }
-          } catch {
-            /* fall through to offline */
-          }
-          const s = suggestLocation(v.enTitle || v.frTitle, v.enBody || v.frBody, locations);
-          if (!s) {
-            addToast(`${copy.assistUnsure} (offline)`, "error");
-            return;
-          }
-          patch({ locationId: s.id });
-          markTouched("locationId");
-          addToast(`${copy.toastAssisted ?? copy.toastTranslated} (offline)`, "success");
-        })();
-        return;
-      }
-      const s = suggestLocation(v.enTitle || v.frTitle, v.enBody || v.frBody, locations);
-      if (!s) {
-        addToast(`${copy.assistUnsure} (offline)`, "error");
-        return;
-      }
-      patch({ locationId: s.id });
-      markTouched("locationId");
-      addToast(`${copy.toastAssisted ?? copy.toastTranslated} (offline)`, "success");
-    },
-    /**
-     * Fills alt text on every photo that lacks it, and the post credit from the
-     * byline. These were the two fields the form collected but never drafted,
-     * so an image-first story could publish with blank accessibility metadata.
-     */
-    onAlt: () => {
-      const title = v.enTitle || v.frTitle;
-      // AI-first vision pass: describe each photo missing alt via the vision
-      // model; per-photo fallback stays the offline caption/filename heuristic
-      // so one vision failure never blocks the other 19 photos.
-      if (aiEnabled) {
-        const missing = v.newPhotos.filter(
-          (p) => !p.alt?.trim() && p.kind !== "video" && p.kind !== "audio" && p.url.startsWith("http"),
-        );
-        if (missing.length > 0 && !altWorking) {
-          setAltWorking(true);
-          void (async () => {
-            try {
-              const next = [...v.newPhotos];
-              let aiCount = 0;
-              for (let i = 0; i < next.length; i++) {
-                const p = next[i]!;
-                if (p.alt?.trim() || p.kind === "video" || p.kind === "audio") continue;
-                if (!p.url.startsWith("http")) {
-                  const off = suggestAltFromCaption(p.caption, title, p.url);
-                  if (off) {
-                    next[i] = { ...p, alt: off };
-                  }
-                  continue;
-                }
-                try {
-                  const res = await aiImageAlt({ imageUrl: p.url, title });
-                  if (res.ok && "alt" in res && res.alt?.trim()) {
-                    next[i] = { ...p, alt: res.alt.trim().slice(0, 200) };
-                    aiCount += 1;
-                    continue;
-                  }
-                } catch {
-                  /* per-photo fallback below */
-                }
-                const off = suggestAltFromCaption(p.caption, title, p.url);
-                if (off) next[i] = { ...p, alt: off };
-              }
-              const credit = v.credit.trim() ? v.credit : suggestCredit("", v.authorName || v.byline);
-              patch({ newPhotos: next, ...(credit !== v.credit.trim() ? { credit } : {}) });
-              const total = next.filter(
-                (p, idx) => p.alt?.trim() && !v.newPhotos[idx]?.alt?.trim(),
-              ).length;
-              if (total === 0 && credit === v.credit.trim()) {
-                addToast(copy.assistNothingToDo, "success");
-              } else {
-                addToast(
-                  `${copy.assistDraftedCount.replace("{n}", String(total || 1))} (AI vision · ${aiCount} described)`,
-                  "success",
-                );
-              }
-            } finally {
-              setAltWorking(false);
-            }
-          })();
-          return;
-        }
-      }
-      let changed = 0;
-      const newPhotos = v.newPhotos.map((p) => {
-        if (p.alt?.trim() || p.kind === "video" || p.kind === "audio") return p;
-        const alt = suggestAltFromCaption(p.caption, title, p.url);
-        if (!alt) return p;
-        changed += 1;
-        return { ...p, alt };
-      });
-      const credit = v.credit.trim() ? v.credit : suggestCredit("", v.authorName || v.byline);
-      if (changed === 0 && credit === v.credit.trim()) {
-        addToast(copy.assistNothingToDo, "success");
-        return;
-      }
-      patch({ newPhotos, ...(credit !== v.credit.trim() ? { credit } : {}) });
-      addToast(`${copy.assistDraftedCount.replace("{n}", String(changed || 1))} (offline)`, "success");
-    },
-  };
-
-  /**
-   * Derived fields re-derive while untouched. The two fields an editor actually
-   * writes are the title and the body; everything else is a byproduct, so it
-   * should follow them instead of waiting for a button press. `touched` is what
-   * keeps this honest — the moment a field is edited by hand it stops being
-   * rewritten, and a create-mode form never overwrites a stored row.
-   */
-  useEffect(() => {
-    if (isEdit) return;
-    const title = v.enTitle || v.frTitle;
-    if (!title.trim()) return;
-    const t = setTimeout(() => {
-      const result = draftRemainingFields({
-        type: v.type,
-        enTitle: v.enTitle,
-        frTitle: v.frTitle,
-        enBody: v.enBody,
-        frBody: v.frBody,
-        enExcerpt: v.enExcerpt,
-        frExcerpt: v.frExcerpt,
-        enSeo: v.enSeo,
-        frSeo: v.frSeo,
-        slug: v.slug,
-        tags: v.tags,
-        shareText: v.shareText,
-        categoryId: v.categoryId,
-        locationId: v.locationId,
-        authorName: v.authorName,
-        categories: categoryOptions,
-        locations,
-        touched: touched as ReadonlySet<AutoFillField>,
-      });
-      if (result.applied.length > 0) patch(result.patch);
-    }, 400);
-    return () => clearTimeout(t);
-    // Intentionally not re-running on every value it reads: `patch` above
-    // changes `v`, which would loop. It keys on the two source fields plus the
-    // taxonomy list, which is everything a suggestion can legitimately depend on.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [v.enTitle, v.frTitle, v.enBody, v.frBody, v.type, categoryOptions, locations, touched, isEdit]);
+  // The intelligence layer lives in ./form/assist so the moderation approve
+  // form gets the identical drafting help (and identical provenance honesty).
+  const {
+    aiEnabled,
+    aiModel,
+    aiBudget,
+    draftingAi,
+    handleDraftAi,
+    lastDraft,
+    undoLastDraft,
+    describeFields,
+    suggestion,
+    setSuggestion,
+    applySuggestion,
+    headlines,
+    setHeadlines,
+    headlinesWorking,
+    handleHeadlines,
+    verifyState,
+    setVerifyState,
+    verifyWorking,
+    handleVerify,
+    repurpose,
+    repurposeWorking,
+    handleRepurpose,
+    assist,
+  } = useContentAssist({
+    values: v,
+    patch,
+    copy,
+    addToast,
+    locations,
+    categoryOptions,
+    touched,
+    markTouched,
+    isEdit,
+  });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -1374,12 +337,36 @@ export function ContentForm({
       const payload = payloadFromForm(v, data);
       if (payload.kind !== "save") return;
       const ok = await run(
-        () => saveContentItem(payload.contentItemId, payload.draft),
+        () => saveContentItem(payload.contentItemId, payload.draft, locale === 'fr' ? 'fr' : 'en'),
         copy.toastUpdated ?? "Saved.",
       );
       // The row now holds everything the autosave held, so the local copy is
       // stale by definition — leaving it would offer it back on next open.
       if (ok) clearDraft(draftKey(payload.contentItemId));
+      if (ok) onDone();
+      return;
+    }
+
+    // ---- approve a submission: same payload, plus the claim ---------------
+    if (isApprove && approve) {
+      const created = payloadFromForm(v, null);
+      if (created.kind !== "create") return;
+      const ok = await run(
+        () =>
+          approveSubmissionWithContent({
+            submissionId: approve.submissionId,
+            draft: created.input.draft,
+            publish: created.input.publish,
+            scheduledFor: created.input.scheduledFor,
+            expiresAt: created.input.expiresAt,
+          }),
+        v.publish === "now"
+          ? copy.approveToastPublished
+          : v.publish === "schedule"
+            ? copy.approveToastScheduled
+            : copy.approveToastDraft,
+      );
+      if (ok) clearDraft(draftKey(draftSlot));
       if (ok) onDone();
       return;
     }
@@ -1489,26 +476,47 @@ export function ContentForm({
 
       {/* 1 — Details: type, bilingual titles + excerpts, translate/assist. */}
       <Section title={copy.sectionDetails}>
-        {!isEdit && (
-          <Field label={copy.type}>
-            <select
-              value={v.type}
-              onChange={(e) =>
-                patch({
-                  type: e.target.value as ContentType,
-                  categoryId: "",
-                })
-              }
-              className={inputCls}
-            >
-              {CONTENT_TYPES.map((ct) => (
-                <option key={ct} value={ct}>
-                  {typeFilters[TYPE_DICT_KEYS[ct]] ?? ct}
-                </option>
-              ))}
-            </select>
-          </Field>
-        )}
+        {!isEdit &&
+          (isApprove ? (
+            // The content type is decided by the submission, not the reviewer:
+            // approveSubmissionWithContent derives it from
+            // SUBMISSION_TO_CONTENT and the server has the last word. Showing a
+            // live select here would let someone pick a type the post could not
+            // become, so it reads as a fixed fact.
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>{copy.type}:</span>
+              <span className="font-medium text-foreground">
+                {typeFilters[TYPE_DICT_KEYS[v.type]] ?? v.type}
+              </span>
+            </div>
+          ) : (
+            <Field label={copy.type}>
+              <select
+                value={v.type}
+                onChange={(e) =>
+                  patch({
+                    type: e.target.value as ContentType,
+                    categoryId: "",
+                  })
+                }
+                className={inputCls}
+              >
+                {CONTENT_TYPES.map((ct) => (
+                  <option key={ct} value={ct}>
+                    {typeFilters[TYPE_DICT_KEYS[ct]] ?? ct}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ))}
+        {isApprove && approve?.unmapped?.length ? (
+          // Nothing in a submission may vanish quietly: the reviewer is told
+          // which keys the form could not place, and reads them in the
+          // submitted-content panel beside the form.
+          <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-800 dark:text-amber-300">
+            {copy.unmappedNotice.replace("{keys}", approve.unmapped.join(", "))}
+          </p>
+        ) : null}
         <BilingualHeadings
           copy={copy}
           enTitle={v.enTitle}
@@ -1532,9 +540,36 @@ export function ContentForm({
           {...assist}
           aiEnabled={aiEnabled}
           aiModel={aiModel}
+          aiBudget={aiBudget}
           onDraftAi={handleDraftAi}
           draftingAi={draftingAi}
         />
+        {lastDraft && lastDraft.fields.length > 0 ? (
+          // Provenance, reviewable: which fields the last pass wrote and with
+          // what engine — plus a one-tap undo that restores the prior values.
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs"
+          >
+            <span className="text-muted-foreground">
+              {(copy.assistLastDraft ?? '{engine} drafted: {fields}')
+                .replace(
+                  '{engine}',
+                  lastDraft.engine === 'llm'
+                    ? (copy.assistEngineAi as string | undefined) ?? 'AI'
+                    : (copy.assistEngineOffline as string | undefined) ?? 'Offline',
+                )
+                .replace('{fields}', describeFields(lastDraft.fields).join(', '))}
+            </span>
+            <button
+              type="button"
+              onClick={undoLastDraft}
+              className="shrink-0 rounded-md border border-border px-2 py-0.5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              {copy.assistUndo ?? 'Undo drafting pass'}
+            </button>
+          </div>
+        ) : null}
         {/* P2 — AI headline options (EN/FR pickers, apply-on-tap). */}
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -1567,7 +602,7 @@ export function ContentForm({
         </div>
         {headlines ? (
           <div role="status" className="grid gap-1.5 rounded-md border border-border bg-muted/40 p-2.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               AI headlines · {headlines.locale.toUpperCase()}
             </p>
             {headlines.items.map((h) => (
@@ -1592,7 +627,7 @@ export function ContentForm({
         ) : null}
         {verifyState ? (
           <div role="status" className="grid gap-1.5 rounded-md border border-border bg-muted/40 p-2.5 text-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               AI verification · {verifyState.badge}
             </p>
             {verifyState.reasons.map((r) => (
@@ -1768,6 +803,39 @@ export function ContentForm({
             </select>
           </Field>
         </div>
+        {suggestion ? (
+          // Below-gate classifier output: a chip to tap, never a silent write.
+          // The rationale is the point of the confidence gate, so it renders
+          // inline instead of in a toast that vanishes.
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-2 rounded-md border border-dashed border-primary/50 bg-primary/5 px-2.5 py-1.5 text-xs"
+          >
+            <span className="font-medium">
+              {(copy.assistSuggests ?? 'AI suggests {name} ({pct}%)')
+                .replace('{name}', suggestion.name)
+                .replace('{pct}', String(Math.round(suggestion.confidence * 100)))}
+            </span>
+            {suggestion.rationale ? (
+              <span className="min-w-0 flex-1 basis-48 text-muted-foreground">— {suggestion.rationale}</span>
+            ) : null}
+            <button
+              type="button"
+              onClick={applySuggestion}
+              className="shrink-0 rounded-md border border-primary bg-primary/10 px-2 py-0.5 font-semibold text-primary transition-colors hover:bg-primary/20"
+            >
+              {copy.assistSuggestApply ?? 'Apply'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSuggestion(null)}
+              aria-label={common.close}
+              className="shrink-0 rounded-md px-1.5 py-0.5 text-muted-foreground hover:text-foreground"
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={copy.verificationLabel}>
             <select
@@ -2103,7 +1171,7 @@ export function ContentForm({
               ] as const
             ).map(([key, label]) => (
               <div key={key} className="rounded-md border border-border bg-muted/40 p-2.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label as string}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label as string}</p>
                 <p className="mt-1 text-sm">{repurpose[key]}</p>
                 <div className="mt-1.5 flex flex-wrap gap-2">
                   <button
@@ -2254,10 +1322,16 @@ export function ContentForm({
                 : isEdit
                   ? copy.saveChanges
                   : v.publish === "now"
-                    ? copy.createPublish
+                    ? isApprove
+                      ? copy.approvePublish
+                      : copy.createPublish
                     : v.publish === "schedule"
-                      ? copy.createSchedule
-                      : copy.createDraft}
+                      ? isApprove
+                        ? copy.approveSchedule
+                        : copy.createSchedule
+                      : isApprove
+                        ? copy.approveDraft
+                        : copy.createDraft}
             </button>
           </span>
         </div>

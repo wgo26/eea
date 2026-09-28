@@ -76,7 +76,6 @@ export default async function Page({
   const statusHref = (key: string) => `${base}?status=${key}${search ? `&q=${encodeURIComponent(search)}` : ''}`
   const pageHref = (p: number) => `${withQS(`&sort=${sort}`)}&page=${p}`
   const sortHref = () => `${withQS(sort === 'expires' ? '' : '&sort=expires')}`
-  const searchAction = `${base}?status=${status}&sort=${sort}`
   const isFiltered = status !== 'all' || !!search
 
   return (
@@ -111,7 +110,8 @@ export default async function Page({
           name="q"
           defaultValue={search}
           placeholder={tc.searchPlaceholder}
-          action={searchAction}
+          action={base}
+          hidden={{ status, sort }}
           className="w-full sm:w-64"
         />
       </div>

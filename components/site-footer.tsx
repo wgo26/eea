@@ -49,6 +49,7 @@ export function SiteFooter({ socialLinks, branding, chrome }: { socialLinks?: So
     ];
     const community = [
         { href: "/submit", label: dict.nav.submit },
+        { href: "/about/guide", label: dict.footer.guide },
         { href: "/contributors", label: dict.nav.contributors },
         { href: "/digest", label: dict.nav.digest },
         { href: "/advertise", label: dict.nav.advertise },

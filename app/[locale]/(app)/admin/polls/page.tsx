@@ -75,7 +75,8 @@ export default async function Page({
           name="q"
           defaultValue={search}
           placeholder={common.searchPlaceholder}
-          action={`${base}?locale=${localeFilter}`}
+          action={base}
+          hidden={{ locale: localeFilter }}
           className="w-full sm:w-64"
         />
       </div>

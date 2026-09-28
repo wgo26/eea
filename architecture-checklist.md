@@ -588,6 +588,37 @@ below.*
 
 ## Changelog
 
+- 2026-09-28 — **One content form, two shells: the approve path IS the content
+  form.** The moderation approve drawer was a second, hand-maintained content
+  form (37 own `useState` hooks, ~19 of ~44 fields) that had drifted ~70%
+  behind the Content screen's form — no story blocks, tags, slug, SEO,
+  byline, share line, event fields, per-photo alt/caption, media library,
+  preview, autosave or intelligence layer — and the two server create paths
+  had already diverged (no `events` rows, no tags on approve). Now:
+  `ContentForm mode="approve"` (seeded by the tested
+  `lib/content/submission-prefill.ts` adapter) is the only surface that writes
+  a post from a submission, and `lib/admin/actions/content-create.ts`
+  (`createContentRow`) is the only builder both `createContentItem` and
+  `approveSubmissionWithContent` call. Bulk approve is deleted by design
+  (approving authors a post — it cannot apply to a selection; the old one
+  moved rows to Approved with no content item behind them). **Invariant: a
+  second content form is not allowed** — enforced by
+  `lib/admin/form-parity.test.ts` (funnel emits every field group incl.
+  listing/notice/event extensions; prefill for all 5 submission types feeds
+  the funnel; builder writes all 3 extension tables; approve dialog renders
+  the shared form; `admin.review` carries no content field labels) and by the
+  dictionary rule that field labels live in `admin.content` only
+  (`admin.review` keeps decision vocabulary: notes/clarify/reject/reopen/
+  triage/submitter/consent/payload labels). Intelligence layer on the review
+  path: drafting capabilities admit the `moderate` desk (`getAiStatus`,
+  draft/translate/share/alt/repurpose), `aiFindDuplicates` honours the
+  `ai.moderation_triage` kill-switch, token budget shows before any spend,
+  drafting passes carry provenance + one-tap undo, below-gate
+  category/location output renders as tappable chips with inline rationale,
+  missing-alt blocks publishing, translation warnings surface, and reject/
+  clarify boxes draft their decision text (`aiModerationResponse`,
+  review-before-send). Guests keep the intake-only receipt policy
+  (`docs/notifications.md`) — no decision follow-ups by design.
 - 2026-09-26 — **The correction register: the record's other half is published.**
   /about has always promised *"Corrections, guidelines and takedowns are public
   policy — trust is built in the open"*, and the About hero describes the

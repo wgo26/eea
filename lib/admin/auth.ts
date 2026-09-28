@@ -69,6 +69,29 @@ export async function assertCapability(capability: Capability): Promise<AdminCon
 }
 
 /**
+ * Any-of variant of assertCapability for actions two different desks must be
+ * able to reach — the moderation desk (`moderate`) drafting a submission into a
+ * post is the same work as the content desk (`manageContent`) drafting it.
+ *
+ * The single-capability helper cannot express that: `getAiStatus()` asserted
+ * `manageContent` while every AI *call* also asserted `manageContent`, so an
+ * admin whose grants were `moderate`-only got a caught rejection, rendered as
+ * "AI is off — no provider configured". The AI was on. The message was a lie,
+ * and the operator had no way to tell the two apart. Same class of bug as a
+ * nav entry wider than its page guard (see lib/admin/nav-integrity.test.ts):
+ * invisible to tsc, and it surfaces to exactly one person as a dead control.
+ */
+export async function assertAnyCapability(capabilities: Capability[]): Promise<AdminContext> {
+  const ctx = await assertStaff()
+  const adminRoles = await getAdminRoles(ctx.supabase, ctx.user.id)
+  const caps = effectiveCapabilities(ctx.roles, adminRoles)
+  if (!capabilities.some((capability) => caps.has(capability))) {
+    throw new Error('You do not have permission to perform this action.')
+  }
+  return { ...ctx, adminRoles: resolveAdminRoles(ctx.roles, adminRoles) }
+}
+
+/**
  * Step-up verification for sensitive admin actions (suspend/ban, delete,
  * admin-role changes): the acting admin re-enters their password, which is
  * verified against Supabase Auth through a session-less client — no cookies

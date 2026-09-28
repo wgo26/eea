@@ -82,13 +82,13 @@ export function AccountBottomNav({ groups }: { groups: ReturnType<typeof splitAc
               <Icon className="h-5 w-5" aria-hidden />
               {hasBadge ? (
                 <span
-                  className="absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-destructive-foreground ring-2 ring-card"
+                  className="absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1 text-xs font-bold leading-none text-destructive-foreground ring-2 ring-card"
                   aria-label={t.unread.replace('{count}', String(badge))}
                 >
                   {badge! > 99 ? '99+' : badge}
                 </span>
               ) : null}
-              <span className="mt-1 text-[10px] font-medium leading-none truncate max-w-[60px]">
+              <span className="mt-1 text-xs font-medium leading-none truncate max-w-[60px]">
                 {item.label}
               </span>
             </Link>

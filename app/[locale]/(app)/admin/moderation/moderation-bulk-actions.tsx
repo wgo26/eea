@@ -2,29 +2,19 @@
 
 import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { DataTable } from '@/components/admin/data-table'
 import type { Column } from '@/components/admin/data-table'
 import { StickyBatchBar } from '@/components/admin/sticky-batch-bar'
 import { DetailDrawer, DetailButton } from '@/components/admin/detail-drawer'
-import { bulkApproveSubmissions, bulkRejectSubmissions, bulkRequestClarification } from '@/lib/admin/actions/moderation'
+import { bulkRejectSubmissions, bulkRequestClarification } from '@/lib/admin/actions/moderation'
 import { StatusBadge, TypeBadge } from '@/components/admin/status-badge'
 import { formatRelative } from '@/lib/admin/format'
-import { localePath } from '@/lib/i18n/urls'
 
+import { ModerationActions } from './moderation-actions'
 import type { Dictionary, Locale } from '@/lib/i18n'
+import type { SubmissionRow } from '@/lib/admin/queries'
 
-type ModerationRow = {
-  id: string
-  status: string
-  submissionType: string
-  guestName: string | null
-  guestEmail?: string | null
-  guestPhone?: string | null
-  submittedAt: string | null
-  reviewedAt?: string | null
-  payload?: unknown
-}
+type ModerationRow = SubmissionRow
 
 type Copy = Dictionary['admin']['moderation']
 type CommonCopy = Dictionary['admin']['common']
@@ -124,9 +114,7 @@ export function ModerationBulkTable({
       render: (r) => (
         <span className="inline-flex items-center justify-end gap-1.5">
           <DetailButton label={common.viewDetails} onClick={() => setDetailId(r.id)} />
-          <Link href={localePath(locale, `/admin/moderation/${r.id}`)} className="whitespace-nowrap text-xs text-primary hover:underline">
-            {copy.review}
-          </Link>
+          <ModerationActions submission={r} copy={copy} locale={locale} />
         </span>
       ),
       className: 'text-right whitespace-nowrap',
@@ -148,14 +136,6 @@ export function ModerationBulkTable({
           cancelLabel={common.cancel}
           confirmLabel={common.confirm}
           actions={[
-            {
-              label: common.bulkApprove,
-              action: (keys) => bulkApproveSubmissions(keys),
-              successToast: common.bulkUpdated,
-              tone: 'default',
-              confirmTitle: common.bulkApprove,
-              confirmBody: common.bulkUpdated,
-            },
             {
               label: copy.bulkReject,
               action: (keys) => bulkRejectSubmissions(keys, rejectReason.trim() || copy.rejectPlaceholder),

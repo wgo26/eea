@@ -68,7 +68,7 @@ export function TriagePanel({ copy, text, hasPhotos }: { copy: TriageCopy; text:
     <section className="rounded-lg border border-dashed border-border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-medium">
-          {copy.triageTitle} <span className="text-[11px] font-normal text-muted-foreground">· AI advisory</span>
+          {copy.triageTitle} <span className="text-xs font-normal text-muted-foreground">· AI advisory</span>
         </h2>
         <button
           type="button"
@@ -85,6 +85,20 @@ export function TriagePanel({ copy, text, hasPhotos }: { copy: TriageCopy; text:
         <div className="mt-2 space-y-1.5 text-xs">
           <p className={tone(result.overall)}>
             {copy.triageSuggestion}: <strong>{result.suggestedAction}</strong> ({pct(result.overall)})
+          </p>
+          {/* The suggestion advises; the decision controls live below. Link the
+              two so "reject" never sits above a generic "Approve & publish" CTA
+              without pointing at the matching control. */}
+          <p>
+            <a href="#review-decision" className="text-link hover:underline">
+              {result.suggestedAction === 'approve'
+                ? '→ Approve & publish below'
+                : result.suggestedAction === 'clarify'
+                  ? '→ Request clarification below'
+                  : result.suggestedAction === 'reject'
+                    ? '→ Reject with reason below'
+                    : '→ Decide below (notes · approve · clarify · reject)'}
+            </a>
           </p>
           <p className="text-muted-foreground">
             {copy.triageScores}: spam {pct(result.spam)} · scam {pct(result.scam)} · toxicity {pct(result.toxicity)}

@@ -128,6 +128,12 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
                         see how it handles being wrong. */}
                     <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-bold">
                         <Link
+                            href={localePath(locale, "/about/guide")}
+                            className="underline decoration-primary/60 underline-offset-4 hover:decoration-primary"
+                        >
+                            {a.guideTitle}
+                        </Link>
+                        <Link
                             href={localePath(locale, "/search")}
                             className="underline decoration-primary/60 underline-offset-4 hover:decoration-primary"
                         >

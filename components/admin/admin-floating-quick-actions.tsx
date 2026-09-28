@@ -186,7 +186,7 @@ export function AdminFloatingQuickActions({
                 {typeof action.count === 'number' && action.count > 0 && (
                   <span
                     className={cn(
-                      'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none',
+                      'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-xs font-bold leading-none',
                       action.severity === 'alert' ? 'bg-destructive text-destructive-foreground' : 'bg-primary/15 text-primary'
                     )}
                   >

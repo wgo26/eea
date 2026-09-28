@@ -1,6 +1,6 @@
 'use server'
 
-import { assertStaff, assertAdmin, assertCapability } from '@/lib/admin/auth'
+import { assertStaff, assertAdmin, assertAnyCapability, assertCapability } from '@/lib/admin/auth'
 import { getContentItemEditData as fetchContentEditData, queryContentForSlotAssign, searchAuthorProfiles, getContentHistory, getContentItems, getUsers } from '@/lib/admin/queries'
 import { validateContentDraft, type ContentDraftInput } from '../content-validation'
 import { syncContentTags } from '@/lib/admin/tags'
@@ -12,6 +12,7 @@ import { llmLocalizeFields, llmDraftShareLine } from '@/lib/translate/prompts'
 import { llmReadyAsync } from '@/lib/translate/llm'
 import { lookupSegment } from '@/lib/translate/tm'
 import { type ActionResult, audit, fail, revalidateLocalized, revalidatePublicContentCache, uniqueSlug, syncPhotos, applyStoryCredit, deleteStoredMedia, upsertTranslations } from './_shared'
+import { createContentRow, revalidateCreatedContent } from './content-create'
 
 export type { ContentDraftInput } from '../content-validation'
 
@@ -19,10 +20,15 @@ export type { ContentDraftInput } from '../content-validation'
  * Save edits to an existing content item from the drawer: translations,
  * meta, photos, listing/notice extension fields. Does not change status.
  */
-export async function saveContentItem(contentItemId: string, draft: ContentDraftInput): Promise<ActionResult> {
+export async function saveContentItem(
+  contentItemId: string,
+  draft: ContentDraftInput,
+  /** Editor-facing locale for validation prose (defaults to English). */
+  locale: 'en' | 'fr' = 'en',
+): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertCapability('manageContent')
-    const validationError = validateContentDraft(draft, false)
+    const validationError = validateContentDraft(draft, false, locale)
     if (validationError) return { ok: false, error: validationError }
 
     const { data: item } = await supabase
@@ -186,101 +192,30 @@ export async function createContentItem(input: {
   publish: 'now' | 'schedule' | 'draft'
   scheduledFor?: string
   expiresAt?: string | null
+  /** Editor-facing locale for validation prose (defaults to English). */
+  locale?: 'en' | 'fr'
 }): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertCapability('manageContent')
-    const now = new Date().toISOString()
     const type = input.type.trim()
     if (!(CONTENT_TYPES as readonly string[]).includes(type)) return { ok: false, error: 'Unknown content type.' }
-    const validationError = validateContentDraft(input.draft, input.publish !== 'draft')
+    const validationError = validateContentDraft(input.draft, input.publish !== 'draft', input.locale ?? 'en')
     if (validationError) return { ok: false, error: validationError }
     if (input.publish === 'schedule' && !input.scheduledFor) return { ok: false, error: 'A schedule date is required when scheduling.' }
 
-    const statusPatch =
-      input.publish === 'now' ? { status: 'published', published_at: now } :
-      input.publish === 'schedule' ? { status: 'scheduled', scheduled_for: input.scheduledFor } :
-      ({ status: 'draft' } as const)
-    const slug = await uniqueSlug(supabase, input.draft.slugBase || type)
-
-    const { data: created, error: createErr } = await supabase
-      .from('content_items')
-      .insert({
-        type,
-        slug,
-        status: 'draft',
-        verification: input.draft.verification ?? null,
-        location_id: input.draft.locationId || null,
-        category_id: input.draft.categoryId || null,
-        author_id: input.draft.authorId || user.id, // dialog pick, else creator
-        expires_at: input.expiresAt || null,
-      })
-      .select('id')
-      .single()
-    if (createErr || !created) return { ok: false, error: createErr?.message ?? 'Could not create the content item.' }
-
-    try {
-      await upsertTranslations(supabase, created.id, input.draft.translations)
-      if ((input.draft.photos ?? []).length > 0 || (input.draft.attachments ?? []).length > 0) {
-        await syncPhotos(supabase, created.id, input.draft.photos ?? [], [], input.draft.photographerCredit ?? null, input.draft.attachments ?? [])
-      }
-      if (type === 'listing') {
-        const { error: lErr } = await supabase.from('listings').insert({
-          content_item_id: created.id,
-          price: input.draft.listing?.price ?? null,
-          currency: input.draft.listing?.currency?.toUpperCase().slice(0, 3) ?? 'XAF',
-          listing_status: 'active',
-          contact_phone: input.draft.listing?.contactPhone ?? null,
-          contact_email: input.draft.listing?.contactEmail ?? null,
-          whatsapp_number: input.draft.listing?.whatsappNumber ?? null,
-          seller_name: input.draft.listing?.sellerName?.trim() || null,
-        })
-        if (lErr) throw new Error(`Could not create the listing: ${lErr.message}`)
-      }
-      if (type === 'notice') {
-        const { error: nErr } = await supabase.from('notices').insert({
-          content_item_id: created.id,
-          notice_type: input.draft.notice?.noticeType ?? 'other',
-          organization_name: input.draft.notice?.organizationName ?? null,
-          contact_phone: input.draft.notice?.contactPhone ?? null,
-          notice_date: input.draft.notice?.noticeDate ?? null,
-          expiry_date: input.draft.notice?.expiryDate ?? input.expiresAt ?? null,
-          is_official: input.draft.verification === 'official_source' || input.draft.notice?.isOfficial === true,
-        })
-        if (nErr) throw new Error(`Could not create the notice: ${nErr.message}`)
-      }
-      if (type === 'culture' && input.draft.event) {
-        const e = input.draft.event
-        if (e.startsAt || e.endsAt || e.venueName || e.ticketUrl || e.organizerName || e.organizerPhone || e.organizerEmail) {
-          const { error: eErr } = await supabase.from('events').insert({
-            content_item_id: created.id,
-            starts_at: e.startsAt ?? null,
-            ends_at: e.endsAt ?? null,
-            venue_name: e.venueName ?? null,
-            ticket_url: e.ticketUrl?.trim() || null,
-            organizer_name: e.organizerName ?? null,
-            organizer_phone: e.organizerPhone ?? null,
-            organizer_email: e.organizerEmail ?? null,
-          })
-          if (eErr) throw new Error(`Could not create the event: ${eErr.message}`)
-        }
-      }
-    } catch (e) {
-      const { data: mediaRows } = await supabase
-        .from('media_assets')
-        .select('id, provider, storage_key')
-        .eq('content_item_id', created.id)
-      for (const media of mediaRows ?? []) {
-        await deleteStoredMedia(supabase, media as { provider: string; storage_key: string | null })
-      }
-      await supabase.from('media_assets').delete().eq('content_item_id', created.id)
-      await supabase.from('content_items').delete().eq('id', created.id)
-      return fail(e)
-    }
-
-    if (input.publish !== 'draft') {
-      const { error: flipErr } = await supabase.from('content_items').update(statusPatch).eq('id', created.id)
-      if (flipErr) return { ok: false, error: flipErr.message }
-    }
+    const created = await createContentRow({
+      type,
+      draft: input.draft,
+      publish: input.publish,
+      scheduledFor: input.scheduledFor,
+      expiresAt: input.expiresAt,
+      slug: input.draft.slug,
+      publishedAt: input.draft.publishedAt,
+      // An item created by staff with no picked author belongs to the creator.
+      authorFallbackId: user.id,
+      supabase,
+    })
+    const { slug } = created
 
     await audit(supabase, user.id, {
       action: `content:create:${input.publish === 'now' ? 'publish' : input.publish === 'schedule' ? 'schedule' : 'draft'}`,
@@ -289,9 +224,7 @@ export async function createContentItem(input: {
       notes: `${type}/${slug}`,
     })
 
-    if (input.publish !== 'draft') revalidatePublicContentCache()
-    revalidateLocalized('/admin/content')
-    revalidateLocalized('/admin/dashboard')
+    revalidateCreatedContent(input.publish)
     return { ok: true }
   } catch (e) {
     return fail(e)
@@ -475,7 +408,9 @@ export type TranslateContentResult =
  */
 export async function translateContentFields(input: TranslateContentInput): Promise<TranslateContentResult> {
   try {
-    await assertCapability('manageContent')
+    // Form-write, not a DB write: the moderation approve form translates into
+    // its own inputs, so the moderate desk is admitted alongside manageContent.
+    await assertAnyCapability(['manageContent', 'moderate'])
     const from = input.sourceLocale
     const to: 'en' | 'fr' = from === 'en' ? 'fr' : 'en'
     const source = {
@@ -520,7 +455,8 @@ export async function draftShareLine(input: {
   locale: 'en' | 'fr'
 }): Promise<DraftShareLineResult> {
   try {
-    await assertCapability('manageContent')
+    // Same form-write policy as translateContentFields above.
+    await assertAnyCapability(['manageContent', 'moderate'])
     if (!isShareVoice(input.voice)) return { ok: false, error: 'Unknown voice register.' }
     const title = (input.title ?? '').trim()
     if (!title) return { ok: false, error: 'Enter a title first.' }

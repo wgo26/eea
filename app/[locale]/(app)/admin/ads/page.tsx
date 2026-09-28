@@ -72,7 +72,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
           name="q"
           defaultValue={search}
           placeholder={t.searchPlaceholder ?? tc.searchPlaceholder}
-          action={`${base}?tab=${tab}`}
+          action={base}
+          hidden={{ tab }}
         />
       </div>
 

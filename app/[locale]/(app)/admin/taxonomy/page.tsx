@@ -73,7 +73,8 @@ export default async function Page({
           name="q"
           defaultValue={search}
           placeholder={common.searchPlaceholder}
-          action={`${base}?tab=${activeTab}`}
+          action={base}
+          hidden={{ tab: activeTab }}
           className="w-full sm:w-64"
         />
       </div>

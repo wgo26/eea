@@ -28,7 +28,7 @@ export async function MorningBriefCard() {
         <h2 className="text-sm font-semibold">{t.morningTitle}</h2>
         <span
           role="status"
-          className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${ai ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'border-border bg-muted text-muted-foreground'}`}
+          className={`rounded-full border px-2 py-0.5 text-xs font-medium ${ai ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'border-border bg-muted text-muted-foreground'}`}
         >
           {ai ? t.morningAiBadge : t.morningOfflineBadge}
         </span>

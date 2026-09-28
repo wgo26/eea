@@ -356,6 +356,38 @@ export function SubmitForm({
     const stepRef = React.useRef<HTMLDivElement>(null);
     const [internalStep, setInternalStep] = React.useState(0)
     const step = controlledStep ?? internalStep;
+    // Marketplace policy (confirmed): a buy-sell listing without a seller
+    // contact is unreviewable, so email-or-phone is required for the type
+    // even though both fields stay optional for every other type.
+    const [contactError, setContactError] = React.useState(false);
+
+    /** Effective contact values, whether the card is expanded or collapsed
+     * into hidden inputs for signed-in contributors. */
+    const contactValues = () => {
+        const form = formRef.current;
+        const read = (name: string) => {
+            const el = form?.elements.namedItem(name);
+            return el instanceof HTMLInputElement ? el.value.trim() : "";
+        };
+        return { email: read("email"), phone: read("phone") };
+    };
+
+    /** Enforce the buy-sell contact rule; returns true when satisfied. */
+    const checkBuySellContact = () => {
+        if (type !== "buy-sell") return true;
+        const { email, phone } = contactValues();
+        if (email || phone) {
+            setContactError(false);
+            return true;
+        }
+        setContactError(true);
+        setShowContact(true);
+        // The card may just have expanded — focus after paint.
+        requestAnimationFrame(() => {
+            (document.getElementById("phone") as HTMLInputElement | null)?.focus({ preventScroll: false });
+        });
+        return false;
+    };
 
     const goStep = (next: number) => {
         if (next > step) {
@@ -383,6 +415,7 @@ export function SubmitForm({
                     }
                 }
             }
+            if (!checkBuySellContact()) return;
         }
         if (controlledStep === undefined) setInternalStep(next)
         onStepChange?.(next)
@@ -462,7 +495,13 @@ export function SubmitForm({
         <form
             ref={formRef}
             action={formAction}
-            onSubmit={() => setSubmitAttempt((a) => a + 1)}
+            onSubmit={(e) => {
+                setSubmitAttempt((a) => a + 1);
+                // Native validation runs first; this covers the cross-field
+                // marketplace rule (email OR phone) that `required` cannot
+                // express on its own.
+                if (!checkBuySellContact()) e.preventDefault();
+            }}
             className="space-y-5"
         >
             <input type="hidden" name="submissionType" value={TYPE_TO_DB[type]} />
@@ -543,7 +582,7 @@ export function SubmitForm({
                                 />
                             </Field>
                         </div>
-                        <Field label={f.phone} htmlFor="phone">
+                        <Field label={f.phone} htmlFor="phone" hint={isBuySell ? f.buySellContactHint : undefined}>
                             <Input
                                 id="phone"
                                 name="phone"
@@ -551,6 +590,11 @@ export function SubmitForm({
                                 placeholder={f.phonePlaceholder}
                             />
                         </Field>
+                        {contactError ? (
+                            <p role="alert" className="text-sm text-destructive">
+                                {dict.submit.errorRequired}
+                            </p>
+                        ) : null}
                     </div>
                 )}
                 {initial?.name && !showContact ? (

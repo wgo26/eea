@@ -11,6 +11,7 @@ import { formatRelative } from '@/lib/admin/format'
 import { FileText } from 'lucide-react'
 import { ReviewActions } from './review-actions'
 import { TriagePanel } from './triage-panel'
+import { contentTypeForSubmission } from '@/lib/content/submission-types'
 import type { ContentType } from '@/lib/auth/roles'
 
 export async function generateMetadata(): Promise<{ title: string }> {
@@ -63,6 +64,23 @@ function extractPhotoUrls(key: string, value: string): string[] {
   return imageUrls
 }
 
+/**
+ * True when the submission actually carries media.
+ *
+ * The review screen used to test every payload value for "http", so a URL
+ * pasted into the story text counted as a photo and a text-only tip-off was
+ * triaged as an image story — and the triage scores the reviewer is told to
+ * trust change with it. Media lives in named keys (photos/videos/audios/
+ * documents/doc), which is the same contract `extractPhotoUrls` renders with.
+ */
+function payloadHasMedia(payload: Record<string, unknown> | null): boolean {
+  if (!payload) return false
+  return Object.entries(payload).some(
+    ([key, value]) => /^(photos|videos|audios|documents|doc|cover|image|media)$/i.test(key)
+      && /https?:\/\//i.test(payloadValue(value)),
+  )
+}
+
 /** Public detail path for a published item, mirroring lib/queries/home.ts. */
 function publicHref(locale: string, type: string, id: string, slug: string | null): string {
   switch (type) {
@@ -91,10 +109,11 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
   const contentRef = submission.contentItemId ? await getContentItemRef(submission.contentItemId) : null
 
-  // Reference data for the approve-with-content drawer. buy_sell submissions
-  // become `listing` content items, so the category list uses that type.
-  const contentTypeForCategories: ContentType =
-    submission.submissionType === 'buy_sell' ? 'listing' : (submission.submissionType as ContentType)
+  // Reference data for the approve form. The submission's type decides the
+  // content type — the same table the server action uses, so the two can never
+  // disagree about what `buy_sell` becomes.
+  const contentTypeForCategories = (contentTypeForSubmission(submission.submissionType) ??
+    'news') as ContentType
   const [locations, categories, queue] = await Promise.all([
     getLocations(),
     getCategoriesForType(contentTypeForCategories, locale),
@@ -204,7 +223,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           <TriagePanel
             copy={t}
             text={payloadEntries.map((e) => `${e.key}: ${e.value}`).join('\n').slice(0, 4000)}
-            hasPhotos={payloadEntries.some((e) => /http/i.test(e.value) || /photo|image/i.test(e.key))}
+            hasPhotos={payloadHasMedia(submission.payload)}
           />
           <section className="rounded-lg border border-border bg-card p-4">
             <h2 className="text-sm font-medium">{t.submitter}</h2>
@@ -255,9 +274,12 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           <ReviewActions
             submission={submission}
             copy={t}
+            contentCopy={dict.admin.content}
             common={dict.admin.common}
+            typeFilters={dict.admin.typeFilters}
             locations={locations}
             categories={categories}
+            locale={locale}
           />
         </div>
       </div>

@@ -2,26 +2,42 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { approveSubmission, deleteSubmission, rejectSubmission } from '@/lib/admin/actions/moderation'
+import Link from 'next/link'
+import { deleteSubmission, rejectSubmission } from '@/lib/admin/actions/moderation'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { useToast } from '@/components/admin/toast'
-import type { Dictionary } from '@/lib/i18n'
+import { localePath } from '@/lib/i18n/urls'
+import type { Dictionary, Locale } from '@/lib/i18n'
 import type { SubmissionRow } from '@/lib/admin/queries'
 
 type Copy = Dictionary['admin']['moderation']
 
-const btnPrimary =
-  'inline-flex items-center justify-center rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50'
 const btnGhost =
   'inline-flex items-center justify-center rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50'
 const btnDanger =
   'inline-flex items-center justify-center rounded-md border border-destructive/40 px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50'
 
 /**
- * Queue row actions: quick approve, reject with reason, and admin-only
- * permanent delete for spam / test rows.
+ * Queue row actions: review (the only way to approve — see below), reject with
+ * reason, and admin-only permanent delete for spam / test rows.
+ *
+ * There is deliberately no row "Approve" button here. Approving means writing
+ * the story: bilingual titles, taxonomy, media, the extension row. The bare-row
+ * approve this component used to expose marked a submission `approved` without
+ * ever creating a content item, so the Approved tab filled with rows that had
+ * nothing behind them and could never be published — the review screen reads
+ * `content_item_id` as "already built", and it stayed null. Deciding that a
+ * submission becomes a post is one submission at a time, in the form.
  */
-export function ModerationActions({ submission, copy }: { submission: SubmissionRow; copy: Copy }) {
+export function ModerationActions({
+  submission,
+  copy,
+  locale,
+}: {
+  submission: SubmissionRow
+  copy: Copy
+  locale: Locale
+}) {
   const { addToast } = useToast()
   const router = useRouter()
   const [rejectOpen, setRejectOpen] = useState(false)
@@ -33,18 +49,6 @@ export function ModerationActions({ submission, copy }: { submission: Submission
     submission.status === 'pending' ||
     submission.status === 'in_review' ||
     submission.status === 'needs_clarification'
-
-  async function handleApprove() {
-    setLoading(true)
-    const result = await approveSubmission(submission.id)
-    setLoading(false)
-    if (result.ok) {
-      addToast(copy.toastApproved, 'success')
-      router.refresh()
-    } else {
-      addToast(result.error, 'error')
-    }
-  }
 
   async function handleReject() {
     if (!reason.trim()) return
@@ -97,9 +101,15 @@ export function ModerationActions({ submission, copy }: { submission: Submission
 
   return (
     <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
-      <button type="button" onClick={handleApprove} disabled={loading} className={btnPrimary}>
-        {copy.approve}
-      </button>
+      {/* The only approve path: the review screen, where the content item is
+          actually written. Reject and delete stay row-level because they decide
+          *about* a submission rather than author a post. */}
+      <Link
+        href={localePath(locale, `/admin/moderation/${submission.id}`)}
+        className={btnGhost}
+      >
+        {copy.review}
+      </Link>
       <button type="button" onClick={() => setRejectOpen(true)} disabled={loading} className={btnGhost}>
         {copy.reject}
       </button>

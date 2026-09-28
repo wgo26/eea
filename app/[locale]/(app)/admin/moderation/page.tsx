@@ -94,8 +94,6 @@ export default async function Page({
 
   const sortHref = (dir: 'newest' | 'oldest') =>
     `${localePath(locale, '/admin/moderation')}?status=${status}&type=${type}&sort=${dir}${qs}`
-
-  const searchAction = `${localePath(locale, '/admin/moderation')}?status=${status}&type=${type}&sort=${sort}`
   const isFiltered = type !== 'all' || !!search
 
   const statusWord =
@@ -146,7 +144,8 @@ export default async function Page({
             name="q"
             defaultValue={search}
             placeholder={tc.searchPlaceholder}
-            action={searchAction}
+            action={localePath(locale, '/admin/moderation')}
+            hidden={{ status, type, sort }}
             className="w-full sm:w-64"
           />
         </div>

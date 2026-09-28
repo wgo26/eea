@@ -25,6 +25,8 @@ export type AssistCopy = {
   assistUnsure: string;
   /** Toast listing how many fields the one-click pass drafted. */
   assistDraftedCount: string;
+  /** Token-budget hint shown beside the AI action: "{used}/{budget} tokens used today". */
+  assistBudget?: string;
   /** Toast when every derived field already had a value. */
   assistNothingToDo: string;
 };
@@ -35,6 +37,8 @@ type Props = {
   /** Honest engine mode: offline heuristics vs real LLM. Never render ✨ as AI when offline. */
   aiEnabled?: boolean;
   aiModel?: string;
+  /** Today's token usage, when the status probe returned it — shown before any spend. */
+  aiBudget?: { used: number; budget: number } | null;
   onExcerpt: () => void;
   onSeo: () => void;
   onTags: () => void;
@@ -65,6 +69,7 @@ export function ContentAssistButtons({
   disabled,
   aiEnabled,
   aiModel,
+  aiBudget,
   onExcerpt,
   onSeo,
   onTags,
@@ -82,6 +87,21 @@ export function ContentAssistButtons({
     "shrink-0 rounded-md border border-dashed border-border px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50";
   const primary =
     "shrink-0 rounded-md border border-primary bg-primary/10 px-2.5 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 disabled:opacity-50";
+  // The AI action is deliberately NOT primary-styled: it spends the shared
+  // daily token budget, while the offline pass is silent and free. Cost is
+  // shown before the click, never discovered after it.
+  const aiBtn =
+    "shrink-0 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50";
+  const budgetHint =
+    aiBudget && copy.assistBudget
+      ? copy.assistBudget
+          .replace('{used}', String(aiBudget.used))
+          .replace('{budget}', String(aiBudget.budget))
+      : null;
+  // Granular actions behind the disclosure, counted so the toggle is honest.
+  const granularCount = [onExcerpt, onSeo, onTags, onSlug, onShare, onCategory, onLocation, onAlt].filter(
+    Boolean,
+  ).length;
 
   return (
     <div className="grid gap-1.5" aria-label={copy.assistGroupLabel}>
@@ -96,18 +116,22 @@ export function ContentAssistButtons({
             type="button"
             onClick={onDraftAi}
             disabled={disabled || draftingAi || !aiEnabled}
-            className={primary}
-            title={aiEnabled ? `LLM: ${aiModel ?? ''}`.trim() : (copy.assistAiOff ?? 'AI off — configure LLM_API_KEY')}
+            className={aiBtn}
+            title={
+              aiEnabled
+                ? [`LLM: ${aiModel ?? ''}`.trim(), budgetHint].filter(Boolean).join(' · ')
+                : (copy.assistAiOff ?? 'AI off — configure LLM_API_KEY')
+            }
           >
             {draftingAi ? (copy.assistAiWorking ?? 'Drafting with AI…') : (copy.assistAi ?? '✨ Draft with AI')}
           </button>
         ) : null}
         <span
           role="status"
-          className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${aiEnabled ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'border-border bg-muted text-muted-foreground'}`}
+          className={`rounded-full border px-2 py-0.5 text-xs font-medium ${aiEnabled ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'border-border bg-muted text-muted-foreground'}`}
           title={aiEnabled ? `LLM: ${aiModel ?? ''}`.trim() : 'Offline heuristics only — no model connected'}
         >
-          {aiEnabled ? `AI on${aiModel ? ` · ${aiModel}` : ''}` : 'Offline smart fill'}
+          {aiEnabled ? `AI on${aiModel ? ` · ${aiModel}` : ''}${budgetHint ? ` · ${budgetHint}` : ''}` : 'Offline smart fill'}
         </span>
         <button
           type="button"
@@ -116,7 +140,7 @@ export function ContentAssistButtons({
           className="shrink-0 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:text-foreground"
           title={copy.assistMore}
         >
-          {copy.assistMore}
+          {copy.assistMore} ({granularCount}) {more ? '▴' : '▾'}
         </button>
       </div>
       {more ? (

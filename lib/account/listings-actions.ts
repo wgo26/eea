@@ -122,6 +122,34 @@ export async function removeOwnListing(contentItemId: string): Promise<Result> {
 }
 
 /**
+ * Guest-claim backfill: a reader who submitted as a guest and later creates
+ * an account with the same email inherits those rows — `submitted_by` is set
+ * so FUTURE decision notifications (approve/reject/clarify) reach their inbox
+ * instead of no-op'ing on a null user id. Past decisions stay visible either
+ * way (/account/submissions matches `guest_email` too).
+ *
+ * Idempotent and safe to run on every account-area visit: the update only
+ * touches still-unclaimed rows for this email, usually zero.
+ */
+export async function claimGuestSubmissions(): Promise<{ ok: true; claimed: number } | { ok: false; error: string }> {
+  try {
+    const { user } = await getSessionUser()
+    if (!user?.email) return { ok: true, claimed: 0 }
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('submissions')
+      .update({ submitted_by: user.id })
+      .is('submitted_by', null)
+      .eq('guest_email', user.email)
+      .select('id')
+    if (error) return { ok: false, error: error.message }
+    return { ok: true, claimed: (data ?? []).length }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Operation failed' }
+  }
+}
+
+/**
  * Owner resubmits a rejected/withdrawn submission (status → pending).
  * Gives rejected contributors a one-tap "fix and resend" path instead of
  * starting over — the edit happens by resubmitting the same payload the
@@ -144,7 +172,10 @@ export async function resubmitOwnSubmission(submissionId: string): Promise<Resul
     if (!['rejected', 'withdrawn'].includes(row.status)) {
       return { ok: false, error: `Only rejected or withdrawn submissions can be resubmitted (this one is ${row.status}).` }
     }
-    const { error } = await supabase.from('submissions').update({ status: 'pending' }).eq('id', submissionId)
+    // Claiming the row at resubmit time closes the guest loop even for
+    // readers who never visit /account/submissions first: the next decision
+    // on this row notifies their inbox.
+    const { error } = await supabase.from('submissions').update({ status: 'pending', submitted_by: user.id }).eq('id', submissionId)
     if (error) return { ok: false, error: error.message }
     await supabase.from('moderation_log').insert({ action: 'submission:resubmitted:owner', submission_id: submissionId, actor_id: user.id, from_status: row.status, to_status: 'pending' })
     revalidatePath('/account/submissions', 'page')

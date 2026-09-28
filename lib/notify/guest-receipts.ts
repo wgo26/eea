@@ -27,10 +27,10 @@ const COPY: Record<GuestReceiptKind, { subject: string; title: string; body: str
   submission: {
     subject: "We received your submission — Eagle Eye Africa",
     title: "We received your submission",
-    body: "Thank you — our editors will review it and publish verified stories with credit to you. This is the only email we will send about this submission unless you create an account.",
+    body: "Thank you — our editors will review it and publish verified stories with credit to you. This is the only email we will send about this submission. Want to follow its review status? Create a free account with this same email address and track it under My submissions — future decisions on it will notify your inbox.",
     titleFr: "Nous avons reçu votre soumission",
     bodyFr:
-      "Merci — nos rédacteurs vont l'examiner et publier les histoires vérifiées en vous créditant. C'est le seul e-mail que nous enverrons pour cette soumission, sauf si vous créez un compte.",
+      "Merci — nos rédacteurs vont l'examiner et publier les histoires vérifiées en vous créditant. C'est le seul e-mail que nous enverrons pour cette soumission. Pour suivre son statut, créez un compte gratuit avec cette même adresse e-mail et suivez-la sous Mes soumissions — les prochaines décisions vous parviendront dans votre boîte de réception.",
   },
   advertise: {
     subject: "Advertising inquiry received — Eagle Eye Africa",

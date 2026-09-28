@@ -58,6 +58,12 @@ export default {
                 { key: "social_facebook_url", value: "https://facebook.com/eagleeyeafrica", why: "local placeholder" },
                 { key: "social_youtube_url", value: "https://youtube.com/@eagleeyeafrica", why: "local placeholder" },
                 { key: "site_logo_url", value: "/brand/eagle-eye-mark.svg", why: "local placeholder" },
+                // Public contact channels (operator-owned; shown in the guide
+                // only when set). Local placeholders so the guide's contact
+                // rows render in dev; production stays empty until the
+                // operator fills them at Admin → Site content.
+                { key: "contact_email", value: "info@eagleeyeafrica.org", why: "local placeholder" },
+                { key: "contact_whatsapp", value: "+237 670 040 473", why: "local placeholder" },
                 {
                     key: "announcement_text_en",
                     value: "Demo announcement — edit or clear this in Admin → Site content",

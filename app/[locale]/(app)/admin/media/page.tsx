@@ -195,7 +195,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
           name="q"
           defaultValue={search}
           placeholder={t.searchPlaceholder}
-          action={hrefFor({ q: undefined, page: undefined })}
+          action={base}
+          hidden={{ kind, tab, rights }}
           className="w-full sm:w-64"
         />
       </div>

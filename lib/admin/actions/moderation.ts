@@ -3,60 +3,62 @@
 import { assertStaff, assertAdmin, assertCapability } from '@/lib/admin/auth'
 import { validateContentDraft, type ContentDraftInput } from '../content-validation'
 import { type UpdateOf } from '@/lib/supabase/admin'
+import { getRequestLocale } from '@/lib/i18n/server'
 import { enqueueUser, enqueueStaff, submissionNotifyTarget } from '@/lib/notify/queue'
-import { type ActionResult, audit, auditBulkOperation, fail, revalidateLocalized, revalidatePublicContentCache, SUBMISSION_TO_CONTENT, uniqueSlug, syncPhotos, upsertTranslations } from './_shared'
+import { type ActionResult, audit, auditBulkOperation, fail, revalidateLocalized } from './_shared'
+import { contentTypeForSubmission } from '@/lib/content/submission-types'
+import { createContentRow, revalidateCreatedContent, ContentCreateError } from './content-create'
 import { deleteReport, resolveReport } from './safety'
 
+/** Statuses a reviewer can still decide on. */
+const ACTIONABLE_STATUSES = ['pending', 'in_review', 'needs_clarification'] as const
+
 /**
- * Legacy quick-approve kept for the queue list + review-screen buttons: marks
- * the submission approved without building a content item (the Phase 3
- * approve-with-content drawer handles the full publish path). Notes are only
- * overwritten when explicitly passed, so approving never wipes a teammate's
- * saved internal notes.
+ * Resolve the locale the *reviewer* is working in, best-effort, so validation
+ * prose reaches them in the language the rest of the screen uses. An action can
+ * be invoked outside a render pass and a locale read must never fail a
+ * publish, so English is the fallback.
  */
-export async function approveSubmission(submissionId: string, notes?: string): Promise<ActionResult> {
+async function actorLocale(): Promise<'en' | 'fr'> {
   try {
-    const { supabase, user } = await assertCapability('moderate')
-    const now = new Date().toISOString()
-
-    const { data: sub } = await supabase
-      .from('submissions')
-      .select('id, status')
-      .eq('id', submissionId)
-      .single()
-
-    if (!sub) return { ok: false, error: 'Submission not found.' }
-    if (!['pending', 'in_review', 'needs_clarification'].includes(sub.status)) {
-      return { ok: false, error: `Submission is ${sub.status} and cannot be approved.` }
-    }
-
-    const patch: Record<string, unknown> = { status: 'approved', reviewed_at: now, reviewed_by: user.id }
-    if (notes !== undefined) patch.internal_notes = notes
-    const { error } = await supabase.from('submissions').update(patch as UpdateOf<'submissions'>).eq('id', submissionId)
-    if (error) return { ok: false, error: error.message }
-
-    await supabase.from('moderation_log').insert({
-      action: 'approve', to_status: 'approved', notes: notes ?? null,
-      submission_id: submissionId, actor_id: user.id,
-    })
-
-    revalidateLocalized('/admin/moderation')
-    revalidateLocalized('/admin/moderation/[id]')
-    void submissionNotifyTarget(supabase, submissionId).then((t) =>
-      enqueueUser('submission.approved', t.userId, { title: t.title }, '/account/submissions'),
-    )
-    return { ok: true }
-  } catch (e) {
-    return fail(e)
+    return (await getRequestLocale()) === 'fr' ? 'fr' : 'en'
+  } catch {
+    return 'en'
   }
 }
 
 /**
- * Approve a submission AND create the real content item in one step (Phase 3
- * core loop): bilingual translations, photos as media_assets, location /
- * category / verification, the listing/notice extension row, and the publish
- * mode (now / scheduled / draft). Replaces the old bare-row approve that
- * left approved submissions unpublishable.
+ * The title to show the submitter: whichever locale carries one. A French-only
+ * approval used to fall through to the literal "your submission" because the
+ * reviewer never typed an English title.
+ */
+function primaryTitle(draft: ContentDraftInput): string {
+  const en = draft.translations.find((t) => t.locale === 'en')?.title?.trim()
+  const fr = draft.translations.find((t) => t.locale === 'fr')?.title?.trim()
+  return en || fr || 'your submission'
+}
+
+/**
+ * The title to permalink from. Same rule, and the reason the approve path now
+ * returns a real slug for a French story instead of `submission-xxxx`: an
+ * English-first fallback plus a skipped FR translation row published an
+ * un-localized URL for a French article.
+ */
+function primarySlugSource(draft: ContentDraftInput): string {
+  return primaryTitle(draft) === 'your submission' ? draft.slugBase : primaryTitle(draft)
+}
+
+/**
+ * Approve a submission AND create the real content item in one step — the core
+ * review loop. Bilingual translations, photos as media_assets, location /
+ * category / verification, tags, the listing/notice/event extension row and the
+ * publish mode (now / scheduled / draft).
+ *
+ * The insert itself is delegated to `createContentRow`, the same builder the
+ * Content screen's "New content" uses. Before that, the two copies had already
+ * diverged: this one never wrote `events` rows (an approved culture submission
+ * published with no date, venue or ticket link), never synced tags, and never
+ * accepted an explicit slug.
  */
 export async function approveSubmissionWithContent(input: {
   submissionId: string
@@ -72,6 +74,8 @@ export async function approveSubmissionWithContent(input: {
 
     const { data: sub } = await supabase
       .from('submissions')
+      // content_item_id is read for the double-submit guard: a second click
+      // used to build a second item from one submission.
       .select('id, submission_type, status, content_item_id, submitted_by')
       .eq('id', input.submissionId)
       .single()
@@ -79,86 +83,52 @@ export async function approveSubmissionWithContent(input: {
     if (sub.content_item_id) {
       return { ok: false, error: 'This submission already has a content item — use the edit drawer on it instead.' }
     }
-    if (!['pending', 'in_review', 'needs_clarification'].includes(sub.status)) {
+    if (!ACTIONABLE_STATUSES.includes(sub.status as (typeof ACTIONABLE_STATUSES)[number])) {
       return { ok: false, error: `Submission is ${sub.status} and cannot be approved.` }
     }
 
-    const contentType = SUBMISSION_TO_CONTENT[sub.submission_type]
+    // The same client-safe table the review screen uses to pick the category
+    // list and the form's locked content type.
+    const contentType = contentTypeForSubmission(sub.submission_type)
     if (!contentType) return { ok: false, error: `Unknown submission type ${sub.submission_type}.` }
 
-    const validationError = validateContentDraft(input.draft, input.publish !== 'draft')
+    const validationError = validateContentDraft(input.draft, input.publish !== 'draft', await actorLocale())
     if (validationError) return { ok: false, error: validationError }
-    if (input.publish === 'schedule' && !input.scheduledFor) {
-      return { ok: false, error: 'A schedule date is required when scheduling.' }
-    }
 
-    const statusPatch =
-      input.publish === 'now' ? { status: 'published', published_at: now } :
-      input.publish === 'schedule' ? { status: 'scheduled', scheduled_for: input.scheduledFor } :
-      { status: 'draft' }
-    const expiresAt = input.expiresAt || null
+    const created = await createContentRow({
+      type: contentType,
+      // slugBase falls back to the title in either locale, so a French-only
+      // approval gets a French permalink instead of `submission-xxxx`.
+      draft: { ...input.draft, slugBase: primarySlugSource(input.draft) },
+      publish: input.publish,
+      scheduledFor: input.scheduledFor,
+      expiresAt: input.expiresAt ?? null,
+      slug: input.draft.slug,
+      // A community story keeps its reporter (submitted_by); the editor who
+      // shaped it is the author when they picked one.
+      authorFallbackId: user.id,
+      submittedById: sub.submitted_by ?? null,
+      supabase,
+    })
 
-    const slug = await uniqueSlug(supabase, input.draft.slugBase || 'submission')
-    const { data: created, error: createErr } = await supabase
-      .from('content_items')
-      .insert({
-        type: contentType,
-        slug,
-        status: 'draft', // flipped to the target status once child rows exist
-        verification: input.draft.verification ?? null,
-        location_id: input.draft.locationId || null,
-        category_id: input.draft.categoryId || null,
-        submitted_by: sub.submitted_by ?? null,
-        expires_at: expiresAt,
-      })
-      .select('id')
-      .single()
-    if (createErr || !created) return { ok: false, error: createErr?.message ?? 'Could not create the content item.' }
-
-    try {
-      await upsertTranslations(supabase, created.id, input.draft.translations)
-      if ((input.draft.photos ?? []).length > 0 || (input.draft.attachments ?? []).length > 0) {
-        await syncPhotos(supabase, created.id, input.draft.photos ?? [], [], input.draft.photographerCredit ?? null, input.draft.attachments ?? [])
-      }
-      if (contentType === 'listing') {
-        const { error: lErr } = await supabase.from('listings').insert({
-          content_item_id: created.id,
-          price: input.draft.listing?.price ?? null,
-          currency: input.draft.listing?.currency?.toUpperCase().slice(0, 3) ?? 'XAF',
-          listing_status: 'active',
-          contact_phone: input.draft.listing?.contactPhone ?? null,
-          contact_email: input.draft.listing?.contactEmail ?? null,
-          whatsapp_number: input.draft.listing?.whatsappNumber ?? null,
-          seller_name: input.draft.listing?.sellerName?.trim() || null,
-        })
-        if (lErr) throw new Error(`Could not create the listing: ${lErr.message}`)
-      }
-      if (contentType === 'notice') {
-        const { error: nErr } = await supabase.from('notices').insert({
-          content_item_id: created.id,
-          notice_type: input.draft.notice?.noticeType ?? 'other',
-          organization_name: input.draft.notice?.organizationName ?? null,
-          contact_phone: input.draft.notice?.contactPhone ?? null,
-          notice_date: input.draft.notice?.noticeDate ?? null,
-          expiry_date: input.draft.notice?.expiryDate ?? expiresAt,
-          is_official: input.draft.verification === 'official_source' || input.draft.notice?.isOfficial === true,
-        })
-        if (nErr) throw new Error(`Could not create the notice: ${nErr.message}`)
-      }
-    } catch (e) {
-      // Roll the half-built item back so a retry doesn't collide on the slug.
-      await supabase.from('content_items').delete().eq('id', created.id)
-      return fail(e)
-    }
-
-    const { error: flipErr } = await supabase.from('content_items').update(statusPatch).eq('id', created.id)
-    if (flipErr) return { ok: false, error: flipErr.message }
-
+    // Claim the submission for this item. The update is conditional on
+    // content_item_id still being null, so two approve requests racing (double
+    // click, retry, second tab) cannot both attach an item: the loser finds zero
+    // rows changed and deletes the duplicate it just built.
     const approvePatch: Record<string, unknown> = {
       status: 'approved', reviewed_at: now, reviewed_by: user.id, content_item_id: created.id,
     }
     if (input.notes !== undefined) approvePatch.internal_notes = input.notes
-    await supabase.from('submissions').update(approvePatch as UpdateOf<'submissions'>).eq('id', input.submissionId)
+    const { data: claimed } = await supabase
+      .from('submissions')
+      .update(approvePatch as UpdateOf<'submissions'>)
+      .eq('id', input.submissionId)
+      .is('content_item_id', null)
+      .select('id')
+    if (!claimed || claimed.length === 0) {
+      await supabase.from('content_items').delete().eq('id', created.id)
+      return { ok: false, error: 'This submission was approved by another request a moment ago — reload to see the content item.' }
+    }
 
     await supabase.from('moderation_log').insert({
       action: input.publish === 'now' ? 'approve_publish' : input.publish === 'schedule' ? 'approve_schedule' : 'approve_draft',
@@ -169,25 +139,27 @@ export async function approveSubmissionWithContent(input: {
       actor_id: user.id,
     })
 
-    if (input.publish !== 'draft') revalidatePublicContentCache()
-    revalidateLocalized('/admin/moderation')
-    revalidateLocalized('/admin/moderation/[id]')
-    revalidateLocalized('/admin/content')
-    revalidateLocalized('/admin/dashboard')
+    revalidateCreatedContent(input.publish, ['/admin/moderation', '/admin/moderation/[id]'])
+
     if (input.publish !== 'draft') {
-      const enTitle = input.draft.translations.find((t) => t.locale === 'en')?.title?.trim() || 'your submission'
-      void enqueueUser('submission.approved', sub.submitted_by, { title: enTitle.slice(0, 140) }, '/account/submissions')
+      // Notify with the title the submitter can read, not the literal "your
+      // submission" a French-only approval used to produce.
+      const title = primaryTitle(input.draft)
+      void enqueueUser('submission.approved', sub.submitted_by, { title: title.slice(0, 140) }, '/account/submissions')
 
       // B5 — approval-to-suggestion hook: when content goes live the publish
       // trigger (digest_slot_on_publish) creates digest_slots for it; fire a
       // ready-for-review staff alert so editors see the new item surfaced in
       // the digest panel and can pin/drop it before the next send. Best-effort.
       if (input.publish === 'now' && created.id) {
-        void enqueueStaff('digest.ready_for_review', { template: enTitle.slice(0, 80), count: '1' }, '/admin/digest').catch(() => {})
+        void enqueueStaff('digest.ready_for_review', { template: title.slice(0, 80), count: '1' }, '/admin/digest').catch(() => {})
       }
     }
     return { ok: true }
   } catch (e) {
+    // A builder failure already carries an operator-facing sentence; anything
+    // else is unexpected and goes through fail().
+    if (e instanceof ContentCreateError) return { ok: false, error: e.message }
     return fail(e)
   }
 }
@@ -239,17 +211,18 @@ export async function updateSubmissionNotes(submissionId: string, notes: string)
  * Bulk moderation: run the same capability- and status-checked single
  * operations over a selection. Sequential on purpose — one HTTP round trip
  * for the whole selection, with a per-item failure count surfaced to the UI.
+ *
+ * There is deliberately no `bulkApproveSubmissions`. Approving means writing
+ * the story — translations, taxonomy, media, the extension row — which is
+ * per-submission editorial work that cannot be applied to a selection. The
+ * version that used to live here called the content-less approve, so a
+ * reviewer selecting twelve rows and clicking "Approve selected" moved twelve
+ * submissions to Approved with no content item behind any of them: the
+ * `content_item_id` the review screen reads as "already built" stayed null,
+ * nothing was published, and the Approved tab became a pile of dead rows.
+ * Reject and clarify are bulk-able because they decide *about* the submission
+ * rather than authoring a post.
  */
-export async function bulkApproveSubmissions(ids: string[]): Promise<ActionResult> {
-  let failed = 0
-  for (const id of ids) {
-    const result = await approveSubmission(id)
-    if (!result.ok) failed += 1
-  }
-  await auditBulkOperation({ action: 'submission:bulk_approve', resourceType: 'submission', ids, failed })
-  return failed > 0 ? { ok: false, error: `${failed} of ${ids.length} submission(s) failed.` } : { ok: true }
-}
-
 export async function bulkRejectSubmissions(ids: string[], reason: string): Promise<ActionResult> {
   if (!reason.trim()) return { ok: false, error: 'A reason is required when rejecting.' }
   let failed = 0

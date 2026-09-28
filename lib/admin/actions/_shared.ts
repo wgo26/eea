@@ -225,14 +225,16 @@ export async function auditBulkOperation(entry: {
 /* Moderation                                                          */
 /* ------------------------------------------------------------------ */
 
-/** submission_type → content_type (buy_sell submissions become listing items). */
-export const SUBMISSION_TO_CONTENT: Record<string, string> = {
-  photo_story: 'photo_story',
-  news: 'news',
-  culture: 'culture',
-  notice: 'notice',
-  buy_sell: 'listing',
-}
+/**
+ * submission_type → content_type (buy_sell submissions become listing items).
+ *
+ * Re-exported from lib/content/submission-types rather than declared here: the
+ * review screen needs the same table on the client (to pick the category list
+ * and the form's locked content type), and two copies of a mapping that both
+ * sides of one transaction read is exactly the drift this branch exists to
+ * remove.
+ */
+export { SUBMISSION_TO_CONTENT, contentTypeForSubmission } from '@/lib/content/submission-types'
 
 export function slugify(value: string): string {
   return value

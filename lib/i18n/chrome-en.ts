@@ -66,6 +66,7 @@ footer: {
     terms: 'Terms of Service',
     privacy: 'Privacy Policy',
     guidelines: 'Community Guidelines',
+    guide: 'Community Guide',
     copyright: 'Copyright & Takedown',
     contact: 'Contact',
     rights: 'All rights reserved.',

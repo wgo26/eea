@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, ReactNode, useState } from "react";
-import type { Locale } from "@/lib/i18n";
 
 export interface FormStep {
     label: string;
@@ -27,6 +26,16 @@ export function useFormStep(): FormStepContextValue {
         throw new Error("useFormStep must be used within a FormStepProvider");
     }
     return ctx;
+}
+
+/**
+ * Optional reader for surfaces mounted both inside and outside a provider
+ * (e.g. the shell-level progress tracker, which renders on every focused
+ * page). Returns null instead of throwing — callers render nothing.
+ * Components that REQUIRE step state must keep using `useFormStep`.
+ */
+export function useFormStepOptional(): FormStepContextValue | null {
+    return useContext(FormStepContext);
 }
 
 /**

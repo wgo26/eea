@@ -13,6 +13,13 @@ import type { Lang } from './guard'
 
 const LOCALE_NAME: Record<Lang, string> = { en: 'English', fr: 'French' }
 
+/**
+ * Voice decision (Africa-wide product, Bamenda roots): identity framings say
+ * "pan-African community news platform rooted in Cameroon", while the
+ * LANGUAGE registers stay Cameroonian-English / Cameroonian French newsroom
+ * prose plus Pidgin and Camfranglais voices — register is quality, reach is
+ * geography, and only the geography generalizes.
+ */
 const STYLE_BRIEF: Record<Lang, string> = {
   en: 'Write in clear Cameroonian-English newsroom prose. Active voice, short sentences, no gallicisms ("finally" for "eventually", "to realize" for "to notice").',
   fr: 'Écris dans un français journalistique camerounais clair et naturel — jamais une traduction littérale de l\'anglais. Proscris les anglicismes ("opportunité" pour "occasion", "développer" pour "couvrir"), respecte la typographie (espace avant ! ? ; :, accents sur les majuscules).',
@@ -31,7 +38,7 @@ export async function llmLocalizeFields(input: {
   const { source, from, to } = input
   const hasBody = !!source.body.trim()
   const system = [
-    'You are the translation desk of Eye on Cameroon / L\'Œil sur le Cameroun, a bilingual (EN/FR) Cameroon news site.',
+    'You are the translation desk of Eagle Eye Africa, a bilingual (EN/FR) pan-African community news platform rooted in Cameroon.',
     'You are NOT a word-for-word machine translator. You rewrite the story so a native reader of the target language finds it natural, accurate and publication-ready.',
     'Hard rules:',
     '- Translate every field into ' + LOCALE_NAME[to] + '. Never return the source text. If the source is already fully in ' + LOCALE_NAME[to] + ', still return a natural ' + LOCALE_NAME[to] + ' phrasing of it.',
@@ -88,7 +95,7 @@ export async function llmDraftShareLine(input: {
       'Camfranglais (Yaoundé street French blended with local slang): "bana", "ngwa", "mboa", "débarras", "zam", "le na", "ça tourne". Natural urban register, never a caricature.',
   }
   const system = [
-    'You write WhatsApp share lines for Eye on Cameroon / L\'Œil sur le Cameroun, a Cameroon news site read by diaspora on WhatsApp.',
+    'You write WhatsApp share lines for Eagle Eye Africa, a pan-African community news platform rooted in Cameroon, read by diaspora on WhatsApp.',
     'The line must make someone tap. Max 280 characters. No hashtags, no emoji spam (at most one emoji), no clickbait that misrepresents the story.',
     `Register: ${VOICE_BRIEF[input.voice]}`,
     'Return ONLY the share line text, nothing else.',
@@ -122,7 +129,7 @@ export function llmReady(): boolean {
 /** 3 headline options + SEO/WhatsApp variants for the form's title row. */
 export async function llmDraftHeadlines(input: { topic: string; body: string; locale: Lang }): Promise<string[]> {
   const system = [
-    'You are a Cameroon newsroom headline desk. Write 3 distinct, accurate headlines.',
+    'You are the headline desk of a pan-African community news platform. Write 3 distinct, accurate headlines.',
     'Rules: max 90 chars each, no clickbait that misrepresents the story, keep proper nouns/numbers exact.',
     'Reply with ONLY a JSON object: {"headlines": [string, string, string]}',
   ].join('\n')
@@ -173,7 +180,7 @@ export async function llmSuggestEntities(input: {
   knownTags: string[]
 }): Promise<{ tags: string[]; entities: { people: string[]; places: string[]; orgs: string[] } }> {
   const system = [
-    'Extract tags + named entities from a Cameroon community story.',
+    'Extract tags + named entities from an African community story.',
     `Known site tags: ${input.knownTags.slice(0, 60).join(', ') || '(none)'}. Prefer reusing a known tag (exact match) over inventing a near-duplicate.`,
     'Max 8 tags, lowercase, no hashtags. People/places/orgs: as named in text.',
     'Reply with ONLY JSON: {"tags": string[], "people": string[], "places": string[], "orgs": string[]}',
@@ -214,7 +221,7 @@ export async function llmClassify(input: {
   locations: { id: string; name: string }[]
 }): Promise<AiClassification> {
   const system = [
-    'Classify a Cameroon community post against the provided taxonomy. IDs must come verbatim from the lists.',
+    'Classify an African community post against the provided taxonomy. IDs must come verbatim from the lists.',
     'If the text gives no clear answer, return null ids with confidence 0 and explain why.',
     'Reply with ONLY JSON: {"categoryId": string|null, "locationId": string|null, "confidence": number, "rationale": string, "alternatives": [{"id": string, "name": string}]}',
   ].join('\n')
@@ -287,7 +294,7 @@ export async function llmModerationTriage(input: { text: string; hasPhotos: bool
   rationale: string
 }> {
   const system = [
-    'You are a trust & safety triage assistant for a Cameroon community news platform.',
+    'You are a trust & safety triage assistant for a pan-African community news platform.',
     'Score 0..1: spam (ads, link dumps,重复 promos), scam (fake giveaways, money requests, impersonation), toxicity (hate, threats, harassment). pii: true if phone/email/ID/address of a PRIVATE person is exposed.',
     'overall = max(spam, scam, toxicity) (+0.2 if pii, capped 1). suggestedAction: reject if overall>=0.85, clarify if 0.6-0.85, review if 0.35-0.6, approve below.',
     'flags: short tags like ["link-dump", "money-request", "phone-exposed"]. rationale: 1-2 sentences for the human reviewer.',
@@ -351,7 +358,7 @@ export async function llmRepurpose(input: {
   emailSubject: string
 }> {
   const system = [
-    `You are the distribution desk for a Cameroon news site (${LOCALE_NAME[input.locale]}). Repurpose one story for every surface.`,
+    `You are the distribution desk for a pan-African community news platform (${LOCALE_NAME[input.locale]}). Repurpose one story for every surface.`,
     'whatsapp: 1-2 line share text, max 280 chars, at most one emoji. social: single post, max 240 chars, no hashtag spam. micro: Eye-on-the-Street 50-100 word vignette. pidgin: the whatsapp line rewritten in Cameroonian Pidgin. emailSubject: under 70 chars.',
     'Never invent facts not in the source. Keep proper nouns/numbers exact.',
     'Reply with ONLY JSON: {"whatsapp": string, "social": string, "micro": string, "pidgin": string, "emailSubject": string}',
@@ -491,6 +498,44 @@ export async function llmDraftReportResponse(input: {
     ],
     (v): v is { note: string } => !!v && typeof v === 'object' && typeof (v as Record<string, unknown>).note === 'string',
     { maxTokens: 400, temperature: 0.3 },
+  )
+}
+
+/**
+ * Draft the message a reviewer sends to a contributor about their submission:
+ * a rejection reason or a clarification question. Tone matters — the submitter
+ * is notified — so the model drafts from the reviewer's points (or the bare
+ * submission when they typed none) and the reviewer edits before sending.
+ * Lands in the form textarea, never sent directly.
+ */
+export async function llmDraftModerationResponse(input: {
+  decision: 'reject' | 'clarify'
+  submissionType: string
+  submissionText: string
+  points: string
+  locale: Lang
+}): Promise<{ note: string }> {
+  const system = [
+    `You are an editor of Eagle Eye Africa writing to a community contributor in ${LOCALE_NAME[input.locale]} (max 400 chars).`,
+    input.decision === 'reject'
+      ? 'Shape: thank them for the submission → the plain reason it cannot be published (from the reviewer points) → what would make it publishable, when anything would. No blame, no legalese, no internal jargon.'
+      : 'Shape: thank them for the submission → the specific questions the newsroom needs answered before deciding (from the reviewer points). Numbered when more than one.',
+    'Reply with ONLY JSON: {"note": string}',
+  ].join('\n')
+  return chatJson<{ note: string }>(
+    [
+      { role: 'system', content: system },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          type: input.submissionType.slice(0, 60),
+          submission: input.submissionText.slice(0, 1500),
+          reviewer_points: input.points.slice(0, 600),
+        }),
+      },
+    ],
+    (v): v is { note: string } => !!v && typeof v === 'object' && typeof (v as Record<string, unknown>).note === 'string',
+    { maxTokens: 500, temperature: 0.4 },
   )
 }
 

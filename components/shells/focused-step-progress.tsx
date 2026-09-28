@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { useFormStep } from "@/lib/submit/form-step-context";
+import { useFormStepOptional } from "@/lib/submit/form-step-context";
 
 /**
  * Horizontal progress tracker that lives in the `FocusedShell` header area.
@@ -13,12 +13,8 @@ import { useFormStep } from "@/lib/submit/form-step-context";
  * focused page (login, signup, etc.) that does not opt into the provider.
  */
 export function FocusedStepProgress() {
-    let ctx;
-    try {
-        ctx = useFormStep();
-    } catch {
-        return null;
-    }
+    const ctx = useFormStepOptional();
+    if (!ctx) return null;
 
     const { step, steps } = ctx;
 

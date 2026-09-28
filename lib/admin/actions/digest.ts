@@ -131,7 +131,8 @@ export async function sendTestDigest(
     }
 
     const issueDate = new Date().toISOString().slice(0, 10)
-    let storiesByLocale: { en?: any[]; fr?: any[] }
+    type DigestStorySeed = { title: string; type: string; path: string; shareText?: string | null }
+    let storiesByLocale: { en?: DigestStorySeed[]; fr?: DigestStorySeed[] }
 
     if (cadence === 'daily') {
       const { data } = await supabase.rpc('digest_freeze', { p_issue_date: issueDate })
@@ -147,10 +148,12 @@ export async function sendTestDigest(
         .gte('published_at', since)
         .order('published_at', { ascending: false })
         .limit(20)
-      const rows = (data ?? []) as any[]
+      type TranslationRow = { locale: string; title: string | null }
+      type ContentRow = { id: string; type: string | null; slug: string | null; translations: TranslationRow[] | TranslationRow | null }
+      const rows = (data ?? []) as ContentRow[]
       storiesByLocale = { en: rows.flatMap(r => {
         const list = Array.isArray(r.translations) ? r.translations : r.translations ? [r.translations] : []
-        const preferred = list.find((t: any) => t.locale === 'en' && t.title) ?? list.find((t: any) => t.title)
+        const preferred = list.find((t) => t.locale === 'en' && t.title) ?? list.find((t) => t.title)
         const title = preferred?.title ?? r.type ?? 'Story'
         if (!title) return []
         return [{ title: title.slice(0, 120), type: r.type ?? 'news', path: `/${r.type}/${r.slug ?? r.id}`, shareText: null }]

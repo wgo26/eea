@@ -46,10 +46,19 @@ export function MobileReaderPill({
     title,
     contentId,
     hasCorrections,
-    locale,
     labels,
 }: MobileReaderPillProps) {
-    const [visible, setVisible] = useState(true);
+    // `locale` stays on the props interface (callers pass it) but this
+    // component currently renders locale-neutral chrome.
+    const [visible, setVisible] = useState<boolean>(() =>
+        typeof document === 'undefined'
+            ? true
+            : !Boolean(
+                  document.querySelector(
+                      '[data-slot="sheet-overlay"],[data-slot="dialog-overlay"],[data-slot="drawer-overlay"]',
+                  ),
+              ),
+    );
     const [expanded, setExpanded] = useState(false);
     const [reactOpen, setReactOpen] = useState(false);
     const [offline, setOffline] = useState<OfflineState>({ saved: false, supported: true });
@@ -128,9 +137,9 @@ export function MobileReaderPill({
             }
         }
 
-        // Initial overlay check.
+        // Initial overlay state came from the lazy useState above; here the
+        // local mirror just starts in sync (no synchronous setState).
         hiddenBySheet = checkOverlay();
-        setVisible(!hiddenBySheet);
 
         window.addEventListener("scroll", onScroll, { passive: true });
         const iv = window.setInterval(() => {

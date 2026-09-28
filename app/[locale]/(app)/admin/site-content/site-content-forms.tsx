@@ -607,6 +607,100 @@ export function SiteLinksForm({
 }
 
 /**
+ * Public contact channels: the email + WhatsApp the guide and help surfaces
+ * show when set (mailto: / wa.me links). Empty = hidden everywhere — the
+ * newsroom publishes no contact it has not configured.
+ */export function ContactChannelsForm({
+  copy,
+  settings,
+}: {
+  copy: Copy
+  settings: { contact_email: string | null; contact_whatsapp: string | null }
+}) {
+  const { addToast } = useToast()
+  const [email, setEmail] = useState(settings.contact_email ?? '')
+  const [whatsapp, setWhatsapp] = useState(settings.contact_whatsapp ?? '')
+  const [loading, setLoading] = useState(false)
+
+  async function handleSave() {
+    setLoading(true)
+    for (const [key, val] of [
+      ['contact_email', email || null],
+      ['contact_whatsapp', whatsapp || null],
+    ] as const) {
+      const result = await saveSiteSetting({ key, value: val })
+      if (!result.ok) {
+        setLoading(false)
+        addToast(result.error, 'error')
+        return
+      }
+    }
+    setLoading(false)
+    addToast(copy.toastSettingSaved, 'success')
+  }
+
+  const input =
+    'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary'
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <p className="text-sm text-muted-foreground">{copy.contactChannelsBody}</p>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+          <span className="flex items-center justify-between">
+            {copy.contactEmailLabel}
+            {settings.contact_email ? null : (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                {copy.notSet}
+              </span>
+            )}
+          </span>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder={copy.contactEmailPlaceholder}
+            className={input}
+          />
+          <span className="text-xs">{copy.contactEmailHint}</span>
+        </label>
+
+        <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+          <span className="flex items-center justify-between">
+            {copy.contactWhatsappLabel}
+            {settings.contact_whatsapp ? null : (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                {copy.notSet}
+              </span>
+            )}
+          </span>
+          <input
+            type="tel"
+            value={whatsapp}
+            onChange={(e) => setWhatsapp(e.target.value)}
+            placeholder={copy.contactWhatsappPlaceholder}
+            className={input}
+          />
+          <span className="text-xs">{copy.contactWhatsappHint}</span>
+        </label>
+      </div>
+
+      <div className="mt-4 flex justify-end">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={loading}
+          className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+        >
+          {loading ? copy.saving : copy.save}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
  * Announcement banner: bilingual dismissible notice shown above the header
  * on every public page, plus an optional link target. Clearing both texts
  * turns the banner off (empty values delete the rows).

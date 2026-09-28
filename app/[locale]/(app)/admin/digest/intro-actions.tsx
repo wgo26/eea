@@ -57,7 +57,7 @@ export function DigestIntroPanel({
   return (
     <div className="border-t border-border bg-muted/30 px-4 py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {copy.introTitle} · AI
         </p>
         <div className="flex items-center gap-2">

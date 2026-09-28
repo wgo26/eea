@@ -1,6 +1,7 @@
 'use server'
 
-import { assertCapability } from '@/lib/admin/auth'
+import { assertAnyCapability, assertCapability } from '@/lib/admin/auth'
+import { type Capability } from '@/lib/auth/capabilities'
 import { getAppFlag } from '@/lib/automation/flags'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getLlmStatus, logLlmCall } from '@/lib/translate/llm'
@@ -74,8 +75,33 @@ async function tokensUsedToday(): Promise<number> {
   }
 }
 
+/**
+ * The desks allowed to ask what the intelligence layer can do: the content
+ * desk and the moderation desk. A reviewer drafting a submission into a post is
+ * doing the same work as an editor drafting a post, so the *status* probe must
+ * admit both. Asserting `manageContent` alone made an admin whose grants were
+ * `moderate`-only throw here, and because every caller swallows the rejection
+ * and renders the offline state, the screen then told them "AI off — configure
+ * LLM_API_KEY" while the model was configured and running.
+ */
+const AI_STATUS_CAPABILITIES: Capability[] = ['manageContent', 'moderate']
+
+/**
+ * The desks allowed to draft *into a form*: content and moderation. A reviewer
+ * turning a submission into a post is doing the same drafting work as an editor
+ * writing one, and the approve path needs the same help — arguably more of it,
+ * since a citizen's raw payload is the messiest input in the system.
+ *
+ * This is deliberately narrower than getAiStatus: it does NOT admit roles that
+ * only read analytics or manage the archive. Drafting is the action, so the
+ * capability named here is the one that performs it.
+ */
+async function assertDraftingCapability(): Promise<void> {
+  await assertAnyCapability(AI_STATUS_CAPABILITIES)
+}
+
 export async function getAiStatus(): Promise<AiStatus> {
-  await assertCapability('manageContent')
+  await assertAnyCapability(AI_STATUS_CAPABILITIES)
   const { getLlmRuntime, providerHostOf } = await import('@/lib/ai/settings')
   const rt = await getLlmRuntime()
   const flags: Record<string, boolean> = {}
@@ -143,7 +169,7 @@ export async function aiDraftRemaining(input: {
   voice?: string
 }): Promise<AiDraftAllResult> {
   try {
-    await assertCapability('manageContent')
+    await assertDraftingCapability()
     const g = await guard('ai.content_draft')
     if (!g.ok) return g
     const t0 = Date.now()
@@ -256,7 +282,7 @@ export async function aiTagsSuggest(input: { title: string; body: string; knownT
   ActionResult & { tags?: string[]; places?: string[] }
 > {
   try {
-    await assertCapability('manageContent')
+    await assertDraftingCapability()
     const g = await guard('ai.content_draft')
     if (!g.ok) return g
     const out = await llmSuggestEntities({ title: input.title, body: input.body, knownTags: input.knownTags ?? [] })
@@ -281,7 +307,7 @@ export async function aiClassifySuggest(input: {
   locations: { id: string; name: string }[]
 }) {
   try {
-    await assertCapability('manageContent')
+    await assertDraftingCapability()
     const g = await guard('ai.content_draft')
     if (!g.ok) return { ok: false as const, error: g.error }
     const out = await llmClassify(input)
@@ -294,7 +320,7 @@ export async function aiClassifySuggest(input: {
 
 export async function aiHeadlines(input: { topic: string; body: string; locale: 'en' | 'fr' }): Promise<ActionResult & { headlines?: string[] }> {
   try {
-    await assertCapability('manageContent')
+    await assertDraftingCapability()
     const g = await guard('ai.content_draft')
     if (!g.ok) return g
     const headlines = await llmDraftHeadlines(input)
@@ -307,7 +333,7 @@ export async function aiHeadlines(input: { topic: string; body: string; locale: 
 
 export async function aiVerification(input: { title: string; body: string }) {
   try {
-    await assertCapability('manageContent')
+    await assertDraftingCapability()
     const g = await guard('ai.content_draft')
     if (!g.ok) return { ok: false as const, error: g.error }
     const out = await llmVerificationSuggest(input)
@@ -321,9 +347,10 @@ export async function aiVerification(input: { title: string; body: string }) {
 export async function aiImageAlt(input: { imageUrl: string; title: string }): Promise<ActionResult & { alt?: string }> {
   try {
     // P6: the media desk (media.manage, no manageContent) describes the
-    // archive it owns — either desk may call, the flag/budget gate is shared.
+    // archive it owns, and the moderation desk drafts alt text into the
+    // approve form — any of the three may call, the flag/budget gate is shared.
     try {
-      await assertCapability('manageContent')
+      await assertAnyCapability(AI_STATUS_CAPABILITIES)
     } catch {
       await assertCapability('media.manage')
     }
@@ -438,6 +465,12 @@ export async function aiFindDuplicates(input: { text: string; excludeId?: string
 > {
   try {
     await assertCapability('moderate')
+    // Kill-switch parity: aiModerationTriage, which this runs alongside on the
+    // review screen, is gated by ai.moderation_triage. A duplicate check that
+    // ignored the flag made the switch a lie — turning triage "off" left half
+    // of the triage result still being computed and rendered.
+    const g = await guard('ai.moderation_triage')
+    if (!g.ok) return g
     const text = (input.text ?? '').trim().slice(0, 4000)
     if (text.length < 40) return { ok: true, hits: [] }
     const { embedConfiguredAsync, embedText, findSimilar } = await import('@/lib/ai/embeddings')
@@ -483,7 +516,7 @@ export async function aiFindDuplicates(input: { text: string; excludeId?: string
 /** P5 — repurpose engine: one story → every surface. */
 export async function aiRepurpose(input: { title: string; excerpt?: string; body?: string; locale: 'en' | 'fr' }) {
   try {
-    await assertCapability('manageContent')
+    await assertDraftingCapability()
     const g = await guard('ai.content_draft')
     if (!g.ok) return { ok: false as const, error: g.error }
     const { llmRepurpose } = await import('@/lib/translate/prompts')
@@ -541,6 +574,35 @@ export async function aiReportResponse(input: {
     const { llmDraftReportResponse } = await import('@/lib/translate/prompts')
     const out = await llmDraftReportResponse(input)
     await logLlmCall({ action: 'ai.report_response', model: await runtimeModel(), status: 'ok' })
+    return { ok: true as const, note: out.note.trim().slice(0, 500) }
+  } catch (e) {
+    return fail(e) as { ok: false; error: string }
+  }
+}
+
+/**
+ * Draft the message a reviewer sends to a contributor (rejection reason or
+ * clarification question) from the reviewer's points. Review-before-send: the
+ * text lands in the decision textarea, never sent directly — the submitter
+ * gets whatever prose the reviewer typed, so tone matters.
+ */
+export async function aiModerationResponse(input: {
+  decision: 'reject' | 'clarify'
+  submissionType: string
+  submissionText: string
+  points: string
+  locale: 'en' | 'fr'
+}) {
+  try {
+    await assertCapability('moderate')
+    const g = await guard('ai.content_draft')
+    if (!g.ok) return { ok: false as const, error: g.error }
+    if (!input.submissionText.trim() && !input.points.trim()) {
+      return { ok: false as const, error: 'Nothing to draft from yet.' }
+    }
+    const { llmDraftModerationResponse } = await import('@/lib/translate/prompts')
+    const out = await llmDraftModerationResponse(input)
+    await logLlmCall({ action: 'ai.moderation_response', model: await runtimeModel(), status: 'ok' })
     return { ok: true as const, note: out.note.trim().slice(0, 500) }
   } catch (e) {
     return fail(e) as { ok: false; error: string }

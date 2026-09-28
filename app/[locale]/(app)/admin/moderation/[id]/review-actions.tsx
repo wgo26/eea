@@ -1,87 +1,57 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { approveSubmissionWithContent, rejectSubmission, updateSubmissionNotes, requestClarification, reopenSubmission } from '@/lib/admin/actions/moderation'
-import type { ContentDraftInput } from '@/lib/admin/actions/content'
-import { useContentTranslator } from '@/components/admin/translate-buttons'
-import { useToast } from '@/components/admin/toast'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { MediaUploader, CONTENT_MEDIA_ACCEPTS, type UploadedPhoto } from '@/components/admin/media-uploader'
+  rejectSubmission,
+  updateSubmissionNotes,
+  requestClarification,
+  reopenSubmission,
+} from '@/lib/admin/actions/moderation'
+import { aiModerationResponse } from '@/lib/admin/actions/ai'
+import { useToast } from '@/components/admin/toast'
+import { ApproveContentDialog } from './approve-content-dialog'
 import type { Dictionary } from '@/lib/i18n'
 import type { SubmissionRow } from '@/lib/admin/queries'
 
 type Copy = Dictionary['admin']['review']
 type Option = { id: string; name: string }
 
-/** Payload prefill: map the submit-form payload keys onto the drawer fields.
- * Locale-aware: returns per-locale title/body guesses so a French submission
- * lands in the FR inputs, not the EN inputs (and vice versa). Sources:
- * locale-suffixed keys (title_fr/headline_fr/description_fr/…) first, then
- * the explicit payload locale (submission_locale/locale/lang), then generic
- * keys as a shared fallback for both columns. */
-function prefillFromPayload(payload: Record<string, unknown> | null) {
-  const p = payload ?? {}
-  const str = (v: unknown) => (typeof v === 'string' ? v : '')
-  const explicitLocale = str(p.submission_locale) || str(p.locale) || str(p.lang) || str(p.language)
-  const isFr = /^fr/i.test(explicitLocale)
-  const frFirst =
-    str(p.title_fr) || str(p.headline_fr) || str(p.item_fr) || str(p.what_fr) || str(p.question_fr) || str(p.name_fr)
-  const enFirst =
-    str(p.title_en) || str(p.headline_en) || str(p.item_en) || str(p.what_en) || str(p.question_en) || str(p.name_en)
-  const generic =
-    str(p.headline) || str(p.item) || str(p.what) || str(p.title) || str(p.question) || str(p.name)
-  const frBodyFirst = str(p.description_fr) || str(p.message_fr) || str(p.body_fr) || str(p.details_fr)
-  const enBodyFirst = str(p.description_en) || str(p.message_en) || str(p.body_en) || str(p.details_en)
-  const genericBody = str(p.description) || str(p.message) || str(p.body) || str(p.details)
-  return {
-    // Generic fallback feeds both columns so nothing is lost; the locale
-    // guess decides which column gets the "primary" prefill.
-    titleEn: enFirst || (!isFr ? generic : ''),
-    titleFr: frFirst || (isFr ? generic : ''),
-    genericTitle: generic,
-    bodyEn: enBodyFirst || (!isFr ? genericBody : ''),
-    bodyFr: frBodyFirst || (isFr ? genericBody : ''),
-    genericBody,
-    payloadLocale: isFr ? 'fr' : enFirst || /^en/i.test(explicitLocale) ? 'en' : explicitLocale || null,
-    price: str(p.price),
-    photos: str(p.photos),
-    videos: str(p.videos),
-    audios: str(p.audios),
-    documents: str(p.documents),
-    organization: str(p.organization),
-    noticeType: str(p.noticeType),
-  }
-}
-
 /**
- * Review screen actions (Phase 3): internal notes, the approve-with-content
- * drawer (create the real content item — bilingual titles, photos, listing /
- * notice fields, publish mode), reject with reason, request clarification
- * and reopen. The legacy bare approve lives on the queue list for quick
- * triage only.
+ * Review screen actions: internal notes, the approve dialog (which renders the
+ * *same* ContentForm the Content screen uses — see approve-content-dialog.tsx),
+ * reject with reason, request clarification, and reopen.
+ *
+ * The approve path used to be a bespoke 640-line drawer in this file. It had
+ * drifted to roughly half the fields of the form beside it — no story blocks,
+ * tags, slug, SEO, byline, share line, event fields, per-photo alt/caption,
+ * media library, preview, autosave or intelligence layer — so a post approved
+ * from the queue was a lesser artifact than one created in Content, and
+ * finishing it meant opening the edit drawer anyway. Approving is editing now.
  */
 export function ReviewActions({
   submission,
   copy,
+  contentCopy,
   common,
+  typeFilters,
   locations = [],
   categories = [],
+  locale = 'en',
 }: {
   submission: SubmissionRow
   copy: Copy
+  /** The content dictionary: the approve dialog renders the shared form. */
+  contentCopy: Dictionary['admin']['content']
   common: Dictionary['admin']['common']
+  typeFilters: Dictionary['admin']['typeFilters']
   locations?: Option[]
   categories?: Option[]
+  /** Reviewer locale for drafted decision text (defaults to English). */
+  locale?: 'en' | 'fr'
 }) {
   const { addToast } = useToast()
+  const router = useRouter()
   const [notes, setNotes] = useState(submission.internalNotes ?? '')
   const [notesBusy, setNotesBusy] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -89,14 +59,54 @@ export function ReviewActions({
   const [reason, setReason] = useState('')
   const [clarifyOpen, setClarifyOpen] = useState(false)
   const [question, setQuestion] = useState('')
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drafting, setDrafting] = useState<null | 'reject' | 'clarify'>(null)
 
-  const prefill = prefillFromPayload(submission.payload)
-  const isListing = submission.submissionType === 'buy_sell'
-  const isNotice = submission.submissionType === 'notice'
+  // The submission in one text blob: what the decision-text drafter reads when
+  // the reviewer typed no points of their own yet.
+  const submissionText = useMemo(
+    () =>
+      Object.entries(submission.payload ?? {})
+        .map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`)
+        .join('\n')
+        .slice(0, 1500),
+    [submission.payload],
+  )
+
+  /**
+   * Draft the message the submitter will receive — rejection reason or
+   * clarification question — from the reviewer's typed points (or the bare
+   * submission). The model writes into the textarea for review, never sends:
+   * the submitter gets notified, so tone matters and the reviewer edits first.
+   */
+  async function handleDraftDecision(kind: 'reject' | 'clarify') {
+    if (drafting) return
+    setDrafting(kind)
+    try {
+      const res = await aiModerationResponse({
+        decision: kind,
+        submissionType: submission.submissionType,
+        submissionText,
+        points: kind === 'reject' ? reason : question,
+        locale,
+      })
+      if (!res.ok) {
+        addToast(res.error, 'error')
+        return
+      }
+      if (kind === 'reject') setReason(res.note)
+      else setQuestion(res.note)
+      addToast(copy.toastAiDrafted, 'success')
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : 'Operation failed', 'error')
+    } finally {
+      setDrafting(null)
+    }
+  }
 
   const actionable =
-    submission.status === 'pending' || submission.status === 'in_review' || submission.status === 'needs_clarification'
+    submission.status === 'pending' ||
+    submission.status === 'in_review' ||
+    submission.status === 'needs_clarification'
   const hasContentItem = !!submission.contentItemId
 
   async function handleSaveNotes() {
@@ -116,6 +126,7 @@ export function ReviewActions({
       addToast(copy.toastRejected, 'success')
       setRejectOpen(false)
       setReason('')
+      router.refresh()
     } else {
       addToast(result.error, 'error')
     }
@@ -130,6 +141,7 @@ export function ReviewActions({
       addToast(copy.toastClarified, 'success')
       setClarifyOpen(false)
       setQuestion('')
+      router.refresh()
     } else {
       addToast(result.error, 'error')
     }
@@ -139,12 +151,16 @@ export function ReviewActions({
     setBusy(true)
     const result = await reopenSubmission(submission.id)
     setBusy(false)
-    if (result.ok) addToast(copy.toastReopened, 'success')
-    else addToast(result.error, 'error')
+    if (result.ok) {
+      addToast(copy.toastReopened, 'success')
+      router.refresh()
+    } else {
+      addToast(result.error, 'error')
+    }
   }
 
   return (
-    <section className="rounded-lg border border-border bg-card p-4">
+    <section id="review-decision" className="rounded-lg border border-border bg-card p-4 scroll-mt-4">
       <h2 className="text-sm font-medium">{copy.notes}</h2>
       <textarea
         value={notes}
@@ -157,23 +173,33 @@ export function ReviewActions({
         type="button"
         onClick={handleSaveNotes}
         disabled={notesBusy}
-        className="mt-2 inline-flex items-center rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+        className="mt-2 inline-flex items-center rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
       >
         {copy.saveNotes}
       </button>
 
-      {actionable && !hasContentItem && (
-        <button
-          type="button"
-          onClick={() => setDrawerOpen(true)}
-          disabled={busy}
-          className="mt-4 inline-flex w-full items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
-        >
-          {copy.approveWithContent}
-        </button>
-      )}
-
-      {actionable && (
+      {/* Approve means writing the story, so it opens the shared content form
+          rather than flipping a status. A submission that already produced an
+          item is edited through the content drawer instead (the link lives in
+          the sidebar above), because approving it twice must never build twice. */}
+      {actionable && !hasContentItem ? (
+        <div className="mt-4">
+          <ApproveContentDialog
+            submission={submission}
+            copy={copy}
+            contentCopy={contentCopy}
+            common={common}
+            typeFilters={typeFilters}
+            locations={locations}
+            categories={categories}
+            onDone={() => router.refresh()}
+          />
+        </div>
+      ) : null}
+      {/* Reject and clarify decide *about* a submission rather than authoring a
+          post, so they stay quick inline actions — and both are bulk-able from
+          the queue, which approving deliberately is not. */}
+      {actionable ? (
         <div className="mt-2 flex flex-col gap-2">
           {clarifyOpen ? (
             <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 dark:bg-amber-950/30">
@@ -190,15 +216,24 @@ export function ReviewActions({
                   type="button"
                   onClick={() => { setClarifyOpen(false); setQuestion('') }}
                   disabled={busy}
-                  className="inline-flex items-center rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors disabled:opacity-50"
+                  className="inline-flex items-center rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50"
                 >
                   {copy.cancel}
                 </button>
                 <button
                   type="button"
+                  onClick={() => void handleDraftDecision('clarify')}
+                  disabled={busy || drafting !== null}
+                  title={copy.draftWithAi}
+                  className="inline-flex items-center rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50"
+                >
+                  {drafting === 'clarify' ? copy.draftingAi : `✨ ${copy.draftWithAi}`}
+                </button>
+                <button
+                  type="button"
                   onClick={handleClarify}
                   disabled={busy || !question.trim()}
-                  className="inline-flex items-center rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 transition-colors disabled:opacity-50"
+                  className="inline-flex items-center rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-50"
                 >
                   {copy.clarify}
                 </button>
@@ -208,7 +243,7 @@ export function ReviewActions({
             <button
               type="button"
               onClick={() => setClarifyOpen(true)}
-              className="inline-flex items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-muted-foreground hover:border-amber-400 hover:text-foreground transition-colors"
+              className="inline-flex items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-amber-400 hover:text-foreground"
             >
               {copy.clarify}
             </button>
@@ -229,15 +264,24 @@ export function ReviewActions({
                   type="button"
                   onClick={() => { setRejectOpen(false); setReason('') }}
                   disabled={busy}
-                  className="inline-flex items-center rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors disabled:opacity-50"
+                  className="inline-flex items-center rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50"
                 >
                   {copy.cancel}
                 </button>
                 <button
                   type="button"
+                  onClick={() => void handleDraftDecision('reject')}
+                  disabled={busy || drafting !== null}
+                  title={copy.draftWithAi}
+                  className="inline-flex items-center rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50"
+                >
+                  {drafting === 'reject' ? copy.draftingAi : `✨ ${copy.draftWithAi}`}
+                </button>
+                <button
+                  type="button"
                   onClick={handleReject}
                   disabled={busy || !reason.trim()}
-                  className="inline-flex items-center rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-white hover:bg-destructive/90 transition-colors disabled:opacity-50"
+                  className="inline-flex items-center rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-destructive/90 disabled:opacity-50"
                 >
                   {copy.reject}
                 </button>
@@ -247,394 +291,23 @@ export function ReviewActions({
             <button
               type="button"
               onClick={() => setRejectOpen(true)}
-              className="inline-flex items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors"
+              className="inline-flex items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive"
             >
               {copy.reject}
             </button>
           )}
         </div>
-      )}
-
-      {!actionable && (
+      ) : (
         <button
           type="button"
           onClick={handleReopen}
           disabled={busy}
-          className="mt-4 inline-flex w-full items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          className="mt-4 inline-flex w-full items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
         >
           {copy.reopen}
         </button>
-      )}
-
-      {drawerOpen && (
-        <ApproveDrawer
-          submission={submission}
-          copy={copy}
-          common={common}
-          locations={locations}
-          categories={categories}
-          prefill={prefill}
-          isListing={isListing}
-          isNotice={isNotice}
-          onClose={() => setDrawerOpen(false)}
-        />
       )}
     </section>
   )
 }
 
-/* ------------------------------------------------------------------ */
-/* Approve-with-content drawer                                          */
-/* ------------------------------------------------------------------ */
-
-const inputCls = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary'
-
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <label className="block space-y-1">
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      {children}
-      {hint && <span className="block text-xs text-muted-foreground/80">{hint}</span>}
-    </label>
-  )
-}
-
-function ApproveDrawer({
-  submission,
-  copy,
-  common,
-  locations,
-  categories,
-  prefill,
-  isListing,
-  isNotice,
-  onClose,
-}: {
-  submission: SubmissionRow
-  copy: Copy
-  common: Dictionary['admin']['common']
-  locations: Option[]
-  categories: Option[]
-  prefill: ReturnType<typeof prefillFromPayload>
-  isListing: boolean
-  isNotice: boolean
-  onClose: () => void
-}) {
-  const { addToast } = useToast()
-  const router = useRouter()
-  const [busy, setBusy] = useState(false)
-  const [publish, setPublish] = useState<'now' | 'schedule' | 'draft'>('now')
-  const [scheduledFor, setScheduledFor] = useState('')
-  const [expiresAt, setExpiresAt] = useState('')
-  const [enTitle, setEnTitle] = useState(prefill.titleEn)
-  const [frTitle, setFrTitle] = useState(prefill.titleFr)
-  const [enExcerpt, setEnExcerpt] = useState('')
-  const [frExcerpt, setFrExcerpt] = useState('')
-  const [enBody, setEnBody] = useState(prefill.bodyEn)
-  const [frBody, setFrBody] = useState(prefill.bodyFr)
-  const [videos, setVideos] = useState(prefill.videos)
-  const [audios, setAudios] = useState(prefill.audios)
-  const [documents, setDocuments] = useState(prefill.documents)
-  // newPhotos is the draft's photo source of truth, prefilled from the
-  // payload's "url - caption" lines; uploads/URL adds update it directly.
-  const [newPhotos, setNewPhotos] = useState<UploadedPhoto[]>(() =>
-    prefill.photos
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const [url, ...captionParts] = line.split(/\s+-\s+/)
-        return { url, caption: captionParts.join(' - ') || undefined }
-      }),
-  )
-  const [credit, setCredit] = useState('')
-  const [verification, setVerification] = useState('community_submission')
-  const [locationId, setLocationId] = useState('')
-  const [categoryId, setCategoryId] = useState('')
-  const [price, setPrice] = useState(prefill.price)
-  const [currency, setCurrency] = useState('XAF')
-  const [sellerName, setSellerName] = useState('')
-  const [contactPhone, setContactPhone] = useState('')
-  const [noticeType, setNoticeType] = useState(prefill.noticeType || 'other')
-  const [organization, setOrganization] = useState(prefill.organization)
-
-  // Guarded translation instead of the literal "Copy English → French" the
-  // dialog shipped before — that path stored English text under locale 'fr'.
-  const { translate, translating } = useContentTranslator({
-    copy,
-    read: () => ({
-      en: { title: enTitle, excerpt: enExcerpt, body: enBody, seoDescription: '' },
-      fr: { title: frTitle, excerpt: frExcerpt, body: frBody, seoDescription: '' },
-    }),
-    write: (locale, f) => {
-      if (locale === 'fr') {
-        setFrTitle(f.title)
-        setFrExcerpt(f.excerpt)
-        setFrBody(f.body)
-      } else {
-        setEnTitle(f.title)
-        setEnExcerpt(f.excerpt)
-        setEnBody(f.body)
-      }
-    },
-  })
-
-  async function handleApprove() {
-    if (publish === 'schedule' && !scheduledFor.trim()) {
-      addToast(copy.scheduledFor ?? 'Pick a date/time first.', 'error')
-      return
-    }
-    if (isListing && price.trim() !== '' && Number.isNaN(Number(price))) {
-      addToast(copy.priceLabel ?? 'Enter a valid price.', 'error')
-      return
-    }
-    setBusy(true)
-    const draft: ContentDraftInput = {
-      slugBase: enTitle.trim() || 'submission',
-      verification: (verification || null) as ContentDraftInput['verification'],
-      locationId: locationId || null,
-      categoryId: categoryId || null,
-      photographerCredit: credit.trim() || null,
-      translations: [
-        { locale: 'en', title: enTitle, excerpt: enExcerpt, body: enBody },
-        { locale: 'fr', title: frTitle, excerpt: frExcerpt, body: frBody },
-      ],
-      photos: newPhotos
-        .filter((p) => p.url.trim())
-        .map((p) => ({ url: p.url, caption: p.caption, credit: p.credit, assetId: p.assetId, kind: p.kind, mimeType: p.mimeType, durationSeconds: p.durationSeconds })),
-      attachments: [
-        ...videos.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
-          const [url, ...rest] = line.split(/\s+-\s+/)
-          return { url, kind: 'video' as const, caption: rest.join(' - ') || undefined }
-        }),
-        ...audios.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
-          const [url, ...rest] = line.split(/\s+-\s+/)
-          return { url, kind: 'audio' as const, caption: rest.join(' - ') || undefined }
-        }),
-        ...documents.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
-          const [url, ...rest] = line.split(/\s+-\s+/)
-          return { url, kind: 'document' as const, caption: rest.join(' - ') || undefined }
-        }),
-      ],
-    }
-    if (isListing) {
-      draft.listing = {
-        price: price ? Number(price) : null,
-        currency: currency || 'XAF',
-        contactPhone: contactPhone.trim() || null,
-        sellerName: sellerName.trim() || null,
-      }
-    }
-    if (isNotice) {
-      draft.notice = {
-        noticeType,
-        organizationName: organization.trim() || null,
-        isOfficial: verification === 'official_source',
-      }
-    }
-    const result = await approveSubmissionWithContent({
-      submissionId: submission.id,
-      draft,
-      publish,
-      scheduledFor: publish === 'schedule' ? new Date(scheduledFor).toISOString() : undefined,
-      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
-    })
-    setBusy(false)
-    if (result.ok) {
-      addToast(
-        publish === 'now' ? copy.toastPublished : publish === 'schedule' ? copy.toastScheduled : copy.draftCreated,
-        'success',
-      )
-      onClose()
-      router.refresh()
-    } else {
-      addToast(result.error, 'error')
-    }
-  }
-
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{copy.createContentTitle}</DialogTitle>
-          <DialogDescription>{copy.createContentBody}</DialogDescription>
-        </DialogHeader>
-
-        <div className="grid gap-3">
-          <Field label={copy.enTitle}>
-            <input value={enTitle} onChange={(e) => setEnTitle(e.target.value)} className={inputCls} />
-          </Field>
-          <Field label={copy.frTitle} hint={publish !== 'draft' ? copy.bilingualHint : undefined}>
-            <div className="flex items-start gap-2">
-              <input value={frTitle} onChange={(e) => setFrTitle(e.target.value)} className={inputCls} />
-              <button
-                type="button"
-                onClick={() => translate('en-fr')}
-                className="shrink-0 rounded-md border border-border px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
-                disabled={(translating !== null) || (!enTitle.trim() && !enExcerpt.trim() && !enBody.trim())}
-                title={copy.translateEnToFr}
-              >
-                {translating === 'en-fr' ? copy.translating : copy.translateEnToFr}
-              </button>
-            </div>
-          </Field>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={copy.enExcerpt}>
-              <textarea value={enExcerpt} onChange={(e) => setEnExcerpt(e.target.value)} rows={2} className={inputCls} />
-            </Field>
-            <Field label={copy.frExcerpt}>
-              <textarea value={frExcerpt} onChange={(e) => setFrExcerpt(e.target.value)} rows={2} className={inputCls} />
-            </Field>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={copy.enBody}>
-              <textarea value={enBody} onChange={(e) => setEnBody(e.target.value)} rows={4} className={inputCls} />
-            </Field>
-            <Field label={copy.frBody}>
-              <textarea value={frBody} onChange={(e) => setFrBody(e.target.value)} rows={4} className={inputCls} />
-            </Field>
-          </div>
-          <Field label={copy.photosLabel} hint={copy.photosHint}>
-            <MediaUploader
-              newPhotos={newPhotos}
-              onChange={({ newPhotos: np }) => {
-                setNewPhotos(np)
-              }}
-              destination="public_photo"
-              acceptedTypes={CONTENT_MEDIA_ACCEPTS}
-              maxSizeBytes={50 * 1024 * 1024}
-              showAltCaption={false}
-              copy={{
-                label: copy.photosLabel,
-                hint: copy.photosHint,
-                uploading: common.photoUploading,
-                uploadError: common.photoUploadError,
-                tooLarge: common.photoTooLarge,
-                wrongType: common.photoWrongType,
-              }}
-            />
-          </Field>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={copy.videosLabel} hint={copy.videosHint}>
-              <textarea value={videos} onChange={(e) => setVideos(e.target.value)} rows={3} className={inputCls} placeholder="https://…" />
-            </Field>
-            <Field label={copy.audiosLabel} hint={copy.audiosHint}>
-              <textarea value={audios} onChange={(e) => setAudios(e.target.value)} rows={3} className={inputCls} placeholder="https://…" />
-            </Field>
-          </div>
-          <Field label={copy.documentsLabel} hint={copy.documentsHint}>
-            <textarea value={documents} onChange={(e) => setDocuments(e.target.value)} rows={2} className={inputCls} placeholder="https://…pdf" />
-          </Field>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={copy.photographerCredit}>
-              <input value={credit} onChange={(e) => setCredit(e.target.value)} className={inputCls} />
-            </Field>
-            <Field label={copy.verificationLabel}>
-              <select value={verification} onChange={(e) => setVerification(e.target.value)} className={inputCls}>
-                <option value="verified">{copy.verificationVerified}</option>
-                <option value="community_submission">{copy.verificationCommunity}</option>
-                <option value="official_source">{copy.verificationOfficial}</option>
-                <option value="developing">{copy.verificationDeveloping}</option>
-              </select>
-            </Field>
-          </div>
-          {locations.length > 0 && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label={copy.locationLabel}>
-                <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className={inputCls}>
-                  <option value="">—</option>
-                  {locations.map((l) => (
-                    <option key={l.id} value={l.id}>{l.name}</option>
-                  ))}
-                </select>
-              </Field>
-              {categories.length > 0 && (
-                <Field label={copy.categoryLabel}>
-                  <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputCls}>
-                    <option value="">—</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </Field>
-              )}
-            </div>
-          )}
-          {isListing && (
-            <div className="grid gap-3 rounded-md border border-border bg-background p-3 sm:grid-cols-2">
-              <Field label={copy.priceLabel}>
-                <input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
-              </Field>
-              <Field label={copy.currencyLabel}>
-                <input value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={3} className={inputCls} />
-              </Field>
-              <Field label={copy.sellerName}>
-                <input value={sellerName} onChange={(e) => setSellerName(e.target.value)} className={inputCls} />
-              </Field>
-              <Field label={copy.contactPhone}>
-                <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} className={inputCls} />
-              </Field>
-            </div>
-          )}
-          {isNotice && (
-            <div className="grid gap-3 rounded-md border border-border bg-background p-3 sm:grid-cols-2">
-              <Field label={copy.noticeTypeLabel}>
-                <select value={noticeType} onChange={(e) => setNoticeType(e.target.value)} className={inputCls}>
-                  {Object.entries(copy.noticeTypes).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label={copy.organization}>
-                <input value={organization} onChange={(e) => setOrganization(e.target.value)} className={inputCls} />
-              </Field>
-            </div>
-          )}
-          <div className="grid gap-3 rounded-md border border-border bg-background p-3">
-            <div className="flex flex-wrap gap-2">
-              {(['now', 'schedule', 'draft'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setPublish(mode)}
-                  className={`inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium border transition-colors ${
-                    publish === mode ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {mode === 'now' ? copy.publishNow : mode === 'schedule' ? copy.publishSchedule : copy.publishDraft}
-                </button>
-              ))}
-            </div>
-            {publish === 'schedule' && (
-              <Field label={copy.scheduledFor}>
-                <input type="datetime-local" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} required className={inputCls} />
-              </Field>
-            )}
-            <Field label={`${copy.expiresAt} (${copy.optional})`}>
-              <input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} className={inputCls} />
-            </Field>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className="inline-flex items-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
-          >
-            {copy.cancel}
-          </button>
-          <button
-            type="button"
-            onClick={handleApprove}
-            disabled={busy || !enTitle.trim()}
-            className="inline-flex items-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
-          >
-            {busy ? '…' : copy.approveWithContent}
-          </button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}

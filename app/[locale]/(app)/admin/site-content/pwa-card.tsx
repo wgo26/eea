@@ -39,7 +39,7 @@ export async function PwaCard({ copy }: { copy: Copy }) {
                 className="rounded-xl border border-border"
                 loading="lazy"
               />
-              <figcaption className="mt-1 text-[10px] text-muted-foreground">{icon.label}</figcaption>
+              <figcaption className="mt-1 text-xs text-muted-foreground">{icon.label}</figcaption>
             </figure>
           ))}
         </div>
@@ -73,7 +73,7 @@ export async function PwaCard({ copy }: { copy: Copy }) {
           </div>
         </dl>
       </div>
-      <p className="mt-3 text-[11px] text-muted-foreground">
+      <p className="mt-3 text-xs text-muted-foreground">
         {copy.pwaIconsLabel} — {copy.pwaIconsHint}
         {!identity.logoUrl ? (
           <>

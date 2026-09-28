@@ -123,7 +123,8 @@ export default async function Page({
           name="q"
           defaultValue={search}
           placeholder={t.searchPlaceholder}
-          action={withParams(locale, base, { q: undefined, page: undefined })}
+          action={localePath(locale, '/admin/users')}
+          hidden={{ role, status, verified }}
           className="w-full sm:w-64"
         />
       </div>
