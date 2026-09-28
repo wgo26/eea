@@ -37,6 +37,11 @@ async function coverDataUri(rawUrl: string | null): Promise<string | null> {
     if (!res.ok) return null
     const type = res.headers.get('content-type') ?? ''
     if (!type.startsWith('image/')) return null
+    // Never embed SVG covers: this card is rasterized through the SVG-based
+    // OG pipeline (next/og), and a crafted SVG image would put
+    // attacker-controlled markup inside that pipeline. Covers are photos —
+    // raster only.
+    if (/svg/i.test(type)) return null
     const buf = Buffer.from(await res.arrayBuffer())
     if (buf.length > 2_500_000) return null
     return `data:${type.split(';')[0]};base64,${buf.toString('base64')}`
@@ -45,8 +50,23 @@ async function coverDataUri(rawUrl: string | null): Promise<string | null> {
   }
 }
 
+/**
+ * Strip anything that could break out of a text node in the OG pipeline.
+ * Titles/kickers render as text (never attributes or styles), so removing
+ * `<`/`>` plus control characters closes the tag-injection vector that
+ * CVE-2026-94545 exploited upstream — independent of the patched runtime.
+ * `&`, quotes and accents are preserved: they render literally as text.
+ */
+export function sanitizeOgText(raw: string): string {
+  return raw
+    .replace(/[<>]/g, '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function clampTitle(title: string, max = 120): string {
-  const clean = title.replace(/\s+/g, ' ').trim()
+  const clean = sanitizeOgText(title)
   return clean.length > max ? `${clean.slice(0, max - 1).trimEnd()}…` : clean
 }
 
@@ -58,7 +78,9 @@ function clampTitle(title: string, max = 120): string {
  */
 export async function articleOgImage(input: ArticleOgInput): Promise<ImageResponse> {
   const cover = await coverDataUri(input.imageUrl)
-  const kicker = input.category ? `${input.sectionLabel} · ${input.category}` : input.sectionLabel
+  const section = sanitizeOgText(input.sectionLabel)
+  const category = input.category ? sanitizeOgText(input.category) : null
+  const kicker = category ? `${section} · ${category}` : section
 
   return new ImageResponse(
     (
