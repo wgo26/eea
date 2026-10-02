@@ -261,10 +261,10 @@ export async function uniqueSlug(supabase: AdminContext['supabase'], base: strin
 export async function syncPhotos(
   supabase: AdminContext['supabase'],
   contentItemId: string,
-  photos: { url: string; alt?: string; caption?: string; credit?: string; assetId?: string; kind?: string; mimeType?: string; durationSeconds?: number | null }[],
+  photos: { url: string; alt?: string; caption?: string; credit?: string; assetId?: string; kind?: string; mimeType?: string; durationSeconds?: number | null; posterUrl?: string | null }[],
   keepPhotoIds: string[],
   credit: string | null,
-  attachments: { url: string; kind?: 'video' | 'audio' | 'document' | 'image'; caption?: string; assetId?: string }[] = [],
+  attachments: { url: string; kind?: 'video' | 'audio' | 'document' | 'image'; caption?: string; assetId?: string; posterUrl?: string | null }[] = [],
 ): Promise<void> {
   const keep = new Set(keepPhotoIds ?? [])
   // Rows uploaded through /api/uploads already exist in media_assets
@@ -317,6 +317,7 @@ export async function syncPhotos(
     if ('durationSeconds' in photo && typeof photo.durationSeconds === 'number') {
       patch.duration_seconds = photo.durationSeconds
     }
+    if ('posterUrl' in photo && photo.posterUrl) patch.poster_url = photo.posterUrl
     const { error } = await supabase.from('media_assets').update(patch as UpdateOf<'media_assets'>).eq('id', photo.assetId!)
     if (error) throw new Error(`Could not save photos: ${error.message}`)
     sortIndex += 1
@@ -338,6 +339,7 @@ export async function syncPhotos(
       photographer_credit: photo.credit?.trim() || credit,
       sort_order: sortIndex + index,
       is_cover: sortIndex + index === 0,
+      poster_url: photo.posterUrl ?? null,
     })),
     ...newAttachments.filter((a) => !a.assetId).map((att, index) => ({
       content_item_id: contentItemId,
@@ -350,6 +352,7 @@ export async function syncPhotos(
       photographer_credit: credit,
       sort_order: sortIndex + newPhotos.filter((p) => !p.assetId).length + index,
       is_cover: false,
+      poster_url: att.posterUrl ?? null,
     })),
   ]
   if (rows.length === 0) return

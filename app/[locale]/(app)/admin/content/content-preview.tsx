@@ -6,7 +6,10 @@ import type { FormValues } from './content-form'
 import type { Dictionary } from '@/lib/i18n'
 import type { ContentEditData } from '@/lib/admin/queries'
 import { ArticleBodyView } from '@/components/content/article-body-view'
+import { SupportingMedia } from '@/components/media/supporting-media'
 import { blocksFromBody, stripStoryBlocksFromBody } from '@/lib/content/blocks'
+import { parseMediaList, type MediaAttachment } from '@/lib/media/attachments'
+import { inferKindFromUrl } from '@/lib/media/attachments'
 
 type CommonCopy = Dictionary['admin']['common']
 type Copy = Dictionary['admin']['content']
@@ -68,6 +71,46 @@ export function ContentPreview({
   // overriding it. Without this the field looked dead in the preview.
   const coverCredit = coverPhoto?.credit?.trim() || v.credit.trim()
   const coverCaption = coverPhoto?.caption?.trim() || ''
+
+  // Build supporting media attachments from form values (videos, audios, documents from URL fields
+  // plus newPhotos that are video/audio/document kind)
+  const attachments = useMemo((): MediaAttachment[] => {
+    const result: MediaAttachment[] = []
+    // From URL textareas
+    result.push(...parseMediaList(v.videos))
+    result.push(...parseMediaList(v.audios))
+    result.push(...parseMediaList(v.documents))
+    // From uploaded newPhotos (video/audio/document kind)
+    for (const p of v.newPhotos) {
+      if (p.kind && p.kind !== 'image') {
+        result.push({
+          url: p.url,
+          kind: p.kind as MediaAttachment['kind'],
+          mimeType: p.mimeType ?? undefined,
+          caption: p.caption ?? undefined,
+          credit: p.credit ?? undefined,
+          alt: p.alt ?? undefined,
+          poster: p.posterUrl ?? undefined,
+        })
+      }
+    }
+    // From kept existing photos (video/audio/document kind)
+    if (v.keepIds.length > 0) {
+      for (const kept of dataPhotos.filter((p) => v.keepIds.includes(p.id))) {
+        const kind = inferKindFromUrl(kept.url)
+        if (kind !== 'image') {
+          result.push({
+            url: kept.url,
+            kind,
+            caption: kept.caption ?? undefined,
+            credit: kept.credit ?? undefined,
+            alt: kept.alt ?? undefined,
+          })
+        }
+      }
+    }
+    return result
+  }, [v.videos, v.audios, v.documents, v.newPhotos, v.keepIds, dataPhotos])
 
   const isEmpty = !title.trim() && !prose.trim() && blocks.length === 0
 
@@ -151,12 +194,20 @@ export function ContentPreview({
                <h2 className={`font-heading font-semibold leading-tight ${device === 'mobile' ? 'text-lg' : 'text-2xl'}`}>
                  {title || copy.untitled}
                </h2>
-               <ArticleBodyView
-                 prose={prose}
-                 blocks={blocks}
-                 className={`article-body mt-4 text-foreground/90 ${device === 'mobile' ? 'text-sm leading-relaxed' : 'text-base leading-[1.8]'}`}
-               />
-            </article>
+<ArticleBodyView
+                  prose={prose}
+                  blocks={blocks}
+                  className={`article-body mt-4 text-foreground/90 ${device === 'mobile' ? 'text-sm leading-relaxed' : 'text-base leading-[1.8]'}`}
+                />
+                {attachments.length > 0 && (
+                  <SupportingMedia
+                    items={attachments}
+                    title={title}
+                    heading={copy.common?.supportingMedia || 'Supporting media'}
+                    description={copy.common?.supportingMediaBody || 'Additional media attached to this story'}
+                  />
+                )}
+             </article>
           )}
         </div>
       </div>

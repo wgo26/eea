@@ -25,6 +25,7 @@ import { StoryCard } from "@/components/home/story-card";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { GalleryGrid } from "@/components/photo-stories/gallery-grid";
 import { StoryBody } from "@/components/photo-stories/story-body";
+import { SmartImage } from "@/components/media/smart-image";
 import { isHtmlBody } from "@/lib/news/article-body";
 import { sanitizeBodyHtml } from "@/lib/security/html";
 import { Badge } from "@/components/ui/badge";
@@ -224,11 +225,13 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
             {story.photos.length > 0 && story.imageUrl ? (
                 <figure className="mt-8">
                     <div className="relative aspect-[16/9] w-full overflow-hidden rounded-3xl bg-muted">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
+                        <SmartImage
                             src={story.imageUrl}
                             alt={story.photos[0].alt ?? story.title}
-                            className="h-full w-full object-cover"
+                            fill
+                            priority
+                            className="object-cover"
+                            sizes="(max-width: 1280px) 100vw, 1280px"
                         />
                     </div>
                     {(story.photos[0].caption || story.credit) ? (

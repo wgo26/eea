@@ -17,6 +17,8 @@ export type MediaAttachment = {
   caption?: string | null;
   credit?: string | null;
   alt?: string | null;
+  /** Poster/thumbnail URL for video attachments (uploaded frame or YouTube thumbnail). */
+  poster?: string | null;
 };
 
 type RawMediaRow = {
@@ -26,6 +28,7 @@ type RawMediaRow = {
   caption?: string | null;
   alt_text?: string | null;
   photographer_credit?: string | null;
+  poster_url?: string | null;
 };
 
 const VIDEO_EXT = new Set(['mp4', 'mov', 'webm', 'm4v']);
@@ -71,6 +74,7 @@ export function toAttachment(row: RawMediaRow): MediaAttachment | null {
     caption: row.caption ?? null,
     credit: row.photographer_credit ?? null,
     alt: row.alt_text ?? null,
+    poster: row.poster_url ?? null,
   };
 }
 
@@ -159,9 +163,10 @@ export function videoThumbnailUrl(url: string): string | null {
 
 /**
  * First usable share-preview image for a post: the cover when present,
- * otherwise the first video attachment's thumbnail (e.g. YouTube). Used by
- * the opengraph-image routes so video-only posts still get a picture preview
- * on WhatsApp / X / Facebook instead of a text-only card.
+ * otherwise the first video attachment's thumbnail (e.g. YouTube) or its
+ * uploaded poster frame. Used by the opengraph-image routes so video-only
+ * posts still get a picture preview on WhatsApp / X / Facebook instead of
+ * a text-only card.
  */
 export function previewImageUrl(
   coverUrl: string | null | undefined,
@@ -170,6 +175,8 @@ export function previewImageUrl(
   if (coverUrl?.trim()) return coverUrl.trim();
   for (const a of attachments ?? []) {
     if (a.kind !== 'video') continue;
+    // Prefer uploaded poster frame, then YouTube thumbnail
+    if (a.poster?.trim()) return a.poster.trim();
     const thumb = videoThumbnailUrl(a.url);
     if (thumb) return thumb;
   }

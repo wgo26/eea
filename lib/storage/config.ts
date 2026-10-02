@@ -38,9 +38,9 @@ export const MAX_KIND_BYTES: Record<MediaKind, number> = {
 // which is what makes this safe against executable content by construction
 // rather than by trying to enumerate every dangerous type.
 export const ALLOWED_MIME_TYPES: Record<MediaKind, string[]> = {
-  image: ['image/jpeg', 'image/png', 'image/webp'],
-  video: ['video/mp4', 'video/quicktime', 'video/webm'],
-  audio: ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/ogg', 'audio/webm'],
+  image: ['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/heic', 'image/heif'],
+  video: ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska', 'video/3gpp', 'video/3gpp2'],
+  audio: ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/aac', 'audio/flac'],
   document: ['application/pdf'],
 }
 

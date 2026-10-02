@@ -112,6 +112,54 @@ function BlockView({ block }: { block: StoryBlock }) {
       );
     }
 
+    case "media": {
+      const url = block.mediaUrl ?? "";
+      const kind = block.mediaKind ?? 'video';
+      const poster = block.mediaPoster ?? "";
+      const caption = block.mediaCaption ?? "";
+      const label = caption || block.heading || "Media";
+      return (
+        <>
+          {block.heading ? <h2>{block.heading}</h2> : null}
+          {url ? (
+            <figure className={`story-${kind}`}>
+              {kind === 'video' && (
+                <video
+                  src={url}
+                  controls
+                  preload="none"
+                  playsInline
+                  poster={poster || undefined}
+                  className="max-h-[480px] w-full rounded-xl bg-black"
+                />
+              )}
+              {kind === 'audio' && (
+                <audio src={url} controls preload="none" className="w-full" />
+              )}
+              {kind === 'document' && (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener"
+                  className="flex items-center gap-3 rounded-xl border bg-muted/40 p-4 text-sm hover:bg-muted/60"
+                >
+                  <span className="h-5 w-5 shrink-0 text-primary" aria-hidden>📄</span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">{label}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{url}</span>
+                  </span>
+                </a>
+              )}
+              {caption ? <figcaption>{caption}</figcaption> : null}
+            </figure>
+          ) : null}
+          {paragraphs.map((p, i) => (
+            <p key={i}>{p}</p>
+          ))}
+        </>
+      );
+    }
+
     case "image":
       return (
         <>

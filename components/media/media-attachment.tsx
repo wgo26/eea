@@ -42,12 +42,22 @@ function Embed({ attachment, title }: { attachment: MediaAttachment; title: stri
     );
   }
   if (attachment.kind === 'video') {
+    // Use uploaded poster frame if available, otherwise no poster (low-bandwidth)
+    const poster = attachment.poster?.trim() || undefined;
     return (
-      // Click-to-play by design: preload="none" + poster-less keeps the
-      // low-bandwidth promise (features.md §low-bandwidth). No autoplay.
-      <video controls preload="none" playsInline className="max-h-[480px] w-full rounded-xl bg-black">
+      // Click-to-play by design: preload="none" keeps the low-bandwidth promise.
+      // Poster is shown when available (extracted frame from upload).
+      <video
+        controls
+        preload="none"
+        playsInline
+        poster={poster}
+        className="max-h-[480px] w-full rounded-xl bg-black"
+      >
         <source src={url} />
-        <a href={url} target="_blank" rel="noopener" className="underline">Open video</a>
+        <a href={url} target="_blank" rel="noopener" className="underline">
+          Open video
+        </a>
       </video>
     );
   }

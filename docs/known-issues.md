@@ -141,6 +141,15 @@ was deleted — do not recreate it.)
   checks, intake URL allowlisting, security headers, health/ready endpoints,
   cron scheduler, `verify-clean`, `verify-backup`, migration gates.
 - Social cards: default og:image for every route (1200×630, `public/og-default.png`).
+- **CVE-2026-94545 — next/og Node.js `ImageResponse` RCE (FIXED).** Upgraded
+  `next` to 16.3.6 (patched runtime) and added defense-in-depth in
+  `lib/seo/og-image.tsx`: `sanitizeOgText` strips angle brackets and control
+  characters from every contributor-influenced string (titles, categories,
+  section labels) before it enters the SVG-based OG pipeline, and `coverDataUri`
+  rejects SVG covers outright. All five `opengraph-image.tsx` routes feed text
+  exclusively through `articleOgImage`, so no attacker-controlled value reaches
+  SVG content/attributes/styles unchecked. Covered by
+  `lib/seo/og-image.test.ts` (4 tests) + `npm audit --audit-level=high` in CI.
 - Repo hygiene: `.gitattributes` (`text=auto eol=lf`) exists; scratch
   investigation files are excluded from eslint.
 - Lint: zero errors (one pre-existing `Mail` unused-import warning in

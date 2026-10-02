@@ -30,6 +30,8 @@ export type UploadedPhoto = {
   credit?: string
   assetId?: string
   isCover?: boolean
+  /** Poster/thumbnail URL for video uploads (extracted frame). */
+  posterUrl?: string | null
 }
 
 export type ExistingPhoto = {
@@ -48,11 +50,11 @@ export type ExistingPhoto = {
  * would only produce a confusing 422 after upload).
  */
 export const CONTENT_MEDIA_ACCEPTS =
-  'image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm,audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/webm'
+  'image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,video/mp4,video/quicktime,video/webm,video/x-matroska,video/3gpp,video/3gpp2,audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/webm,audio/aac,audio/flac'
 
 /** Image + video only (no audio) — for surfaces where audio makes no sense. */
 export const IMAGE_VIDEO_ACCEPTS =
-  'image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm'
+  'image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,video/mp4,video/quicktime,video/webm,video/x-matroska,video/3gpp,video/3gpp2'
 
 type MediaUploaderProps = {
   /** Existing photos to show (edit mode) */
@@ -142,6 +144,62 @@ function probeDuration(file: File): Promise<number | null> {
   })
 }
 
+/**
+ * Extract a poster frame from a video file at ~10% position (or first frame).
+ * Returns a Blob (image/jpeg) or null on failure.
+ */
+async function extractVideoPoster(file: File): Promise<Blob | null> {
+  if (!file.type.startsWith('video/')) return null
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file)
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.muted = true
+    video.playsInline = true
+    const cleanup = () => {
+      URL.revokeObjectURL(url)
+      video.remove()
+    }
+    const timer = setTimeout(() => {
+      cleanup()
+      resolve(null)
+    }, 10000)
+    video.onloadedmetadata = () => {
+      // Seek to 10% or 1 second, whichever is smaller
+      const seekTime = Math.min(video.duration * 0.1, 1)
+      video.currentTime = seekTime
+    }
+    video.onseeked = () => {
+      clearTimeout(timer)
+      // Draw frame to canvas
+      const canvas = document.createElement('canvas')
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        cleanup()
+        resolve(null)
+        return
+      }
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(
+        (blob) => {
+          cleanup()
+          resolve(blob)
+        },
+        'image/jpeg',
+        0.8
+      )
+    }
+    video.onerror = () => {
+      clearTimeout(timer)
+      cleanup()
+      resolve(null)
+    }
+    video.src = url
+  })
+}
+
 /** Concurrency for a batch upload: enough to saturate the link, low enough to
  *  keep per-file progress readable and avoid tripping storage rate limits. */
 const UPLOAD_CONCURRENCY = 3;
@@ -189,12 +247,34 @@ async function uploadFiles(
         durationSeconds: duration,
         onProgress: (p) => opts.onFileProgress?.(file.name, p.uploadedBytes, p.totalBytes),
       })
+
+      // Extract and upload poster frame for videos (non-blocking, best-effort)
+      let posterUrl: string | null = null
+      if (file.type.startsWith('video/')) {
+        const posterBlob = await extractVideoPoster(file)
+        if (posterBlob) {
+          try {
+            const posterFile = new File([posterBlob], `${file.name}-poster.jpg`, { type: 'image/jpeg' })
+            const { result: posterResult } = await uploadResumable(posterFile, {
+              destination: opts.destination,
+              contentItemId: opts.contentItemId,
+              durationSeconds: null,
+            })
+            posterUrl = posterResult.url
+          } catch {
+            // Poster upload failed silently — video still works without poster
+            console.warn('[MediaUploader] Poster upload failed for', file.name)
+          }
+        }
+      }
+
       slots[index] = {
         url: result.url,
         kind: result.kind,
         mimeType: result.mimeType,
         durationSeconds: result.durationSeconds ?? null,
         assetId: result.assetId,
+        posterUrl,
       }
     } catch (err) {
       failedSlots[index] = { file, error: err instanceof Error ? err.message : opts.errorLabel }

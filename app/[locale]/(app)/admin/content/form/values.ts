@@ -374,6 +374,7 @@ export function payloadFromForm(
         kind: p.kind,
         mimeType: p.mimeType,
         durationSeconds: p.durationSeconds,
+        posterUrl: p.posterUrl,
       })),
       keepPhotoIds: v.keepIds,
       attachments: [
@@ -442,6 +443,7 @@ export function payloadFromForm(
       kind: p.kind,
       mimeType: p.mimeType,
       durationSeconds: p.durationSeconds,
+      posterUrl: p.posterUrl,
     })),
     attachments: [
       ...attachmentList(v.videos, "video"),

@@ -30,6 +30,7 @@ export function storyBlocksCopy(copy: Copy): StoryBlocksCopy {
     addTextSection: copy.blocksAddText,
     addImageSection: copy.blocksAddImage,
     addVideoSection: copy.blocksAddVideo,
+    addMediaSection: copy.blocksAddMedia,
     addGallerySection: copy.blocksAddGallery,
     addCtaSection: copy.blocksAddCta,
     addDividerSection: copy.blocksAddDivider,
@@ -64,6 +65,13 @@ export function storyBlocksCopy(copy: Copy): StoryBlocksCopy {
     ctaLinkLabel: copy.blocksCtaLink,
     ctaLinkPlaceholder: copy.blocksCtaLinkPh,
     removeImage: copy.blocksRemoveImage,
+    mediaUrlLabel: copy.blocksMediaUrl,
+    mediaUrlPlaceholder: copy.blocksMediaUrlPh,
+    mediaKindLabel: copy.blocksMediaKind,
+    mediaKindVideo: copy.blocksMediaKindVideo,
+    mediaKindAudio: copy.blocksMediaKindAudio,
+    mediaKindDocument: copy.blocksMediaKindDocument,
+    mediaPosterLabel: copy.blocksMediaPoster,
   };
 }
 

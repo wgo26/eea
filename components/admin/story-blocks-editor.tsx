@@ -20,6 +20,7 @@ export type StoryBlocksCopy = {
   addTextSection: string;
   addImageSection: string;
   addVideoSection: string;
+  addMediaSection: string;
   addGallerySection: string;
   addCtaSection: string;
   addDividerSection: string;
@@ -54,6 +55,13 @@ export type StoryBlocksCopy = {
   ctaLinkLabel: string;
   ctaLinkPlaceholder: string;
   removeImage: string;
+  mediaUrlLabel: string;
+  mediaUrlPlaceholder: string;
+  mediaKindLabel: string;
+  mediaKindVideo: string;
+  mediaKindAudio: string;
+  mediaKindDocument: string;
+  mediaPosterLabel: string;
 };
 
 type Props = {
@@ -209,6 +217,9 @@ export function StoryBlocksEditor({ copy, photoUrls, onInsert, onToast, onExcerp
             <button type="button" onClick={() => addBlock("video")} className="inline-flex items-center rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground">
               {copy.addVideoSection}
             </button>
+            <button type="button" onClick={() => addBlock("media")} className="inline-flex items-center rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground">
+              {copy.addMediaSection}
+            </button>
             <button type="button" onClick={() => addBlock("gallery")} className="inline-flex items-center rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground">
               {copy.addGallerySection}
             </button>
@@ -307,6 +318,50 @@ export function StoryBlocksEditor({ copy, photoUrls, onInsert, onToast, onExcerp
                       loading="lazy"
                     />
                     <span className="text-xs text-muted-foreground">{copy.videoThumbnailLabel}</span>
+                  </div>
+                ) : null}
+                {b.type === "media" ? (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="grid gap-1">
+                      <span className="text-xs font-medium text-muted-foreground">{copy.mediaUrlLabel}</span>
+                      <input
+                        value={b.mediaUrl ?? ""}
+                        onChange={(e) => patch(b.id, { mediaUrl: e.target.value })}
+                        placeholder={copy.mediaUrlPlaceholder}
+                        inputMode="url"
+                        className={inputCls}
+                      />
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="text-xs font-medium text-muted-foreground">{copy.mediaKindLabel}</span>
+                      <select
+                        value={b.mediaKind ?? "video"}
+                        onChange={(e) => patch(b.id, { mediaKind: e.target.value as "video" | "audio" | "document" })}
+                        className={inputCls}
+                      >
+                        <option value="video">{copy.mediaKindVideo}</option>
+                        <option value="audio">{copy.mediaKindAudio}</option>
+                        <option value="document">{copy.mediaKindDocument}</option>
+                      </select>
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="text-xs font-medium text-muted-foreground">{copy.mediaPosterLabel}</span>
+                      <input
+                        value={b.mediaPoster ?? ""}
+                        onChange={(e) => patch(b.id, { mediaPoster: e.target.value })}
+                        placeholder={copy.imagePlaceholder}
+                        inputMode="url"
+                        className={inputCls}
+                      />
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="text-xs font-medium text-muted-foreground">{copy.captionLabel}</span>
+                      <input
+                        value={b.mediaCaption ?? ""}
+                        onChange={(e) => patch(b.id, { mediaCaption: e.target.value })}
+                        className={inputCls}
+                      />
+                    </label>
                   </div>
                 ) : null}
                 {b.type === "cta" ? (

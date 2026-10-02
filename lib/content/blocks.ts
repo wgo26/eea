@@ -24,7 +24,7 @@
 export type StoryBlock = {
   id: string;
   /** Section type for modular content building */
-  type: "text" | "image" | "video" | "gallery" | "cta" | "divider";
+  type: "text" | "image" | "video" | "gallery" | "cta" | "divider" | "media";
   heading: string;
   body: string;
   imageUrl: string;
@@ -41,6 +41,11 @@ export type StoryBlock = {
   // CTA section fields
   ctaText?: string;
   ctaLink?: string;
+  // Media section fields (for uploaded video/audio/document)
+  mediaUrl?: string;
+  mediaKind?: 'video' | 'audio' | 'document';
+  mediaPoster?: string;
+  mediaCaption?: string;
   // Metadata - whether this section contributes to excerpt generation
   isSummary?: boolean;
 };
@@ -316,6 +321,32 @@ export function serializeStoryBlocks(blocks: StoryBlock[]): string {
           );
         }
         out.push(`</div>`);
+        break;
+      }
+      case "media": {
+        const mediaUrl = b.mediaUrl?.trim() ?? "";
+        const mediaKind = b.mediaKind ?? 'video';
+        const mediaPoster = b.mediaPoster?.trim() ?? "";
+        const mediaCaption = b.mediaCaption?.trim() ?? "";
+        const label = mediaCaption || heading || "Media";
+        if (isUsableMediaUrl(mediaUrl)) {
+          const posterAttr = mediaPoster ? ` poster="${escapeHtmlAttr(mediaPoster)}"` : "";
+          const captionHtml = mediaCaption ? `<figcaption>${escapeHtmlText(mediaCaption)}</figcaption>` : "";
+          if (mediaKind === 'video') {
+            out.push(
+              `<figure class="story-video"><video src="${escapeHtmlAttr(mediaUrl)}" controls preload="none" playsinline${posterAttr}></video>${captionHtml}</figure>`
+            );
+          } else if (mediaKind === 'audio') {
+            out.push(
+              `<figure class="story-audio"><audio src="${escapeHtmlAttr(mediaUrl)}" controls preload="none"></audio>${captionHtml}</figure>`
+            );
+          } else if (mediaKind === 'document') {
+            out.push(
+              `<figure class="story-document"><a href="${escapeHtmlAttr(mediaUrl)}" target="_blank" rel="noopener" class="flex items-center gap-3 rounded-xl border bg-muted/40 p-4 text-sm hover:bg-muted/60"><span class="h-5 w-5 shrink-0 text-primary" aria-hidden>📄</span><span class="min-w-0"><span class="block truncate font-medium">${escapeHtmlText(label)}</span><span class="block truncate text-xs text-muted-foreground">${escapeHtmlAttr(mediaUrl)}</span></span></a>${captionHtml}</figure>`
+            );
+          }
+        }
+        if (body) out.push(paragraphsOf(body));
         break;
       }
       case "divider":
@@ -664,23 +695,57 @@ export function parseStoryBlocks(html: string): StoryBlock[] {
         const caption = fig.caption.replace(/^Watch:\s*/i, "");
         const title = frame ? attrOf(frame[0], "title") : "";
         const heading = takeHeading();
-        blocks.push(
-          createStoryBlock({
-            id: parsedId(),
-            type: "video",
-            heading,
-            videoUrl: url,
-            videoThumbnail: video ? attrOf(video[0], "poster") : "",
-            // `label` was `videoCaption || heading || "the video"`, so a caption
-            // that equals the heading is not an editorial caption and an
-            // iframe `title` is the same string again - neither round-trips.
-            videoCaption:
-              caption && caption !== heading && caption !== title && caption !== GENERIC_VIDEO_LABEL
-                ? caption
-                : "",
-            body: "",
-          }),
-        );
+
+        // Determine block type from figure class
+        const figClass = attrOf(node.attrs, "class") || "";
+        if (figClass.includes("story-audio") || (audio && !video)) {
+          // Audio block (native audio player)
+          blocks.push(
+            createStoryBlock({
+              id: parsedId(),
+              type: "media",
+              heading,
+              mediaUrl: url,
+              mediaKind: "audio",
+              mediaPoster: "",
+              mediaCaption: caption && caption !== heading && caption !== GENERIC_VIDEO_LABEL ? caption : "",
+              body: "",
+            }),
+          );
+        } else if (figClass.includes("story-document")) {
+          // Document block
+          blocks.push(
+            createStoryBlock({
+              id: parsedId(),
+              type: "media",
+              heading,
+              mediaUrl: url,
+              mediaKind: "document",
+              mediaPoster: "",
+              mediaCaption: caption && caption !== heading ? caption : "",
+              body: "",
+            }),
+          );
+        } else {
+          // Video block (iframe, native video, or link fallback)
+          blocks.push(
+            createStoryBlock({
+              id: parsedId(),
+              type: "video",
+              heading,
+              videoUrl: url,
+              videoThumbnail: video ? attrOf(video[0], "poster") : "",
+              // `label` was `videoCaption || heading || "the video"`, so a caption
+              // that equals the heading is not an editorial caption and an
+              // iframe `title` is the same string again - neither round-trips.
+              videoCaption:
+                caption && caption !== heading && caption !== title && caption !== GENERIC_VIDEO_LABEL
+                  ? caption
+                  : "",
+              body: "",
+            }),
+          );
+        }
         // `isSummary` is editorial metadata that the markup cannot carry, so it
         // keeps the createStoryBlock default rather than being guessed here.
         continue;
@@ -771,6 +836,7 @@ export function blocksEqual(a: StoryBlock[], b: StoryBlock[]): boolean {
     if (x.layout !== y.layout) return false;
     if ((x.videoUrl ?? "") !== (y.videoUrl ?? "")) return false;
     if ((x.videoCaption ?? "") !== (y.videoCaption ?? "")) return false;
+    if ((x.mediaUrl ?? "") !== (y.mediaUrl ?? "") || (x.mediaKind ?? "") !== (y.mediaKind ?? "") || (x.mediaPoster ?? "") !== (y.mediaPoster ?? "") || (x.mediaCaption ?? "") !== (y.mediaCaption ?? "")) return false;
     if ((x.ctaText ?? "") !== (y.ctaText ?? "") || (x.ctaLink ?? "") !== (y.ctaLink ?? "")) return false;
     const gx = x.galleryImages ?? [];
     const gy = y.galleryImages ?? [];
