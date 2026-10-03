@@ -102,7 +102,9 @@
 - **Evidence:** `app/layout.tsx:28-35` loads Newsreader (700/800) as `--font-display` with `display: swap`. `app/globals.css:39,46` wires `--font-heading: var(--font-display)` and `font-display` utility. `app/[locale]/(public)/news/[slug]/page.tsx:226` uses `font-display` on article `<h1>`. Audit's "Inter only" claim was stale. Decision documented in `docs/audit.md` Phase 1 U5; now implemented per plan.
 
 ### 4.2 Contrast on muted text may be below WCAG AA — **Deferred**
-- **Status:** Requires Lighthouse/axe-core run on key pages in both modes. Check `text-muted-foreground` on `bg-muted`, category pill, TrustBadge. Deferred to CI accessibility gate.
+- **Status:** Covered by the weekly Lighthouse CI lab job (`.github/workflows/lighthouse.yml`);
+  `categories:accessibility` ≥ 0.95 (warn) / 0.85 (red) on mobile preset. Check
+  `text-muted-foreground` on `bg-muted`, category pill, TrustBadge.
 
 ### 4.3 No skip-link on article detail pages — **Implemented**
 - **Fix:** `components/shells/public-shell.tsx:69` — `<main id="main-content" tabIndex={-1}>` wraps all public page content (added `tabIndex={-1}`). Skip-link at line 52 (`href="#main-content"`) now has a focusable target.

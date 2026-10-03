@@ -332,7 +332,7 @@ describe('dark mode', () => {
       expect(theme.colors[key], `colors.${key} was not backfilled`).toBe(DEFAULT_BRAND_THEME.colors[key])
     }
     expect(theme.colors.popover).toBe('oklch(1 0 0)')
-    expect(theme.colors.secondary).toBe('oklch(0.97 0 0)')
+    expect(theme.colors.secondary).toBe('oklch(0.8 0.22 82)')
     expect(theme.colors.input).toBe('oklch(0.922 0 0)')
     // Dark stays a genuine deviation: absent means "inherit the ramp", not "".
     expect(theme.darkColors.popover).toBeUndefined()
@@ -420,6 +420,15 @@ describe('colour vocabulary coverage', () => {
       for (const [index, declared] of schemes.entries()) {
         expect(declared.has(variable), `${variable} is not declared in ${[':root', '.dark'][index]}`).toBe(true)
       }
+    }
+  })
+
+  it('keeps the light CSS baseline aligned with the published brand defaults', () => {
+    const root = readCssBlock(':root')
+    for (const [token, variable] of Object.entries(COLOR_VARIABLES)) {
+      expect(root.get(variable), `${variable} differs from the brand baseline`).toBe(
+        DEFAULT_BRAND_THEME.colors[token as keyof typeof DEFAULT_BRAND_THEME.colors],
+      )
     }
   })
 })

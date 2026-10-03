@@ -1,4 +1,4 @@
-# Known issues & debt (regenerated 2026-10-21)
+# Known issues & debt (regenerated 2026-10-03)
 
 Living debt list verified against the current code. The old `m.md` /
 `implementation_plan.md` / `scaffold_plan.md` (archived under `docs/history/`)
@@ -158,10 +158,17 @@ was deleted — do not recreate it.)
   four in `lib/admin/queries.ts` use `logger.error`
   (`lib/observability/logger.ts`), and `lib/auth/roles.ts` emits the same
   JSON record shape inline (it is also imported client-side, so the
-  server-only logger can't be imported there).
+    `lib/auth/roles.ts` emits the same JSON record shape inline (it is also imported client-side, so the
+    server-only logger can't be imported there).
 - **Dependency hygiene (P2):** `.github/dependabot.yml` (weekly npm, monthly
-  GitHub Actions, grouped dev updates) + an advisory `npm audit
-  --audit-level=high` step in `ci.yml`.
+    GitHub Actions, grouped dev updates) + an advisory `npm audit
+    --audit-level=high` step in `ci.yml`.
+- **Performance budgets (PR-10 — resolved):** `.github/workflows/lighthouse.yml`
+    (weekly) + `.lighthouserc.cjs` now enforce mobile LCP/CLS/TBT + category scores +
+    byte weight on `/en`, `/fr`, and a live article resolved from `sitemap.xml`.
+    Run locally via `npm run perf:lighthouse`. Budgets: LCP < 2.5 s (warn) / 5 s (red);
+    CLS < 0.1; TBT < 300 ms (warn) / 600 ms (red); performance ≥ 0.8 (warn) / 0.6 (red);
+    byte weight ≤ 1.5 MB (warn) / 3 MB (red).
 - **Deploy build no longer dies on Turbopack's PostCSS loader pool.**
   `npm run build` runs `scripts/build.mjs`, which retries with webpack when the
   build host cannot start a loader child process. Upstream bug:
@@ -192,13 +199,17 @@ was deleted — do not recreate it.)
   preventing memory-exhaustion under IP rotation.
 - **D3 — Zero RLS/integration test coverage (FIXED).** `scripts/rls-harness.mjs`
   builds an ephemeral Postgres with Supabase-equivalent stubs + all 58
-  migrations in order, then asserts 10 structural gates (RLS enabled on every
-  public table, ≥40 policies, anon can execute `is_staff()`,
-  `rate_limit_hits` stays revoked). `tests/integration/rls.test.ts` (12
-  invariants) and `rls-phase2.test.ts` (6 invariants) assert actual policy
-  semantics. CI job `rls-invariants` (postgres:16 service) blocks on failure.
-  Proven by negative test: dropping "Own/reviewable submissions" turns the
-  suite red.
+   migrations in order, then asserts 10 structural gates (RLS enabled on every
+   public table, ≥40 policies, anon can execute `is_staff()`,
+   `rate_limit_hits` stays revoked). `tests/integration/rls.test.ts` (12
+   invariants) and `rls-phase2.test.ts` (6 invariants) assert actual policy
+   semantics. CI job `rls-invariants` (postgres:16 service) blocks on failure.
+   Proven by negative test: dropping "Own/reviewable submissions" turns the
+   suite red.
+- **D3 — migration count:** 87 migrations (10 since 2026-09-13), covering
+   `legacy_redirects`, `db_dumps`, `fix_digest_subscribers_rls`,
+   `ad_event_atomic_guard`, `price_watches`, `moderation_log_ad_events_rls`,
+   `content_expiry_rls`, and others.
 - **D5 — Advertiser persona is structurally dead (FIXED).** `/account` now
   shows the advertiser their campaign status, booked slots, and impressions/
   clicks read from `ad_events`. Quote → invoice note is in-product; payments
@@ -208,16 +219,20 @@ was deleted — do not recreate it.)
   `tracesSampler`: 1.0 in dev/preview, 0.1 in production — error fidelity
   unaffected (errors inherit the parent transaction's sampling decision);
   controls cost and main-thread overhead on low-end Android.
-- **New migrations (58 total, +10 since 2026-09-13):** `legacy_redirects`,
+- **New migrations (87 total, +10 since 2026-09-13):** `legacy_redirects`,
   `db_dumps` (nightly pg_dump → B2 tracking),
   `fix_digest_subscribers_rls` (closed anon PII leak),
   `ad_event_atomic_guard` (closed beacon race), `price_watches` (owner-scoped
   price-drop alerts), `moderation_log_ad_events_rls` (enabled RLS on two
-  tables that had policies but no `enable row level security`).
+  tables that had policies but no `enable row level security`),
+  `content_expiry_rls`, and more. See `scripts/verify-migrations.mjs` (87 files).
 - **New tooling:** `scripts/probe-live.mjs` (read-only production posture
   check), `scripts/rls-harness.mjs`, `scripts/verify-security-posture.mjs`
   (EEAD-002 consolidated gates: anon bundle, server actions, migrations,
-  crons, sitemap, `data_requests` RLS regression). CI wires all of these.
+  crons, sitemap, `data_requests` RLS regression), `scripts/restore-drill.mjs`
+  (weekly restore rehearsal: B2 download → SHA-256 → pg_restore → schema
+  coverage + row-count + restored-≤-live assertions). CI wires all of these.
+  `.github/workflows/restore-drill.yml` runs the drill Sundays at 05:00 UTC.
 
 ## P1 — fix soon (live validation only)
 
@@ -232,10 +247,9 @@ was deleted — do not recreate it.)
 
 - Monoliths: `lib/admin/actions.ts`, `lib/admin/queries.ts` (~2,000+ lines
   each) → split per-domain.
-- Tests: 231 vitest tests (28 files) — 203 unit + 18 RLS integration (D3
-  FIXED). **No component e2e for the submit→moderate→publish loop**
-  (smoke.spec.ts covers static routes only). Highest-value next: end-to-end
-  test of the full publish → notification → outbox flow.
+- Tests: 846 vitest tests (78 files) — unit suite passes, RLS integration (21
+  behavioral invariants across 2 files) is skipped without a local Postgres
+  but wired into CI (`rls-invariants` job). `smoke.spec.ts` covers static routes.
 - CSP: `script-src 'unsafe-inline' 'unsafe-eval'`, wildcard img/connect-src —
   strict-nonce CSP is the target (big effort, low urgency for v1).
 - Bootstrap: `unstable_cache` (documented choice) — re-audit on Next 17.
@@ -257,14 +271,16 @@ was deleted — do not recreate it.)
   Verify with `scripts/verify-migrations.mjs` + `npm run test:rls`.
 - Run `npm run verify:posture` (EEAD-002: anon bundle, server actions,
   migrations, crons, sitemap, `data_requests` RLS regression) +
-  `npm run test:rls` (54 migrations + 10 structural gates + 18 invariants)
+   `npm run test:rls` (87 migrations + 10 structural gates + 21 behavioral invariants)
   locally before merge — CI enforces both.
 - Run `node scripts/probe-live.mjs` for the read-only production posture
   check (security headers, health/ready, legacy redirects).
 - Nightly pg_dump → B2 pipeline is live (`20261015000001_db_dumps.sql` tracks
-  each run; `db_dumps` table carries sha256 + 30-day expiry). **Rehearse a
-  restore** — see `docs/observability.md` §5 (row-count assertions on the
-  latest db_dump artifact). Media mirrors already exist; DB restore drill is
-  the only remaining gap.
+  each run; `db_dumps` table carries sha256 + 30-day expiry). **Restore is
+  rehearsed weekly** via `scripts/restore-drill.mjs` (`.github/workflows/restore-drill.yml`
+  Sundays 05:00 UTC): B2 download → SHA-256 + size verification → pg_restore
+  into a temp Postgres → schema coverage + row-count floors + restored ≤ live
+  assertions. Media mirrors already exist; the only remaining gap was rehearsing
+  a restore, now covered.
 
 Keep this file in sync with reality — delete items as they land.

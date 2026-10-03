@@ -90,14 +90,15 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  /* Brand gold â€” the Eagle Eye Africa accent (hero sample: TOP STORY pill,
-     CTAs, highlights). Ink foreground keeps AA contrast on the bright gold. */
-  --primary: oklch(0.83 0.19 85);
-  --primary-foreground: oklch(0.205 0 0);
-  /* Inline text links: deep amber on white (AA), bright gold in dark mode. */
-  --link: oklch(0.555 0.163 48.998);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
+  /* Brand blue is the lead identity hue; gold is kept as the supporting accent.
+     This matches the EEA stamp while keeping strong contrast for buttons, pills,
+     and links. */
+  --primary: oklch(0.5 0.22 225);
+  --primary-foreground: oklch(0.98 0.01 220);
+  /* Inline text links: deep blue on white, with a brighter blue in dark mode. */
+  --link: oklch(0.43 0.18 225);
+  --secondary: oklch(0.8 0.22 82);
+  --secondary-foreground: oklch(0.2 0.08 225);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
@@ -105,7 +106,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.75 0.14 85);
+  --ring: oklch(0.65 0.19 225);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -114,51 +115,49 @@
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.83 0.19 85);
-  --sidebar-primary-foreground: oklch(0.205 0 0);
+  --sidebar-primary: oklch(0.5 0.22 225);
+  --sidebar-primary-foreground: oklch(0.98 0.01 220);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-ring: oklch(0.65 0.19 225);
 }
 
 .dark {
-  /* Phase 3 â€” warm ink/paper dark mode: surfaces carry a faint gold-hue
-     chroma (hue ~75) instead of pure neutral grey, echoing the brand gold
-     without hurting contrast (foregrounds stay near-white). */
-  --background: oklch(0.165 0.018 75);
-  --foreground: oklch(0.975 0.008 75);
-  --card: oklch(0.225 0.022 75);
-  --card-foreground: oklch(0.975 0.008 75);
-  --popover: oklch(0.225 0.022 75);
-  --popover-foreground: oklch(0.975 0.008 75);
-  /* Same brand gold in dark mode â€” the vivid accent from the hero sample. */
-  --primary: oklch(0.83 0.19 85);
-  --primary-foreground: oklch(0.205 0.02 75);
-  --link: oklch(0.86 0.19 87);
-  --secondary: oklch(0.285 0.02 75);
-  --secondary-foreground: oklch(0.975 0.008 75);
-  --muted: oklch(0.285 0.02 75);
-  --muted-foreground: oklch(0.74 0.02 75);
-  --accent: oklch(0.285 0.02 75);
-  --accent-foreground: oklch(0.975 0.008 75);
+  /* Dark mode keeps the deep blue as the primary signal; warm gold stays as a
+     secondary accent that pops without taking over the identity. */
+  --background: oklch(0.17 0.04 225);
+  --foreground: oklch(0.98 0.01 220);
+  --card: oklch(0.21 0.04 225);
+  --card-foreground: oklch(0.98 0.01 220);
+  --popover: oklch(0.21 0.04 225);
+  --popover-foreground: oklch(0.98 0.01 220);
+  --primary: oklch(0.55 0.22 225);
+  --primary-foreground: oklch(0.98 0.01 220);
+  --link: oklch(0.76 0.18 225);
+  --secondary: oklch(0.84 0.22 82);
+  --secondary-foreground: oklch(0.2 0.08 225);
+  --muted: oklch(0.27 0.03 225);
+  --muted-foreground: oklch(0.8 0.03 220);
+  --accent: oklch(0.27 0.03 225);
+  --accent-foreground: oklch(0.98 0.01 220);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.8 0.16 85);
+  --ring: oklch(0.7 0.18 225);
   --chart-1: oklch(0.83 0.06 80);
   --chart-2: oklch(0.62 0.05 78);
   --chart-3: oklch(0.48 0.04 76);
   --chart-4: oklch(0.38 0.03 75);
   --chart-5: oklch(0.29 0.02 75);
-  --sidebar: oklch(0.225 0.022 75);
-  --sidebar-foreground: oklch(0.975 0.008 75);
-  --sidebar-primary: oklch(0.83 0.19 85);
-  --sidebar-primary-foreground: oklch(0.205 0.02 75);
-  --sidebar-accent: oklch(0.285 0.02 75);
-  --sidebar-accent-foreground: oklch(0.975 0.008 75);
+  --sidebar: oklch(0.225 0.022 225);
+  --sidebar-foreground: oklch(0.97 0.008 220);
+  --sidebar-primary: oklch(0.55 0.22 225);
+  --sidebar-primary-foreground: oklch(0.98 0.01 220);
+  --sidebar-accent: oklch(0.84 0.22 82);
+  --sidebar-accent-foreground: oklch(0.2 0.08 225);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.6 0.03 75);
+  --sidebar-ring: oklch(0.7 0.18 225);
 }
 
 @layer base {

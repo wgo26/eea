@@ -82,12 +82,31 @@ failed nightly run (workflow failure or webhook 5xx) is itself the alert.
 Skipped cleanly when the webhook URL is unset (endpoint returns
 `200 {"skipped":true}`).
 
-## 5. What to check when something looks wrong
+### 5. Database restore drill
+
+Weekly rehearsal (`scripts/restore-drill.mjs`, `.github/workflows/restore-drill.yml` Sundays 05:00 UTC):
+downloads the latest `db_dumps` artifact from B2, verifies SHA-256 + size against
+the ledger, runs `pg_restore --list` for a sanity check, restores into a
+throwaway Postgres (`postgres:16` GitHub Actions service), and asserts:
+
+- **Migration coverage:** every repo migration that predates the dump is
+  present in `supabase_migrations.schema_migrations` on the restored database.
+- **Row-count floors:** published content, profiles, user_roles, audit trail,
+  and the dump ledger each have ≥1 row.
+- **Restored ≤ live:** when `SUPABASE_DB_URL` is set, restored counts must not
+  exceed live counts (a restore may lag, never exceed).
+
+Exit 0 = pass; exit 1 = drill failed; exit 2 = missing environment (fail-closed).
+Secrets required: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+`B2_ENDPOINT`, `B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_BACKUP_BUCKET`.
+
+### 6. When something looks wrong
 
 | Symptom | Where to look |
 |---|---|
 | Public pages error | `npm start` logs (Hostinger), or Sentry (§2) |
 | Backup pipeline | `scripts/verify-backup.mjs --mode=verify` (+ the 02:00 GitHub run) |
+| Restore not rehearsed | `scripts/restore-drill.mjs` (§5) / `.github/workflows/restore-drill.yml` |
 | DB maintenance | `/api/cron/db-maintenance` response (purged rows, missing objects) |
 | Upload failing | `logger` `uploads` scope: ownership/rate-limit/validation errors |
 | Nothing delivered | Confirm `CRON_SECRET` + `DIGEST_WEBHOOK_URL` are set on the host |

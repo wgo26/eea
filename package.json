@@ -25,7 +25,8 @@
     "smoke": "node scripts/smoke-production.mjs",
     "verify:clean": "node scripts/verify-clean.mjs",
     "notify:env": "node scripts/verify-notify-env.mjs",
-    "og:default": "node scripts/generate-og-default.mjs"
+    "og:default": "node scripts/generate-og-default.mjs",
+    "perf:lighthouse": "lhci autorun"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1123.0",
@@ -60,6 +61,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
+    "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.20",

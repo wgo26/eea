@@ -16,9 +16,11 @@ import {
 } from './brand-colors'
 
 describe('readableForegroundOn', () => {
-  it('puts ink on the shipped gold', () => {
-    // The house convention: dark text on the bright brand accent.
-    expect(readableForegroundOn(DEFAULT_BRAND_THEME.colors.primary)).toBe(INK)
+  it('puts paper on the shipped blue', () => {
+    // The house convention: light text on the brand accent. The primary
+    // swatch (oklch L≈0.5) sits in the mid-tone band where paper clears
+    // the 4.5:1 floor with more headroom than ink.
+    expect(readableForegroundOn(DEFAULT_BRAND_THEME.colors.primary)).toBe(PAPER)
   })
 
   it('puts paper on a dark brand colour', () => {

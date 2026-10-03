@@ -1,0 +1,74 @@
+# Weekly mobile lab run — Lighthouse CI budgets (docs/perf-budget.md).
+#
+# The performance budget used to be manual ("no Lighthouse CI yet"); this is
+# the scheduled lab job that enforces it: LCP/CLS/TBT + category scores +
+# byte weight on the homepage (en + fr) and one real article resolved from
+# the production sitemap. Thresholds live in .lighthouserc.cjs (warn =
+# documented target, error = regression ceiling).
+#
+# Runs against PRODUCTION (vars.PRODUCTION_URL, default the live domain) —
+# real images, real payloads. Reports are uploaded as an artifact on every
+# run, green or red.
+
+name: Lighthouse
+
+on:
+  schedule:
+    - cron: "0 4 * * 1"   # Mondays 04:00 UTC — weekly lab run
+  workflow_dispatch:
+    inputs:
+      num_runs:
+        description: Runs per URL (1 = fast smoke, 3 = median)
+        required: false
+        default: "3"
+
+permissions:
+  contents: read
+
+jobs:
+  lab:
+    name: Mobile lab budgets (homepage + article)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve base + article URL from the production sitemap
+        env:
+          BASE: ${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}
+        run: |
+          set -euo pipefail
+          # Prefer a real /en/news/ or /en/photo-stories/ detail URL so the
+          # lab measures an article (images + article-body), not an index.
+          # Fallback: the static long-form guide — always published.
+          article=$(curl -fsS --max-time 30 "$BASE/sitemap.xml" \
+            | grep -oE '<loc>[^<]+</loc>' \
+            | sed 's#</\?loc>##g' \
+            | grep -E '/en/(news|photo-stories)/' \
+            | head -n 1 || true)
+          article="${article:-$BASE/en/about/guide}"
+          echo "LHCI_BASE_URL=$BASE" >> "$GITHUB_ENV"
+          echo "LHCI_ARTICLE_URL=$article" >> "$GITHUB_ENV"
+          echo "LHCI_NUM_RUNS=${{ github.event.inputs.num_runs || '3' }}" >> "$GITHUB_ENV"
+          echo "base=$BASE article=$article"
+
+      - name: Lighthouse CI (collect + assert)
+        run: npx lhci autorun
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: .lighthouseci
+          retention-days: 30
+          if-no-files-found: ignore

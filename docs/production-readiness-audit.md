@@ -177,7 +177,7 @@ Add seeded dynamic article/listing pages and authenticated admin screens to axe 
 
 **Evidence**
 
-- `docs/perf-budget.md` explicitly says there is **no Lighthouse CI** and that LCP checks are manual.
+- **Resolved PR-10:** `.github/workflows/lighthouse.yml` (weekly) + `.lighthouserc.cjs` now enforce mobile LCP/CLS/TBT + category scores + byte weight on `/en`, `/fr`, and a live article resolved from `sitemap.xml`. `npm run perf:lighthouse` runs the same budgets locally. Budgets: LCP < 2.5 s (warn) / 5 s (red); CLS < 0.1; TBT < 300 ms (warn) / 600 ms (red); performance ≥ 0.8 (warn) / 0.6 (red); byte weight ≤ 1.5 MB (warn) / 3 MB (red). The structural check (`verify-anon-bundle.mjs`) remains as a complementary safeguard; the ≤120 KB gzip JS target is a structural floor, not a replacement for lab measurement.
 - `scripts/verify-anon-bundle.mjs` is a structural gate for fonts, dictionary leakage, and service-role references. It does not calculate compressed anonymous JavaScript size, despite the documented ≤120 KB gzip target.
 - No controlled 4G/Moto-class LCP, INP, CLS, or TTFB measurement was performed or supplied in the project evidence. The raw live navigation timing noted in PR-05 is not equivalent.
 - Positive implementation evidence includes self-hosted fonts, `SmartImage`/AVIF support, cached public reads, and full-text search with trigram/unaccent migrations. The old `docs/audit.md` statement that full-text search is missing is stale: the current search query and migrations implement it.
@@ -230,7 +230,7 @@ Choose a canonical current operational-status document and refresh stale audit/U
 | Backup pipeline is operational | Backup scripts exist; restore log is unrehearsed and CI check is optional/advisory | Backup recoverability is unproven. |
 | Production build and tests are green | Build/typecheck fail; one test fails (the current edited test throws before exercising the audio assertion) | Release gate is red in the audited worktree. |
 | A release deployment path is being added | An untracked deploy workflow targets Vercel, while production responds from Hostinger (`Server: hcdn`) | The deployment draft is not aligned with the current documented/live provider and is not active on `origin/main`. |
-| 120 KB gzip/LCP performance budgets are enforced | Static structural checks only; no Lighthouse CI or controlled LCP measurement | Budget is a target, not a measured gate. |
+| 120 KB gzip/LCP performance budgets are enforced | Weekly Lighthouse CI lab job (`.github/workflows/lighthouse.yml`) enforces mobile LCP/CLS/TBT + scores + byte weight on homepage + live article | Resolved — budgets are now measured and gated. |
 | Sentry needs to be installed and wired | SDK/config/init files are present | Observability runbook is stale; actual DSN/event delivery still unverified. |
 | All operational changes are represented by current branch | Local `HEAD`, `origin/main`, current worktree, and the production workflow SHA differ | Do not assume local changes are deployed. |
 
@@ -250,7 +250,7 @@ Choose a canonical current operational-status document and refresh stale audit/U
 7. Close PR-07 by making health/readiness semantics, build version, and required operational dependencies explicit.
 8. Close PR-08 with shared upload state, quotas, bounded limiter memory, and load tests against the real hosting tier.
 9. Complete missing axe, keyboard, and screen-reader paths in PR-09.
-10. Add measured mobile performance budgets in PR-10 and protected release/migration gates in PR-11.
+10. **Resolved PR-10:** Weekly mobile Lighthouse CI lab job enforces LCP/CLS/TBT/scores/byte-weight budgets; run locally via `npm run perf:lighthouse`. Protected release/migration gates in PR-11.
 
 ### P2 — improve ongoing reliability
 
