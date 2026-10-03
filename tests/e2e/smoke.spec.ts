@@ -68,6 +68,13 @@ test('guarded account pages bounce anonymous visitors to login', async ({ page }
   }
 })
 
+test('guarded admin branch bounces anonymous visitors (P0-2 regression)', async ({ page }) => {
+  for (const route of ['/en/admin/dashboard', '/fr/admin/moderation', '/en/admin/users']) {
+    await page.goto(route, { waitUntil: 'networkidle' })
+    await expect(page).toHaveURL(/\/account\/login|\/not-authorized/)
+  }
+})
+
 test('health is dependency-free, ready answers anonymously', async ({ request }) => {
   const health = await request.get('/api/health')
   expect(health.ok()).toBeTruthy()

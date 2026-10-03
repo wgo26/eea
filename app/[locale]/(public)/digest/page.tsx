@@ -1,15 +1,16 @@
+import type { Metadata } from 'next'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
-import { localePath } from '@/lib/i18n/urls'
+import { buildAlternates, localePath } from '@/lib/i18n/urls'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 
-export async function generateMetadata(): Promise<{ title: string }> {
+export async function generateMetadata(): Promise<Metadata> {
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
-  return { title: dict.home.digestCtaTitle }
+  return { title: dict.home.digestCtaTitle, alternates: buildAlternates(locale, '/digest') }
 }
 
 function Honeypot() {
@@ -155,8 +156,8 @@ export default async function Page({
           )}
 
           <p className="text-xs text-muted-foreground text-center">
-            <a href={localePath(locale, '/digest?unsubscribe=true')} className="underline hover:text-foreground">
-              Unsubscribe
+            <a href={localePath(locale, "/digest?unsubscribe=true")} className="underline hover:text-foreground">
+              {t.unsubscribeSubmit}
             </a>
           </p>
         </section>

@@ -40,5 +40,5 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  return runReminders(request)
+  return stampHeartbeat('reminders', runReminders(request))
 }

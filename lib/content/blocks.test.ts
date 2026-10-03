@@ -87,12 +87,13 @@ describe("parseStoryBlocks round-trips serializeStoryBlocks", () => {
       b({ type: "video", videoUrl: "https://cdn.example/note.mp3" }),
     ];
     const back = parseStoryBlocks(serializeStoryBlocks(blocks));
-    expect(back.map((x) => x.type)).toEqual(["video", "video", "video"]);
+    expect(back.map((x) => x.type)).toEqual(["video", "video", "media"]);
     expect(back[0]?.videoUrl).toBe("https://www.youtube.com/embed/dQw4w9WgXcQ");
     expect(back[0]?.heading).toBe("Watch the rollout");
     expect(back[1]?.videoUrl).toBe("https://cdn.example/clip.mp4");
     expect(back[1]?.videoCaption).toBe("B-roll");
-    expect(back[2]?.videoUrl).toBe("https://cdn.example/note.mp3");
+    expect(back[2]?.mediaUrl).toBe("https://cdn.example/note.mp3");
+    expect(back[2]?.mediaKind).toBe("audio");
   });
 
   it("reads back a CTA with a link and the no-link text fallback", () => {

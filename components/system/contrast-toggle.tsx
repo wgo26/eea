@@ -55,7 +55,7 @@ export function ContrastToggle({ label }: { label: string }) {
             aria-label={label}
             title={label}
             className={cn(
-                "inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors",
+                "inline-flex h-11 w-11 items-center justify-center rounded-md transition-colors",
                 on
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground",

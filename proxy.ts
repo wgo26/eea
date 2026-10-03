@@ -119,27 +119,6 @@ export async function proxy(request: NextRequest) {
     }
 
     // 1. Locale-first redirect for unprefixed URLs (single mechanism).
-    // 0. Legacy redirects (Phase 5 / A14) — applied before locale redirect.
-    //    Blogger-era /YYYY/MM/slug.html → canonical localized path.
-    if (!isExemptFromLocaleRedirect(pathname)) {
-        const legacyRedirects = await getLegacyRedirects();
-        const legacy = legacyRedirects[pathname];
-        if (legacy) {
-            const url = request.nextUrl.clone();
-            url.pathname = `/${negotiated}${legacy}`;
-            const redirect = NextResponse.redirect(url, 307);
-            if (!cookieLocale) {
-                redirect.cookies.set(LOCALE_COOKIE, negotiated, {
-                    path: "/",
-                    maxAge: 31536000,
-                    sameSite: "lax",
-                });
-            }
-            return redirect;
-        }
-    }
-
-    // 1. Locale-first redirect for unprefixed URLs (single mechanism).
     if (!isLocalePrefixed(pathname) && !isExemptFromLocaleRedirect(pathname)) {
         const target = pathname === "/" ? "" : pathname;
         const url = request.nextUrl.clone();

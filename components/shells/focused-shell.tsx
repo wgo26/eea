@@ -5,6 +5,7 @@ import { getRequestLocale } from '@/lib/i18n/server'
 import { localePath } from '@/lib/i18n/urls'
 import { getPublicSiteSettings } from '@/lib/admin/queries'
 import { SiteMark } from '@/components/site-mark'
+import { SkipLink } from '@/components/system/skip-link'
 import { BackButton } from './back-button'
 
 /**
@@ -29,6 +30,9 @@ export async function FocusedShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh flex-col">
+      {/* a11y: keyboard bypass past the shell header into the form content —
+          same #main-content contract as the public/admin/account shells. */}
+      <SkipLink locale={locale} />
       <header className="border-b border-border/60 bg-background pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between gap-3 px-4 md:px-6">
           <BackButton fallback={localePath(locale, '/')} label={dict.system.back} />
@@ -47,7 +51,7 @@ export async function FocusedShell({ children }: { children: ReactNode }) {
           </Link>
         </div>
       </header>
-      <main className="flex flex-1 flex-col items-center px-4 py-10 md:py-14">
+      <main id="main-content" tabIndex={-1} className="flex flex-1 flex-col items-center px-4 py-10 md:py-14">
         {children}
       </main>
     </div>

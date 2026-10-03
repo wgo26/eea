@@ -29,6 +29,12 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const description = identity.tagline?.trim() || SITE.description
   const icon192 = '/app-icons/icon-192.png'
 
+  // NOTE: a single manifest serves both locales (spec), so start_url/scope +
+  // shortcuts use UNPREFIXED paths on purpose and let proxy.ts 307-negotiate
+  // into the reader's locale (cookie → Accept-Language → en). The bare-href
+  // audit exempts manifest.ts for the same reason; PWA shortcuts may not carry
+  // per-locale URLs.
+
   return {
     id: '/',
     name,

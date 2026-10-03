@@ -1495,6 +1495,10 @@ export type Database = {
             legacy_path: string | null;
             template_id: string | null;
             template_ledger: Json;
+            first_published_at: string | null;
+            embedding: string | null;
+            embedding_updated_at: string | null;
+            embedding_model: string | null;
             };
             Insert: {
             id?: string;
@@ -1521,6 +1525,10 @@ export type Database = {
             legacy_path?: string | null;
             template_id?: string | null;
             template_ledger?: Json;
+            first_published_at?: string | null;
+            embedding?: string | null;
+            embedding_updated_at?: string | null;
+            embedding_model?: string | null;
             };
             Update: {
             id?: string | null;
@@ -1547,6 +1555,10 @@ export type Database = {
             legacy_path?: string | null;
             template_id?: string | null;
             template_ledger?: Json | null;
+            first_published_at?: string | null;
+            embedding?: string | null;
+            embedding_updated_at?: string | null;
+            embedding_model?: string | null;
             };
             Relationships: [
                 {
@@ -2901,6 +2913,50 @@ export type Database = {
                 },
             ];
         }
+        llm_calls: {
+            Row: {
+            id: string;
+            created_at: string;
+            action: string;
+            model: string;
+            tokens_in: number | null;
+            tokens_out: number | null;
+            latency_ms: number | null;
+            status: string;
+            content_item_id: string | null;
+            };
+            Insert: {
+            id?: string;
+            created_at?: string;
+            action: string;
+            model: string;
+            tokens_in?: number | null;
+            tokens_out?: number | null;
+            latency_ms?: number | null;
+            status?: string;
+            content_item_id?: string | null;
+            };
+            Update: {
+            id?: string | null;
+            created_at?: string | null;
+            action?: string | null;
+            model?: string | null;
+            tokens_in?: number | null;
+            tokens_out?: number | null;
+            latency_ms?: number | null;
+            status?: string | null;
+            content_item_id?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_llm_calls_content_item_id_fkey",
+                    columns: ["content_item_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_items",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
         location_slug_redirects: {
             Row: {
             id: string;
@@ -3038,6 +3094,7 @@ export type Database = {
             license: string | null;
             usage_permission: string | null;
             consent_status: string | null;
+            poster_url: string | null;
             };
             Insert: {
             id?: string;
@@ -3083,6 +3140,7 @@ export type Database = {
             license?: string | null;
             usage_permission?: string | null;
             consent_status?: string | null;
+            poster_url?: string | null;
             };
             Update: {
             id?: string | null;
@@ -3128,6 +3186,7 @@ export type Database = {
             license?: string | null;
             usage_permission?: string | null;
             consent_status?: string | null;
+            poster_url?: string | null;
             };
             Relationships: [
                 {
@@ -5053,6 +5112,28 @@ export type Database = {
             };
             Relationships: [];
         }
+        published_corrections: {
+            Row: {
+            id: string | null;
+            content_item_id: string | null;
+            content_slug: string | null;
+            content_type: "photo_story" | "news" | "notice" | "culture" | "listing" | "fundraiser" | "micro_story" | null;
+            content_title: string | null;
+            correction_text: string | null;
+            resolution: string | null;
+            reported_at: string | null;
+            resolved_at: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_published_corrections_content_item_id_fkey",
+                    columns: ["content_item_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_items",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
         };
         Functions: {
         admin_delete_category: {
@@ -5188,6 +5269,16 @@ export type Database = {
         is_staff: {
             Args: Record<string, never>;
             Returns: boolean;
+        }
+        match_content_embeddings: {
+            Args: {
+                p_threshold?: string;
+                p_count?: number;
+            };
+            Returns: {
+                id: string;
+                similarity: string;
+            }[];
         }
         release_backup_lease: {
             Args: {

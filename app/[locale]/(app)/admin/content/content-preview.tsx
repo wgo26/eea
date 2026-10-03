@@ -203,8 +203,8 @@ export function ContentPreview({
                   <SupportingMedia
                     items={attachments}
                     title={title}
-                    heading={copy.common?.supportingMedia || 'Supporting media'}
-                    description={copy.common?.supportingMediaBody || 'Additional media attached to this story'}
+                    heading={common.supportingMedia || 'Supporting media'}
+                    description={common.supportingMediaBody || 'Additional media attached to this story'}
                   />
                 )}
              </article>

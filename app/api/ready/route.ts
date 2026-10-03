@@ -88,6 +88,7 @@ async function runProbe(): Promise<ProbeResult> {
     'R2_ACCESS_KEY_ID',
     'R2_SECRET_ACCESS_KEY',
     'R2_BUCKET',
+    'CRON_SECRET',
   ]) {
     if (!process.env[key]) envMissing.push(key)
   }

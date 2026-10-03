@@ -117,6 +117,8 @@ export async function POST(request: Request) {
 
 // Vercel Cron invokes scheduled jobs with GET — same auth + lease semantics
 // as POST so the nightly mirror actually runs in production.
+// Both verbs stamp the heartbeat: GitHub Actions (Hostinger scheduler) issues
+// GET via bare curl, so an unstamped GET would run the job silently.
 export async function GET(request: Request) {
-  return runBackup(request)
+  return stampHeartbeat('storage-backup', runBackup(request))
 }

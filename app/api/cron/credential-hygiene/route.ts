@@ -125,5 +125,5 @@ export async function POST(request: Request) {
 
 // Vercel Cron invokes scheduled jobs with GET — same auth semantics as POST.
 export async function GET(request: Request) {
-  return runHygiene(request)
+  return stampHeartbeat('credential-hygiene', runHygiene(request))
 }

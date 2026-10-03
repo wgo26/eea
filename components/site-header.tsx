@@ -161,6 +161,7 @@ export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chro
                         menuLabel={dict.header.menu}
                         submitHref={localeHref(locale, "/submit")}
                         submitLabel={dict.nav.submit}
+                        contrastLabel={dict.theme.contrast}
                     />
                 </div>
             </div>

@@ -38,6 +38,23 @@ const ROUTES = [
   '/en/offline',
   '/fr/about/verification',
   '/fr/submit/notice',
+  // Batch B: previously unaxe'd focused screens (now carrying the shared
+  // skip-link) + the localized not-authorized screen. Admin/account
+  // authenticated shells need session fixtures (follow-up) — their guard
+  // boundary is pinned in smoke.spec.ts + viewport-320.spec.ts instead.
+  '/en/not-authorized',
+  '/fr/not-authorized',
+  '/en/account/signup',
+  '/fr/account/login',
+  '/en/submit/news',
+  // Batch C: listing detail fallback pages (render "not found" or "coming soon"
+  // with dummy backend — still exercises article/listing chrome, landmarks).
+  '/en/news/coming-soon',
+  '/en/photo-stories/coming-soon',
+  '/en/notices/coming-soon',
+  '/en/buy-sell/coming-soon',
+  '/en/culture/coming-soon',
+  '/en/locations/nowhere',
 ]
 
 for (const route of ROUTES) {

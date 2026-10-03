@@ -43,8 +43,26 @@ const CHUNK_RATE_WINDOW_MS = 60_000;
 const CHUNK_RATE_MAX = 300;
 const chunkHits = new Map<string, { count: number; resetAt: number }>();
 
+// D2 (audit): bound the Map to prevent IP-rotation memory exhaustion.
+const MAX_TRACKED_IPS_CHUNK = 10_000;
+
+function pruneChunkHits(now: number): void {
+  if (chunkHits.size < MAX_TRACKED_IPS_CHUNK) return;
+  for (const [key, entry] of chunkHits) {
+    if (now > entry.resetAt) chunkHits.delete(key);
+    if (chunkHits.size < MAX_TRACKED_IPS_CHUNK) return;
+  }
+  let dropped = 0;
+  const target = Math.ceil(MAX_TRACKED_IPS_CHUNK / 2);
+  for (const key of chunkHits.keys()) {
+    chunkHits.delete(key);
+    if (++dropped >= target) break;
+  }
+}
+
 function chunkRateLimited(ip: string): boolean {
   const now = Date.now();
+  pruneChunkHits(now);
   const entry = chunkHits.get(ip);
   if (!entry || now > entry.resetAt) {
     chunkHits.set(ip, { count: 1, resetAt: now + CHUNK_RATE_WINDOW_MS });

@@ -90,7 +90,7 @@ export function SiteFooter({ socialLinks, branding, chrome }: { socialLinks?: So
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     aria-label="Facebook"
-                                    className="flex h-9 w-9 items-center justify-center rounded-full border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                    className="flex h-11 w-11 items-center justify-center rounded-full border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                                 >
                                     <FacebookIcon className="h-4 w-4" />
                                 </Link>
@@ -101,7 +101,7 @@ export function SiteFooter({ socialLinks, branding, chrome }: { socialLinks?: So
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     aria-label="YouTube"
-                                    className="flex h-9 w-9 items-center justify-center rounded-full border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                    className="flex h-11 w-11 items-center justify-center rounded-full border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                                 >
                                     <YoutubeIcon className="h-4 w-4" />
                                 </Link>
@@ -109,7 +109,7 @@ export function SiteFooter({ socialLinks, branding, chrome }: { socialLinks?: So
                             <Link
                                 href={localeHref(locale, "/about/contact")}
                                 aria-label={dict.footer.contact}
-                                className="flex h-9 w-9 items-center justify-center rounded-full border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                className="flex h-11 w-11 items-center justify-center rounded-full border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                             >
                                 <Mail className="h-4 w-4" aria-hidden />
                             </Link>

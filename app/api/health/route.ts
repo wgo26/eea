@@ -15,6 +15,7 @@ export async function GET() {
     status: 'ok',
     service: 'eea',
     version: process.env.APP_VERSION ?? process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? 'dev',
+    build: process.env.NEXT_BUILD_ID ?? 'unknown',
     uptimeSeconds: Math.floor((Date.now() - startTime) / 1000),
     timestamp: new Date().toISOString(),
   })

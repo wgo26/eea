@@ -795,7 +795,7 @@ export function parseStoryBlocks(html: string): StoryBlock[] {
   return blocks.filter(
     (b) =>
       b.type === "divider" ||
-      Boolean(b.heading || b.body || b.imageUrl || b.videoUrl || b.ctaText) ||
+      Boolean(b.heading || b.body || b.imageUrl || b.videoUrl || b.mediaUrl || b.ctaText) ||
       (b.galleryImages?.length ?? 0) > 0,
   );
 }

@@ -617,6 +617,8 @@ export const appStringsEn = {
       sectionErrorBack: 'Back to dashboard',
       localeEn: 'EN',
       localeFr: 'FR',
+      supportingMedia: 'Supporting media',
+      supportingMediaBody: 'Video, audio and documents play on demand to save data.',
       bulkSelected: 'selected',
       bulkClear: 'Clear',
       bulkPublish: 'Publish selected',

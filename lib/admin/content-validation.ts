@@ -81,6 +81,13 @@ const STRINGS: Record<ValidationLocale, Record<string, string>> = {
     eventStart: 'Event start date is invalid.',
     eventEnd: 'Event end date is invalid.',
     eventOrder: 'Event end must be after start.',
+    price: 'Listing price must be a positive number.',
+    email: 'Contact email address is invalid.',
+    phone: 'Contact phone number is invalid — use 6 to 15 digits.',
+    currency: 'Currency must be a 3-letter code (e.g. XAF).',
+    noticeDate: 'Notice date is invalid.',
+    noticeExpiry: 'Notice expiry date is invalid.',
+    noticeOrder: 'Notice expiry must be after the notice date.',
   },
   fr: {
     enTitle: 'Un titre anglais est requis.',
@@ -97,7 +104,30 @@ const STRINGS: Record<ValidationLocale, Record<string, string>> = {
     eventStart: 'La date de début est invalide.',
     eventEnd: 'La date de fin est invalide.',
     eventOrder: 'La fin doit être après le début.',
+    price: 'Le prix doit être un nombre positif.',
+    email: 'L’adresse e-mail de contact est invalide.',
+    phone: 'Le numéro de téléphone est invalide — 6 à 15 chiffres.',
+    currency: 'La devise doit être un code à 3 lettres (p. ex. XAF).',
+    noticeDate: 'La date de l’annonce est invalide.',
+    noticeExpiry: 'La date d’expiration de l’annonce est invalide.',
+    noticeOrder: 'L’expiration doit être après la date de l’annonce.',
   },
+}
+
+/** Lenient contact-email shape: non-empty local + @ + dotted domain. */
+function isEmailLike(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}
+
+/** Phone shape: 6–15 digits after stripping separators (spaces, +, -, parens). */
+function isPhoneLike(value: string): boolean {
+  const digits = value.replace(/\D/g, '')
+  return digits.length >= 6 && digits.length <= 15
+}
+
+/** Non-empty strings only: undefined/null/'' means "keep stored / unset" — never an error. */
+function present(value: string | null | undefined): value is string {
+  return value !== undefined && value !== null && value.trim() !== ''
 }
 
 export function validateContentDraft(input: ContentDraftInput, requireBilingual: boolean, locale: ValidationLocale = 'en'): string | null {
@@ -127,6 +157,23 @@ export function validateContentDraft(input: ContentDraftInput, requireBilingual:
     return t.expiryDate
   }
   if (input.tags && input.tags.length > 12) return t.tags
+  if (input.listing) {
+    if (input.listing.price !== undefined && input.listing.price !== null && (!Number.isFinite(input.listing.price) || input.listing.price < 0)) return t.price
+    if (present(input.listing.contactEmail) && !isEmailLike(input.listing.contactEmail!)) return t.email
+    if (present(input.listing.contactPhone) && !isPhoneLike(input.listing.contactPhone!)) return t.phone
+    if (present(input.listing.whatsappNumber) && !isPhoneLike(input.listing.whatsappNumber!)) return t.phone
+    if (present(input.listing.currency) && !/^[A-Za-z]{3}$/.test(input.listing.currency!.trim())) return t.currency
+  }
+  if (input.notice) {
+    if (present(input.notice.contactPhone) && !isPhoneLike(input.notice.contactPhone!)) return t.phone
+    if (present(input.notice.noticeDate) && Number.isNaN(Date.parse(input.notice.noticeDate!))) return t.noticeDate
+    if (present(input.notice.expiryDate) && Number.isNaN(Date.parse(input.notice.expiryDate!))) return t.noticeExpiry
+    if (
+      present(input.notice.noticeDate) &&
+      present(input.notice.expiryDate) &&
+      new Date(input.notice.expiryDate!) < new Date(input.notice.noticeDate!)
+    ) return t.noticeOrder
+  }
   if (input.event) {
     if (input.event.ticketUrl && !/^https?:\/\//i.test(input.event.ticketUrl.trim())) return t.ticketLink
     if (input.event.startsAt && Number.isNaN(Date.parse(input.event.startsAt))) return t.eventStart

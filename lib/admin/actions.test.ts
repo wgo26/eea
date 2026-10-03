@@ -49,4 +49,30 @@ describe('content draft validation', () => {
     expect(validateContentDraft(draft({ locationId: null }), true))
       .toBe('Add a location before publishing — place pages and filters depend on it.')
   })
+
+  it('rejects bad listing and notice domain data', () => {
+    expect(validateContentDraft(draft({ listing: { price: -5 } }), false))
+      .toBe('Listing price must be a positive number.')
+    expect(validateContentDraft(draft({ listing: { price: Number.NaN } }), false))
+      .toBe('Listing price must be a positive number.')
+    expect(validateContentDraft(draft({ listing: { contactEmail: 'not-an-email' } }), false))
+      .toBe('Contact email address is invalid.')
+    expect(validateContentDraft(draft({ listing: { contactPhone: '12' } }), false))
+      .toBe('Contact phone number is invalid — use 6 to 15 digits.')
+    expect(validateContentDraft(draft({ listing: { whatsappNumber: 'abc' } }), false))
+      .toBe('Contact phone number is invalid — use 6 to 15 digits.')
+    expect(validateContentDraft(draft({ listing: { currency: 'X' } }), false))
+      .toBe('Currency must be a 3-letter code (e.g. XAF).')
+    expect(validateContentDraft(draft({ notice: { noticeType: 'general', noticeDate: 'nope' } }), false))
+      .toBe('Notice date is invalid.')
+    expect(validateContentDraft(draft({ notice: { noticeType: 'general', expiryDate: 'nope' } }), false))
+      .toBe('Notice expiry date is invalid.')
+    expect(validateContentDraft(draft({
+      notice: { noticeType: 'general', noticeDate: '2026-10-10', expiryDate: '2026-10-01' },
+    }), false)).toBe('Notice expiry must be after the notice date.')
+    expect(validateContentDraft(draft({
+      listing: { price: 5000, currency: 'XAF', contactEmail: 'seller@example.com', contactPhone: '+237 600 000 000' },
+      notice: { noticeType: 'general', noticeDate: '2026-10-01', expiryDate: '2026-11-01' },
+    }), false)).toBeNull()
+  })
 })

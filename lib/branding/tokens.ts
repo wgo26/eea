@@ -516,7 +516,19 @@ export function composeDarkTheme(
 
 const COLOR_VARS = COLOR_VARIABLES
 
-/** Semantic tokens → CSS custom properties, ready for a React style prop. */
+/** Semantic tokens → CSS custom properties, ready for a React style prop.
+ *
+ * NOTE (P1.6 — brand-token honesty): the --brand-heading-weight / body-leading
+ * / section-gap / motion vars ARE consumed — app/globals.css reads them in the
+ * brand-typography rules (display headlines, article-body leading, story-blocks
+ * section rhythm, transition-duration kill under minimal). The remaining tokens
+ * (fontSans/Display, scale, density, buttonShape, cardElevation, imagery.*) are
+ * PREVIEW-ONLY by design: preview-engine.ts renders them as inline styles in
+ * the admin preview pane, and the public document intentionally does not font-
+ * swap or reshape components on a brand publish (see document.ts + the
+ * preview-engine.ts header). Do not wire more consumers without updating this
+ * note, the preview header, and globals.css together.
+ */
 export function themeToCssVariables(theme: BrandTheme): Record<string, string> {
   const vars: Record<string, string> = {}
   for (const key of COLOR_KEYS) {

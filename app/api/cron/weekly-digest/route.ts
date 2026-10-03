@@ -69,5 +69,5 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  return run(request)
+  return stampHeartbeat('weekly-digest', run(request))
 }

@@ -33,7 +33,8 @@ export const dynamic = 'force-dynamic'
  * Public duties beyond the webhook: deliver the daily subscriber digest
  * (accumulated digest_slots), compile daily-cadence recap templates into
  * drafts (Stream B), and send personalized follow briefs (A6). All
- * best-effort after the webhook.
+ * best-effort and run BEFORE the webhook so a staff-channel outage can
+ * never skip user delivery.
  */
 
 const count = async (fn: (db: ReturnType<typeof createAdminClient>) => Promise<number>): Promise<number> => {
@@ -293,31 +294,6 @@ async function runDigest(request: Request) {
     ],
   })
 
-  try {
-    const res = await fetch(webhook, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: payload,
-    })
-    if (!res.ok) {
-      logger.error('cron/ops-digest', 'webhook rejected the digest', {
-        correlationId,
-        status: res.status,
-        webhookHost: new URL(webhook).host,
-      })
-      return NextResponse.json({ ok: false, error: `Webhook replied ${res.status}`, correlationId }, { status: 502 })
-    }
-  } catch (err) {
-    logger.error('cron/ops-digest', 'webhook POST failed', {
-      correlationId,
-      error: err instanceof Error ? err.message : String(err),
-    })
-    return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : 'Digest delivery failed', correlationId },
-      { status: 502 },
-    )
-  }
-
   const counts = {
     moderationPending,
     legalInboxOpen,
@@ -330,9 +306,12 @@ async function runDigest(request: Request) {
 
   // Public daily-digest fan-out (gap B): active opt-in subscribers get the
   // day's published stories by email and/or WhatsApp. Best-effort — a fan-out
-  // failure never fails the ops webhook above. Paused during incident /
+  // failure never fails the ops webhook below. Paused during incident /
   // critical states (behavior-axis enforcement): readers are not marketed to
   // while responders work; staff alerts and transactional mail are unaffected.
+  // Runs BEFORE the staff webhook so a Discord/Slack outage can never skip
+  // user delivery — the webhook failure path below still reports these
+  // results in its 502 body.
   const { isPublicFanoutPaused } = await import('@/lib/platform/fanout')
   const fanoutGate = await isPublicFanoutPaused()
   const fanout = fanoutGate.paused
@@ -354,6 +333,31 @@ async function runDigest(request: Request) {
   // batch, stuck-scheduled detector). Every routine is independently guarded
   // so one failure cannot break the digest or the others.
   const ops = await runAutoOpsSweep()
+
+  try {
+    const res = await fetch(webhook, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: payload,
+    })
+    if (!res.ok) {
+      logger.error('cron/ops-digest', 'webhook rejected the digest', {
+        correlationId,
+        status: res.status,
+        webhookHost: new URL(webhook).host,
+      })
+      return NextResponse.json({ ok: false, error: `Webhook replied ${res.status}`, correlationId, counts, tomorrow, fanout, templates, ops }, { status: 502 })
+    }
+  } catch (err) {
+    logger.error('cron/ops-digest', 'webhook POST failed', {
+      correlationId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return NextResponse.json(
+      { ok: false, error: err instanceof Error ? err.message : 'Digest delivery failed', correlationId, counts, tomorrow, fanout, templates, ops },
+      { status: 502 },
+    )
+  }
 
   logger.info('cron/ops-digest', 'digest delivered', {
     correlationId,

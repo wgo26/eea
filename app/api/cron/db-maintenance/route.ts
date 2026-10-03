@@ -171,6 +171,7 @@ export async function POST(request: Request) {
 
 // Vercel Cron invokes scheduled jobs with GET — same auth semantics as POST
 // so the nightly maintenance actually runs in production.
+// Both verbs stamp the heartbeat (Hostinger scheduler issues GET).
 export async function GET(request: Request) {
-  return runMaintenance(request)
+  return stampHeartbeat('db-maintenance', runMaintenance(request))
 }

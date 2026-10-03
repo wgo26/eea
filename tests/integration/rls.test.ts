@@ -88,6 +88,11 @@ suite('RLS invariants — RBAC core', () => {
        on conflict (slug) do nothing`,
     )
     await client.query(
+      `insert into public.content_items (type, slug, status, published_at, is_archived, expires_at) values
+         ('news', 'rls-expired', 'published', now() - interval '30 days', false, now() - interval '1 day')
+       on conflict (slug) do nothing`,
+    )
+    await client.query(
       `insert into public.content_translations (content_item_id, locale, title)
        select id, 'en', 'RLS seed story' from public.content_items where slug = 'rls-published'
        and not exists (
@@ -162,6 +167,10 @@ suite('RLS invariants — RBAC core', () => {
       ).toBe(0)
       expect(
         await count(c, `select count(*)::int as n from public.content_items where slug = 'rls-archived'`),
+      ).toBe(0)
+      // Expired published rows are invisible too (expiry-aware RLS).
+      expect(
+        await count(c, `select count(*)::int as n from public.content_items where slug = 'rls-expired'`),
       ).toBe(0)
     })
   })
