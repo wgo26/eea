@@ -111,6 +111,8 @@ The homepage is a **hub, not a destination** — every module exists to route th
     └── "Similar listings" → other /buy-sell/[listing-id]
 
 /buy-sell/post                            (Posting flow — same form family as /submit?type=buy-sell)
+
+/account/notices                           (Owner notices: renew expired notices 30 days, parity with /account/listings)
 ```
 
 ---
@@ -143,8 +145,16 @@ The homepage is a **hub, not a destination** — every module exists to route th
     ├── Related content
     └── Share + WhatsApp
 
-/culture/events                          (Event-specific index, calendar view — Section 16)
-└── /culture/events/[id]                 (Event detail, same shape as above)
+/culture/events                          (Event-specific index, calendar view — Section 16; Upcoming/Past tabs)
+/culture/events/[id]                 (Event detail, same shape as above)
+├── Community live: player while live, recording after, recap link
+├── Live chat (signed-in, slow-mode, moderated), RSVP + reminders
+└── Staff broadcast desk (`broadcast.live`): stream URL → Go live → End
+
+/professionals                            (Trusted Professionals directory — verified pros only)
+├── Search + place filter, skills chips, ratings
+├── /professionals/[slug]                 (Pro storefront: contact reveal, listings, reviews)
+└── /professionals/claim                  (Guest-friendly verification claim → staff queue)
 ```
 
 ---

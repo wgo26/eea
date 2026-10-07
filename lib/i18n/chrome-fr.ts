@@ -9,6 +9,7 @@ export const chromeFr = {
     news: 'Actualités communautaires',
     buySell: 'Acheter & vendre',
     notices: 'Avis',
+    professionals: 'Professionnels',
     culture: 'Culture',
     submit: 'Soumettre une histoire',
     search: 'Recherche',

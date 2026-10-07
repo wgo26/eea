@@ -87,6 +87,7 @@ function CommandPalette({
         { label: dict.nav.news, path: "/news" },
         { label: dict.nav.notices, path: "/notices" },
         { label: dict.nav.buySell, path: "/buy-sell" },
+        { label: dict.nav.professionals, path: "/professionals" },
         { label: dict.nav.culture, path: "/culture" },
         { label: dict.nav.locations, path: "/locations" },
     ];

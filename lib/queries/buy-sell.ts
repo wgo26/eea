@@ -55,6 +55,13 @@ export type ListingData = {
     hasVideo?: boolean;
     hasAudio?: boolean;
     attachments?: MediaAttachment[];
+    /**
+     * Paid boost (Phase 5): an active `listing_promotions` row. Boosts rank
+     * first under the default newest sort and render a "Boosted" badge —
+     * they never touch `is_featured`, which stays the editorial homepage
+     * rotation, and price sorts stay purely by price.
+     */
+    isBoosted?: boolean;
 };
 
 /** Raw row shape returned by the shared listing select.
@@ -360,7 +367,19 @@ export async function getListings(options: {
             : "newest";
     const locale = options.locale ?? "en";
     try {
-        return await getCachedListings(search, category, location, sort, locale, page);
+        const grid = await getCachedListings(search, category, location, sort, locale, page);
+        // Paid boosts rank first under the default newest sort only: price
+        // sorts promise a price order, and breaking that promise for money
+        // would make the sort control a lie.
+        if (sort !== "newest" || grid.listings.length === 0) return grid;
+        const { getActivePromotionMap } = await import("@/lib/billing/actions");
+        const boosted = await getActivePromotionMap().catch(() => ({} as Record<string, true>));
+        if (Object.keys(boosted).length === 0) return grid;
+        const listings = grid.listings.map((l) =>
+            boosted[l.id] ? { ...l, isBoosted: true } : l,
+        );
+        listings.sort((a, b) => Number(b.isBoosted ?? false) - Number(a.isBoosted ?? false));
+        return { ...grid, listings };
     } catch (err) {
         logCacheFailure("getListings", err);
         return { listings: [], total: 0, page: 1, pageCount: 1 };
@@ -475,6 +494,8 @@ export type ListingDetailData = ListingData & {
     hasEmail: boolean;
     hasWhatsapp: boolean;
     sellerIsVerified: boolean;
+    /** Linked verified pro (Phase 6 town-square bridge), null when unlinked. */
+    business: { name: string; slug: string } | null;
 };
 
 const LISTING_DETAIL_SELECT = `id, slug, verification, published_at, expires_at,
@@ -482,7 +503,7 @@ const LISTING_DETAIL_SELECT = `id, slug, verification, published_at, expires_at,
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title, excerpt, body),
     media:media_assets(public_url, alt_text, caption, is_cover, sort_order, photographer_credit, kind, mime_type),
-    listing:listings(price, currency, listing_status, seller_name, seller_is_verified, contact_phone, contact_email, whatsapp_number)`;
+    listing:listings(price, currency, listing_status, seller_name, seller_is_verified, contact_phone, contact_email, whatsapp_number, business_id)`;
 
 /**
  * One listing by id or slug, with contact presence flags (null when not found).
@@ -529,7 +550,7 @@ export async function getListingDetail(
 }
 
 /** Maps a raw row to the detail shape, omitting raw PII strings. */
-function toListingDetail(row: RawListingRow, locale: Locale): ListingDetailData | null {
+async function toListingDetail(row: RawListingRow, locale: Locale): Promise<ListingDetailData | null> {
     const base = toListing(row, locale);
     if (!base) return null;
     const listing = asOne(row.listing) as
@@ -542,8 +563,27 @@ function toListingDetail(row: RawListingRow, locale: Locale): ListingDetailData 
               contact_phone?: string | null;
               contact_email?: string | null;
               whatsapp_number?: string | null;
+              business_id?: string | null;
           }
         | null;
+    // Town-square bridge: a listing linked to a verified pro resolves to the
+    // storefront (verified + active only — an unverified link renders nothing).
+    let business: { name: string; slug: string } | null = null;
+    if (listing?.business_id) {
+        try {
+            const { data: biz } = await createAdminClient()
+                .from("businesses")
+                .select("name, slug")
+                .eq("id", listing.business_id)
+                .eq("status", "active")
+                .eq("is_verified", true)
+                .limit(1);
+            const b = ((biz ?? []) as { name: string; slug: string }[])[0];
+            if (b) business = { name: b.name, slug: b.slug };
+        } catch {
+            business = null;
+        }
+    }
     return {
         ...base,
         sellerName: listing?.seller_name?.trim() || base.sellerName,
@@ -551,6 +591,7 @@ function toListingDetail(row: RawListingRow, locale: Locale): ListingDetailData 
         hasEmail: Boolean(listing?.contact_email?.trim()),
         hasWhatsapp: Boolean(listing?.whatsapp_number?.trim()),
         sellerIsVerified: listing?.seller_is_verified ?? false,
+        business,
     };
 }
 

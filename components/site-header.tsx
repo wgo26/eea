@@ -40,12 +40,15 @@ function stripLocalePrefix(path: string): string {
     return path || "/";
 }
 
+// P0 bloat containment: max 5 primary destinations (Home + 4 verticals + Places).
+// `professionals` (fold into Places per merged audit) and `culture` (fold into
+// Stories per merged audit) are intentionally unlinked here — routes still
+// resolve + redirect via proxy/legacy_redirects, but no header slot.
 const SECTION_PATHS = [
     { key: "photoStories", path: "/photo-stories" },
     { key: "news", path: "/news" },
     { key: "notices", path: "/notices" },
     { key: "buySell", path: "/buy-sell" },
-    { key: "culture", path: "/culture" },
     { key: "locations", path: "/locations" },
 ] as const;
 

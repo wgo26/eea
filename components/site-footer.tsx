@@ -44,6 +44,7 @@ export function SiteFooter({ socialLinks, branding, chrome }: { socialLinks?: So
         { href: "/news", label: dict.nav.news },
         { href: "/notices", label: dict.nav.notices },
         { href: "/buy-sell", label: dict.nav.buySell },
+        { href: "/professionals", label: dict.nav.professionals },
         { href: "/culture", label: dict.nav.culture },
         { href: "/locations", label: dict.nav.locations },
     ];

@@ -7,7 +7,7 @@ import { EventsCalendar } from "@/components/events/events-calendar";
 import { EventsViewToggle } from "@/components/events/events-view-toggle";
 import { EventCard } from "@/components/culture/event-card";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
-import { getUpcomingEvents } from "@/lib/queries/culture";
+import { getPastEvents, getUpcomingEvents } from "@/lib/queries/culture";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
     const { locale: rawLocale } = await params;
@@ -25,6 +25,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 
 type EventsSearchParams = {
     location?: string | string[];
+    tab?: string | string[];
 };
 
 function firstParam(value: string | string[] | undefined): string | undefined {
@@ -44,8 +45,18 @@ export default async function EventsPage({
 
     const params = await searchParams;
     const location = firstParam(params.location)?.trim() || undefined;
+    // Post-event archive: ended broadcasts + past calendar events live under
+    // ?tab=past so the record stays browsable after the night is over.
+    const tab = firstParam(params.tab) === "past" ? "past" : "upcoming";
 
-    const allEvents = await getUpcomingEvents(locale, 50);
+    // P0: live-broadcast rail cut per merged audit (YouTube/FB link in body
+    // replaces broadcast/chat/RSVP infra). Events list stays; broadcast map
+    // + statuses drop here and deadline with the P2 lean migration.
+    const [upcoming, past] = await Promise.all([
+        getUpcomingEvents(locale, 50),
+        tab === "past" ? getPastEvents(locale, 50) : Promise.resolve([]),
+    ]);
+    const allEvents = tab === "past" ? past : upcoming;
 
     const filtered = location
         ? allEvents.filter(
@@ -79,6 +90,32 @@ export default async function EventsPage({
                     </div>
                 </div>
             </header>
+
+            {/* Upcoming / past tabs */}
+            <nav aria-label={dict.culture.events} className="mb-4 flex flex-wrap items-center gap-1.5">
+                <Link
+                    href={localePath(locale, "/culture/events")}
+                    aria-current={tab === "upcoming" ? "page" : undefined}
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
+                        tab === "upcoming"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground hover:bg-accent"
+                    }`}
+                >
+                    {dict.culture.upcomingEvents}
+                </Link>
+                <Link
+                    href={localePath(locale, "/culture/events?tab=past")}
+                    aria-current={tab === "past" ? "page" : undefined}
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
+                        tab === "past"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground hover:bg-accent"
+                    }`}
+                >
+                    {dict.culture.pastEvents}
+                </Link>
+            </nav>
 
             {/* Location filter */}
             {locations.length > 0 ? (
@@ -121,7 +158,7 @@ export default async function EventsPage({
                         <CalendarDays className="h-6 w-6" aria-hidden />
                     </span>
                     <p className="mt-4 text-sm text-muted-foreground">
-                        {dict.culture.noEvents}
+                        {tab === "past" ? dict.culture.noPastEvents : dict.culture.noEvents}
                     </p>
                 </div>
             ) : (
@@ -132,7 +169,13 @@ export default async function EventsPage({
                 >
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {filtered.map((event) => (
-                        <EventCard key={event.id} event={event} dict={dict} locale={locale} />
+                        <EventCard
+                            key={event.id}
+                            event={event}
+                            dict={dict}
+                            locale={locale}
+                            broadcastStatus={null}
+                        />
                     ))}
                 </div>
                 </EventsViewToggle>

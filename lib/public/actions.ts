@@ -182,13 +182,13 @@ async function guardPublicSubmission(
     formData: FormData,
 ): Promise<SubmitState | null> {
     if (honeypotTripped(formData)) return { ok: true };
+    // Chief-managed network block first: blocked scanners must not consume
+    // rate-limit slots, and read as throttling so they learn nothing.
     // fail-closed: these paths write rows and send mail on behalf of a guest, so
     // a limiter outage must block rather than allow unlimited submissions.
+    if (await isIpBlocked(await getClientIp())) return { ok: false, error: "rate_limited" };
     const limited = await checkRateLimit(scope, { ...limits, policy: "fail-closed" });
     if (!limited.ok) return { ok: false, error: "rate_limited" };
-    // Chief-managed network block: reads as throttling so a blocked scanner
-    // learns nothing.
-    if (await isIpBlocked(await getClientIp())) return { ok: false, error: "rate_limited" };
     const tokenValue = formData.get("cf-turnstile-response");
     if (!(await verifyTurnstileToken(typeof tokenValue === "string" ? tokenValue : null))) {
         return { ok: false, error: "captcha" };
@@ -764,6 +764,10 @@ export async function submitContentReport(input: {
     if (!REPORT_TYPES.includes(input.reportType as (typeof REPORT_TYPES)[number])) {
         return { ok: false, error: "Unknown report reason." };
     }
+    // IP block first so blocked scanners never consume rate-limit slots.
+    if (await isIpBlocked(await getClientIp())) {
+        return { ok: false, error: "Too many reports. Please try again later." };
+    }
     const limited = await checkRateLimit("public:report", {
         ...RATE_LIMITS.report,
         policy: "fail-closed",
@@ -864,6 +868,11 @@ export async function revealSellerContact(listingId: string): Promise<RevealCont
         return { ok: false, error: "not_found" };
     }
 
+    // IP block first: contact reveal is the PII gate, blocked scrapers must
+    // not consume rate-limit slots.
+    if (await isIpBlocked(await getClientIp())) {
+        return { ok: false, error: "rate_limited" };
+    }
     const limited = await checkRateLimit("public:reveal_contact", {
         ...RATE_LIMITS.revealContact,
         policy: "fail-closed",
@@ -967,6 +976,10 @@ export async function revealNoticeContact(noticeId: string): Promise<RevealNotic
         return { ok: false, error: "not_found" };
     }
 
+    // IP block first: same PII-gate reasoning as seller-contact reveal.
+    if (await isIpBlocked(await getClientIp())) {
+        return { ok: false, error: "rate_limited" };
+    }
     const limited = await checkRateLimit("public:reveal_notice_contact", {
         ...RATE_LIMITS.revealContact,
         policy: "fail-closed",
@@ -1137,6 +1150,7 @@ export async function togglePriceWatch(
     if (!listingId || typeof listingId !== "string") return { ok: false, error: "not_found" };
     const identifier = listingId.trim().slice(0, 80);
     if (!identifier) return { ok: false, error: "not_found" };
+    if (await isIpBlocked(await getClientIp())) return { ok: false, error: "rate_limited" };
     const limited = await checkRateLimit("public:price_watch", {
         ...RATE_LIMITS.watch,
         policy: "fail-closed",
@@ -1248,6 +1262,7 @@ export async function toggleContentReaction(
     const token = cleanReactionToken(reactorToken);
     if (!identifier || !token) return { ok: false, error: "invalid" };
     if (!(REACTION_KINDS as readonly string[]).includes(kind)) return { ok: false, error: "invalid" };
+    if (await isIpBlocked(await getClientIp())) return { ok: false, error: "rate_limited" };
     const limited = await checkRateLimit("public:reactions", {
         ...RATE_LIMITS.reactions,
         policy: "fail-closed",

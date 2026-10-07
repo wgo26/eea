@@ -358,6 +358,11 @@ export default async function BuySellPage({
                                         )}
                                     </div>
                                     <div className="flex flex-1 flex-col gap-1 p-3">
+                                        {listing.isBoosted ? (
+                                            <span className="w-fit rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                                                {dict.buySell.boosted}
+                                            </span>
+                                        ) : null}
                                         <h3 className="line-clamp-2 text-sm font-bold leading-snug group-hover:underline">
                                             {listing.title}
                                         </h3>

@@ -50,10 +50,15 @@ import {
 } from "./form/values";
 import {
   Section,
+  aiPanelCopy,
   mediaUploaderCopy,
+  proEditorToolbarCopy,
   storyBlocksCopy,
   useDraftAutosave,
 } from "./form/shell";
+import { AiPanel } from "@/components/admin/ai-panel";
+import { aiSelectionAssist } from "@/lib/admin/actions/ai";
+import { replaceSelectionHtml } from "@/lib/content/selection";
 import { useContentAssist } from "./form/assist";
 
 // The value model lives in ./form/values so the moderation approve form builds
@@ -402,6 +407,76 @@ export function ContentForm({
   }
 
   const blocksCopy = storyBlocksCopy(copy);
+  const toolbarCopy = useMemo(() => proEditorToolbarCopy(copy), [copy]);
+  const panelCopy = useMemo(() => aiPanelCopy(copy), [copy]);
+  const [aiWorking, setAiWorking] = useState(false);
+  const [aiResult, setAiResult] = useState<string | null>(null);
+  const photoUrlsForEditor = useMemo(() => {
+    const existing = isEdit && data ? data.photos.map((p) => p.url) : [];
+    return [...existing, ...v.newPhotos.map((p) => p.url)].filter(Boolean);
+  }, [isEdit, data, v.newPhotos]);
+
+  async function handleSelectionAi(
+    kind: "improve" | "complete" | "tone" | "seo" | "readability" | "headline" | "summary" | "tags",
+    instruction: string,
+  ) {
+    if (aiWorking) return;
+    const sel = typeof window !== "undefined" ? (window.getSelection()?.toString() ?? "") : "";
+    const selText = sel.trim().slice(0, 8000);
+    const fallbackBody = v.enBody || v.frBody;
+    const sourceText = selText || fallbackBody.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    if (!sourceText || sourceText.length < 3) {
+      addToast(copy.aiSelectionEmpty, "error");
+      return;
+    }
+    setAiWorking(true);
+    try {
+      const res = await aiSelectionAssist({ kind, text: sourceText, instruction });
+      if (!res.ok || !("html" in res) || !res.html) {
+        addToast(res.ok ? copy.translateEmpty : res.error, "error");
+        return;
+      }
+      const html = res.html;
+      const plain = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+      // Locale target: the body holding the selection wins, else EN, else FR.
+      const target: "en" | "fr" = selText
+        ? v.enBody.includes(selText.slice(0, 60))
+          ? "en"
+          : v.frBody.includes(selText.slice(0, 60))
+            ? "fr"
+            : v.enBody
+              ? "en"
+              : "fr"
+        : v.enBody
+          ? "en"
+          : "fr";
+      if (kind === "headline") {
+        const first = plain.split("\n")[0]?.slice(0, 300) ?? plain.slice(0, 300);
+        patch(target === "en" ? { enTitle: first } : { frTitle: first });
+      } else if (kind === "summary") {
+        patch(target === "en" ? { enExcerpt: plain.slice(0, 2000) } : { frExcerpt: plain.slice(0, 2000) });
+      } else if (kind === "tags") {
+        const existing = v.tags.split(",").map((t) => t.trim()).filter(Boolean);
+        const fresh = plain.split(",").map((t) => t.trim().replace(/^#/, "")).filter(Boolean).slice(0, 5);
+        patch({ tags: [...existing, ...fresh.filter((t) => !existing.map((e) => e.toLowerCase()).includes(t.toLowerCase()))].join(", ") });
+      } else if (kind === "complete" || !selText) {
+        patch(target === "en" ? { enBody: `${v.enBody}\n${html}` } : { frBody: `${v.frBody}\n${html}` });
+      } else {
+        // In-place rewrite: swap the selected slice, fall back to append.
+        const body = target === "en" ? v.enBody : v.frBody;
+        const next = replaceSelectionHtml(body, selText, html);
+        const applied = next !== body ? next : `${body}\n${html}`;
+        patch(target === "en" ? { enBody: applied } : { frBody: applied });
+      }
+      setAiResult(`${copy.aiModalTitle} · ${kind} — ${copy.aiSelectionApplied}`);
+      addToast(copy.aiSelectionApplied, "success");
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : "AI failed.", "error");
+    } finally {
+      setAiWorking(false);
+    }
+  }
+
   const mediaCopy = useMemo(() => mediaUploaderCopy(common, copy), [common, copy]);
 
   // Stable identities for the media subtree's props. `MediaUploader` renders one
@@ -663,16 +738,20 @@ export function ContentForm({
         />
       </Section>
 
-      {/* 2 — Story: bilingual body + visual section builder. */}
+      {/* 2 — Story: pro WYSIWYG bodies + sections + selection AI rail. */}
       <Section title={copy.sectionStory}>
         <BilingualBody
           copy={copy}
           enBody={v.enBody}
           frBody={v.frBody}
-          onBody={(locale, val) =>
-            patch(locale === "en" ? { enBody: val } : { frBody: val })
-          }
+          onBody={(locale, val) => {
+            markTouched(locale === "en" ? "enBody" : "frBody");
+            patch(locale === "en" ? { enBody: val } : { frBody: val });
+          }}
+          toolbar={toolbarCopy}
+          photoUrls={photoUrlsForEditor}
         />
+        <AiPanel copy={panelCopy} disabled={false} working={aiWorking || draftingAi} onAction={(kind, instruction) => void handleSelectionAi(kind, instruction)} lastResult={aiResult} />
         <StoryBlocksEditor
           copy={blocksCopy}
           initialBody={v.enBody}

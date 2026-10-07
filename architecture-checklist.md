@@ -588,6 +588,53 @@ below.*
 
 ## Changelog
 
+- 2026-10-06 — **Community-first build-out, phases 1–7: pro editor, live
+  events, trusted directory, MoMo billing, lifecycle parity, launch
+  hardening.** Six phases shipped as one arc, each keeping the invariants
+  above (one content form, locale-first routing, dictionary parity,
+  capability-gated everything, sanitizer-safe HTML):
+  - **P1–P2 — Pro WYSIWYG + inline AI, enhancing the existing form.**
+    `BilingualBody` textareas became `ProEditor` (contentEditable, HTML-string
+    value model — no doc-model migration, sanitizer + blocks round-trip
+    untouched), with toolbar, per-locale writing stats, bilingual section
+    builder, and an 8-card selection-aware AI rail backed by the new
+    `aiSelectionAssist` action (same guard→flag→budget→log policy, provenance
+    + undo). FR bodies edit as full WYSIWYG for the first time.
+  - **P3 — Community live events, embed-first.** `event_broadcasts` (+ chats,
+    RSVPs) with RLS; new `broadcast.live` capability (legacy admin/editor +
+    editorial/senior-editor; chat moderation reuses `moderate`); YouTube/FB
+    Live player, live chat (slow-mode, rate-limited, reportable), RSVP,
+    past-events archive, recording + recap links, reminder-holder pushes on
+    go-live and recap. Native ingest stays behind the `live.native_enabled`
+    flag (runbook: `docs/live-broadcasts.md`). No new admin pages, so the
+    nav↔guard contract is untouched.
+  - **P4 — Trusted Professionals directory.** `businesses` base table
+    activated (skills, verification), guest-friendly `business_claims`
+    intake, staff review at `/admin/listings/claims` (SUB_ROUTES-paired
+    sub-route, same desks as Listings), public `/professionals` + storefronts
+    + claim flow, PII-gated contact reveal with matching column REVOKEs
+    (added in P7), sitemap/nav/footer/palette wired.
+  - **P5 — Paid promotion, MoMo-first.** `professional_subscriptions` +
+    `listing_promotions` (pending → webhook/staff-confirm → active →
+    sweep-expired); XAF plans in code; Campay webhook (fail-closed secret,
+    amount re-checked, replay-safe) + staff manual confirm precedent;
+    directory featuring namespaced by `featured_source='paid'` and listing
+    boosts rank newest-first only (price sorts stay pure, `is_featured`
+    stays editorial). Runbook: `docs/billing-momo.md`.
+  - **P6 — Lifecycle parity + town-square rails.** Owner `renewOwnNotice`
+    (both expiry clocks) + `/account/notices` + sweep expired/expiring
+    pushes; listing→pro storefront links; event place rails; claim approval
+    sets row ownership so buyers can pay unassisted.
+  - **P7 — Launch hardening + trust engine.** `business_reviews`
+    (staff-adjudicated, aggregates service-side); chat reporting into the
+    trust queue; claim location selector; RLS integration suite for every new
+    table (`tests/integration/rls-phase3.test.ts`); the two runbooks above.
+  - **Validation** — `tsc` clean for app code, full unit suites green,
+    every repo gate passes, `next build` EXIT 0 with all new routes
+    prerendered. Known pre-existing workspace state left alone: untracked
+    Deno files under `supabase/functions/` fail the repo typecheck (builds
+    in this arc ran with that dir temporarily moved aside and restored),
+    and `supabase/config.toml` carries someone else's modification.
 - 2026-09-28 — **One content form, two shells: the approve path IS the content
   form.** The moderation approve drawer was a second, hand-maintained content
   form (37 own `useState` hooks, ~19 of ~44 fields) that had drifted ~70%

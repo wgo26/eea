@@ -151,7 +151,7 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "https://eagleeyeafrica.org"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
@@ -232,6 +232,7 @@ otp_length = 6
 otp_expiry = 3600
 
 # Use a production-ready SMTP server
+# DISABLED: Using custom Edge Function for locale-aware emails instead
 # [auth.email.smtp]
 # enabled = true
 # host = "smtp.sendgrid.net"
@@ -241,36 +242,11 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Branded bilingual (EN+FR) auth emails - sources in ./supabase/templates/.
-# For the hosted project, paste the same files into
-# Dashboard -> Authentication -> Email Templates (config.toml only applies to
-# local "supabase start"). See docs/auth-emails.md.
-[auth.email.template.invite]
-subject = "You've been invited to Eagle Eye Africa / Invitation a rejoindre Eagle Eye Africa"
-content_path = "supabase/templates/invite.html"
-
-[auth.email.template.confirmation]
-subject = "Confirm your Eagle Eye Africa account / Confirmez votre compte"
-content_path = "supabase/templates/confirmation.html"
-
-[auth.email.template.recovery]
-subject = "Reset your Eagle Eye Africa password / Reinitialisez votre mot de passe"
-content_path = "supabase/templates/recovery.html"
-
-[auth.email.template.magic_link]
-subject = "Your Eagle Eye Africa sign-in link / Votre lien de connexion"
-content_path = "supabase/templates/magic_link.html"
-
-[auth.email.template.email_change]
-subject = "Confirm your new Eagle Eye Africa email / Confirmez votre nouvel e-mail"
-content_path = "supabase/templates/email_change.html"
-
-[auth.email.notification.password_changed]
-enabled = true
-subject = "Your Eagle Eye Africa password was changed / Securite de votre compte"
-# NOTE: notification-template paths resolve relative to this supabase/ dir
-# (unlike auth.email.template.* which use the project-root form above).
-content_path = "templates/password_changed.html"
+# Custom locale-aware auth emails via Edge Function (supabase/functions/send-auth-email)
+# Built-in templates disabled — all auth emails sent via send-auth-email Edge Function
+# which reads user locale from profiles table and renders EN/FR templates.
+# Deploy: supabase functions deploy send-auth-email
+# Set secrets: supabase secrets set SMTP_HOST=... SMTP_PORT=... SMTP_USER=... SMTP_PASS=... SMTP_FROM=...
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
@@ -400,8 +376,16 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
-# [edge_runtime.secrets]
-# secret_key = "env(SECRET_VALUE)"
+[edge_runtime.secrets]
+# SMTP configuration for send-auth-email Edge Function
+SMTP_HOST = "env(SMTP_HOST)"
+SMTP_PORT = "env(SMTP_PORT)"
+SMTP_USER = "env(SMTP_USER)"
+SMTP_PASS = "env(SMTP_PASS)"
+SMTP_FROM = "env(SMTP_FROM)"
+# Edge Function URL and key for database hooks to call the function
+EDGE_FUNCTION_URL = "env(NEXT_PUBLIC_SUPABASE_URL)"
+EDGE_FUNCTION_KEY = "env(NEXT_PUBLIC_SUPABASE_ANON_KEY)"
 
 [analytics]
 enabled = true

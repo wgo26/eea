@@ -66,6 +66,12 @@ const BLOGGER_IMAGES = "https://blogger.googleusercontent.com";
 /** Video embeds rendered by components/media/media-attachment.tsx. */
 const MEDIA_FRAMES = ["https://www.youtube.com", "https://player.vimeo.com"];
 /**
+ * Community live events (Phase 3): the Facebook video plugin iframe used by
+ * the LivePlayer for `provider = 'facebook'` streams. Same posture as the
+ * media embeds above — a single named origin, no wildcards.
+ */
+const LIVE_FRAMES = ["https://www.facebook.com"];
+/**
  * Video thumbnail host: YouTube post previews (cards, heroes, OG images) use
  * `https://i.ytimg.com/vi/<id>/hqdefault.jpg` when a post has a YouTube URL
  * but no uploaded cover (`previewImageUrl` in lib/media/attachments.ts), so
@@ -187,7 +193,7 @@ export function buildCsp(options: CspOptions): string {
     `img-src ${imgSrc.join(" ")}`,
     `media-src ${unique(["'self'", "blob:", ...mediaHosts]).join(" ")}`,
     `connect-src ${connectSrc.join(" ")}`,
-    `frame-src ${unique(["'self'", TURNSTILE, ...MEDIA_FRAMES]).join(" ")}`,
+    `frame-src ${unique(["'self'", TURNSTILE, ...MEDIA_FRAMES, ...LIVE_FRAMES]).join(" ")}`,
     ...(isProduction ? ["upgrade-insecure-requests"] : []),
     ...(reportUri ? [`report-uri ${reportUri}`, `report-to ${reportUri}`] : []),
   ];

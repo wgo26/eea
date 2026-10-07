@@ -4,7 +4,7 @@ import { assertAnyCapability, assertCapability } from '@/lib/admin/auth'
 import { type Capability } from '@/lib/auth/capabilities'
 import { getAppFlag } from '@/lib/automation/flags'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getLlmStatus, logLlmCall } from '@/lib/translate/llm'
+import { chatCompletion, getLlmStatus, logLlmCall } from '@/lib/translate/llm'
 import {
   llmDraftHeadlines,
   llmDraftExcerptSeo,
@@ -644,6 +644,64 @@ export async function aiWeeklyRetro(locale: 'en' | 'fr', input: { stats: Record<
     return { ok: true as const, grew: out.grew.slice(0, 400), flopped: out.flopped.slice(0, 400), bets: out.bets.map((b) => b.slice(0, 200)).slice(0, 3) }
   } catch (e) {
     return fail(e) as { ok: false; error: string }
+  }
+}
+
+/**
+ * Phase 2 — selection-aware inline AI for the pro editor.
+ *
+ * Same policy as every drafting action: capability-gated → kill-switch →
+ * budget → LLM → usage logged. Plain text in, sanitizer-safe HTML out
+ * (paragraphs only — the caller splices it back into the body string, and
+ * `sanitizeBodyHtml` remains the final gate on save).
+ */
+const SELECTION_BRIEFS: Record<string, string> = {
+  improve: 'Rewrite the passage for clarity, flow and newsroom polish. Keep meaning, names, numbers and URLs. Same language as the input.',
+  complete: 'Continue the passage in the same voice for 2-4 sentences. No repetition, no new facts that need sourcing.',
+  tone: 'Return 2 short tone notes (audience fit + one fix), then the passage rewritten in a warmer professional tone.',
+  seo: 'Return the passage lightly optimized for search (natural keywords, one clear lead sentence) without keyword stuffing.',
+  readability: 'Simplify to short sentences and plain words at ~grade 8. Keep every fact.',
+  summary: 'Summarize in 2 sentences, same language.',
+  headline: 'Propose 3 compelling headlines for this passage, one per line.',
+  tags: 'Suggest 5 relevant lowercase tags, comma-separated, no hashtags.',
+};
+
+export async function aiSelectionAssist(input: {
+  kind: keyof typeof SELECTION_BRIEFS;
+  text: string;
+  instruction?: string;
+  locale?: 'en' | 'fr';
+}): Promise<ActionResult & { html?: string; note?: string }> {
+  try {
+    await assertDraftingCapability();
+    const g = await guard('ai.content_draft');
+    if (!g.ok) return g;
+    const text = (input.text ?? '').trim().slice(0, 8000);
+    if (text.length < 3) return { ok: false, error: 'Select text in the editor first.' };
+    const brief = SELECTION_BRIEFS[input.kind] ?? SELECTION_BRIEFS.improve;
+    const extra = (input.instruction ?? '').trim().slice(0, 500);
+    const out = await chatCompletion(
+      [
+        {
+          role: 'system',
+          content: `You are the inline editing desk of Eagle Eye Africa (Cameroonian-English / Cameroonian French newsroom). ${brief}${extra ? ` Extra instruction: ${extra}` : ''} Reply with short HTML paragraphs (<p>) only — no headings, no lists, no scripts.`,
+        },
+        { role: 'user', content: text },
+      ],
+      { maxTokens: 1200, temperature: 0.4 },
+    );
+    await logLlmCall({ action: `ai.selection_${input.kind}`, model: await runtimeModel(), status: 'ok' });
+    // Keep only paragraphs: the editor splices this back into the body and
+    // the sanitizer drops anything else on save anyway.
+    const paras = [...out.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p\s*>/gi)]
+      .map((m) => `<p>${(m[1] ?? '').trim()}</p>`)
+      .filter((p) => p.length > 7)
+      .slice(0, 12)
+      .join('\n');
+    const html = paras || `<p>${out.slice(0, 2000).replace(/</g, '&lt;')}</p>`;
+    return { ok: true, html, note: `AI · ${input.kind}` } as ActionResult & { html?: string; note?: string };
+  } catch (e) {
+    return fail(e);
   }
 }
 

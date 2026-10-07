@@ -576,6 +576,162 @@ export async function runDueContentSweep(): Promise<void> {
       }
     }
   }
+  // Paid promotion expiry (Phase 5): subscriptions and boosts whose window
+  // passed flip to `expired` exactly once (the status guard makes it
+  // idempotent). Paid directory featuring is namespaced by featured_source,
+  // so expiry only ever clears what paid money set — an editorial feature is
+  // never touched by a lapsed subscription.
+  try {
+    const { data: dueSubs } = await safe(
+      db()
+        .from('professional_subscriptions')
+        .select('id, business_id')
+        .eq('status', 'active')
+        .not('ends_at', 'is', null)
+        .lte('ends_at', nowIso)
+        .limit(200),
+    )
+    const subs = ((dueSubs ?? []) as { id: string; business_id: string }[])
+    if (subs.length > 0) {
+      await safe(
+        db()
+          .from('professional_subscriptions')
+          .update({ status: 'expired', updated_at: nowIso })
+          .in(
+            'id',
+            subs.map((s) => s.id),
+          )
+          .eq('status', 'active'),
+      )
+      for (const sub of subs) {
+        try {
+          const admin = db()
+          await admin
+            .from('businesses')
+            .update({ is_featured: false, featured_source: 'editorial' })
+            .eq('id', sub.business_id)
+            .eq('featured_source', 'paid')
+          await admin.from('moderation_log').insert({
+            action: 'billing:subscription_expired',
+            entity_type: 'professional_subscription',
+            entity_id: sub.id,
+          })
+        } catch { /* best-effort */ }
+      }
+    }
+    const { data: duePromos } = await safe(
+      db()
+        .from('listing_promotions')
+        .select('id')
+        .eq('status', 'active')
+        .not('ends_at', 'is', null)
+        .lte('ends_at', nowIso)
+        .limit(200),
+    )
+    const promos = ((duePromos ?? []) as { id: string }[])
+    if (promos.length > 0) {
+      await safe(
+        db()
+          .from('listing_promotions')
+          .update({ status: 'expired', updated_at: nowIso })
+          .in(
+            'id',
+            promos.map((p) => p.id),
+          )
+          .eq('status', 'active'),
+      )
+      // Ranking reads active rows only, so no flag needs clearing — the
+      // boost simply stops ranking first. One audit row per expiry.
+      for (const promo of promos) {
+        try {
+          await db().from('moderation_log').insert({
+            action: 'billing:promotion_expired',
+            entity_type: 'listing_promotion',
+            entity_id: promo.id,
+          })
+        } catch { /* best-effort */ }
+      }
+    }
+  } catch { /* best-effort: never fail the sweep */ }
+  // Notice lifecycle parity (Phase 6): notices derive status from
+  // notices.expiry_date (no status column to flip), so the sweep's job is the
+  // owner push — expired + expiring-soon (≤3 d, the board's own window) — with
+  // the same 7-day moderation_log dedupe the listing nudges use. Renewal
+  // itself is owner self-serve (/account/notices → renewOwnNotice).
+  try {
+    const { enqueueUser: enqueueNoticeUser, listingNotifyTarget: noticeTarget } =
+      await import('@/lib/notify/queue')
+    const admin = db()
+    const pushNotice = async (
+      contentId: string,
+      action: 'notice:expired:system' | 'notice:expiring_soon:system',
+      status: string,
+    ) => {
+      try {
+        const target = await noticeTarget(admin, contentId)
+        await enqueueNoticeUser(
+          'content.updated',
+          target.userId,
+          { title: target.title, status },
+          '/account/notices',
+        )
+        await admin.from('moderation_log').insert({ action, content_item_id: contentId })
+      } catch { /* best-effort */ }
+    }
+    const deduped = async (ids: string[], action: string): Promise<string[]> => {
+      if (ids.length === 0) return []
+      const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString()
+      const { data: recent } = await safe(
+        db()
+          .from('moderation_log')
+          .select('content_item_id')
+          .in('content_item_id', ids)
+          .eq('action', action)
+          .gte('created_at', weekAgo)
+          .limit(200),
+      )
+      const reminded = new Set(
+        ((recent ?? []) as { content_item_id: string | null }[]).map((r) => r.content_item_id),
+      )
+      return ids.filter((id) => !reminded.has(id))
+    }
+    const { data: expiredRows } = await safe(
+      db()
+        .from('content_items')
+        .select('id, notices!inner(expiry_date)')
+        .eq('type', 'notice')
+        .eq('status', 'published')
+        .eq('is_archived', false)
+        .lte('notices.expiry_date', nowIso)
+        .limit(200),
+    )
+    const expiredNoticeIds = await deduped(
+      ((expiredRows ?? []) as { id: string }[]).map((r) => r.id),
+      'notice:expired:system',
+    )
+    for (const id of expiredNoticeIds.slice(0, 50)) {
+      await pushNotice(id, 'notice:expired:system', 'expired — renew it in one tap')
+    }
+    const soon3d = new Date(Date.now() + 3 * 86_400_000).toISOString()
+    const { data: expiringRows } = await safe(
+      db()
+        .from('content_items')
+        .select('id, notices!inner(expiry_date)')
+        .eq('type', 'notice')
+        .eq('status', 'published')
+        .eq('is_archived', false)
+        .gt('notices.expiry_date', nowIso)
+        .lte('notices.expiry_date', soon3d)
+        .limit(200),
+    )
+    const expiringIds = await deduped(
+      ((expiringRows ?? []) as { id: string }[]).map((r) => r.id),
+      'notice:expiring_soon:system',
+    )
+    for (const id of expiringIds.slice(0, 50)) {
+      await pushNotice(id, 'notice:expiring_soon:system', 'expires within 3 days — renew from your notices page')
+    }
+  } catch { /* best-effort: never fail the sweep */ }
   // Expiring-soon (≤24 h, still active): one nudge per listing per 7 days.
   try {
     const soonIso = new Date(Date.now() + 24 * 3_600_000).toISOString()

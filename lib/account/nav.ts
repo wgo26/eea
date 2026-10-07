@@ -21,6 +21,7 @@ export type AccountNavItemKey =
   | 'dashboard'
   | 'submissions'
   | 'listings'
+  | 'notices'
   | 'messages'
   | 'saved'
   | 'follows'
@@ -59,6 +60,7 @@ const ACCOUNT_NAV_SPECS: AccountNavSpec[] = [
   { key: 'dashboard', path: '/account/dashboard', group: 'activity' },
   { key: 'submissions', path: '/account/submissions', group: 'activity' },
   { key: 'listings', path: '/account/listings', group: 'activity' },
+  { key: 'notices', path: '/account/notices', group: 'activity' },
   { key: 'messages', path: '/account/messages', group: 'activity' },
   { key: 'saved', path: '/account/saved', group: 'library' },
   { key: 'follows', path: '/account/follows', group: 'library' },

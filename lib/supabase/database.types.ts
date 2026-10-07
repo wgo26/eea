@@ -1209,6 +1209,95 @@ export type Database = {
                 },
             ];
         }
+        business_claims: {
+            Row: {
+            id: string;
+            business_name: string;
+            claimant_name: string;
+            contact_phone: string | null;
+            contact_email: string | null;
+            whatsapp: string | null;
+            location_id: string | null;
+            category_text: string | null;
+            skills: string[];
+            description: string | null;
+            business_id: string | null;
+            created_by: string | null;
+            status: string;
+            reviewed_by: string | null;
+            reviewed_at: string | null;
+            review_note: string | null;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            business_name: string;
+            claimant_name: string;
+            contact_phone?: string | null;
+            contact_email?: string | null;
+            whatsapp?: string | null;
+            location_id?: string | null;
+            category_text?: string | null;
+            skills?: string[];
+            description?: string | null;
+            business_id?: string | null;
+            created_by?: string | null;
+            status?: string;
+            reviewed_by?: string | null;
+            reviewed_at?: string | null;
+            review_note?: string | null;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            business_name?: string | null;
+            claimant_name?: string | null;
+            contact_phone?: string | null;
+            contact_email?: string | null;
+            whatsapp?: string | null;
+            location_id?: string | null;
+            category_text?: string | null;
+            skills?: string[] | null;
+            description?: string | null;
+            business_id?: string | null;
+            created_by?: string | null;
+            status?: string | null;
+            reviewed_by?: string | null;
+            reviewed_at?: string | null;
+            review_note?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_business_claims_location_id_fkey",
+                    columns: ["location_id"],
+                    isOneToOne: false,
+                    referencedRelation: "locations",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_business_claims_business_id_fkey",
+                    columns: ["business_id"],
+                    isOneToOne: false,
+                    referencedRelation: "businesses",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_business_claims_created_by_fkey",
+                    columns: ["created_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_business_claims_reviewed_by_fkey",
+                    columns: ["reviewed_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
         business_media: {
             Row: {
             business_id: string;
@@ -1242,6 +1331,67 @@ export type Database = {
                 },
             ];
         }
+        business_reviews: {
+            Row: {
+            id: string;
+            business_id: string;
+            reviewer_name: string;
+            rating: number;
+            body: string;
+            status: string;
+            created_by: string | null;
+            reviewed_by: string | null;
+            reviewed_at: string | null;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            business_id: string;
+            reviewer_name: string;
+            rating: number;
+            body: string;
+            status?: string;
+            created_by?: string | null;
+            reviewed_by?: string | null;
+            reviewed_at?: string | null;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            business_id?: string | null;
+            reviewer_name?: string | null;
+            rating?: number | null;
+            body?: string | null;
+            status?: string | null;
+            created_by?: string | null;
+            reviewed_by?: string | null;
+            reviewed_at?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_business_reviews_business_id_fkey",
+                    columns: ["business_id"],
+                    isOneToOne: false,
+                    referencedRelation: "businesses",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_business_reviews_created_by_fkey",
+                    columns: ["created_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_business_reviews_reviewed_by_fkey",
+                    columns: ["reviewed_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
         businesses: {
             Row: {
             id: string;
@@ -1262,6 +1412,8 @@ export type Database = {
             status: string;
             created_at: string;
             updated_at: string;
+            skills: string[];
+            featured_source: string;
             };
             Insert: {
             id?: string;
@@ -1282,6 +1434,8 @@ export type Database = {
             status?: string;
             created_at?: string;
             updated_at?: string;
+            skills?: string[];
+            featured_source?: string;
             };
             Update: {
             id?: string | null;
@@ -1302,6 +1456,8 @@ export type Database = {
             status?: string | null;
             created_at?: string | null;
             updated_at?: string | null;
+            skills?: string[] | null;
+            featured_source?: string | null;
             };
             Relationships: [
                 {
@@ -2418,6 +2574,108 @@ export type Database = {
                 },
             ];
         }
+        event_broadcast_chats: {
+            Row: {
+            id: string;
+            broadcast_id: string;
+            user_id: string;
+            body: string;
+            is_hidden: boolean;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            broadcast_id: string;
+            user_id: string;
+            body: string;
+            is_hidden?: boolean;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            broadcast_id?: string | null;
+            user_id?: string | null;
+            body?: string | null;
+            is_hidden?: boolean | null;
+            created_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_event_broadcast_chats_broadcast_id_fkey",
+                    columns: ["broadcast_id"],
+                    isOneToOne: false,
+                    referencedRelation: "event_broadcasts",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_event_broadcast_chats_user_id_fkey",
+                    columns: ["user_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        event_broadcasts: {
+            Row: {
+            id: string;
+            content_item_id: string;
+            status: string;
+            provider: string;
+            stream_url: string | null;
+            recording_url: string | null;
+            recap_content_item_id: string | null;
+            chat_enabled: boolean;
+            started_at: string | null;
+            ended_at: string | null;
+            created_at: string;
+            updated_at: string;
+            };
+            Insert: {
+            id?: string;
+            content_item_id: string;
+            status?: string;
+            provider?: string;
+            stream_url?: string | null;
+            recording_url?: string | null;
+            recap_content_item_id?: string | null;
+            chat_enabled?: boolean;
+            started_at?: string | null;
+            ended_at?: string | null;
+            created_at?: string;
+            updated_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            content_item_id?: string | null;
+            status?: string | null;
+            provider?: string | null;
+            stream_url?: string | null;
+            recording_url?: string | null;
+            recap_content_item_id?: string | null;
+            chat_enabled?: boolean | null;
+            started_at?: string | null;
+            ended_at?: string | null;
+            created_at?: string | null;
+            updated_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_event_broadcasts_content_item_id_fkey",
+                    columns: ["content_item_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_items",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_event_broadcasts_recap_content_item_id_fkey",
+                    columns: ["recap_content_item_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_items",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
         event_reminders: {
             Row: {
             id: string;
@@ -2453,6 +2711,39 @@ export type Database = {
                 },
                 {
                     foreignKeyName: "public_event_reminders_content_item_id_fkey",
+                    columns: ["content_item_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_items",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        event_rsvps: {
+            Row: {
+            user_id: string;
+            content_item_id: string;
+            created_at: string;
+            };
+            Insert: {
+            user_id: string;
+            content_item_id: string;
+            created_at?: string;
+            };
+            Update: {
+            user_id?: string | null;
+            content_item_id?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_event_rsvps_user_id_fkey",
+                    columns: ["user_id"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_event_rsvps_content_item_id_fkey",
                     columns: ["content_item_id"],
                     isOneToOne: false,
                     referencedRelation: "content_items",
@@ -2827,6 +3118,95 @@ export type Database = {
                 },
             ];
         }
+        listing_promotions: {
+            Row: {
+            id: string;
+            content_item_id: string;
+            business_id: string | null;
+            plan_id: string;
+            amount_xaf: number;
+            days: number;
+            status: string;
+            momo_provider: string | null;
+            momo_number: string | null;
+            reference: string;
+            provider_ref: string | null;
+            created_by: string | null;
+            confirmed_by: string | null;
+            starts_at: string | null;
+            ends_at: string | null;
+            created_at: string;
+            updated_at: string;
+            };
+            Insert: {
+            id?: string;
+            content_item_id: string;
+            business_id?: string | null;
+            plan_id: string;
+            amount_xaf: number;
+            days: number;
+            status?: string;
+            momo_provider?: string | null;
+            momo_number?: string | null;
+            reference: string;
+            provider_ref?: string | null;
+            created_by?: string | null;
+            confirmed_by?: string | null;
+            starts_at?: string | null;
+            ends_at?: string | null;
+            created_at?: string;
+            updated_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            content_item_id?: string | null;
+            business_id?: string | null;
+            plan_id?: string | null;
+            amount_xaf?: number | null;
+            days?: number | null;
+            status?: string | null;
+            momo_provider?: string | null;
+            momo_number?: string | null;
+            reference?: string | null;
+            provider_ref?: string | null;
+            created_by?: string | null;
+            confirmed_by?: string | null;
+            starts_at?: string | null;
+            ends_at?: string | null;
+            created_at?: string | null;
+            updated_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_listing_promotions_content_item_id_fkey",
+                    columns: ["content_item_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_items",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_listing_promotions_business_id_fkey",
+                    columns: ["business_id"],
+                    isOneToOne: false,
+                    referencedRelation: "businesses",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_listing_promotions_created_by_fkey",
+                    columns: ["created_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_listing_promotions_confirmed_by_fkey",
+                    columns: ["confirmed_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
         listing_ratings: {
             Row: {
             user_id: string;
@@ -2876,6 +3256,7 @@ export type Database = {
             seller_is_verified: boolean;
             sold_at: string | null;
             renewed_at: string | null;
+            business_id: string | null;
             };
             Insert: {
             content_item_id: string;
@@ -2889,6 +3270,7 @@ export type Database = {
             seller_is_verified?: boolean;
             sold_at?: string | null;
             renewed_at?: string | null;
+            business_id?: string | null;
             };
             Update: {
             content_item_id?: string | null;
@@ -2902,6 +3284,7 @@ export type Database = {
             seller_is_verified?: boolean | null;
             sold_at?: string | null;
             renewed_at?: string | null;
+            business_id?: string | null;
             };
             Relationships: [
                 {
@@ -3792,6 +4175,88 @@ export type Database = {
                     columns: ["content_item_id"],
                     isOneToOne: false,
                     referencedRelation: "content_items",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        professional_subscriptions: {
+            Row: {
+            id: string;
+            business_id: string;
+            tier: string;
+            plan_id: string;
+            amount_xaf: number;
+            days: number;
+            status: string;
+            momo_provider: string | null;
+            momo_number: string | null;
+            reference: string;
+            provider_ref: string | null;
+            created_by: string | null;
+            confirmed_by: string | null;
+            starts_at: string | null;
+            ends_at: string | null;
+            created_at: string;
+            updated_at: string;
+            };
+            Insert: {
+            id?: string;
+            business_id: string;
+            tier?: string;
+            plan_id: string;
+            amount_xaf: number;
+            days: number;
+            status?: string;
+            momo_provider?: string | null;
+            momo_number?: string | null;
+            reference: string;
+            provider_ref?: string | null;
+            created_by?: string | null;
+            confirmed_by?: string | null;
+            starts_at?: string | null;
+            ends_at?: string | null;
+            created_at?: string;
+            updated_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            business_id?: string | null;
+            tier?: string | null;
+            plan_id?: string | null;
+            amount_xaf?: number | null;
+            days?: number | null;
+            status?: string | null;
+            momo_provider?: string | null;
+            momo_number?: string | null;
+            reference?: string | null;
+            provider_ref?: string | null;
+            created_by?: string | null;
+            confirmed_by?: string | null;
+            starts_at?: string | null;
+            ends_at?: string | null;
+            created_at?: string | null;
+            updated_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_professional_subscriptions_business_id_fkey",
+                    columns: ["business_id"],
+                    isOneToOne: false,
+                    referencedRelation: "businesses",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_professional_subscriptions_created_by_fkey",
+                    columns: ["created_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_professional_subscriptions_confirmed_by_fkey",
+                    columns: ["confirmed_by"],
+                    isOneToOne: false,
+                    referencedRelation: "profiles",
                     referencedColumns: ["id"],
                 },
             ];

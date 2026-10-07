@@ -123,6 +123,17 @@ export async function signInWithPassword(
   // force is also throttled by Supabase's own auth rate limits.
   // fail-closed: credential surface — an outage must not become an unlimited
   // password-guessing window.
+  // Chief-managed network block first: indistinguishable from bad credentials
+  // so a blocked scanner learns nothing, but the trail records the real reason.
+  // Checked before the limiter so blocked IPs never consume rate-limit slots.
+  if (await isIpBlocked(await getClientIp())) {
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.loginBlocked,
+      identifier: email,
+      detail: { reason: 'ip_blocked' },
+    })
+    return { ok: false, error: 'invalid' }
+  }
   const limited = await checkRateLimit('auth:login', { max: 10, windowMs: 10 * 60_000, policy: 'fail-closed' })
   if (!limited.ok) {
     await recordAuthEvent({
@@ -131,16 +142,6 @@ export async function signInWithPassword(
       detail: { reason: 'rate_limited' },
     })
     return { ok: false, error: 'rate_limited' }
-  }
-  // Chief-managed network block: indistinguishable from bad credentials so a
-  // blocked scanner learns nothing, but the trail records the real reason.
-  if (await isIpBlocked(await getClientIp())) {
-    await recordAuthEvent({
-      action: AUTH_AUDIT_ACTIONS.loginBlocked,
-      identifier: email,
-      detail: { reason: 'ip_blocked' },
-    })
-    return { ok: false, error: 'invalid' }
   }
   const turnstileToken = formData.get('cf-turnstile-response')
   if (!(await verifyTurnstileToken(typeof turnstileToken === 'string' ? turnstileToken : null))) {
@@ -236,11 +237,11 @@ export async function signUpWithPassword(
   // Abuse gate: durable per-IP limiter + Turnstile when configured. Signup
   // floods also burn Supabase SMTP quota, so this gate runs before signUp().
   // fail-closed: signup writes an account and sends confirmation mail.
+  // Chief-managed network block first: reads as throttling so a blocked
+  // scanner learns nothing; checked before the limiter to save slots.
+  if (await isIpBlocked(await getClientIp())) return { ok: false, error: 'rate_limited' }
   const limited = await checkRateLimit('auth:signup', { max: 5, windowMs: 60 * 60_000, policy: 'fail-closed' })
   if (!limited.ok) return { ok: false, error: 'rate_limited' }
-  // Chief-managed network block: reads as throttling so a blocked scanner
-  // learns nothing.
-  if (await isIpBlocked(await getClientIp())) return { ok: false, error: 'rate_limited' }
   const turnstileToken = formData.get('cf-turnstile-response')
   if (!(await verifyTurnstileToken(typeof turnstileToken === 'string' ? turnstileToken : null))) {
     return { ok: false, error: 'captcha' }

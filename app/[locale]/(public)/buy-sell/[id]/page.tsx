@@ -259,6 +259,18 @@ export default async function ListingPage({ params }: ListingPageProps) {
                         </div>
                     ) : null}
 
+                    {/* Verified-pro bridge: the storefront behind this listing. */}
+                    {listing.business ? (
+                        <p className="mt-5">
+                            <Link
+                                href={localePath(locale, `/professionals/${listing.business.slug}`)}
+                                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3.5 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300"
+                            >
+                                {dict.buySell.soldByPro} — {listing.business.name}
+                            </Link>
+                        </p>
+                    ) : null}
+
                     {/* Gated seller contact */}
                     <div className="mt-5 rounded-2xl border bg-card p-4">
                         <h2 className="mb-3 text-sm font-bold">

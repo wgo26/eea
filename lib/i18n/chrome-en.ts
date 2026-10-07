@@ -16,6 +16,7 @@ export const chromeEn = {
     news: 'Community News',
     buySell: 'Buy & Sell',
     notices: 'Notices',
+    professionals: 'Professionals',
     culture: 'Culture',
     submit: 'Submit a Story',
     search: 'Search',

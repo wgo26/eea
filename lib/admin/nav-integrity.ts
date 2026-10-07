@@ -185,5 +185,6 @@ export const SUB_ROUTES: SubRoute[] = [
   { file: 'admin/users/[id]/page.tsx', path: '/admin/users/{id}', ownedBy: '/admin/users', page: single('manageUsers') },
   { file: 'admin/incidents/[id]/page.tsx', path: '/admin/incidents/{id}', ownedBy: '/admin/incidents', page: single('incidents.manage') },
   { file: 'admin/moderation/[id]/page.tsx', path: '/admin/moderation/{id}', ownedBy: '/admin/moderation', page: single('moderate') },
+  { file: 'admin/listings/claims/page.tsx', path: '/admin/listings/claims', ownedBy: '/admin/listings', page: anyOf('manageContent', 'listings.manage') },
 ]
 

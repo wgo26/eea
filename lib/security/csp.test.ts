@@ -163,6 +163,11 @@ describe("buildCsp — host allowlisting", () => {
     expect(frame).toContain("https://player.vimeo.com");
   });
 
+  it("allowlists the Facebook live plugin frame for community broadcasts", () => {
+    const frame = directive(buildCsp(prod), "frame-src")!;
+    expect(frame).toContain("https://www.facebook.com");
+  });
+
   it("allowlists YouTube thumbnails so video-only posts render a picture preview", () => {
     const img = directive(buildCsp(prod), "img-src")!;
     expect(img).toContain("https://i.ytimg.com");

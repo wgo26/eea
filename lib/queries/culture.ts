@@ -454,6 +454,48 @@ export async function getUpcomingEvents(
 }
 
 /**
+ * Ended broadcasts + past calendar events, most recent first — the post-event
+ * archive. Same cache posture as upcoming; the sitemap keeps indexing
+ * upcoming only, so the record stays findable without spending crawl budget
+ * on every past gathering.
+ */
+const getCachedPastEvents = unstable_cache(
+    async (locale: Locale, limit: number): Promise<EventData[]> => {
+        const { data, error } = await createAdminClient()
+            .from("content_items")
+            .select(CULTURE_SELECT)
+            .eq("type", "culture")
+            .eq("status", "published")
+            .eq("is_archived", false)
+            .not("published_at", "is", null)
+            .not("events.starts_at", "is", null)
+            .lt("events.starts_at", new Date().toISOString())
+            .order("starts_at", { ascending: false, referencedTable: "events" })
+            .limit(limit);
+        if (error) throw new Error(error.message);
+        return ((data ?? []) as unknown as RawCultureRow[]).flatMap((row) => {
+            const card = toEventCard(row, locale);
+            return card ? [card] : [];
+        });
+    },
+    ["culture-past-events"],
+    { tags: [CACHE_TAGS.culture], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getPastEvents(
+    locale: Locale = "en",
+    limit = 10,
+): Promise<EventData[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedPastEvents(locale, limit);
+    } catch (err) {
+        logCacheFailure("getPastEvents", err);
+        return [];
+    }
+}
+
+/**
  * Single event by UUID or slug, for the detail page (null when not found).
  * Phase 4.1: cached (tag `culture`) — this is the hot read behind the ISR'd
  * event pages.

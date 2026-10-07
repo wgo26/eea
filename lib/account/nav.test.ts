@@ -11,13 +11,14 @@ import {
 const en = getDictionary("en");
 
 describe("buildAccountNavGroups", () => {
-    it("groups the ten destinations into three ordered sections", () => {
+    it("groups the eleven destinations into three ordered sections", () => {
         const groups = buildAccountNavGroups("en", en);
         expect(groups.map((g) => g.key)).toEqual(["activity", "library", "settings"]);
         expect(groups.flatMap((g) => g.items.map((i) => i.key))).toEqual([
             "dashboard",
             "submissions",
             "listings",
+            "notices",
             "messages",
             "saved",
             "follows",
@@ -53,6 +54,7 @@ describe("splitAccountNav", () => {
         expect(overflow.map((g) => g.key)).toEqual(["activity", "library", "settings"]);
         expect(overflow.flatMap((g) => g.items.map((i) => i.key))).toEqual([
             "listings",
+            "notices",
             "messages",
             "follows",
             "recent",
@@ -67,6 +69,7 @@ describe("splitAccountNav", () => {
             "dashboard",
             "submissions",
             "listings",
+            "notices",
             "messages",
             "saved",
             "follows",

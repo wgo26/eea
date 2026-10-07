@@ -10,6 +10,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dictionary } from "@/lib/i18n";
 import type { StoryBlocksCopy } from "@/components/admin/story-blocks-editor";
+import type { ProEditorToolbarCopy } from "@/components/admin/pro-editor";
+import type { AiPanelCopy } from "@/components/admin/ai-panel";
 import {
   clearDraft,
   isDraftWorthRestoring,
@@ -72,6 +74,51 @@ export function storyBlocksCopy(copy: Copy): StoryBlocksCopy {
     mediaKindAudio: copy.blocksMediaKindAudio,
     mediaKindDocument: copy.blocksMediaKindDocument,
     mediaPosterLabel: copy.blocksMediaPoster,
+  };
+}
+
+/** Shared pro-editor toolbar copy (dictionary-driven, no hardcoded labels). */
+export function proEditorToolbarCopy(copy: Copy): ProEditorToolbarCopy {
+  return {
+    bold: copy.editorBold,
+    italic: copy.editorItalic,
+    underline: copy.editorUnderline,
+    strike: copy.editorStrike,
+    h2: copy.editorH2,
+    quote: copy.editorQuote,
+    alignLeft: copy.editorAlignLeft,
+    alignCenter: copy.editorAlignCenter,
+    alignRight: copy.editorAlignRight,
+    alignJustify: copy.editorAlignJustify,
+    bulletList: copy.editorBulletList,
+    orderedList: copy.editorOrderedList,
+    link: copy.editorLink,
+    image: copy.editorImage,
+    statsWords: copy.editorWords,
+    statsChars: copy.editorChars,
+    statsRead: copy.editorReadTime,
+    statsMin: copy.editorMin,
+  };
+}
+
+/** Shared AI panel copy. */
+export function aiPanelCopy(copy: Copy): AiPanelCopy {
+  return {
+    title: copy.aiPanelTitle,
+    hint: copy.aiPanelHint,
+    improve: copy.aiImprove,
+    complete: copy.aiComplete,
+    tone: copy.aiTone,
+    seo: copy.aiSeo,
+    readability: copy.aiReadability,
+    headline: copy.aiHeadline,
+    summary: copy.aiSummary,
+    tags: copy.aiTags,
+    modalTitle: copy.aiModalTitle,
+    modalPlaceholder: copy.aiModalPlaceholder,
+    cancel: copy.aiModalCancel,
+    generate: copy.aiModalGenerate,
+    working: copy.aiModalWorking,
   };
 }
 

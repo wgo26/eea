@@ -8,6 +8,7 @@
  * mutation state.
  */
 import { Field } from '@/lib/admin/ui-constants'
+import { ProEditor, type ProEditorToolbarCopy } from '@/components/admin/pro-editor'
 
 export function BilingualHeadings({
   copy,
@@ -87,29 +88,23 @@ export function BilingualBody({
   enBody,
   frBody,
   onBody,
+  toolbar,
+  photoUrls = [],
 }: {
   copy: { enBody: string; frBody: string }
   enBody: string
   frBody: string
   onBody: (locale: 'en' | 'fr', v: string) => void
+  toolbar: ProEditorToolbarCopy
+  photoUrls?: string[]
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-4 lg:grid-cols-2">
       <Field label={copy.enBody}>
-        <textarea
-          value={enBody}
-          onChange={(e) => onBody('en', e.target.value)}
-          rows={8}
-          className="w-full rounded-md border border-border bg-background p-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        />
+        <ProEditor label={copy.enBody} value={enBody} onChange={(v) => onBody('en', v)} copy={toolbar} photoUrls={photoUrls} />
       </Field>
       <Field label={copy.frBody}>
-        <textarea
-          value={frBody}
-          onChange={(e) => onBody('fr', e.target.value)}
-          rows={8}
-          className="w-full rounded-md border border-border bg-background p-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        />
+        <ProEditor label={copy.frBody} value={frBody} onChange={(v) => onBody('fr', v)} copy={toolbar} photoUrls={photoUrls} />
       </Field>
     </div>
   )

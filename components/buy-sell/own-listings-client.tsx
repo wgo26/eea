@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ExternalLink, RotateCcw, Tag, Trash2 } from 'lucide-react';
+import { ExternalLink, RotateCcw, Tag, Trash2, Zap } from 'lucide-react';
 import { markOwnListingSold, removeOwnListing, renewOwnListing } from '@/lib/account/listings-actions';
+import { BillingPanel } from '@/components/billing/billing-panel';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
 import { formatPrice, type Dictionary, type Locale } from '@/lib/i18n';
 import { localePath } from '@/lib/i18n/urls';
@@ -26,6 +27,7 @@ export function OwnListingsClient({
   const t = dict.buySell;
   const [items, setItems] = useState(initial);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [boostId, setBoostId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ id: string; action: 'sold' | 'renew' | 'remove' } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -99,15 +101,27 @@ export function OwnListingsClient({
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {isActive ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => setConfirm({ id: l.id, action: 'sold' })}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
-                  >
-                    <Tag className="h-3.5 w-3.5" aria-hidden />
-                    {t.markAsSold}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setConfirm({ id: l.id, action: 'sold' })}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
+                    >
+                      <Tag className="h-3.5 w-3.5" aria-hidden />
+                      {t.markAsSold}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setBoostId((b) => (b === l.id ? null : l.id))}
+                      aria-expanded={boostId === l.id}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-500/20 disabled:opacity-50 dark:text-amber-300"
+                    >
+                      <Zap className="h-3.5 w-3.5" aria-hidden />
+                      {dict.professionals.boostCta}
+                    </button>
+                  </>
                 ) : l.listingStatus !== 'removed' ? (
                   <button
                     type="button"
@@ -133,6 +147,11 @@ export function OwnListingsClient({
                   <span className="text-xs text-muted-foreground">{t.listingWithdrawn}</span>
                 )}
               </div>
+              {boostId === l.id && isActive ? (
+                <div className="mt-3">
+                  <BillingPanel copy={dict.professionals} mode="promotion" targetId={l.id} />
+                </div>
+              ) : null}
             </li>
           );
         })}

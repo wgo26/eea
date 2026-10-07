@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
 import {
-    CalendarClock,
     Eye,
     FileText,
     MapPin,
@@ -15,10 +14,8 @@ import {
 import { AdSlot } from "@/components/home/ad-slot";
 import { StoryCard } from "@/components/home/story-card";
 import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
-import { FundraisingSection } from "@/components/news/fundraising-section";
 import { LiveRail } from "@/components/news/live-rail";
 import { NewsSpotlight } from "@/components/news/news-spotlight";
-import { PollCard, PollEmpty } from "@/components/news/poll-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,11 +29,9 @@ import {
 } from "@/components/ui/pagination";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
-import { getFundraisers, getFundraiserStats } from "@/lib/queries/fundraisers";
 import { FacetFilter } from "@/components/shared/facet-filter";
 import { PlaceRail } from "@/components/place/place-rail";
 import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
-import { getActivePolls } from "@/lib/queries/polls";
 import {
     getDevelopingNews,
     getFeaturedNews,
@@ -148,22 +143,18 @@ export default async function NewsPage({
 
     const { articles, pageCount } = list;
 
-    // Browse-only modules: the lead, the live rail, fundraising and polls all
-    // belong to the front page of the section, not to a filtered result set.
+    // Browse-only modules: the lead + developing rail belong to the front page
+    // of the section, not to a filtered result set.
+    // P0: fundraisers + polls cut per merged audit (not core jobs). Tables +
+    // admin sections drop in the P2 lean migration; no fetch here.
     let featured: Awaited<ReturnType<typeof getFeaturedNews>> = null;
     let developing: Awaited<ReturnType<typeof getDevelopingNews>> = [];
-    let fundraisers: Awaited<ReturnType<typeof getFundraisers>> = [];
-    let fundraiserStats = { active: 0, totalRaised: 0, totalGoal: 0, currency: "XAF", completed: 0 };
-    let polls: Awaited<ReturnType<typeof getActivePolls>> = [];
 
     if (browseMode) {
         try {
-            [featured, developing, fundraisers, fundraiserStats, polls] = await Promise.all([
+            [featured, developing] = await Promise.all([
                 getFeaturedNews(locale),
                 getDevelopingNews(locale, 3),
-                getFundraisers({ locale, limit: 3, onlyActive: true }),
-                getFundraiserStats(),
-                getActivePolls(2),
             ]);
         } catch (err) {
             console.error("[news] Browse-mode data fetch failed:", err);
@@ -173,8 +164,6 @@ export default async function NewsPage({
     const nextUp = featured
         ? articles.filter((a) => a.id !== featured.id).slice(0, 3)
         : [];
-    const [featuredPoll, ...restPolls] = polls;
-    const railPoll = restPolls[0] ?? null;
 
     const pages =
         pageCount <= 7
@@ -235,15 +224,6 @@ export default async function NewsPage({
                         </strong>
                         {dict.news.reporters}
                     </span>
-                    {fundraiserStats.active > 0 ? (
-                        <span className="inline-flex items-center gap-2">
-                            <CalendarClock className="h-4 w-4 text-primary" aria-hidden />
-                            <strong className="tabular-nums text-foreground">
-                                {fundraiserStats.active}
-                            </strong>
-                            {dict.fundraisers.activeCampaigns}
-                        </span>
-                    ) : null}
                 </section>
             ) : null}
 
@@ -263,39 +243,6 @@ export default async function NewsPage({
                         dict={dict}
                         locale={locale}
                     />
-                </section>
-            ) : null}
-
-            {/* Participation: community fundraising */}
-            {browseMode ? (
-                <div className="mb-12">
-                    <FundraisingSection
-                        campaigns={fundraisers}
-                        dict={dict}
-                        locale={locale}
-                        stats={fundraiserStats}
-                    />
-                </div>
-            ) : null}
-
-            {/* Participation: community poll */}
-            {browseMode ? (
-                <section aria-labelledby="poll-heading" className="mb-12">
-                    <div className="rounded-3xl border bg-muted/40 p-5 md:p-8">
-                        <div className="mx-auto max-w-3xl">
-                            <p
-                                id="poll-heading"
-                                className="mb-4 text-center text-xs font-extrabold uppercase tracking-[0.2em] text-muted-foreground"
-                            >
-                                {dict.news.participation} — {dict.polls.tagline}
-                            </p>
-                            {featuredPoll ? (
-                                <PollCard poll={featuredPoll} dict={dict} locale={locale} />
-                            ) : (
-                                <PollEmpty dict={dict} />
-                            )}
-                        </div>
-                    </div>
                 </section>
             ) : null}
 
@@ -487,10 +434,6 @@ export default async function NewsPage({
                             </form>
                         </CardContent>
                     </Card>
-
-                    {railPoll ? (
-                        <PollCard poll={railPoll} dict={dict} locale={locale} variant="rail" />
-                    ) : null}
 
                     {mostViewed.some((a) => (a.viewCount ?? 0) > 0) ? (
                         <Card>

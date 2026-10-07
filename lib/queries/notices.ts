@@ -733,3 +733,59 @@ export async function getNoticeTypes(): Promise<
         return [];
     }
 }
+
+export type OwnNotice = {
+    id: string;
+    title: string;
+    noticeType: string | null;
+    isActive: boolean;
+    expiresAt: string | null;
+    contentStatus: string;
+};
+
+/**
+ * Owner's own notices (parity with getUserListings). Uncached by design —
+ * owners must see the renewed expiry instantly after their own action.
+ */
+export async function getUserNotices(userId: string, locale: Locale = 'en'): Promise<OwnNotice[]> {
+    if (!hasDatabase() || !userId) return [];
+    try {
+        const { data, error } = await createAdminClient()
+            .from('content_items')
+            .select(`id, status,
+                translations:content_translations(locale, title),
+                notices!inner(notice_type, expiry_date)`)
+            .eq('type', 'notice')
+            .or(`submitted_by.eq.${userId},author_id.eq.${userId}`)
+            .order('published_at', { ascending: false, nullsFirst: false })
+            .limit(50);
+        if (error) {
+            logger.error('notices', 'own notices failed', { error: error.message });
+            return [];
+        }
+        type OwnRow = {
+            id: string;
+            status: string;
+            translations?: { locale: string; title: string | null }[] | null;
+            notices?: { notice_type: string | null; expiry_date: string | null } | { notice_type: string | null; expiry_date: string | null }[] | null;
+        };
+        return ((data ?? []) as unknown as OwnRow[]).flatMap((row) => {
+            const tr = (row.translations ?? []).find((t) => t.locale === locale)
+                ?? (row.translations ?? []).find((t) => t.locale === 'en')
+                ?? (row.translations ?? [])[0];
+            if (!tr?.title) return [];
+            const notice = asOne(row.notices);
+            return [{
+                id: row.id,
+                title: tr.title,
+                noticeType: notice?.notice_type ?? null,
+                isActive: isNoticeActive({ expiry_date: notice?.expiry_date ?? null }),
+                expiresAt: notice?.expiry_date ?? null,
+                contentStatus: row.status,
+            }];
+        });
+    } catch (err) {
+        logCacheFailure("getUserNotices", err);
+        return [];
+    }
+}
