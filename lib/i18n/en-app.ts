@@ -3052,6 +3052,7 @@ export const appStringsEn = {
         phone: 'Phone',
         email: 'Email',
         noticeType: 'Notice type',
+        noticeDirection: 'Lost or found',
         organization: 'Organization',
         noticeDate: 'Notice date',
         expiryDate: 'Expiry date',

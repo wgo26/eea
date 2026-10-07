@@ -292,6 +292,7 @@ badges: {
     intro:
       'Fermetures de routes, alertes communautaires, objets trouvés et perdus, annonces de service et plus — vérifiés par Eagle Eye ou soumis par la communauté.',
     featured: 'Avis en vedette',
+    browseActions: 'Actions et avis officiels',
     latest: 'Derniers avis',
     searchLabel: 'Rechercher des avis',
     searchPlaceholder: 'Rechercher des avis…',
@@ -316,6 +317,12 @@ badges: {
     submitCtaBody:
       'Soumettez un avis communautaire — fermetures de routes, objets trouvés et perdus, annonces de service et plus. Chaque soumission est vérifiée avant publication.',
     submitCtaButton: 'Soumettre un avis',
+    lostAction: 'Signaler un objet perdu',
+    foundAction: 'Signaler un objet trouvé',
+    missingPersonAction: 'Signaler une personne disparue',
+    communityAction: 'Soumettre un avis communautaire',
+    officialAction: 'Consulter les avis officiels',
+    officialBrowseHint: 'Sources vérifiées uniquement',
     noticeCount: 'avis',
     myNotices: 'Mes avis',
     myNoticesBody: 'Prolongez vos avis expirés de 30 jours — sans passer par l’équipe.',
@@ -666,6 +673,11 @@ badges: {
       'Partagez ce dont vous avez été témoin avec votre communauté. Choisissez ce que vous souhaitez contribuer — aucun compte requis. Chaque soumission est vérifiée par nos rédacteurs avant publication.',
     choose: 'Que souhaitez-vous partager ?',
     back: 'Retour aux types de soumission',
+    offlineTitle: 'Vous êtes hors ligne',
+    offlineBody:
+      'Votre brouillon est enregistré sur cet appareil et sera restauré à votre retour. Reconnectez-vous, puis touchez Envoyer — les soumissions nécessitent une connexion (la protection antispam ne fonctionne pas hors ligne).',
+    fallbackWhatsapp:
+      'Pas d’internet du tout ? Envoyez votre signalement par WhatsApp au {number} et nos rédacteurs le publieront pour vous.',
     types: {
       photoStory: {
         title: 'Reportage photo',
@@ -724,6 +736,10 @@ badges: {
       documentsPlaceholder: 'https://document.url - Légende facultative',
       noticeType: 'Type d\'avis',
       noticeTypePlaceholder: 'Sélectionnez un type d\'avis',
+      noticeDirection: 'L’objet est-il perdu ou trouvé ?',
+      noticeDirectionPlaceholder: 'Sélectionnez perdu ou trouvé',
+      noticeDirectionLost: 'Objet perdu',
+      noticeDirectionFound: 'Objet trouvé',
       organization: 'Nom de l\'organisation',
       organizationPlaceholder: 'ex. Mairie de Douala',
       expiry: 'Date d\'expiration',

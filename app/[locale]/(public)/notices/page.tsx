@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
-import { AlertTriangle, MapPin, Search } from "lucide-react";
+import { AlertTriangle, Landmark, MapPin, PackageCheck, PackageSearch, Search, UserSearch } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
 import { SectionHeader } from "@/components/home/section-header";
@@ -24,7 +24,6 @@ import {
     getNotices,
     getFeaturedNotice,
     getNoticeTypes,
-    NOTICE_TYPE_LABELS,
     type NoticeData,
 } from "@/lib/queries/notices";
 import { getLocationsByContentType } from "@/lib/queries/locations";
@@ -52,6 +51,7 @@ type NoticesSearchParams = {
     type?: string | string[];
     location?: string | string[];
     status?: string | string[];
+    official?: string | string[];
     page?: string | string[];
 };
 
@@ -64,6 +64,7 @@ function buildCanonicalHref(params: {
     type?: string;
     location?: string;
     status?: string;
+    official?: boolean;
     page?: number;
 }): string {
     const qs = new URLSearchParams();
@@ -71,6 +72,7 @@ function buildCanonicalHref(params: {
     if (params.type) qs.set("type", params.type);
     if (params.location) qs.set("location", params.location);
     if (params.status && params.status !== "active") qs.set("status", params.status);
+    if (params.official) qs.set("official", "1");
     if (params.page && params.page > 1) qs.set("page", String(params.page));
     const query = qs.toString();
     return query ? `/notices?${query}` : "/notices";
@@ -97,11 +99,12 @@ export default async function NoticesPage({
         rawStatus === "all" || rawStatus === "expiring" || rawStatus === "expired"
             ? rawStatus
             : "active";
+    const officialOnly = firstParam(searchParamsResolved.official) === "1";
     const page = Math.max(
         1,
         Number.parseInt(firstParam(searchParamsResolved.page) ?? "1", 10) || 1,
     );
-    const isFiltered = Boolean(search || noticeType || location || status !== "active");
+    const isFiltered = Boolean(search || noticeType || location || status !== "active" || officialOnly);
     const browseMode = !isFiltered && page === 1;
 
     const statuses = [
@@ -119,7 +122,7 @@ export default async function NoticesPage({
     try {
         [featured, list, types, locations] = await Promise.all([
             getFeaturedNotice(locale),
-            getNotices({ search, noticeType, location, status, locale, page }),
+            getNotices({ search, noticeType, location, status, officialOnly, locale, page }),
             getNoticeTypes(),
             getLocationsByContentType("notice"),
         ]);
@@ -161,6 +164,36 @@ export default async function NoticesPage({
                 </p>
             </header>
 
+            {/* Distinct lost/found and missing-person actions; official notices
+                have a separate verified-only browse path. */}
+            {browseMode ? (
+                <nav aria-label={dict.notices.browseActions} className="mb-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                    {[
+                        { icon: PackageSearch, title: dict.notices.lostAction, href: localePath(locale, "/submit/notice?type=lost_found&direction=lost") },
+                        { icon: PackageCheck, title: dict.notices.foundAction, href: localePath(locale, "/submit/notice?type=lost_found&direction=found") },
+                        { icon: UserSearch, title: dict.notices.missingPersonAction, href: localePath(locale, "/submit/notice?type=missing_person") },
+                        { icon: AlertTriangle, title: dict.notices.communityAction, href: localePath(locale, "/submit/notice?type=public_notice") },
+                        { icon: Landmark, title: dict.notices.officialAction, href: localePath(locale, "/notices?official=1"), browse: true },
+                    ].map((card) => (
+                        <Link
+                            key={card.href}
+                            href={card.href}
+                            className="group flex items-center gap-3 rounded-2xl border bg-card p-4 transition-shadow hover:shadow-md"
+                        >
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+                                <card.icon className="h-5 w-5" aria-hidden />
+                            </span>
+                            <span className="min-w-0">
+                                <span className="block font-bold group-hover:underline">{card.title}</span>
+                                <span className="block text-xs text-muted-foreground">
+                                    {card.browse ? dict.notices.officialBrowseHint : dict.nav.post}
+                                </span>
+                            </span>
+                        </Link>
+                    ))}
+                </nav>
+            ) : null}
+
             {browseMode && featured ? (
                 <section className="mb-10">
                     <SectionHeader title={dict.notices.featured} />
@@ -182,7 +215,7 @@ export default async function NoticesPage({
                                     <div className="flex flex-wrap items-center gap-2">
                                         {featured.noticeType ? (
                                             <Badge variant="secondary">
-                                                {NOTICE_TYPE_LABELS[featured.noticeType] ?? featured.noticeType}
+                                                {(dict.admin.content.noticeTypes as Record<string, string>)[featured.noticeType] ?? featured.noticeType}
                                             </Badge>
                                         ) : null}
                                         {/* Featured card: inside the card link, so no nested link. */}
@@ -238,12 +271,12 @@ export default async function NoticesPage({
                             label: dict.notices.noticeTypes,
                             activeKey: noticeType ?? null,
                             allLabel: dict.notices.allTypes,
-                            allHref: hrefL({ search, location, status }),
+                            allHref: hrefL({ search, location, status, official: officialOnly }),
                             facets: types.map((f) => ({
                                 key: f.type,
-                                label: f.label,
+                                label: (dict.admin.content.noticeTypes as Record<string, string>)[f.type] ?? f.label,
                                 count: f.total,
-                                href: hrefL({ search, location, status, type: f.type }),
+                                href: hrefL({ search, location, status, type: f.type, official: officialOnly }),
                             })),
                         },
                         {
@@ -251,12 +284,12 @@ export default async function NoticesPage({
                             label: dict.notices.board,
                             activeKey: status === "active" ? null : status,
                             allLabel: dict.notices.statusActive,
-                            allHref: hrefL({ search, type: noticeType, location, status: "active" }),
+                            allHref: hrefL({ search, type: noticeType, location, status: "active", official: officialOnly }),
                             facets: statuses.map((s) => ({
                                 key: s.value,
                                 label: s.label,
                                 count: undefined,
-                                href: hrefL({ search, type: noticeType, location, status: s.value }),
+                                href: hrefL({ search, type: noticeType, location, status: s.value, official: officialOnly }),
                             })),
                         },
                     ]}
@@ -269,7 +302,7 @@ export default async function NoticesPage({
                     {statuses.map((s) => (
                         <Link
                             key={s.value}
-                            href={hrefL({ search, type: noticeType, location, status: s.value })}
+                            href={hrefL({ search, type: noticeType, location, status: s.value, official: officialOnly })}
                             aria-current={status === s.value ? "page" : undefined}
                             className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${status === s.value
                                 ? "bg-primary text-primary-foreground"
@@ -321,7 +354,7 @@ export default async function NoticesPage({
                                                 <div className="flex flex-wrap items-center gap-2 mb-1">
                                                     {notice.noticeType ? (
                                                         <Badge variant="secondary" className="text-xs">
-                                                            {NOTICE_TYPE_LABELS[notice.noticeType] ?? notice.noticeType}
+                                                            {(dict.admin.content.noticeTypes as Record<string, string>)[notice.noticeType] ?? notice.noticeType}
                                                         </Badge>
                                                     ) : null}
                                                     <TrustBadge
@@ -377,6 +410,7 @@ export default async function NoticesPage({
                                                 type: noticeType,
                                                 location,
                                                 status,
+                                                official: officialOnly,
                                                 page: page - 1,
                                             })}
                                         />
@@ -385,7 +419,7 @@ export default async function NoticesPage({
                                 {pages.map((p) => (
                                     <PaginationItem key={p}>
                                         <PaginationLink
-                                            href={hrefL({ search, type: noticeType, location, status, page: p })}
+                                            href={hrefL({ search, type: noticeType, location, status, official: officialOnly, page: p })}
                                             isActive={p === page}
                                         >
                                             {p}
@@ -400,6 +434,7 @@ export default async function NoticesPage({
                                                 type: noticeType,
                                                 location,
                                                 status,
+                                                official: officialOnly,
                                                 page: page + 1,
                                             })}
                                         />
@@ -434,6 +469,7 @@ export default async function NoticesPage({
                                 {status !== "active" ? (
                                     <input type="hidden" name="status" value={status} />
                                 ) : null}
+                                {officialOnly ? <input type="hidden" name="official" value="1" /> : null}
                                 <Input
                                     type="search"
                                     name="q"
@@ -466,6 +502,7 @@ export default async function NoticesPage({
                                                     search,
                                                     type: noticeType,
                                                     status,
+                                                    official: officialOnly,
                                                     location: loc.slug,
                                                 })}
                                                 aria-current={location === loc.slug ? "page" : undefined}
@@ -484,7 +521,7 @@ export default async function NoticesPage({
                                 </ul>
                                 {location && (
                                     <Link
-                                        href={hrefL({ search, type: noticeType, status })}
+                                        href={hrefL({ search, type: noticeType, status, official: officialOnly })}
                                         className="mt-2 block text-xs font-semibold text-muted-foreground underline-offset-4 hover:underline"
                                     >
                                         {dict.notices.allLocations}

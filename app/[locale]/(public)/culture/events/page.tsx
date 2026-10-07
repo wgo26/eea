@@ -174,7 +174,6 @@ export default async function EventsPage({
                             event={event}
                             dict={dict}
                             locale={locale}
-                            broadcastStatus={null}
                         />
                     ))}
                 </div>

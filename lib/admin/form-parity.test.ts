@@ -189,6 +189,37 @@ describe("approve surface parity", () => {
     });
   }
 
+  it("keeps lost/found direction in the localized moderated title", () => {
+    const lost = prefillFromSubmission({
+      payload: {
+        noticeType: "lost_found",
+        noticeDirection: "lost",
+        item: "A blue backpack",
+        message: "Last seen near the market.",
+      },
+      submissionType: "notice",
+      locations: LOCATIONS,
+      categories: CATEGORIES,
+    });
+    expect(lost.values.enTitle).toBe("Lost item: A blue backpack");
+    expect(lost.unmapped).not.toContain("noticeDirection");
+
+    const found = prefillFromSubmission({
+      payload: {
+        noticeType: "lost_found",
+        noticeDirection: "found",
+        item: "Un sac bleu",
+        message: "Trouvé près du marché.",
+        locale: "fr",
+      },
+      submissionType: "notice",
+      locations: LOCATIONS,
+      categories: CATEGORIES,
+    });
+    expect(found.values.frTitle).toBe("Objet trouvé : Un sac bleu");
+    expect(found.unmapped).not.toContain("noticeDirection");
+  });
+
   it("every submission type maps to a content type the single builder handles", () => {
     // content-create.ts CONTENT_TYPES is the source; mirrored here so this
     // suite never imports a server-only module into the unit gate.

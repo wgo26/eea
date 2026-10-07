@@ -10,7 +10,7 @@ import type { Dictionary } from '@/lib/i18n'
  * contributors never retype name/email.
  * Guests keep the URL textarea — /api/uploads requires authentication.
  */
-export async function SubmitFormGated({ type, dict }: { type: SubmitType; dict: Dictionary }) {
+export async function SubmitFormGated({ type, dict, initialNoticeType, initialNoticeDirection }: { type: SubmitType; dict: Dictionary; initialNoticeType?: string; initialNoticeDirection?: "lost" | "found" }) {
     const supabase = await createClient();
     const { data } = await supabase.auth.getUser();
     const user = data?.user ?? null;
@@ -57,5 +57,5 @@ export async function SubmitFormGated({ type, dict }: { type: SubmitType; dict: 
         }
     }
 
-    return <SubmitFormWithProgress type={type} dict={dict} canUpload={!!user} initial={initial} initialDraft={initialDraft} />;
+    return <SubmitFormWithProgress type={type} dict={dict} canUpload={!!user} initial={initial} initialDraft={initialDraft} initialNoticeType={initialNoticeType} initialNoticeDirection={initialNoticeDirection} />;
 }

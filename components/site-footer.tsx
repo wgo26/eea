@@ -39,20 +39,21 @@ export function SiteFooter({ socialLinks, branding, chrome }: { socialLinks?: So
         ? branding?.siteNameFr?.trim() || branding?.siteName?.trim() || "Eagle Eye Africa"
         : branding?.siteName?.trim() || "Eagle Eye Africa";
 
+    // P1: max 5 primary destinations. `professionals` folds into Places and
+    // news/photo/culture fold into the single Stories feed per merged audit —
+    // routes still resolve, but the footer no longer sells them as top-level.
     const sections = [
-        { href: "/photo-stories", label: dict.nav.photoStories },
-        { href: "/news", label: dict.nav.news },
+        { href: "/", label: dict.nav.home },
+        { href: "/stories", label: dict.nav.stories },
         { href: "/notices", label: dict.nav.notices },
         { href: "/buy-sell", label: dict.nav.buySell },
-        { href: "/professionals", label: dict.nav.professionals },
-        { href: "/culture", label: dict.nav.culture },
         { href: "/locations", label: dict.nav.locations },
     ];
+    // P1: footer community = actions only. Contributors/digest deferred per
+    // merged audit (no retention data / no users yet); guide stays as help.
     const community = [
-        { href: "/submit", label: dict.nav.submit },
+        { href: "/submit", label: dict.nav.post },
         { href: "/about/guide", label: dict.footer.guide },
-        { href: "/contributors", label: dict.nav.contributors },
-        { href: "/digest", label: dict.nav.digest },
         { href: "/advertise", label: dict.nav.advertise },
         { href: "/search", label: dict.nav.search },
     ];

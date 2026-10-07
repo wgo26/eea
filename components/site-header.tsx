@@ -40,13 +40,12 @@ function stripLocalePrefix(path: string): string {
     return path || "/";
 }
 
-// P0 bloat containment: max 5 primary destinations (Home + 4 verticals + Places).
-// `professionals` (fold into Places per merged audit) and `culture` (fold into
-// Stories per merged audit) are intentionally unlinked here — routes still
-// resolve + redirect via proxy/legacy_redirects, but no header slot.
+// P1: max 5 primary destinations (Home + Stories + Notices + Market + Places).
+// News + Photo Stories + Culture fold into the single Stories feed per merged
+// audit (old vertical routes still resolve; they are archive views, not nav).
 const SECTION_PATHS = [
-    { key: "photoStories", path: "/photo-stories" },
-    { key: "news", path: "/news" },
+    { key: "home", path: "/" },
+    { key: "stories", path: "/stories" },
     { key: "notices", path: "/notices" },
     { key: "buySell", path: "/buy-sell" },
     { key: "locations", path: "/locations" },
@@ -154,16 +153,17 @@ export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chro
                         className="hidden lg:inline-flex"
                         render={<Link href={localeHref(locale, "/submit")} />}
                     >
-                        {dict.nav.submit}
+                        {dict.nav.post}
                     </Button>
                     <MobileNav
                         items={items}
                         searchAction={localeHref(locale, "/search")}
                         searchPlaceholder={dict.header.searchPlaceholder}
                         searchLabel={dict.nav.search}
+                        navigationLabel={chrome.nav.main}
                         menuLabel={dict.header.menu}
                         submitHref={localeHref(locale, "/submit")}
-                        submitLabel={dict.nav.submit}
+                        submitLabel={dict.nav.post}
                         contrastLabel={dict.theme.contrast}
                     />
                 </div>

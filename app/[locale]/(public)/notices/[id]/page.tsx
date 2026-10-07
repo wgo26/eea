@@ -5,6 +5,7 @@ import {
     CalendarDays,
     Clock,
     MapPin,
+    PencilLine,
     Phone,
     Share2,
     Shield,
@@ -23,9 +24,8 @@ import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { TrustBadge } from "@/components/system/trust-badge";
 import { CorrectionsNotice } from "@/components/system/corrections-notice";
+import { CorrectionForm } from "@/components/news/correction-form";
 import { getCorrectionsForContent } from "@/lib/queries/corrections";
-import { FundraisingSection } from "@/components/news/fundraising-section";
-import { getFundraisers, getFundraiserStats } from "@/lib/queries/fundraisers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -97,14 +97,10 @@ export default async function NoticePage({ params }: NoticePageProps) {
         ).notices.filter((n) => n.id !== notice.id).slice(0, 4)
         : [];
 
-    // Phase 3 — community fundraising beside urgent notices (fundraisers are
-    // the natural extension of the town-square notice board: road repair,
-    // medical emergencies). Shared component with the news page; empty state
-    // is a quiet CTA, never a dead end.
-    const [fundraisers, fundraiserStats, corrections] = await Promise.all([
-        getFundraisers({ locale, limit: 3, onlyActive: true }),
-        getFundraiserStats(),
-        // Public correction trail (renders nothing when there is none).
+    // Public correction trail (renders nothing when there is none).
+    // NOTE (lean cut): fundraisers removed — NGOs post Service Announcement
+    // notices with an external donation link instead of an in-app campaign.
+    const [corrections] = await Promise.all([
         getCorrectionsForContent(notice.id, locale),
     ]);
 
@@ -272,15 +268,6 @@ export default async function NoticePage({ params }: NoticePageProps) {
                 <FeedbackWidget contentItemId={notice.id} copy={dict.feedback} />
             </div>
 
-            <div className="mt-10">
-                <FundraisingSection
-                    campaigns={fundraisers}
-                    dict={dict}
-                    locale={locale}
-                    stats={fundraiserStats}
-                />
-            </div>
-
             <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div>
                     {related.length > 0 ? (
@@ -340,6 +327,22 @@ export default async function NoticePage({ params }: NoticePageProps) {
                         stays in the record with its fix attached. */}
                     <div className="mt-8">
                         <CorrectionsNotice corrections={corrections} dict={dict} locale={locale} />
+                    </div>
+
+                    {/* Report a correction — same inline form as news/listings. */}
+                    <div id="correction" className="mb-8 mt-6 space-y-4 rounded-2xl border bg-muted/40 p-4 text-sm">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <PencilLine className="h-4 w-4 text-muted-foreground" aria-hidden />
+                            <span className="text-muted-foreground">
+                                {dict.news.correctionIntro}
+                            </span>
+                        </div>
+                        <CorrectionForm
+                            slug={id}
+                            dict={dict}
+                            locale={locale}
+                            returnHref={localePath(locale, `/notices/${id}`)}
+                        />
                     </div>
                 </div>
 

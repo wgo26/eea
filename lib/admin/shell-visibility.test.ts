@@ -79,36 +79,35 @@ describe("schedulerIssuesForViewer", () => {
   const opsStaff = caps("viewDashboard", "manageContent", "manageNotifications")
 
   it("surfaces only jobs that are not healthy", () => {
-    const rows = [beat({}), beat({ job: "reminders", status: "stale" })]
+    const rows = [beat({}), beat({ job: "publish-plans", status: "stale" })]
     expect(schedulerIssuesForViewer(rows, contentStaff).map((i) => i.job)).toEqual([
-      "reminders",
+      "publish-plans",
     ])
   })
 
-  it("withholds storage and DB jobs from non-chief staff", () => {
+  it("withholds storage jobs from non-chief staff", () => {
     const rows = [
       beat({ job: "storage-backup", status: "failing" }),
-      beat({ job: "db-dump", status: "stale" }),
       beat({ job: "notify", status: "failing" }),
     ]
     expect(schedulerIssuesForViewer(rows, caps("moderate", "manageNotifications")).map((i) => i.job)).toEqual([
       "notify",
     ])
-    // The chief persona: `system.owner` opens the storage tab, and the notify row
-    // points at /admin/notifications, so it needs that capability too.
+    // The chief persona: `system.owner` opens the storage tab, and the notify
+    // row keeps its manageNotifications audience via JOB_CAPABILITIES.
     const chief = schedulerIssuesForViewer(rows, caps("system.owner", "manageNotifications")).map((i) => i.job)
-    expect(chief.sort()).toEqual(["db-dump", "notify", "storage-backup"])
+    expect(chief.sort()).toEqual(["notify", "storage-backup"])
   })
 
   it("withholds a job whose destination is chief-only, by destination not name", () => {
-    // The bug this rule fixes: `state-schedules` was absent from the chief-only
-    // JOB list while pointing at /admin/states, the supreme-tier ladder. A super
-    // administrator (everything except `system.owner`) was handed a row that
-    // bounced them to not-authorized. Deriving from the nav cannot reproduce it:
-    // the row's audience is whatever the sidebar already requires.
-    const rows = [beat({ job: "state-schedules", status: "stale" })]
+    // P2: storage-backup points at /admin/storage-backup, the supreme tier. A
+    // super administrator (everything except `system.owner`) must never be
+    // handed a row that bounces them to not-authorized. Deriving from the nav
+    // cannot reproduce that class of bug: the row's audience is whatever the
+    // sidebar already requires.
+    const rows = [beat({ job: "storage-backup", status: "stale" })]
     expect(schedulerIssuesForViewer(rows, caps("viewDashboard", "system.configure")).map((i) => i.job)).toEqual([])
-    expect(schedulerIssuesForViewer(rows, caps("system.owner")).map((i) => i.job)).toEqual(["state-schedules"])
+    expect(schedulerIssuesForViewer(rows, caps("system.owner")).map((i) => i.job)).toEqual(["storage-backup"])
   })
 
   it("judges a job by its href, not by an allowlist of names", () => {
@@ -120,20 +119,20 @@ describe("schedulerIssuesForViewer", () => {
   })
 
   it("escalates failing rows above merely stale ones", () => {
-    const rows = [beat({ job: "notify", status: "stale" }), beat({ job: "reminders", status: "failing" })]
+    const rows = [beat({ job: "notify", status: "stale" }), beat({ job: "publish-plans", status: "failing" })]
     expect(schedulerIssuesForViewer(rows, opsStaff).map((i) => i.job)).toEqual([
-      "reminders",
+      "publish-plans",
       "notify",
     ])
   })
 
   it("links each job to the screen that owns it", () => {
     const issues = schedulerIssuesForViewer(
-      [beat({ job: "storage-backup", status: "stale" }), beat({ job: "credential-hygiene", status: "stale" })],
-      caps("system.owner"),
+      [beat({ job: "storage-backup", status: "stale" }), beat({ job: "publish-plans", status: "stale" })],
+      caps("system.owner", "manageContent"),
     )
     expect(issues.find((i) => i.job === "storage-backup")?.href).toBe("/admin/storage-backup")
-    expect(issues.find((i) => i.job === "credential-hygiene")?.href).toBe("/admin/secrets")
+    expect(issues.find((i) => i.job === "publish-plans")?.href).toBe("/admin/content")
   })
 
   it("reports the grace window the runbooks tell operators to watch", () => {
@@ -146,12 +145,12 @@ describe("schedulerIssuesForViewer", () => {
     const issues = schedulerIssuesForViewer(
       [
         beat({ job: "notify", status: "stale", lastSuccess: twoDaysAgo }),
-        beat({ job: "reminders", status: "unknown", lastSuccess: null }),
+        beat({ job: "publish-plans", status: "unknown", lastSuccess: null }),
       ],
       opsStaff,
     )
     expect(issues.find((i) => i.job === "notify")?.silenceHours).toBeGreaterThanOrEqual(47)
-    expect(issues.find((i) => i.job === "reminders")?.silenceHours).toBeNull()
+    expect(issues.find((i) => i.job === "publish-plans")?.silenceHours).toBeNull()
   })
 })
 

@@ -26,7 +26,6 @@ import { MediaBadge } from "@/components/media/media-attachment";
 import { AdaptiveImage } from "@/components/media/adaptive-image";
 import { SaveOfflineButton } from "@/components/system/save-offline-button";
 import { MobileReaderPill } from "@/components/system/mobile-reader-pill";
-import { ReactionBar } from "@/components/news/reaction-bar";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { ArticleShare } from "@/components/news/article-share";
 import { CorrectionForm } from "@/components/news/correction-form";
@@ -552,12 +551,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                                 savedLabel={dict.news.savedOffline}
                                 unavailableLabel={dict.news.offlineUnavailable}
                             />
-                            {/* W20 — anonymous reactions (spec §16 first slice). */}
-                            <ReactionBar
-                                contentItemId={article.id}
-                                likeLabel={dict.news.reactLike}
-                                helpfulLabel={dict.news.reactHelpful}
-                            />
+                            {/* Lean cut: reactions removed — "developing" status covers community pulse. */}
                         </CardContent>
                     </Card>
 

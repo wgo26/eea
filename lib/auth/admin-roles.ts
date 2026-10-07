@@ -177,7 +177,6 @@ const ROLE_CAPABILITIES: Record<AdminRole, Capability[]> = {
     'managePolicies',
     'manageSiteContent',
     'manageNotifications',
-    'broadcast.live',
   ],
   // Editorial review and publishing — narrower than editorial_admin (no
   // polls/fundraisers/site content).
@@ -188,7 +187,6 @@ const ROLE_CAPABILITIES: Record<AdminRole, Capability[]> = {
     'manageFundraisers',
     'managePolicies',
     'manageSiteContent',
-    'broadcast.live',
   ],
   // Community safety and reports.
   moderator: ['viewDashboard', 'moderate'],

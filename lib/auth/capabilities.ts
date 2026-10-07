@@ -40,13 +40,11 @@ export type Capability =
    | 'system.owner'
    | 'secrets.reveal'
    | 'analytics.read'
-  | 'listings.manage'
+   | 'listings.manage'
   | 'media.manage'
-  // Community live events (Phase 3): starting/ending a broadcast and linking
-  // its recording + recap. Distinct from `manageContent` (which owns the event
-  // listing itself) so going live is a grantable act — chat moderation reuses
-  // the existing `moderate` capability instead of minting another name.
-  | 'broadcast.live'
+  // Lean cut: `broadcast.live` retired with the live-broadcast desk
+  // (components/live/*, lib/live/*, culture event broadcast controls).
+  // Going live is now a YouTube/FB link in the event body — no capability.
 
 const ROLE_CAPABILITIES: Record<AppRole, Capability[]> = {
   admin: [
@@ -70,9 +68,8 @@ const ROLE_CAPABILITIES: Record<AppRole, Capability[]> = {
     'analytics.read',
     'listings.manage',
     'media.manage',
-    'broadcast.live',
   ],
-  editor: ['viewDashboard', 'moderate', 'manageContent', 'managePolls', 'manageFundraisers', 'managePolicies', 'manageSiteContent', 'manageNotifications', 'broadcast.live'],
+  editor: ['viewDashboard', 'moderate', 'manageContent', 'managePolls', 'manageFundraisers', 'managePolicies', 'manageSiteContent', 'manageNotifications'],
   // Contributor/advertiser capabilities are scoped to their own rows by RLS
   // and queries — they grant no admin-area access.
   contributor: [],
@@ -103,7 +100,7 @@ const CAPABILITY_WEIGHT: Record<Capability, number> = {
   // Appended (never renumbered) so existing menu/badge order is stable.
   'system.owner': 24,
   'secrets.reveal': 25,
-  'broadcast.live': 26,
+  // 26 (`broadcast.live`) retired with the live-broadcast desk — see above.
 }
 
 /**

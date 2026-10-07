@@ -14,6 +14,9 @@ import { FeedbackWidget } from "@/components/system/feedback-widget";
 import { AddToCalendar } from "@/components/events/add-to-calendar";
 import { ReminderButton } from "@/components/events/reminder-button";
 import { SupportingMedia } from "@/components/media/supporting-media";
+import { CorrectionsNotice } from "@/components/system/corrections-notice";
+import { CorrectionForm } from "@/components/news/correction-form";
+import { getCorrectionsForContent } from "@/lib/queries/corrections";
 import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 import { SITE } from "@/lib/constants";
 import { formatDate, getDictionary, resolveLocale } from "@/lib/i18n";
@@ -77,12 +80,17 @@ export default async function CultureDetailPage({ params }: Props) {
         ]),
     ]);
 
-    const { articles: related } = await getCultureArticles({
-        category: undefined,
-        location: article.locationSlug ?? undefined,
-        locale,
-        page: 1,
-    });
+    // P3 trust loop: the public correction register renders on every story
+    // type (renders nothing when there are none).
+    const [{ articles: related }, corrections] = await Promise.all([
+        getCultureArticles({
+            category: undefined,
+            location: article.locationSlug ?? undefined,
+            locale,
+            page: 1,
+        }),
+        getCorrectionsForContent(article.id, locale),
+    ]);
     const relatedFiltered = related
         .filter((a) => a.id !== article.id)
         .slice(0, 3);
@@ -345,6 +353,27 @@ export default async function CultureDetailPage({ params }: Props) {
 
                 <div className="no-print mt-8 border-t pt-6">
                     <FeedbackWidget contentItemId={article.id} copy={dict.feedback} />
+                </div>
+
+                {/* Trust loop: the record shows its own fixes above the form
+                    that produces them (mirrors /news/[slug]). */}
+                <div className="no-print mt-8 border-t pt-6">
+                    <div className="mb-6">
+                        <CorrectionsNotice
+                            corrections={corrections}
+                            dict={dict}
+                            locale={locale}
+                            storyHref={`/culture/${article.slug}`}
+                        />
+                    </div>
+                    <div id="correction">
+                        <CorrectionForm
+                            slug={article.slug ?? article.id}
+                            dict={dict}
+                            locale={locale}
+                            returnHref={localePath(locale, `/culture/${article.slug}`)}
+                        />
+                    </div>
                 </div>
             </article>
 

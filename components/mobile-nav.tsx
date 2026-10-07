@@ -13,6 +13,7 @@ type MobileNavProps = {
   searchAction: string;
   searchPlaceholder: string;
   searchLabel: string;
+  navigationLabel: string;
   menuLabel: string;
   submitHref: string;
   submitLabel: string;
@@ -37,6 +38,7 @@ export function MobileNav({
   searchAction,
   searchPlaceholder,
   searchLabel,
+  navigationLabel,
   menuLabel,
   submitHref,
   submitLabel,
@@ -64,7 +66,7 @@ export function MobileNav({
             />
             <Input type="search" name="q" placeholder={searchPlaceholder} className="pl-9" />
           </form>
-          <nav className="mt-3 flex flex-col">
+          <nav aria-label={navigationLabel} className="mt-3 flex flex-col">
             {items.map((item) => {
               const canonical = item.path ?? stripLocalePrefix(item.href);
               const stripped = stripLocalePrefix(pathname);

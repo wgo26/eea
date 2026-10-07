@@ -73,7 +73,6 @@ const anyOf = (...anyOf: Capability[]): PageGuardShape => ({ mode: 'any', anyOf 
 export const GUARDED_ROUTES: GuardedRoute[] = [
   // Command
   { path: '/admin/dashboard', nav: ['viewDashboard'], page: single('viewDashboard') },
-  { path: '/admin/inbox', nav: ['viewDashboard'], page: single('viewDashboard') },
   // The Analyst role exists to read analytics, so admitting `analytics.read` in
   // the nav is only honest once the page guard accepts it too.
   {
@@ -83,17 +82,8 @@ export const GUARDED_ROUTES: GuardedRoute[] = [
   },
   // Newsroom
   { path: '/admin/content', nav: ['manageContent'], page: single('manageContent') },
-  { path: '/admin/emergency', nav: ['manageContent'], page: single('manageContent') },
-  { path: '/admin/digest', nav: ['manageContent'], page: single('manageContent') },
-  { path: '/admin/templates', nav: ['manageContent'], page: single('manageContent') },
-  { path: '/admin/translations', nav: ['manageContent'], page: single('manageContent') },
-  { path: '/admin/automations', nav: ['manageContent'], page: single('manageContent') },
   // Community
   { path: '/admin/moderation', nav: ['moderate'], page: single('moderate') },
-  { path: '/admin/trust-safety', nav: ['moderate'], page: single('moderate') },
-  { path: '/admin/polls', nav: ['managePolls'], page: single('managePolls') },
-  { path: '/admin/fundraisers', nav: ['manageFundraisers'], page: single('manageFundraisers') },
-  { path: '/admin/policies', nav: ['managePolicies'], page: single('managePolicies') },
   // Catalogue
   {
     path: '/admin/listings',
@@ -103,20 +93,10 @@ export const GUARDED_ROUTES: GuardedRoute[] = [
   { path: '/admin/taxonomy', nav: ['manageContent'], page: single('manageContent') },
   { path: '/admin/media', nav: ['media.manage'], page: single('media.manage') },
   { path: '/admin/site-content', nav: ['manageSiteContent'], page: single('manageSiteContent') },
-  { path: '/admin/branding', nav: ['branding.publish'], page: single('branding.publish') },
   { path: '/admin/ads', nav: ['manageAds'], page: single('manageAds') },
   // Platform
   { path: '/admin/users', nav: ['manageUsers'], page: single('manageUsers') },
-  {
-    path: '/admin/approvals',
-    nav: ['secrets.revoke', 'incidents.manage', 'branding.publish', 'system.configure', 'manageUsers'],
-    page: anyOf('secrets.revoke', 'incidents.manage', 'branding.publish', 'system.configure', 'manageUsers'),
-  },
-  { path: '/admin/incidents', nav: ['incidents.manage'], page: single('incidents.manage') },
-  { path: '/admin/notifications', nav: ['manageNotifications'], page: single('manageNotifications') },
   // The supreme tier (docs/system/chief-access.md).
-  { path: '/admin/states', nav: ['system.owner'], page: single('system.owner') },
-  { path: '/admin/secrets', nav: ['system.owner'], page: single('system.owner') },
   { path: '/admin/storage-backup', nav: ['system.owner'], page: single('system.owner') },
   { path: '/admin/audit-log', nav: ['system.owner'], page: single('system.owner') },
   { path: '/admin/security', nav: ['system.owner'], page: single('system.owner') },
@@ -176,14 +156,7 @@ export type SubRoute = {
 export const SUB_ROUTES: SubRoute[] = [
   { file: 'admin/content/timeline/page.tsx', path: '/admin/content/timeline', ownedBy: '/admin/content', page: single('manageContent') },
   { file: 'admin/content/import/page.tsx', path: '/admin/content/import', ownedBy: '/admin/content', page: single('manageContent') },
-  { file: 'admin/branding/colors/page.tsx', path: '/admin/branding/colors', ownedBy: '/admin/branding', page: single('branding.publish') },
-  { file: 'admin/branding/new/page.tsx', path: '/admin/branding/new', ownedBy: '/admin/branding', page: single('branding.publish') },
-  { file: 'admin/branding/assets/page.tsx', path: '/admin/branding/assets', ownedBy: '/admin/branding', page: single('branding.publish') },
-  { file: 'admin/branding/[id]/page.tsx', path: '/admin/branding/{id}', ownedBy: '/admin/branding', page: single('branding.publish') },
-  { file: 'admin/secrets/new/page.tsx', path: '/admin/secrets/new', ownedBy: '/admin/secrets', page: single('system.owner') },
-  { file: 'admin/secrets/[id]/page.tsx', path: '/admin/secrets/{id}', ownedBy: '/admin/secrets', page: single('system.owner') },
   { file: 'admin/users/[id]/page.tsx', path: '/admin/users/{id}', ownedBy: '/admin/users', page: single('manageUsers') },
-  { file: 'admin/incidents/[id]/page.tsx', path: '/admin/incidents/{id}', ownedBy: '/admin/incidents', page: single('incidents.manage') },
   { file: 'admin/moderation/[id]/page.tsx', path: '/admin/moderation/{id}', ownedBy: '/admin/moderation', page: single('moderate') },
   { file: 'admin/listings/claims/page.tsx', path: '/admin/listings/claims', ownedBy: '/admin/listings', page: anyOf('manageContent', 'listings.manage') },
 ]

@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { ShareButtons } from '@/components/share-buttons'
+import { SITE } from '@/lib/constants'
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getRequestLocale()
@@ -57,6 +59,23 @@ export default async function Page({
         <h1 className="text-3xl font-bold tracking-tight">{dict.home.digestCtaTitle}</h1>
         <p className="text-muted-foreground text-lg">{dict.home.digestCtaBody}</p>
       </header>
+
+      {/* P3 growth: WhatsApp-forward beats a new digest product with no users.
+          Readers share the signup (or any issue) straight into their groups —
+          no digest_personalization tables, just the OS share sheet + wa.me. */}
+      <div className="flex justify-center">
+        <ShareButtons
+          url={`${SITE.url}${localePath(locale, "/digest")}`}
+          title={dict.home.digestCtaTitle}
+          locale={locale}
+          labels={{
+            share: dict.common.share,
+            whatsapp: dict.common.whatsapp,
+            copyLink: dict.common.copyLink,
+            copied: dict.common.copied,
+          }}
+        />
+      </div>
 
       {showUnsubscribe ? (
         <section className="rounded-lg border border-border bg-card p-6 space-y-4">

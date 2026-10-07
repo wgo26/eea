@@ -1,34 +1,18 @@
 import {
-  Bell,
-  CalendarClock,
   ChartColumn,
-  ClipboardCheck,
   Database,
-  FileStack,
   FileText,
-  Gauge,
-  HeartHandshake,
   Images,
-  Inbox,
-  KeyRound,
-  Languages,
   LayoutDashboard,
   LayoutTemplate,
   Lock,
   type LucideIcon,
   Megaphone,
-  Palette,
-  Radio,
-  Scale,
   ScrollText,
-  ShieldAlert,
   ShieldCheck,
-  Siren,
   Store,
   Tags,
   Users,
-  Vote,
-  Zap,
 } from 'lucide-react'
 import { type Capability } from '@/lib/auth/capabilities'
 import { effectiveCapabilities, type AdminRole } from '@/lib/auth/admin-roles'
@@ -111,66 +95,36 @@ export function specCapabilities(spec: AdminNavItemSpec): Capability[] {
 /**
  * The navigation, partitioned by what the operator is TRYING to do.
  *
- * It used to be partitioned by capability (`editorial` / `safety`), which made
- * Editorial carry 12 of 28 entries — Taxonomy, Listings, Branding and
- * Automations are not editorial work — and let Trust & Governance mix live work
- * queues (moderation, reports, approvals) with rule engines (policies, ad
- * billing, notification dispatch) and telemetry (incidents). Five intent-named
- * groups now answer "where would I look?" instead of "which role may see this?",
- * because visibility is already handled by the capability filter below.
- *
- * Worst-case group size is for the chief admin only: Platform holds nine
- * entries, five of which are invisible to every other role, so the count any
- * one person sees stays small.
+ * P2 (merged audit): 29 sections → 13 visible. Removed entries are UNLINKED,
+ * not deleted — their pages keep their capability guards, so a direct URL
+ * still enforces the same wall; the sidebar stops selling them as daily
+ * destinations. Role reachability is preserved: analyst → insights,
+ * marketplace_admin → listings, media_admin → media (see
+ * lib/admin/nav-integrity.test.ts, which fails if any role loses its screen).
+ * Trust & safety, inbox, policies, approvals, notifications, translations and
+ * the ops-theater sections (states, secrets, incidents, emergency,
+ * automations, templates, digest, branding, polls, fundraisers) remain
+ * reachable by URL for the roles that hold their capabilities.
  */
 export const ADMIN_NAV_SPECS: AdminNavItemSpec[] = [
-  // Command — your own desk: what landed, what is stuck, how it is going.
+  // Command — your own desk: what landed and how it is going.
   { key: 'dashboard', path: '/admin/dashboard', capability: 'viewDashboard', icon: LayoutDashboard, domain: 'command' },
-  { key: 'inbox', path: '/admin/inbox', capability: 'viewDashboard', icon: Inbox, domain: 'command', badgeTone: 'neutral' },
-  // Insights answers for BOTH the dashboard-holder and the dedicated read-only
-  // Analyst role (spec §17 `analytics.read`). Before this, an Analyst held only
-  // `analytics.read` — which no nav entry asked for — so their sidebar rendered
-  // completely empty while the guard let them open the page.
+  // Analyst role's screen (spec §17 `analytics.read`).
   { key: 'insights', path: '/admin/insights', capability: ['viewDashboard', 'analytics.read'], icon: ChartColumn, domain: 'command' },
   // Newsroom — making the paper.
   { key: 'content', path: '/admin/content', capability: 'manageContent', icon: FileText, domain: 'newsroom' },
-  { key: 'emergency', path: '/admin/emergency', capability: 'manageContent', icon: Radio, domain: 'newsroom' },
-  { key: 'digest', path: '/admin/digest', capability: 'manageContent', icon: CalendarClock, domain: 'newsroom', badgeTone: 'neutral' },
-  { key: 'templates', path: '/admin/templates', capability: 'manageContent', icon: FileStack, domain: 'newsroom' },
-  { key: 'translations', path: '/admin/translations', capability: 'manageContent', icon: Languages, domain: 'newsroom', badgeTone: 'neutral' },
-  { key: 'automations', path: '/admin/automations', capability: 'manageContent', icon: Zap, domain: 'newsroom' },
-  // Community — the readers: what they report, what they vote on, what we owe them.
+  // Community — the moderation queue (trust-safety reports triage here too).
   { key: 'moderation', path: '/admin/moderation', capability: 'moderate', icon: ShieldCheck, domain: 'community', badgeTone: 'alert' },
-  { key: 'trustSafety', path: '/admin/trust-safety', capability: 'moderate', icon: ShieldAlert, domain: 'community' },
-  { key: 'polls', path: '/admin/polls', capability: 'managePolls', icon: Vote, domain: 'community' },
-  { key: 'fundraisers', path: '/admin/fundraisers', capability: 'manageFundraisers', icon: HeartHandshake, domain: 'community' },
-  { key: 'policies', path: '/admin/policies', capability: 'managePolicies', icon: Scale, domain: 'community' },
   // Catalogue — the assets and surfaces the site is built from.
-  // Listings is any-of: the editorial team has always run it through
-  // `manageContent`, and the spec §17 Marketplace Administrator holds
-  // `listings.manage` — which matched nothing here, leaving that role with a
-  // single visible link that bounced them to not-authorized. The page guard
-  // mirrors this list exactly (see app/[locale]/(app)/admin/listings/page.tsx).
   { key: 'listings', path: '/admin/listings', capability: ['manageContent', 'listings.manage'], icon: Store, domain: 'catalogue' },
   { key: 'taxonomy', path: '/admin/taxonomy', capability: 'manageContent', icon: Tags, domain: 'catalogue' },
-  // Media is the archive the `media_admin` role exists to run: `media.manage`
-  // already gates seven server actions in lib/admin/actions/media.ts and no nav
-  // entry asked for it, so the capability — and the role — did nothing.
   { key: 'media', path: '/admin/media', capability: 'media.manage', icon: Images, domain: 'catalogue' },
   { key: 'siteContent', path: '/admin/site-content', capability: 'manageSiteContent', icon: LayoutTemplate, domain: 'catalogue' },
-  { key: 'branding', path: '/admin/branding', capability: 'branding.publish', icon: Palette, domain: 'catalogue' },
   { key: 'ads', path: '/admin/ads', capability: 'manageAds', icon: Megaphone, domain: 'catalogue' },
   // Platform — the machine, and who may operate it.
   { key: 'users', path: '/admin/users', capability: 'manageUsers', icon: Users, domain: 'platform' },
-  { key: 'approvals', path: '/admin/approvals', capability: ['secrets.revoke', 'incidents.manage', 'branding.publish', 'system.configure', 'manageUsers'], icon: ClipboardCheck, domain: 'platform' },
-  { key: 'incidents', path: '/admin/incidents', capability: 'incidents.manage', icon: Siren, domain: 'platform' },
-  { key: 'notifications', path: '/admin/notifications', capability: 'manageNotifications', icon: Bell, domain: 'platform' },
-  // Supreme tier (docs/system/chief-access.md): the five `system.owner` tabs
-  // concentrate platform-wide power — the state ladder, plaintext-bearing
-  // rotation, destructive storage cleanup, the full audit trail and the security
-  // lens — so they stay invisible, and unreachable, to every other role.
-  { key: 'states', path: '/admin/states', capability: 'system.owner', icon: Gauge, domain: 'platform' },
-  { key: 'secrets', path: '/admin/secrets', capability: 'system.owner', icon: KeyRound, domain: 'platform' },
+  // Supreme tier (docs/system/chief-access.md): storage, audit and security
+  // stay visible to the chief only; states/secrets/incidents are URL-only.
   { key: 'storage', path: '/admin/storage-backup', capability: 'system.owner', icon: Database, domain: 'platform' },
   { key: 'audit', path: '/admin/audit-log', capability: 'system.owner', icon: ScrollText, domain: 'platform' },
   { key: 'security', path: '/admin/security', capability: 'system.owner', icon: Lock, domain: 'platform' },

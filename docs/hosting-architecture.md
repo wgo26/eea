@@ -2,6 +2,17 @@
 
 Status: approved baseline for deployment planning
 
+## Canonical target (P3)
+
+**Hostinger Business Node.js is the canonical production target.** Vercel is
+reference-only: `vercel.json` crons never fire off Vercel, so
+`.github/workflows/scheduled-jobs.yml` is the real scheduler and
+`verify-crons.mjs` keeps the two manifests in agreement. A dual-cron/deploy
+split previously caused a silent outage (reminders deployed but never
+scheduled); do not reintroduce a second scheduler without updating the gate.
+Set `APP_VERSION` on the host at deploy time — Sentry release tracking reads
+it in all three SDK configs.
+
 ## Decisions
 
 | Area | Decision |

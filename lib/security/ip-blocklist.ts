@@ -2,6 +2,7 @@ import 'server-only'
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/observability/logger'
+import { getClientIp } from '@/lib/security/rate-limit'
 
 /**
  * App-layer IP blocklist (System & Infrastructure → Security).
@@ -80,6 +81,20 @@ export async function isIpBlocked(ip: string | null | undefined): Promise<boolea
   const normalized = normalizeIp(ip)
   if (!normalized) return false
   return (await liveBlockedIps(Date.now())).has(normalized)
+}
+
+/**
+ * Request-scoped convenience: resolves the caller IP and checks the blocklist.
+ * Never throws — outside a request scope (unit tests, build-time prerender)
+ * there is no hostile client to refuse, so it fails open and lets the
+ * fail-closed rate limiter behind it make the decision.
+ */
+export async function isCurrentRequestIpBlocked(): Promise<boolean> {
+  try {
+    return await isIpBlocked(await getClientIp())
+  } catch {
+    return false
+  }
 }
 
 /** Test seam: clear the cache (unit tests, and after block/unblock writes). */

@@ -121,6 +121,21 @@ export async function saveContentItem(
       if (Object.keys(lPatch).length > 0) {
         const { error } = await supabase.from('listings').update(lPatch as UpdateOf<'listings'>).eq('content_item_id', contentItemId)
         if (error) return { ok: false, error: error.message }
+        // Phase A dual-write: mirror contact fields into `seller_contacts`.
+        const scPatch: Record<string, unknown> = {}
+        if (draft.listing.contactPhone !== undefined) scPatch.contact_phone = draft.listing.contactPhone || null
+        if (draft.listing.contactEmail !== undefined) scPatch.contact_email = draft.listing.contactEmail || null
+        if (draft.listing.whatsappNumber !== undefined) scPatch.whatsapp_number = draft.listing.whatsappNumber || null
+        if (Object.keys(scPatch).length > 0) {
+          try {
+            await supabase.from('seller_contacts').upsert(
+              { content_item_id: contentItemId, ...scPatch },
+              { onConflict: 'content_item_id' },
+            )
+          } catch {
+            /* best-effort: legacy columns already updated */
+          }
+        }
       }
     }
     if (item.type === 'notice' && draft.notice) {

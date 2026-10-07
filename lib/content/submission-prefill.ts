@@ -129,6 +129,7 @@ export function prefillFromSubmission(input: PrefillInput): SubmissionPrefill {
   const genericShort = SHORT_KEYS.map((k) => str(p[k])).find(Boolean) ?? ''
   const genericProse = PROSE_KEYS.map((k) => str(p[k])).find(Boolean) ?? ''
   for (const k of [...SHORT_KEYS, ...PROSE_KEYS]) take(k)
+  const type = input.submissionType
 
   const explicitLocale =
     str(p.submission_locale) || str(p.locale) || str(p.lang) || str(p.language)
@@ -158,6 +159,29 @@ export function prefillFromSubmission(input: PrefillInput): SubmissionPrefill {
   // evidence about the submitter's text.
   const primary = sourceLocale === 'fr' ? 'fr' : 'en'
   const other = primary === 'fr' ? 'en' : 'fr'
+  const noticeDirection = str(p.noticeDirection)
+  if (noticeDirection) {
+    consumed.add('noticeDirection')
+    if (
+      type !== 'notice' ||
+      str(p.noticeType) !== 'lost_found' ||
+      !['lost', 'found'].includes(noticeDirection)
+    ) {
+      unmapped.push('noticeDirection')
+    }
+  }
+  const directionalTitle =
+    type === 'notice' &&
+    str(p.noticeType) === 'lost_found' &&
+    ['lost', 'found'].includes(noticeDirection)
+      ? `${sourceLocale === 'fr'
+          ? noticeDirection === 'lost'
+            ? 'Objet perdu : '
+            : 'Objet trouvé : '
+          : noticeDirection === 'lost'
+            ? 'Lost item: '
+            : 'Found item: '}${genericShort}`
+      : genericShort
   const place = (field: 'Title' | 'Body', text: string, key: string) => {
     if (!text) return
     const target = `${primary}${field}`
@@ -173,7 +197,7 @@ export function prefillFromSubmission(input: PrefillInput): SubmissionPrefill {
     if (!values[fallback]) values[fallback] = text
     else if (values[fallback] !== text) unmapped.push(key)
   }
-  place('Title', genericShort, SHORT_KEYS.find((k) => str(p[k])) ?? 'title')
+  place('Title', directionalTitle, SHORT_KEYS.find((k) => str(p[k])) ?? 'title')
   place('Body', genericProse, PROSE_KEYS.find((k) => str(p[k])) ?? 'description')
 
   // --- taxonomy -------------------------------------------------------------
@@ -204,7 +228,6 @@ export function prefillFromSubmission(input: PrefillInput): SubmissionPrefill {
     else unmapped.push('category')
   }
 
-  const type = input.submissionType
   const noticeType = take('noticeType')
   if (noticeType) {
     if (type === 'notice') values.noticeType = noticeType

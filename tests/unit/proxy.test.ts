@@ -112,3 +112,30 @@ describe('proxy — locale contract unchanged', () => {
         expect(res.headers.get('location')).toBeNull()
     })
 })
+
+describe('proxy — P1 IA consolidation (professionals → locations)', () => {
+    beforeEach(() => {
+        hoisted.table.clear()
+    })
+
+    it('308-redirects the unprefixed storefront index into the negotiated locale', async () => {
+        const { proxy } = await importProxy()
+        const res = await proxy(makeRequest('/professionals'))
+        expect(res.status).toBe(308)
+        expect(res.headers.get('location')).toBe('http://localhost/en/locations')
+    })
+
+    it('308-redirects a locale-prefixed storefront detail, preserving the locale', async () => {
+        const { proxy } = await importProxy()
+        const res = await proxy(makeRequest('/fr/professionals/some-shop'))
+        expect(res.status).toBe(308)
+        expect(res.headers.get('location')).toBe('http://localhost/fr/locations')
+    })
+
+    it('leaves the claim intake untouched', async () => {
+        const { proxy } = await importProxy()
+        const res = await proxy(makeRequest('/en/professionals/claim'))
+        expect(res.headers.get('location')).toBeNull()
+        expect(res.headers.get('x-locale')).toBe('en')
+    })
+})

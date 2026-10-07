@@ -13,15 +13,6 @@ import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { getEventById } from "@/lib/queries/culture";
 import { sanitizeBodyHtml } from "@/lib/security/html";
-import { getBroadcastForEvent } from "@/lib/live/queries";
-import { canBroadcast, getRsvpState, isNativeLiveEnabled } from "@/lib/live/actions";
-import { assertCapability } from "@/lib/admin/auth";
-import { getSessionUser } from "@/lib/auth/guards";
-import { LiveBadge } from "@/components/live/live-badge";
-import { LivePlayer } from "@/components/live/live-player";
-import { LiveChat } from "@/components/live/live-chat";
-import { RsvpButton } from "@/components/live/rsvp-button";
-import { BroadcastControls } from "@/components/live/broadcast-controls";
 import { ReminderButton } from "@/components/events/reminder-button";
 import { PlaceRail } from "@/components/place/place-rail";
 
@@ -55,16 +46,9 @@ export default async function EventDetailPage({ params }: Props) {
     const event = await getEventById(id, locale);
     if (!event) notFound();
 
-    // Community live layer: the broadcast (if any), RSVP headcount + the
-    // viewer's own RSVP, and the staff-only desk for `broadcast.live` holders.
-    const [broadcast, rsvp, staff, moderator, session, nativeEnabled] = await Promise.all([
-        getBroadcastForEvent(event.id),
-        getRsvpState(event.id).catch(() => ({ going: false, count: 0 })),
-        canBroadcast(),
-        assertCapability("moderate").then(() => true).catch(() => false),
-        getSessionUser().then((s) => Boolean(s.user)).catch(() => false),
-        isNativeLiveEnabled(),
-    ]);
+    // Lean cut: live broadcasts / RSVP / chat removed — a YouTube/FB link in
+    // the body replaces the broadcast desk. RSVP + reminders tables drop in
+    // the lean migration; the generic reminder button stays (client-only).
 
     // Render-boundary sanitization — defense in depth over the ingestion-side
     // sanitizer. Untrusted DB HTML must never reach dangerouslySetInnerHTML.
@@ -118,12 +102,6 @@ export default async function EventDetailPage({ params }: Props) {
                                 {event.category}
                             </span>
                         ) : null}
-                        <LiveBadge
-                            status={broadcast?.status ?? null}
-                            liveLabel={dict.culture.liveBadge}
-                            soonLabel={dict.culture.liveSoon}
-                            endedLabel={dict.culture.liveEnded}
-                        />
                     </span>
                     <h1 className="font-display mt-3 text-3xl font-extrabold tracking-tight md:text-5xl">
                         {event.title}
@@ -261,77 +239,13 @@ export default async function EventDetailPage({ params }: Props) {
                     </dl>
                 </section>
 
-                {/* Community live: player while live, recording after the end. */}
-                {broadcast?.status === "live" ? (
-                    <section aria-label={dict.culture.watchLive} className="mb-8 grid gap-4">
-                        <LivePlayer
-                            broadcast={broadcast}
-                            title={event.title}
-                            nativeOffLabel={dict.culture.broadcastNativeOff}
-                        />
-                        <LiveChat
-                            broadcastId={broadcast.id}
-                            contentItemId={event.id}
-                            isLive
-                            signedIn={session}
-                            canModerate={moderator}
-                            copy={{
-                                title: dict.culture.liveChat,
-                                hint: dict.culture.liveChatHint,
-                                placeholder: dict.culture.chatPlaceholder,
-                                send: dict.culture.chatSend,
-                                signIn: dict.culture.chatSignIn,
-                                closed: dict.culture.chatClosed,
-                                empty: dict.culture.chatEmpty,
-                                hiddenNote: dict.culture.chatHidden,
-                                report: dict.culture.chatReport,
-                                reported: dict.culture.chatReported,
-                            }}
-                        />
-                    </section>
-                ) : null}
-                {broadcast?.status === "ended" && broadcast.recordingUrl ? (
-                    <section aria-label={dict.culture.watchRecording} className="mb-8">
-                        <video
-                            src={broadcast.recordingUrl}
-                            controls
-                            preload="none"
-                            playsInline
-                            className="aspect-video w-full overflow-hidden rounded-2xl border bg-black"
-                        />
-                    </section>
-                ) : null}
-                {broadcast?.recapHref ? (
-                    <p className="mb-8">
-                        <a
-                            href={localePath(locale, broadcast.recapHref)}
-                            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3.5 py-1.5 text-sm font-medium text-primary hover:bg-primary/15"
-                        >
-                            {dict.culture.viewRecap}
-                            {broadcast.recapTitle ? ` — ${broadcast.recapTitle}` : ""}
-                        </a>
-                    </p>
-                ) : null}
-
                 {/* More culture from the reader's place (town-square bridge). */}
                 <div className="mb-8">
                     <PlaceRail locale={locale} dict={dict} kind="culture" sectionPath="/culture" />
                 </div>
 
-                {/* RSVP + reminder */}
+                {/* Reminder (client-only) — RSVP headcount removed in lean cut. */}
                 <div className="mb-8 flex flex-wrap items-center gap-3">
-                    <RsvpButton
-                        contentItemId={event.id}
-                        initialGoing={rsvp.going}
-                        initialCount={rsvp.count}
-                        signedIn={session}
-                        copy={{
-                            going: dict.culture.rsvpGoing,
-                            cancel: dict.culture.rsvpCancel,
-                            count: dict.culture.rsvpCount,
-                            signIn: dict.culture.rsvpSignIn,
-                        }}
-                    />
                     {event.eventDate ? (
                         <ReminderButton
                             contentItemId={event.id}
@@ -376,36 +290,6 @@ export default async function EventDetailPage({ params }: Props) {
                         }}
                     />
                 </div>
-
-                {/* Staff broadcast desk — `broadcast.live` holders only; the
-                    actions re-check the capability, so this is convenience,
-                    not the wall. */}
-                {staff ? (
-                    <div className="mt-8">
-                        <BroadcastControls
-                            contentItemId={event.id}
-                            slugOrId={event.slug}
-                            broadcast={broadcast}
-                            nativeEnabled={nativeEnabled}
-                            copy={{
-                                title: dict.culture.broadcastTitle,
-                                provider: dict.culture.broadcastProvider,
-                                url: dict.culture.broadcastUrl,
-                                urlHint: dict.culture.broadcastUrlHint,
-                                save: dict.culture.broadcastSave,
-                                goLive: dict.culture.broadcastGoLive,
-                                end: dict.culture.broadcastEnd,
-                                recording: dict.culture.broadcastRecording,
-                                recap: dict.culture.broadcastRecap,
-                                saved: dict.culture.broadcastSaved,
-                                live: dict.culture.broadcastLive,
-                                ended: dict.culture.broadcastEnded,
-                                confirmEnd: dict.culture.broadcastConfirmEnd,
-                                nativeOff: dict.culture.broadcastNativeOff,
-                            }}
-                        />
-                    </div>
-                ) : null}
             </article>
         </div>
         </>

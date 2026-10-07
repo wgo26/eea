@@ -4,6 +4,8 @@ import { ArrowLeft } from "lucide-react";
 
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { SubmitFormGated } from "@/components/submit/submit-form-gated";
+import { SubmitOfflineNotice } from "@/components/submit/submit-offline-notice";
+import { getPublicSiteSettings } from "@/lib/admin/queries/settings";
 import { localePath } from "@/lib/i18n/urls";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -18,6 +20,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
     const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     const meta = dict.submit.types.buySell;
+    const { contactWhatsapp } = await getPublicSiteSettings().catch(() => ({ contactWhatsapp: null as string | null }));
     return (
         <div className="mx-auto w-full max-w-2xl px-4 py-8 md:px-6 lg:px-8">
             <Link
@@ -32,6 +35,12 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">{meta.blurb}</p>
             <div className="mt-6">
+                <SubmitOfflineNotice
+                    whatsapp={contactWhatsapp}
+                    title={dict.submit.offlineTitle}
+                    body={dict.submit.offlineBody}
+                    fallback={dict.submit.fallbackWhatsapp}
+                />
                 <SubmitFormGated type="buy-sell" dict={dict} />
             </div>
         </div>

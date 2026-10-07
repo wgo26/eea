@@ -48,14 +48,13 @@ describe("entityContextFor", () => {
   })
 
   it("never reads a declared static sub-route as a record id", () => {
-    // `branding/colors` really is a page, not a theme named "colors" — see the
-    // static-wins-over-[id] note in app/[locale]/(app)/admin/branding/page.tsx.
+    // `content/timeline` really is a page, not content named "timeline".
+    // (P2 trimmed unlinked sections from SUB_ROUTES; the remaining static
+    // children are content/timeline, content/import and listings/claims.)
     for (const [pathname, section] of [
-      ["/admin/branding/colors", "/admin/branding"],
-      ["/admin/branding/new", "/admin/branding"],
       ["/admin/content/timeline", "/admin/content"],
       ["/admin/content/import", "/admin/content"],
-      ["/admin/secrets/new", "/admin/secrets"],
+      ["/admin/listings/claims", "/admin/listings"],
     ] as const) {
       expect(entityContextFor(pathname, section), pathname).toBeNull()
     }
@@ -79,9 +78,10 @@ describe("entityContextFor", () => {
 
 describe("staticSubRoutesOf", () => {
   it("derives from the declared sub-routes, excluding dynamic placeholders", () => {
-    expect(staticSubRoutesOf("/admin/branding").sort()).toEqual(
-      ["assets", "colors", "new"].sort(),
+    expect(staticSubRoutesOf("/admin/content").sort()).toEqual(
+      ["import", "timeline"].sort(),
     )
+    expect(staticSubRoutesOf("/admin/listings")).toEqual(["claims"])
     // `{id}` is the record page itself — listing it would suppress real crumbs.
     expect(staticSubRoutesOf("/admin/users")).toEqual([])
     expect(staticSubRoutesOf("/admin/moderation")).toEqual([])

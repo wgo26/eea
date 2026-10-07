@@ -298,6 +298,8 @@ export const en = {
     intro:
       'Road closures, community alerts, lost and found, service announcements and more — verified by Eagle Eye or submitted by the community.',
     featured: 'Featured notice',
+    browseActions: 'Notice actions and official notices',
+    officialBrowseHint: 'Verified sources only',
     latest: 'Latest Notices',
     searchLabel: 'Search notices',
     searchPlaceholder: 'Search notices…',
@@ -322,6 +324,11 @@ export const en = {
     submitCtaBody:
       'Submit a community notice — road closures, lost and found, service announcements and more. Every submission is reviewed before publication.',
     submitCtaButton: 'Submit a Notice',
+    lostAction: 'Report a lost item',
+    foundAction: 'Report a found item',
+    missingPersonAction: 'Report a missing person',
+    communityAction: 'Submit a community notice',
+    officialAction: 'Browse official notices',
     noticeCount: 'notices',
     myNotices: 'My notices',
     myNoticesBody: 'Renew expired notices for 30 more days — no staff ticket needed.',
@@ -517,6 +524,11 @@ export const en = {
       'Share what you witnessed with your community. Choose what you would like to contribute — no account needed. Every submission is reviewed by our editors before it is published.',
     choose: 'What would you like to share?',
     back: 'Back to submission types',
+    offlineTitle: 'You are offline',
+    offlineBody:
+      'Your draft is saved on this device and will be restored when you return. Reconnect, then tap Send — submissions need a connection (spam protection cannot run offline).',
+    fallbackWhatsapp:
+      'No internet at all? Send your report by WhatsApp to {number} and our editors will post it for you.',
     types: {
       photoStory: {
         title: 'Photo Story',
@@ -575,6 +587,10 @@ export const en = {
       documentsPlaceholder: 'https://document.url - Optional caption',
       noticeType: 'Notice type',
       noticeTypePlaceholder: 'Select a notice type',
+      noticeDirection: 'Is the item lost or found?',
+      noticeDirectionPlaceholder: 'Select lost or found',
+      noticeDirectionLost: 'Lost item',
+      noticeDirectionFound: 'Found item',
       organization: 'Organization name',
       organizationPlaceholder: 'e.g. Douala City Council',
       expiry: 'Expiry date',

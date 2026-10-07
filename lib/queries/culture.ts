@@ -2,7 +2,13 @@ import "server-only";
 
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { logger } from "@/lib/observability/logger";
+import {
+    asOne,
+    hasDatabase,
+    logCacheFailure,
+    pickLocalized,
+    sanitizePhrase,
+} from "./shared";
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 import type { StoryCardData } from "@/lib/queries/home";
@@ -118,44 +124,6 @@ const CULTURE_SELECT_LEFT_WITH_LOCATION = `id, slug, verification, published_at,
     author:profiles!content_items_author_id_fkey(id, display_name),
     events(starts_at, ends_at, venue_name, ticket_url, organizer_name)`;
 
-/** The admin client is only usable when the service key is configured. */
-function hasDatabase(): boolean {
-    return Boolean(
-        process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
-    );
-}
-
-/**
- * Phase 4.1 — cached-query error policy: inside an `unstable_cache` scope a
- * failed query THROWS instead of resolving to a fallback, so a transient
- * outage is never baked into the cache. The exported wrappers catch, log, and
- * fall back (the safe() semantics) at the call boundary.
- */
-function logCacheFailure(fn: string, err: unknown): void {
-    logger.error("culture", `cached query failed (${fn})`, {
-        error: err instanceof Error ? err.message : String(err),
-    });
-}
-
-/** PostgREST returns to-one embeds as object or array depending on relationship detection. */
-function asOne<T>(value: T | T[] | null | undefined): T | null {
-    if (!value) return null;
-    return Array.isArray(value) ? (value[0] ?? null) : value;
-}
-
-/** Preferred locale → English fallback → first available. */
-function pickLocalized<T extends { locale: string }>(
-    rows: T[] | null | undefined,
-    locale: Locale,
-): T | null {
-    if (!rows || rows.length === 0) return null;
-    return (
-        rows.find((r) => r.locale === locale) ??
-        rows.find((r) => r.locale === "en") ??
-        rows[0]
-    );
-}
-
 /** "wildlife-safari" → "Wildlife Safari" (facet fallback label from the slug). */
 export function prettifyCategory(slug: string): string {
     return slug
@@ -177,14 +145,6 @@ function publishedCulture(
         .eq("status", "published")
         .eq("is_archived", false)
         .not("published_at", "is", null);
-}
-
-/** PostgREST `or()` phrases cannot contain commas or wildcard characters. */
-function sanitizePhrase(input: string): string {
-    return input
-        .replace(/[,()%\\]/g, " ")
-        .trim()
-        .slice(0, 80);
 }
 
 /** Detail resolvers accept the raw id or the public slug (mirrors notices). */
@@ -336,7 +296,7 @@ export async function getCultureArticles(options: {
     try {
         return await getCachedCultureArticles(search, category, location, locale, page);
     } catch (err) {
-        logCacheFailure("getCultureArticles", err);
+        logCacheFailure("culture", "getCultureArticles", err);
         return { articles: [], total: 0, page, pageCount: 1 };
     }
 }
@@ -371,7 +331,7 @@ export async function getCultureBySlug(
     try {
         return await getCachedCultureBySlug(sanitized, locale);
     } catch (err) {
-        logCacheFailure("getCultureBySlug", err);
+        logCacheFailure("culture", "getCultureBySlug", err);
         return null;
     }
 }
@@ -404,7 +364,7 @@ export async function getFeaturedCulture(locale: Locale = "en"): Promise<Culture
     try {
         return await getCachedFeaturedCulture(locale);
     } catch (err) {
-        logCacheFailure("getFeaturedCulture", err);
+        logCacheFailure("culture", "getFeaturedCulture", err);
         return null;
     }
 }
@@ -448,7 +408,7 @@ export async function getUpcomingEvents(
     try {
         return await getCachedUpcomingEvents(locale, limit);
     } catch (err) {
-        logCacheFailure("getUpcomingEvents", err);
+        logCacheFailure("culture", "getUpcomingEvents", err);
         return [];
     }
 }
@@ -490,7 +450,7 @@ export async function getPastEvents(
     try {
         return await getCachedPastEvents(locale, limit);
     } catch (err) {
-        logCacheFailure("getPastEvents", err);
+        logCacheFailure("culture", "getPastEvents", err);
         return [];
     }
 }
@@ -532,7 +492,7 @@ export async function getEventById(
     try {
         return await getCachedEventById(identifier, locale);
     } catch (err) {
-        logCacheFailure("getEventById", err);
+        logCacheFailure("culture", "getEventById", err);
         return null;
     }
 }
@@ -574,7 +534,7 @@ export async function getCultureByLocation(
     try {
         return await getCachedCultureByLocation(sanitized, locale, limit);
     } catch (err) {
-        logCacheFailure("getCultureByLocation", err);
+        logCacheFailure("culture", "getCultureByLocation", err);
         return [];
     }
 }

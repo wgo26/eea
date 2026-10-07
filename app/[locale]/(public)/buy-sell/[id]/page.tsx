@@ -16,12 +16,12 @@ import { StoryCard } from "@/components/home/story-card";
 import { SmartImage } from "@/components/media/smart-image";
 import { SupportingMedia } from "@/components/media/supporting-media";
 import { RevealContact } from "@/components/buy-sell/reveal-contact";
-import { PriceWatchButton } from "@/components/buy-sell/price-watch-button";
+import { CorrectionsNotice } from "@/components/system/corrections-notice";
+import { CorrectionForm } from "@/components/news/correction-form";
+import { getCorrectionsForContent } from "@/lib/queries/corrections";
 import { Badge } from "@/components/ui/badge";
 import { ArticleActionRow } from "@/components/system/article-actions";
 import { ContentViewBeacon } from "@/components/system/content-view-beacon";
-import { RatingWidget } from "@/components/system/rating-widget";
-import { MessageSellerButton } from "@/components/messages/message-seller-button";
 import { SITE } from "@/lib/constants";
 import { formatDate, formatPrice, getDictionary, resolveLocale, type Locale } from "@/lib/i18n";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
@@ -84,7 +84,7 @@ export default async function ListingPage({ params }: ListingPageProps) {
     if (!listing) notFound();
 
     const shareUrl = `${SITE.url}${localePath(locale, `/buy-sell/${listing.id}`)}`;
-    const [similar, inlineAd] = await Promise.all([
+    const [similar, inlineAd, corrections] = await Promise.all([
         getSimilarListings(
             listing.id,
             { category: listing.category ?? undefined, locationSlug: listing.locationSlug },
@@ -92,6 +92,9 @@ export default async function ListingPage({ params }: ListingPageProps) {
             3,
         ),
         getAdForSlot("buy-sell-inline"),
+        // P3 trust loop: listings can carry errors too (wrong price, sold
+        // elsewhere) — the register renders on every content type.
+        getCorrectionsForContent(listing.id, locale),
     ]);
 
     const photos = listing.photos ?? [];
@@ -259,18 +262,6 @@ export default async function ListingPage({ params }: ListingPageProps) {
                         </div>
                     ) : null}
 
-                    {/* Verified-pro bridge: the storefront behind this listing. */}
-                    {listing.business ? (
-                        <p className="mt-5">
-                            <Link
-                                href={localePath(locale, `/professionals/${listing.business.slug}`)}
-                                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3.5 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300"
-                            >
-                                {dict.buySell.soldByPro} — {listing.business.name}
-                            </Link>
-                        </p>
-                    ) : null}
-
                     {/* Gated seller contact */}
                     <div className="mt-5 rounded-2xl border bg-card p-4">
                         <h2 className="mb-3 text-sm font-bold">
@@ -313,38 +304,31 @@ export default async function ListingPage({ params }: ListingPageProps) {
                             dict={dict}
                         />
                     </div>
-                    <div className="no-print mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-4">
-                        <MessageSellerButton
-                            contentItemId={listing.id}
-                            locale={locale}
-                            copy={{
-                                startConversation: dict.account.messages.startConversation,
-                                signIn: dict.account.messages.signIn,
-                                error: dict.account.messages.error,
-                            }}
-                        />
-                        <RatingWidget contentItemId={listing.id} copy={dict.ratings} />
-                    </div>
-                    {/* Phase 3 — price-drop watch + reply expectation */}
-                    {!isClosed ? (
-                        <div className="mt-4 space-y-1.5">
-                            <PriceWatchButton
-                                listingId={listing.id}
-                                labels={{
-                                    watch: dict.buySell.watchPrice,
-                                    watching: dict.buySell.watchingPrice,
-                                    watchers: dict.buySell.priceWatchers,
-                                    signIn: dict.buySell.priceWatchSignIn,
-                                    rateLimited: dict.buySell.priceWatchRateLimited,
-                                    unavailable: dict.buySell.priceWatchUnavailable,
-                                    loading: dict.buySell.contactLoading,
-                                }}
+
+                    {/* Trust loop: price/description errors get fixed in public. */}
+                    <div className="no-print mt-6 border-t border-border pt-6">
+                        <div className="mb-6">
+                            <CorrectionsNotice
+                                corrections={corrections}
+                                dict={dict}
+                                locale={locale}
+                                storyHref={`/buy-sell/${listing.id}`}
                             />
-                            <p className="text-center text-xs text-muted-foreground">
-                                {dict.buySell.replyExpectation}
-                            </p>
                         </div>
-                    ) : null}
+                        <div id="correction">
+                            <CorrectionForm
+                                slug={listing.id}
+                                dict={dict}
+                                locale={locale}
+                                returnHref={localePath(locale, `/buy-sell/${listing.id}`)}
+                            />
+                        </div>
+                    </div>
+                    <div className="no-print mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-4">
+                        <p className="text-xs text-muted-foreground">
+                            {dict.buySell.replyExpectation}
+                        </p>
+                    </div>
                 </section>
             </div>
 

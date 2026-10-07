@@ -38,24 +38,31 @@ export function canViewerOpenAlert(alert: OperationalAlert, capabilities: Set<Ca
 
 /**
  * The screen that owns each job, so a row is actionable rather than alarming.
- * `state-watchdog` and `audit-archive` deliberately have no entry: their failure
- * is best read on the generic automations screen (the fallback), which is the
- * destination every staff member with content rights can already open.
+ * P2 (merged audit: 13 → 5 crons): only the canonical jobs are listed.
+ * Retired jobs (db-dump, ops-digest, reminders, state-*, credential-hygiene,
+ * audit-archive, embeddings) have no entry and fall back to the automations
+ * screen if a stale heartbeat row ever names them.
  */
 const JOB_HREF: Record<string, string> = {
   'storage-backup': '/admin/storage-backup',
-  'db-dump': '/admin/storage-backup',
   'db-maintenance': '/admin/storage-backup',
-  'credential-hygiene': '/admin/secrets',
-  'state-schedules': '/admin/states',
-  'publish-plans': '/admin/automations',
-  'ops-digest': '/admin/digest',
-  'weekly-digest': '/admin/digest',
-  reminders: '/admin/automations',
+  'publish-plans': '/admin/content',
+  'weekly-digest': '/admin/content',
   notify: '/admin/notifications',
 }
 
 const JOB_FALLBACK_HREF = '/admin/automations'
+
+/**
+ * P2: `/admin/notifications` left the visible nav (notifications center is
+ * URL-only), but its page guard still requires `manageNotifications` — and a
+ * row that bounces is a lie. Off-nav destinations declare their audience
+ * here so the row keeps the exact audience the page guard enforces. Destinations
+ * WITH a nav entry need no entry here: the nav pairing already decides.
+ */
+const JOB_CAPABILITIES: Record<string, Capability[]> = {
+  notify: ['manageNotifications'],
+}
 
 /**
  * True when this viewer can reach `path` through the nav. A path no section owns
@@ -94,13 +101,15 @@ function silenceHours(row: HeartbeatHealth): number | null {
  * every other surface too.
  *
  * Exactly one row was misjudged under the old rule, and it was the interesting
- * one: `state-schedules` points at `/admin/states`, the supreme-tier ladder, but
+ * one: `state-schedules` pointed at `/admin/states`, the supreme-tier ladder, but
  * was left out of the chief-only list, so every non-chief got a row that bounced
  * them to not-authorized. Deriving from the nav also narrows a few rows that were
- * previously shown to everyone — `notify` now requires `manageNotifications`,
- * `publish-plans`/`reminders`/the digests `manageContent` — which is the same
- * rule `canViewerOpenAlert()` already applies to the `failed-deliveries` alert,
- * so the bell and the scheduler rows can no longer disagree about one audience.
+ * previously shown to everyone — `notify` keeps its `manageNotifications`
+ * audience via JOB_CAPABILITIES (its screen left the visible nav in P2 but its
+ * page guard did not move), `publish-plans`/the digests inherit `manageContent`
+ * from `/admin/content` — which is the same rule `canViewerOpenAlert()` already
+ * applies to the `failed-deliveries` alert, so the bell and the scheduler rows
+ * can no longer disagree about one audience.
  *
  * A job retargeted to another screen now inherits the right audience with no edit
  * here at all; under the name list it silently kept its old one.
@@ -118,7 +127,11 @@ export function schedulerIssuesForViewer(
       graceHours: CRON_GRACE_HOURS[row.job] ?? 36,
       href: JOB_HREF[row.job] ?? JOB_FALLBACK_HREF,
     }))
-    .filter((issue) => viewerOpensPath(capabilities, issue.href))
+    .filter((issue) => {
+      const audience = JOB_CAPABILITIES[issue.job]
+      if (audience) return audience.some((capability) => capabilities.has(capability))
+      return viewerOpensPath(capabilities, issue.href)
+    })
     // A failing job is a worse signal than a silent one.
     .sort((a, b) => Number(b.status === 'failing') - Number(a.status === 'failing'))
 }

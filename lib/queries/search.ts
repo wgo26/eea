@@ -1,7 +1,13 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { logger } from "@/lib/observability/logger";
+import {
+    asOne,
+    hasDatabase,
+    pickLocalized,
+    safe,
+    sanitizePhraseStrict,
+} from "./shared";
 import { mapAttachments, previewImageUrl } from "@/lib/media/attachments";
 import type { Locale } from "@/lib/i18n";
 
@@ -32,59 +38,6 @@ export type SearchResults = {
     total: number;
 };
 
-type QueryResult<T> = {
-    data: T | null;
-    count: number | null;
-    error: { message: string } | null;
-};
-
-/** Never let a DB hiccup take the page down — every query resolves to a fallback. */
-async function safe<T>(
-    promise: PromiseLike<{
-        data: T | null;
-        count?: number | null;
-        error: { message: string } | null;
-    }>,
-): Promise<QueryResult<T>> {
-    try {
-        const { data, count, error } = await promise;
-        if (error) {
-            logger.error("search", "query failed", { error: error.message });
-            return { data: null, count: null, error };
-        }
-        return { data, count: count ?? null, error: null };
-    } catch (err) {
-        logger.error("search", "query exception", { error: err instanceof Error ? err.message : String(err) });
-        return { data: null, count: null, error: { message: String(err) } };
-    }
-}
-
-/** The admin client is only usable when the service key is configured. */
-function hasDatabase(): boolean {
-    return Boolean(
-        process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
-    );
-}
-
-/** PostgREST returns to-one embeds as object or array depending on relationship detection. */
-function asOne<T>(value: T | T[] | null | undefined): T | null {
-    if (!value) return null;
-    return Array.isArray(value) ? (value[0] ?? null) : value;
-}
-
-/** Preferred locale → English fallback → first available. */
-function pickLocalized<T extends { locale: string }>(
-    rows: T[] | null | undefined,
-    locale: Locale,
-): T | null {
-    if (!rows || rows.length === 0) return null;
-    return (
-        rows.find((r) => r.locale === locale) ??
-        rows.find((r) => r.locale === "en") ??
-        rows[0]
-    );
-}
-
 /** Canonical detail paths (locale-free — callers prefix via localePath). Also used by /api/search/suggest. */
 export function detailHref(type: string, slug: string | null, id: string): string {
     const key = slug ?? id;
@@ -104,13 +57,6 @@ export function detailHref(type: string, slug: string | null, id: string): strin
     }
 }
 
-/** Trim + bound the raw query. FTS arguments travel as bind values, so no wildcard escaping is needed; the trim keeps cache/URL keys canonical. */
-function sanitizePhrase(input: string): string {
-    return input
-        .replace(/[,()%\\*]/g, " ")
-        .trim()
-        .slice(0, 80);
-}
 
 type RawSearchRow = {
     id: string;
@@ -165,7 +111,7 @@ export async function searchContentIds(
     if (!phrase) return null;
     if (!hasDatabase()) return null;
 
-    const { data, error } = await safe(
+    const { data, error } = await safe("search", 
         createAdminClient().rpc("search_content", {
             p_q: phrase,
             p_locale: locale,
@@ -201,12 +147,12 @@ export async function getSearchResults(options: {
     };
     if (!hasDatabase()) return empty;
 
-    const phrase = sanitizePhrase(options.q);
+    const phrase = sanitizePhraseStrict(options.q);
     if (!phrase) return empty;
     const limit = options.limit ?? 60;
 
     // Step 1: ranked matches from Postgres full-text search.
-    const { data: ftsData, error: ftsError } = await safe(
+    const { data: ftsData, error: ftsError } = await safe("search", 
         createAdminClient().rpc("search_content", {
             p_q: phrase,
             p_locale: options.locale,
@@ -255,7 +201,7 @@ export async function getSearchResults(options: {
         );
     }
 
-    const { data, count: total } = await safe(
+    const { data, count: total } = await safe("search", 
         query
             .order("published_at", { ascending: false, nullsFirst: false })
             .limit(limit),

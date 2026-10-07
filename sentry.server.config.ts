@@ -3,6 +3,9 @@ import * as Sentry from "@sentry/nextjs";
 Sentry.init({
   dsn: process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN,
 
+  // P3: link errors to deploys (host sets APP_VERSION at build/deploy time).
+  release: process.env.APP_VERSION || undefined,
+
   // Production: ~10% of transactions traced — balances error-correlation
   // signal, Sentry cost, and main-thread overhead on the low-end Android
   // devices this product targets. In dev/preview we trace everything.

@@ -82,6 +82,27 @@ function isExemptFromLocaleRedirect(pathname: string): boolean {
     );
 }
 
+/**
+ * P1 IA consolidation redirects (merged audit: Professionals MERGE-lite into
+ * Places). The storefront product is cut — header/footer no longer link it —
+ * so deep links land on the town square instead of a removed directory:
+ *   /professionals / {en,fr}/professionals → /{locale}/locations
+ *   /professionals/<slug> → /{locale}/locations (storefront detail)
+ * Explicitly NOT matched: /professionals/claim (claim intake stays alive).
+ * DB-backed `legacy_redirects` remain the mechanism for Blogger-era URLs and
+ * any future IA moves; this static map covers only the P1 product cut.
+ */
+function iaConsolidationTarget(pathname: string): string | null {
+    const stripped = pathname.replace(/^\/(en|fr)(?=\/|$)/, "") || "/";
+    if (stripped === "/professionals") return "/locations";
+    if (stripped.startsWith("/professionals/")) {
+        const rest = stripped.slice("/professionals/".length).split("/")[0];
+        if (rest && rest !== "claim") return "/locations";
+        return null;
+    }
+    return null;
+}
+
 export async function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
@@ -120,10 +141,13 @@ export async function proxy(request: NextRequest) {
 
     // 1. Locale-first redirect for unprefixed URLs (single mechanism).
     if (!isLocalePrefixed(pathname) && !isExemptFromLocaleRedirect(pathname)) {
-        const target = pathname === "/" ? "" : pathname;
+        // P1 product-cut redirect applies before locale-prefixing so both
+        // /professionals and /en/professionals converge on /{locale}/locations.
+        const iaTarget = iaConsolidationTarget(pathname);
+        const target = iaTarget ?? (pathname === "/" ? "" : pathname);
         const url = request.nextUrl.clone();
         url.pathname = `/${negotiated}${target}`;
-        const redirect = NextResponse.redirect(url, 307);
+        const redirect = NextResponse.redirect(url, iaTarget ? 308 : 307);
         // Persist a first-visit choice only — never overwrite an explicit
         // language choice (the switcher owns the cookie after that).
         if (!cookieLocale) {
@@ -134,6 +158,21 @@ export async function proxy(request: NextRequest) {
             });
         }
         return redirect;
+    }
+
+    // 1b. P1 product-cut redirect for locale-prefixed URLs (e.g.
+    // /en/professionals/some-shop → /en/locations). Runs after the
+    // unprefixed branch; locale is preserved from the URL itself.
+    if (isLocalePrefixed(pathname)) {
+        const iaTarget = iaConsolidationTarget(pathname);
+        if (iaTarget) {
+            const prefix = /^\/(en|fr)(?=\/|$)/.exec(pathname);
+            const locale: Locale = prefix ? (prefix[1] as Locale) : negotiated;
+            const url = request.nextUrl.clone();
+            url.pathname = `/${locale}${iaTarget}`;
+            url.search = "";
+            return NextResponse.redirect(url, 308);
+        }
     }
 
     // 2./3. Session refresh + locale/shell headers for the matched route.

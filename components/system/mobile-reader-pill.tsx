@@ -7,11 +7,9 @@ import {
     ChevronDown,
     Lightbulb,
     MessageCircle,
-    ThumbsUp,
     X,
 } from "lucide-react";
 
-import { ReactionBar } from "@/components/news/reaction-bar";
 import { readOfflineIndex } from "@/components/system/save-offline-button";
 import { whatsappHref } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -44,7 +42,6 @@ interface OfflineState {
 export function MobileReaderPill({
     shareUrl,
     title,
-    contentId,
     hasCorrections,
     labels,
 }: MobileReaderPillProps) {
@@ -60,7 +57,6 @@ export function MobileReaderPill({
               ),
     );
     const [expanded, setExpanded] = useState(false);
-    const [reactOpen, setReactOpen] = useState(false);
     const [offline, setOffline] = useState<OfflineState>({ saved: false, supported: true });
     const pillRef = useRef<HTMLDivElement>(null);
 
@@ -160,7 +156,6 @@ export function MobileReaderPill({
         if (!expanded) return;
         const handler = () => {
             setExpanded(false);
-            setReactOpen(false);
         };
         window.addEventListener("scroll", handler, { passive: true });
         return () => window.removeEventListener("scroll", handler);
@@ -251,7 +246,6 @@ export function MobileReaderPill({
                         type="button"
                         onClick={() => {
                             setExpanded(false);
-                            setReactOpen(false);
                         }}
                         aria-label="Close"
                         className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -282,37 +276,7 @@ export function MobileReaderPill({
                         <MessageCircle className="h-5 w-5" aria-hidden />
                     </a>
 
-                    {/* Reaction trigger — toggles an inline ReactionBar. */}
-                    <div className="relative">
-                        <button
-                            type="button"
-                            onClick={() => setReactOpen((v) => !v)}
-                            aria-expanded={reactOpen}
-                            aria-label={labels.reactions}
-                            title={labels.reactions}
-                            className={cn(
-                                "flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground",
-                                reactOpen && "bg-accent text-foreground",
-                            )}
-                        >
-                            <ThumbsUp className="h-4 w-4" aria-hidden />
-                        </button>
-                        {reactOpen && (
-                            <div
-                                className={cn(
-                                    "absolute bottom-full mb-2 -translate-x-1/2",
-                                    "rounded-xl border border-border/40 bg-popover p-3 shadow-lg",
-                                    "high-contrast:border-foreground",
-                                )}
-                            >
-                                <ReactionBar
-                                    contentItemId={contentId}
-                                    likeLabel={labels.reactLike}
-                                    helpfulLabel={labels.reactHelpful}
-                                />
-                            </div>
-                        )}
-                    </div>
+                    {/* Lean cut: reactions removed — share + save + corrections only. */}
 
                     {/* Save offline. */}
                     {offline.supported && (

@@ -82,18 +82,17 @@ function CommandPalette({
         [locale, onOpenChange, router],
     );
 
+    // P1: Stories first (merged news/photo/culture feed); legacy verticals
+    // stay reachable by direct URL but are no longer advertised sections.
     const sections: { label: string; path: string }[] = [
-        { label: dict.nav.photoStories, path: "/photo-stories" },
-        { label: dict.nav.news, path: "/news" },
+        { label: dict.nav.stories, path: "/stories" },
         { label: dict.nav.notices, path: "/notices" },
         { label: dict.nav.buySell, path: "/buy-sell" },
-        { label: dict.nav.professionals, path: "/professionals" },
-        { label: dict.nav.culture, path: "/culture" },
         { label: dict.nav.locations, path: "/locations" },
     ];
     const actions: { label: string; path: string }[] = [
         { label: dict.nav.home, path: "/" },
-        { label: dict.nav.submit, path: "/submit" },
+        { label: dict.nav.post, path: "/submit" },
         { label: dict.command.goToSearch, path: "/search" },
     ];
 

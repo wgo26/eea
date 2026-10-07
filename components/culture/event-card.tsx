@@ -1,7 +1,5 @@
 import { CalendarDays, Clock, Landmark, MapPin } from "lucide-react";
 import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
-import { LiveBadge } from "@/components/live/live-badge";
-import type { BroadcastStatus } from "@/lib/live/queries";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { EventData } from "@/lib/queries/culture";
 import {
@@ -22,12 +20,10 @@ export function EventCard({
     event,
     dict,
     locale,
-    broadcastStatus,
 }: {
     event: EventData;
     dict: Dictionary;
     locale: Locale;
-    broadcastStatus?: BroadcastStatus | null;
 }) {
     return (
         <CardShell href={event.href} className="flex flex-col">
@@ -66,12 +62,6 @@ export function EventCard({
                         verification={event.verification}
                         dict={dict}
                         locale={locale}
-                    />
-                    <LiveBadge
-                        status={broadcastStatus}
-                        liveLabel={dict.culture.liveBadge}
-                        soonLabel={dict.culture.liveSoon}
-                        endedLabel={dict.culture.liveEnded}
                     />
                 </span>
                 <CardTitle className="mt-2">{event.title}</CardTitle>

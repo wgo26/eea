@@ -5,17 +5,19 @@
 # secrets: CRON_SECRET (Bearer token). Optional repo variable: PRODUCTION_URL
 # (defaults to the production domain below).
 #
-# All THIRTEEN cron endpoints are covered here (the vercel.json entries never fire
+# All FIVE cron endpoints are covered here (the vercel.json entries never fire
 # off Vercel):
-#   storage-backup 02:00 · db-maintenance 02:30 · db-dump 02:45
-#   ops-digest 06:00 · notify */15 · reminders hourly · state-schedules 00:00
-#   weekly-digest Mon 07:00 · publish-plans 15,45 · embeddings 03:30
-#   state-watchdog 7,22,37,52 (contextual-state DEGRADED janitor, offset from notify)
-#   credential-hygiene Mon 08:00 (expired/rotation-due credential alert)
-#   audit-archive 1st 03:30 (monthly cold archive of the audit trail)
+#   storage-backup 02:00 · db-maintenance 02:30 · notify */15
+#   weekly-digest Mon 07:00 · publish-plans 15,45
 # plus an hourly WATCHDOG that fails (→ GitHub failure email) when no run of
 # this workflow has succeeded in the last 3 hours — that is the missed-run
 # alert for the */15 notify worker.
+#
+# Retired P2 (merged audit: 13 → 5): db-dump (manual pg_dump per
+# docs/disaster-recovery.md), ops-digest, reminders, state-schedules,
+# state-watchdog, credential-hygiene, audit-archive, embeddings — routes
+# deleted, so they are struck from the schedules, jobs and dispatch options
+# below. verify-crons.mjs gates vercel.json ⇄ workflow agreement.
 #
 # Known limits (document in the ops runbook): GitHub Actions schedules can be
 # delayed ~15–30+ min under load, and GitHub auto-disables scheduled workflows
@@ -28,17 +30,9 @@ on:
   schedule:
     - cron: "0 2 * * *"   # 02:00 UTC — storage backup
     - cron: "30 2 * * *"  # 02:30 UTC — db maintenance
-    - cron: "45 2 * * *"  # 02:45 UTC — db dump (pg_dump → B2)
-    - cron: "0 6 * * *"   # 06:00 UTC — ops digest
     - cron: "*/15 * * * *"  # every 15 min — notification outbox worker
-    - cron: "0 * * * *"   # hourly — event reminders
-    - cron: "0 0 * * *"   # 00:00 UTC — contextual state schedules
     - cron: "0 7 * * 1"   # Mondays 07:00 UTC — weekly recap digest
     - cron: "15,45 * * * *"  # every 30 min (offset) — publish-plan worker
-    - cron: "30 3 * * *"  # 03:30 UTC — embedding backfill (P5 memory upkeep)
-    - cron: "7,22,37,52 * * * *"  # four times hourly (offset) — state watchdog
-    - cron: "0 8 * * 1"  # Mondays 08:00 UTC — credential hygiene alert
-    - cron: "30 3 1 * *"  # 1st of month 03:30 UTC — audit cold archive
     - cron: "10 * * * *"  # hourly (offset) — scheduler watchdog
   workflow_dispatch:
     inputs:
@@ -50,17 +44,9 @@ on:
         options:
           - storage-backup
           - db-maintenance
-          - db-dump
-          - ops-digest
           - notify
-          - reminders
-          - state-schedules
           - weekly-digest
           - publish-plans
-          - embeddings
-          - state-watchdog
-          - credential-hygiene
-          - audit-archive
           - watchdog
           - both
 
@@ -107,44 +93,6 @@ jobs:
           cat /tmp/out.txt
           test "$code" = "200"
 
-  db-dump:
-    name: DB dump (pg_dump → B2)
-    runs-on: ubuntu-latest
-    if: >-
-      (github.event_name == 'schedule' && github.event.schedule == '45 2 * * *')
-      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'db-dump' || inputs.job == 'both'))
-    steps:
-      - name: Call db-dump endpoint
-        run: |
-          set -euo pipefail
-          url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/db-dump"
-          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "$url")
-          echo "HTTP $code from $url"
-          cat /tmp/out.txt
-          test "$code" = "200"
-
-  ops-digest:
-    name: Ops digest (nightly queue summary → webhook)
-    runs-on: ubuntu-latest
-    if: >-
-      (github.event_name == 'schedule' && github.event.schedule == '0 6 * * *')
-      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'ops-digest' || inputs.job == 'both'))
-    steps:
-      - name: Call ops-digest endpoint
-        run: |
-          set -euo pipefail
-          url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/ops-digest"
-          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "$url")
-          echo "HTTP $code from $url"
-          cat /tmp/out.txt
-          # No-op (200 {skipped:true}) when DIGEST_WEBHOOK_URL is unset; a 5xx
-          # (webhook down / DB error) fails the run so the failure surfaces.
-          test "$code" = "200"
-
   notify:
     name: Notify worker (outbox → in-app/email/WhatsApp)
     runs-on: ubuntu-latest
@@ -161,45 +109,6 @@ jobs:
             "$url")
           echo "HTTP $code from $url"
           cat /tmp/out.txt
-          test "$code" = "200"
-
-  reminders:
-    name: Event reminders (hourly due-reminder worker)
-    runs-on: ubuntu-latest
-    if: >-
-      (github.event_name == 'schedule' && github.event.schedule == '0 * * * *')
-      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'reminders' || inputs.job == 'both'))
-    steps:
-      - name: Call reminders endpoint
-        run: |
-          set -euo pipefail
-          url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/reminders"
-          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "$url")
-          echo "HTTP $code from $url"
-          cat /tmp/out.txt
-          # 500 when CRON_SECRET is unset in production; 401 on a bad token.
-          test "$code" = "200"
-
-  state-schedules:
-    name: Contextual state schedules (seasonal windows)
-    runs-on: ubuntu-latest
-    if: >-
-      (github.event_name == 'schedule' && github.event.schedule == '0 0 * * *')
-      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'state-schedules' || inputs.job == 'both'))
-    steps:
-      - name: Call state-schedules endpoint
-        run: |
-          set -euo pipefail
-          url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/state-schedules"
-          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "$url")
-          echo "HTTP $code from $url"
-          cat /tmp/out.txt
-          # Activates/deactivates scheduled states (e.g. Back to School 1–30 Sep).
-          # 200 with {transitions:[...]} — a no-op run is still a success.
           test "$code" = "200"
 
   # Stream A (A5): the weekly recap. Aggregates the last 7 days into one
@@ -237,86 +146,6 @@ jobs:
         run: |
           set -euo pipefail
           url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/publish-plans"
-          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "$url")
-          echo "HTTP $code from $url"
-          cat /tmp/out.txt
-          test "$code" = "200"
-
-  # P5 memory upkeep: nightly embedding backfill (bounded 50/night).
-  embeddings:
-    name: Embedding backfill (semantic memory)
-    runs-on: ubuntu-latest
-    if: >-
-      (github.event_name == 'schedule' && github.event.schedule == '30 3 * * *')
-      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'embeddings' || inputs.job == 'both'))
-    steps:
-      - name: Call embeddings endpoint
-        run: |
-          set -euo pipefail
-          url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/embeddings"
-          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "$url")
-          echo "HTTP $code from $url"
-          cat /tmp/out.txt
-          test "$code" = "200"
-
-  # Contextual-state janitor: lights DEGRADED on stuck scheduled states and
-  # clears watchdog-lit flags that recovered on their own. Offset 7/22/37/52
-  # from the notify */15 so the two never share a schedule gate.
-  state-watchdog:
-    name: State watchdog (contextual states)
-    runs-on: ubuntu-latest
-    if: >-
-      (github.event_name == 'schedule' && github.event.schedule == '7,22,37,52 * * * *')
-      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'state-watchdog' || inputs.job == 'both'))
-    steps:
-      - name: Call state-watchdog endpoint
-        run: |
-          set -euo pipefail
-          url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/state-watchdog"
-          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "$url")
-          echo "HTTP $code from $url"
-          cat /tmp/out.txt
-          test "$code" = "200"
-
-  # Weekly credential-hygiene sweep: scans api_credentials for expired,
-  # rotation-due and soon-expiring values and pages staff with one alert.
-  credential-hygiene:
-    name: Credential hygiene alert (Mondays)
-    runs-on: ubuntu-latest
-    if: >-
-      (github.event_name == 'schedule' && github.event.schedule == '0 8 * * 1')
-      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'credential-hygiene' || inputs.job == 'both'))
-    steps:
-      - name: Call credential-hygiene endpoint
-        run: |
-          set -euo pipefail
-          url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/credential-hygiene"
-          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "$url")
-          echo "HTTP $code from $url"
-          cat /tmp/out.txt
-          test "$code" = "200"
-
-  # Monthly cold archive of the audit trail (db-maintenance hard-deletes past
-  # the retention window, so this runs first on the 1st to seal the record).
-  audit-archive:
-    name: Audit cold archive (monthly)
-    runs-on: ubuntu-latest
-    if: >-
-      (github.event_name == 'schedule' && github.event.schedule == '30 3 1 * *')
-      || (github.event_name == 'workflow_dispatch' && (inputs.job == 'audit-archive' || inputs.job == 'both'))
-    steps:
-      - name: Call audit-archive endpoint
-        run: |
-          set -euo pipefail
-          url="${{ vars.PRODUCTION_URL || 'https://eagleeyeafrica.org' }}/api/cron/audit-archive"
           code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             "$url")

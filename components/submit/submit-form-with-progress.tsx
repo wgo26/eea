@@ -17,12 +17,16 @@ function SubmitFormControlled({
     canUpload,
     initial,
     initialDraft,
+    initialNoticeType,
+    initialNoticeDirection,
 }: {
     type: SubmitType;
     dict: Dictionary;
     canUpload?: boolean;
     initial?: SubmitInitial | null;
     initialDraft?: Record<string, string> | null;
+    initialNoticeType?: string;
+    initialNoticeDirection?: "lost" | "found";
 }) {
     const { step, setStep } = useFormStep();
     return (
@@ -32,6 +36,8 @@ function SubmitFormControlled({
             canUpload={canUpload}
             initial={initial ?? undefined}
             initialDraft={initialDraft ?? undefined}
+            initialNoticeType={initialNoticeType}
+            initialNoticeDirection={initialNoticeDirection}
             step={step}
             onStepChange={setStep}
         />
@@ -49,12 +55,16 @@ export function SubmitFormWithProgress({
     canUpload = false,
     initial,
     initialDraft,
+    initialNoticeType,
+    initialNoticeDirection,
 }: {
     type: SubmitType;
     dict: Dictionary;
     canUpload?: boolean;
     initial?: SubmitInitial | null;
     initialDraft?: Record<string, string> | null;
+    initialNoticeType?: string;
+    initialNoticeDirection?: "lost" | "found";
 }) {
     return (
         <FormStepProvider
@@ -69,6 +79,8 @@ export function SubmitFormWithProgress({
                 canUpload={canUpload}
                 initial={initial}
                 initialDraft={initialDraft}
+                initialNoticeType={initialNoticeType}
+                initialNoticeDirection={initialNoticeDirection}
             />
         </FormStepProvider>
     );

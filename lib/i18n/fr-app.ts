@@ -3058,6 +3058,7 @@ common: {
         phone: 'Téléphone',
         email: 'E-mail',
         noticeType: 'Type d’avis',
+        noticeDirection: 'Perdu ou trouvé',
         organization: 'Organisation',
         noticeDate: 'Date de l’avis',
         expiryDate: 'Date d’expiration',

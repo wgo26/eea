@@ -14,7 +14,6 @@ import {
 import { AdSlot } from "@/components/home/ad-slot";
 import { StoryCard } from "@/components/home/story-card";
 import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
-import { LiveRail } from "@/components/news/live-rail";
 import { NewsSpotlight } from "@/components/news/news-spotlight";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +32,6 @@ import { FacetFilter } from "@/components/shared/facet-filter";
 import { PlaceRail } from "@/components/place/place-rail";
 import { EmptyStateWithCTA } from "@/components/system/empty-state-with-cta";
 import {
-    getDevelopingNews,
     getFeaturedNews,
     getMostViewedNews,
     getNewsArticles,
@@ -148,13 +146,11 @@ export default async function NewsPage({
     // P0: fundraisers + polls cut per merged audit (not core jobs). Tables +
     // admin sections drop in the P2 lean migration; no fetch here.
     let featured: Awaited<ReturnType<typeof getFeaturedNews>> = null;
-    let developing: Awaited<ReturnType<typeof getDevelopingNews>> = [];
 
     if (browseMode) {
         try {
-            [featured, developing] = await Promise.all([
+            [featured] = await Promise.all([
                 getFeaturedNews(locale),
-                getDevelopingNews(locale, 3),
             ]);
         } catch (err) {
             console.error("[news] Browse-mode data fetch failed:", err);
@@ -227,12 +223,7 @@ export default async function NewsPage({
                 </section>
             ) : null}
 
-            {/* Live & developing */}
-            {browseMode ? (
-                <div className="mb-8">
-                    <LiveRail stories={developing} dict={dict} locale={locale} />
-                </div>
-            ) : null}
+            {/* Lean cut: live rail removed — "developing" filter covers evolving stories. */}
 
             {/* Featured lead */}
             {browseMode ? (

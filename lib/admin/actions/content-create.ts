@@ -181,6 +181,22 @@ async function insertExtensionRow(
       seller_name: draft.listing?.sellerName?.trim() || null,
     })
     if (error) throw new Error(`Could not create the listing: ${error.message}`)
+    // Phase A dual-write: PII also lands in `seller_contacts` (service-role
+    // only). Legacy `listings` columns stay populated until Phase B drops
+    // them — reveal + detail read the new table first.
+    try {
+      await supabase.from('seller_contacts').upsert(
+        {
+          content_item_id: contentItemId,
+          contact_phone: draft.listing?.contactPhone ?? null,
+          contact_email: draft.listing?.contactEmail ?? null,
+          whatsapp_number: draft.listing?.whatsappNumber ?? null,
+        },
+        { onConflict: 'content_item_id' },
+      )
+    } catch {
+      /* best-effort: legacy columns already carry the data */
+    }
   }
 
   if (contentType === 'notice') {

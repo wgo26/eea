@@ -19,9 +19,12 @@ type CorrectionFormProps = {
     slug: string;
     dict: Dictionary;
     locale: Locale;
+    /** Where the success card links back. Defaults to the news detail route
+        (the form's original and still most common home). */
+    returnHref?: string;
 };
 
-export function CorrectionForm({ slug, dict, locale }: CorrectionFormProps) {
+export function CorrectionForm({ slug, dict, locale, returnHref }: CorrectionFormProps) {
     const [state, formAction, pending] = useActionState<SubmitState, FormData>(
         submitArticleCorrection,
         { ok: false },
@@ -35,7 +38,7 @@ export function CorrectionForm({ slug, dict, locale }: CorrectionFormProps) {
                 <h2 className="mt-3 text-lg font-bold">{n.correctionThankYou}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">{n.correctionThankYouBody}</p>
                 <div className="mt-6">
-                    <Button render={<Link href={localePath(locale, `/news/${slug}`)} />}>
+                    <Button render={<Link href={returnHref ?? localePath(locale, `/news/${slug}`)} />}>
                         {n.correctionBackToArticle}
                     </Button>
                 </div>

@@ -3,6 +3,13 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+    asOne,
+    hasDatabase,
+    logCacheFailure,
+    pickLocalized,
+    safe,
+} from "./shared";
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import { logger } from "@/lib/observability/logger";
 import { mapAttachments, previewImageUrl } from "@/lib/media/attachments";
@@ -40,71 +47,6 @@ export type NearYouContent = {
     location: string | null;
     category: string | null;
 };
-
-type QueryResult<T> = {
-    data: T | null;
-    count: number | null;
-    error: { message: string } | null;
-};
-
-/** Never let a DB hiccup take the page down — every query resolves to a fallback. */
-async function safe<T>(
-    promise: PromiseLike<{
-        data: T | null;
-        count?: number | null;
-        error: { message: string } | null;
-    }>,
-): Promise<QueryResult<T>> {
-    try {
-        const { data, count, error } = await promise;
-        if (error) {
-            logger.error("locations", "query failed", { error: error.message });
-            return { data: null, count: null, error };
-        }
-        return { data, count: count ?? null, error: null };
-    } catch (err) {
-        logger.error("locations", "query exception", { error: err instanceof Error ? err.message : String(err) });
-        return { data: null, count: null, error: { message: String(err) } };
-    }
-}
-
-/** The admin client is only usable when the service key is configured. */
-function hasDatabase(): boolean {
-    return Boolean(
-        process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
-    );
-}
-
-/**
- * A3 — cached-query error policy (mirrors lib/queries/notices.ts): inside an
- * `unstable_cache` scope a failed query THROWS instead of resolving to a
- * fallback, so a transient outage is never baked into the cache. The exported
- * wrappers catch, log, and fall back (the safe() semantics) at the boundary.
- */
-function logCacheFailure(fn: string, err: unknown): void {
-    logger.error("locations", `cached query failed (${fn})`, {
-        error: err instanceof Error ? err.message : String(err),
-    });
-}
-
-/** PostgREST returns to-one embeds as object or array depending on relationship detection. */
-function asOne<T>(value: T | T[] | null | undefined): T | null {
-    if (!value) return null;
-    return Array.isArray(value) ? (value[0] ?? null) : value;
-}
-
-/** Preferred locale → English fallback → first available. */
-function pickLocalized<T extends { locale: string }>(
-    rows: T[] | null | undefined,
-    locale: Locale,
-): T | null {
-    if (!rows || rows.length === 0) return null;
-    return (
-        rows.find((r) => r.locale === locale) ??
-        rows.find((r) => r.locale === "en") ??
-        rows[0]
-    );
-}
 
 /** Locale-prefixed detail href. */
 function detailHref(locale: Locale, type: string, slug: string): string {
@@ -214,7 +156,7 @@ export async function getAllLocations(): Promise<LocationData[]> {
         const withCounts = await getCachedLocationsWithCounts();
         return withCounts.filter((l) => (l.contentCount ?? 0) > 0);
     } catch (err) {
-        logCacheFailure("getAllLocations", err);
+        logCacheFailure("locations", "getAllLocations", err);
         return [];
     }
 }
@@ -225,14 +167,14 @@ export async function getLocationBySlug(slug: string): Promise<LocationData | nu
     try {
         return await getCachedLocationBySlug(slug);
     } catch (err) {
-        logCacheFailure("getLocationBySlug", err);
+        logCacheFailure("locations", "getLocationBySlug", err);
         return null;
     }
 }
 
 const getCachedLocationBySlug = unstable_cache(
     async (slug: string): Promise<LocationData | null> => {
-        const { data, error } = await safe(
+        const { data, error } = await safe("locations", 
             createAdminClient()
                 .from("locations")
                 .select(LOCATION_SELECT)
@@ -254,14 +196,14 @@ export async function getLocationSlugRedirect(slug: string): Promise<string | nu
     try {
         return await getCachedLocationSlugRedirect(slug);
     } catch (err) {
-        logCacheFailure("getLocationSlugRedirect", err);
+        logCacheFailure("locations", "getLocationSlugRedirect", err);
         return null;
     }
 }
 
 const getCachedLocationSlugRedirect = unstable_cache(
     async (slug: string): Promise<string | null> => {
-        const { data, error } = await safe(
+        const { data, error } = await safe("locations", 
             createAdminClient()
                 .from("location_slug_redirects")
                 .select("location:locations!location_id(slug)")
@@ -287,7 +229,7 @@ export async function getLocationContent(
     try {
         return await getCachedLocationContent(slug, locale, type ?? null);
     } catch (err) {
-        logCacheFailure("getLocationContent", err);
+        logCacheFailure("locations", "getLocationContent", err);
         return [];
     }
 }
@@ -306,7 +248,7 @@ const getCachedLocationContent = unstable_cache(
             query = query.eq("type", type as "photo_story" | "news" | "notice" | "culture" | "listing" | "fundraiser");
         }
 
-        const { data, error } = await safe(
+        const { data, error } = await safe("locations", 
             query.order("published_at", { ascending: false }).limit(50),
         );
         if (error) throw new Error(error.message);
@@ -325,7 +267,7 @@ export async function getLocationsWithCounts(): Promise<LocationData[]> {
     try {
         return await getCachedLocationsWithCounts();
     } catch (err) {
-        logCacheFailure("getLocationsWithCounts", err);
+        logCacheFailure("locations", "getLocationsWithCounts", err);
         return [];
     }
 }
@@ -349,7 +291,7 @@ async function publishedCountsByLocationId(contentType: string | null): Promise<
             .not("location_id", "is", null)
             .not("published_at", "is", null);
         if (contentType) query = query.eq("type", contentType);
-        const { data, error } = await safe(query.range(from, from + pageSize - 1));
+        const { data, error } = await safe("locations", query.range(from, from + pageSize - 1));
         if (error) throw new Error(error.message);
         const rows = (data ?? []) as { location_id: string | null }[];
         for (const row of rows) {
@@ -368,6 +310,7 @@ const getCachedLocationsWithCounts = unstable_cache(
 
         const [locationsResult, totals] = await Promise.all([
             safe(
+                "locations",
                 supabase
                     .from("locations")
                     .select(LOCATION_SELECT)
@@ -392,7 +335,7 @@ const getCachedLocationsWithCounts = unstable_cache(
 export async function getUserPlacePreference(userId: string): Promise<string | null> {
     if (!hasDatabase()) return null;
     try {
-        const { data, error } = await safe(
+        const { data, error } = await safe("locations", 
             createAdminClient()
                 .from("user_place_preferences")
                 .select("place_slug")
@@ -411,7 +354,7 @@ export async function getUserPlacePreference(userId: string): Promise<string | n
 export async function setUserPlacePreference(userId: string, placeSlug: string, locale: Locale = "en"): Promise<boolean> {
     if (!hasDatabase()) return false;
     try {
-        const { error } = await safe(
+        const { error } = await safe("locations", 
             createAdminClient()
                 .from("user_place_preferences")
                 .upsert({ user_id: userId, place_slug: placeSlug, locale }, { onConflict: "user_id" }),
@@ -434,14 +377,14 @@ export async function getNearYouContent(
     try {
         return await getCachedNearYouContent(placeSlug, locale, limit);
     } catch (err) {
-        logCacheFailure("getNearYouContent", err);
+        logCacheFailure("locations", "getNearYouContent", err);
         return [];
     }
 }
 
 const getCachedNearYouContent = unstable_cache(
     async (placeSlug: string, locale: Locale, limit: number): Promise<NearYouContent[]> => {
-        const { data, error } = await safe(
+        const { data, error } = await safe("locations", 
             createAdminClient()
                 .from("content_items")
                 .select(CONTENT_SELECT_WITH_LOCATION)
@@ -491,14 +434,14 @@ export async function getMappedContent(
     try {
         return await getCachedMappedContent(locale, limit);
     } catch (err) {
-        logCacheFailure("getMappedContent", err);
+        logCacheFailure("locations", "getMappedContent", err);
         return [];
     }
 }
 
 const getCachedMappedContent = unstable_cache(
     async (locale: Locale, limit: number): Promise<MappedStory[]> => {
-        const { data, error } = await safe(
+        const { data, error } = await safe("locations", 
             createAdminClient()
                 .from("content_items")
                 .select(
@@ -555,14 +498,14 @@ export async function getMappedLocations(): Promise<LocationData[]> {
     try {
         return await getCachedMappedLocations();
     } catch (err) {
-        logCacheFailure("getMappedLocations", err);
+        logCacheFailure("locations", "getMappedLocations", err);
         return [];
     }
 }
 
 const getCachedMappedLocations = unstable_cache(
     async (): Promise<LocationData[]> => {
-        const { data, error } = await safe(
+        const { data, error } = await safe("locations", 
             createAdminClient()
                 .from("locations")
                 .select(LOCATION_SELECT)
@@ -599,6 +542,7 @@ const getCachedLocationsByContentType = unstable_cache(
 
         const [locationsResult, totals] = await Promise.all([
             safe(
+                "locations",
                 supabase
                     .from("locations")
                     .select("id, slug, name")
@@ -641,7 +585,7 @@ export async function getLocationsByContentType(
     try {
         return await getCachedLocationsByContentType(contentType);
     } catch (err) {
-        logCacheFailure("getLocationsByContentType", err);
+        logCacheFailure("locations", "getLocationsByContentType", err);
         return [];
     }
 }

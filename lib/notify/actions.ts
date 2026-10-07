@@ -5,8 +5,8 @@ import { getSessionUser } from '@/lib/auth/guards';
 import { assertCapability } from '@/lib/admin/auth';
 import { logger } from '@/lib/observability/logger';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { checkRateLimit, getClientIp } from '@/lib/security/rate-limit';
-import { isIpBlocked } from '@/lib/security/ip-blocklist';
+import { checkRateLimit } from '@/lib/security/rate-limit';
+import { isCurrentRequestIpBlocked } from '@/lib/security/ip-blocklist';
 import { honeypotTripped } from '@/lib/security/honeypot';
 import { verifyTurnstileToken } from '@/lib/security/turnstile';
 import type { Database } from '@/lib/supabase/database.types';
@@ -267,7 +267,7 @@ export async function subscribeDigest(_prev: ActionResult, formData: FormData): 
     // fail-closed: subscribe sends mail to an arbitrary address (email-bombing
     // surface) and writes a subscriber row. IP block first so blocked scanners
     // never consume rate-limit slots.
-    if (await isIpBlocked(await getClientIp())) return { ok: false, error: 'rate_limited' };
+    if (await isCurrentRequestIpBlocked()) return { ok: false, error: 'rate_limited' };
     const limited = await checkRateLimit('public:digest', { max: 5, windowMs: 10 * 60_000, policy: 'fail-closed' });
     if (!limited.ok) return { ok: false, error: 'rate_limited' };
     const token = formData.get('cf-turnstile-response');
@@ -324,7 +324,7 @@ export async function unsubscribeDigest(_prev: ActionResult, formData: FormData)
     if (honeypotTripped(formData)) return { ok: true };
     // fail-closed: mutates a subscriber row; an outage must not allow an
     // unthrottled enumeration of subscriber addresses. IP block first.
-    if (await isIpBlocked(await getClientIp())) return { ok: false, error: 'rate_limited' };
+    if (await isCurrentRequestIpBlocked()) return { ok: false, error: 'rate_limited' };
     const limited = await checkRateLimit('public:digest-unsub', { max: 5, windowMs: 10 * 60_000, policy: 'fail-closed' });
     if (!limited.ok) return { ok: false, error: 'rate_limited' };
     const email = cleanEmail(formData.get('email'));

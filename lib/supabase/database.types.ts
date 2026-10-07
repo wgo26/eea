@@ -4579,6 +4579,41 @@ export type Database = {
                 },
             ];
         }
+        seller_contacts: {
+            Row: {
+            content_item_id: string;
+            contact_phone: string | null;
+            contact_email: string | null;
+            whatsapp_number: string | null;
+            created_at: string;
+            updated_at: string;
+            };
+            Insert: {
+            content_item_id: string;
+            contact_phone?: string | null;
+            contact_email?: string | null;
+            whatsapp_number?: string | null;
+            created_at?: string;
+            updated_at?: string;
+            };
+            Update: {
+            content_item_id?: string | null;
+            contact_phone?: string | null;
+            contact_email?: string | null;
+            whatsapp_number?: string | null;
+            created_at?: string | null;
+            updated_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_seller_contacts_content_item_id_fkey",
+                    columns: ["content_item_id"],
+                    isOneToOne: false,
+                    referencedRelation: "content_items",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
         site_settings: {
             Row: {
             key: string;
@@ -5769,6 +5804,17 @@ export type Database = {
                 rank: number;
                 headline_title: string;
                 headline_excerpt: string;
+            }[];
+        }
+        similar_recent_submissions: {
+            Args: {
+                p_type: string;
+                p_title: string;
+                p_days?: number;
+            };
+            Returns: {
+                id: string;
+                sim: number;
             }[];
         }
         suggest_content: {

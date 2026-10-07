@@ -3,6 +3,14 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/observability/logger";
+import {
+    asOne,
+    hasDatabase,
+    logCacheFailure,
+    pickLocalized,
+    safe,
+    sanitizePhraseStrict,
+} from "./shared";
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 import type { MediaAttachment } from "@/lib/media/attachments";
@@ -126,79 +134,6 @@ const NOTICE_SELECT_WITH_LOCATION = NOTICE_SELECT.replace(
     "location:locations!inner(",
 );
 
-type QueryResult<T> = {
-    data: T | null;
-    count: number | null;
-    error: { message: string } | null;
-};
-
-/** Never let a DB hiccup take the page down — every query resolves to a fallback. */
-async function safe<T>(
-    promise: PromiseLike<{
-        data: T | null;
-        count?: number | null;
-        error: { message: string; code?: string } | null;
-    }>,
-): Promise<QueryResult<T>> {
-    try {
-        const { data, count, error } = await promise;
-        if (error) {
-            logger.error("notices", "query failed", { error: error.message });
-            return { data: null, count: null, error };
-        }
-        return { data, count: count ?? null, error: null };
-    } catch (err) {
-        logger.error("notices", "query exception", { error: err instanceof Error ? err.message : String(err) });
-        return { data: null, count: null, error: { message: String(err) } };
-    }
-}
-
-/** The admin client is only usable when the service key is configured. */
-function hasDatabase(): boolean {
-    return Boolean(
-        process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
-    );
-}
-
-/**
- * Phase 4.1 — cached-query error policy: inside an `unstable_cache` scope a
- * failed query THROWS instead of resolving to a fallback, so a transient
- * outage is never baked into the cache. The exported wrappers catch, log, and
- * fall back (the safe() semantics) at the call boundary.
- */
-function logCacheFailure(fn: string, err: unknown): void {
-    logger.error("notices", `cached query failed (${fn})`, {
-        error: err instanceof Error ? err.message : String(err),
-    });
-}
-
-/** PostgREST returns to-one embeds as object or array depending on relationship detection. */
-function asOne<T>(value: T | T[] | null | undefined): T | null {
-    if (!value) return null;
-    return Array.isArray(value) ? (value[0] ?? null) : value;
-}
-
-/** Preferred locale → English fallback → first available. */
-function pickLocalized<T extends { locale: string }>(
-    rows: T[] | null | undefined,
-    locale: Locale,
-): T | null {
-    if (!rows || rows.length === 0) return null;
-    return (
-        rows.find((r) => r.locale === locale) ??
-        rows.find((r) => r.locale === "en") ??
-        rows[0]
-    );
-}
-
-/** PostgREST `or()` phrases cannot contain commas, wildcards or parentheses. */
-function sanitizePhrase(input: string): string {
-    return input
-        .replace(/[,()%\\*]/g, " ")
-        .trim()
-        .slice(0, 80);
-}
-
 function isUuid(value: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
@@ -275,10 +210,10 @@ function toNoticeData(row: RawNoticeRow, locale: Locale): NoticeData | null {
 async function searchIds(search: string | undefined): Promise<string[] | null> {
     const term = search?.trim();
     if (!term) return null;
-    const phrase = sanitizePhrase(term);
+    const phrase = sanitizePhraseStrict(term);
     if (!phrase) return null;
 
-    const { data } = await safe(
+    const { data } = await safe("notices", 
         createAdminClient()
             .from("content_translations")
             .select("content_item_id")
@@ -306,7 +241,7 @@ async function statusIds(status: NoticeStatus): Promise<string[] | null> {
 
     if (status === "expiring") {
         const soonIso = new Date(Date.now() + 3 * 86_400_000).toISOString();
-        const { data } = await safe(
+        const { data } = await safe("notices", 
             supabase
                 .from("notices")
                 .select("content_item_id")
@@ -321,7 +256,7 @@ async function statusIds(status: NoticeStatus): Promise<string[] | null> {
     }
 
     if (status === "expired") {
-        const { data } = await safe(
+        const { data } = await safe("notices", 
             supabase.from("notices").select("content_item_id").lte("expiry_date", nowIso),
         );
         return (data ?? []).flatMap((r) =>
@@ -332,7 +267,7 @@ async function statusIds(status: NoticeStatus): Promise<string[] | null> {
     }
 
     // active: no expiry, or expiry in the future
-    const { data } = await safe(
+    const { data } = await safe("notices", 
         supabase
             .from("notices")
             .select("content_item_id")
@@ -362,6 +297,7 @@ type CachedNoticesArgs = {
     noticeType?: string;
     location?: string;
     status: NoticeStatus;
+    officialOnly: boolean;
     sort: NoticeSort;
     locale: Locale;
     page: number;
@@ -392,10 +328,11 @@ const getCachedNotices = unstable_cache(
         if (searchMatches) query = query.in("id", searchMatches);
         if (lifecycle) query = query.in("id", lifecycle);
         if (args.noticeType) {
-            query = query.eq("notices.notice_type", sanitizePhrase(args.noticeType));
+            query = query.eq("notices.notice_type", sanitizePhraseStrict(args.noticeType));
         }
+        if (args.officialOnly) query = query.eq("notices.is_official", true);
         if (args.location) {
-            query = query.eq("locations.slug", sanitizePhrase(args.location));
+            query = query.eq("locations.slug", sanitizePhraseStrict(args.location));
         }
 
         const from = (args.page - 1) * NOTICES_PAGE_SIZE;
@@ -435,6 +372,7 @@ export async function getNotices(options: {
     noticeType?: string;
     location?: string;
     status?: NoticeStatus;
+    officialOnly?: boolean;
     sort?: NoticeSort;
     locale?: Locale;
     page?: number;
@@ -447,10 +385,11 @@ export async function getNotices(options: {
     const noticeTypeTerm = options.noticeType?.trim();
     const locationTerm = options.location?.trim();
     const args: CachedNoticesArgs = {
-        search: searchTerm ? sanitizePhrase(searchTerm) || undefined : undefined,
-        noticeType: noticeTypeTerm ? sanitizePhrase(noticeTypeTerm) || undefined : undefined,
-        location: locationTerm ? sanitizePhrase(locationTerm) || undefined : undefined,
+        search: searchTerm ? sanitizePhraseStrict(searchTerm) || undefined : undefined,
+        noticeType: noticeTypeTerm ? sanitizePhraseStrict(noticeTypeTerm) || undefined : undefined,
+        location: locationTerm ? sanitizePhraseStrict(locationTerm) || undefined : undefined,
         status: options.status ?? "all",
+        officialOnly: options.officialOnly ?? false,
         sort: options.sort ?? "newest",
         locale: options.locale ?? "en",
         page: Math.max(1, options.page ?? 1),
@@ -458,7 +397,7 @@ export async function getNotices(options: {
     try {
         return await getCachedNotices(args);
     } catch (err) {
-        logCacheFailure("getNotices", err);
+        logCacheFailure("notices", "getNotices", err);
         return { notices: [], total: 0, page: 1, pageCount: 1 };
     }
 }
@@ -490,12 +429,12 @@ export async function getNoticeById(
     if (!hasDatabase()) return null;
     // Sanitize before both the cache key and the query so one canonical
     // string serves every raw spelling of the same URL segment.
-    const identifier = sanitizePhrase(id);
+    const identifier = sanitizePhraseStrict(id);
     if (!identifier) return null;
     try {
         return await getCachedNoticeById(identifier, locale);
     } catch (err) {
-        logCacheFailure("getNoticeById", err);
+        logCacheFailure("notices", "getNoticeById", err);
         return null;
     }
 }
@@ -572,7 +511,7 @@ export async function getNoticesStats(): Promise<{
     try {
         return await getCachedNoticesStats();
     } catch (err) {
-        logCacheFailure("getNoticesStats", err);
+        logCacheFailure("notices", "getNoticesStats", err);
         return empty;
     }
 }
@@ -604,7 +543,7 @@ export async function getUrgentNotice(locale: Locale = "en"): Promise<NoticeData
     try {
         return await getCachedUrgentNotice(locale);
     } catch (err) {
-        logCacheFailure("getUrgentNotice", err);
+        logCacheFailure("notices", "getUrgentNotice", err);
         return null;
     }
 }
@@ -645,7 +584,7 @@ export async function getFeaturedNotice(locale: Locale = "en"): Promise<NoticeDa
     try {
         return await getCachedFeaturedNotice(locale);
     } catch (err) {
-        logCacheFailure("getFeaturedNotice", err);
+        logCacheFailure("notices", "getFeaturedNotice", err);
         return null;
     }
 }
@@ -678,12 +617,12 @@ export async function getNoticesByLocation(
 ): Promise<NoticeData[]> {
     if (!hasDatabase()) return [];
     // Sanitize before the cache call so the cache key is canonical.
-    const slug = sanitizePhrase(locationSlug);
+    const slug = sanitizePhraseStrict(locationSlug);
     if (!slug) return [];
     try {
         return await getCachedNoticesByLocation(slug, locale, limit);
     } catch (err) {
-        logCacheFailure("getNoticesByLocation", err);
+        logCacheFailure("notices", "getNoticesByLocation", err);
         return [];
     }
 }
@@ -729,7 +668,7 @@ export async function getNoticeTypes(): Promise<
     try {
         return await getCachedNoticeTypes();
     } catch (err) {
-        logCacheFailure("getNoticeTypes", err);
+        logCacheFailure("notices", "getNoticeTypes", err);
         return [];
     }
 }
@@ -785,7 +724,7 @@ export async function getUserNotices(userId: string, locale: Locale = 'en'): Pro
             }];
         });
     } catch (err) {
-        logCacheFailure("getUserNotices", err);
+        logCacheFailure("notices", "getUserNotices", err);
         return [];
     }
 }

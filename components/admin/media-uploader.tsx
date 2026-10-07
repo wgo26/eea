@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/components/admin/toast'
 import { MediaPicker } from '@/components/admin/media-picker'
 import { uploadResumable } from '@/lib/uploads/resumable'
+import { downscaleImageIfNeeded } from '@/lib/media/downscale-image'
 import type { StorageDestination } from '@/lib/storage/types'
 
 export type MediaPickerCopy = {
@@ -392,13 +393,19 @@ export const MediaUploader = memo(function MediaUploader({
       }
     }
 
+    // P2: client-side image downscale (2G uploads). Phone photos (3–8 MB)
+    // are redrawn to a 1280px long edge at JPEG 0.82 before upload — the
+    // server Sharp transform stays as the backstop, but the bytes on the
+    // wire drop ~10×. Non-images pass through untouched; any failure falls
+    // back to the original file so compression can never block a submit.
+    const processed = await Promise.all(fileArr.map(downscaleImageIfNeeded))
     setUploading(true)
     const onFileProgress = (fileName: string, uploadedBytes: number, totalBytes: number) =>
       setProgress({
         fileName,
         percent: totalBytes > 0 ? Math.min(100, Math.round((uploadedBytes / totalBytes) * 100)) : 0,
       })
-    const { uploaded, failed } = await uploadFiles(fileArr, {
+    const { uploaded, failed } = await uploadFiles(processed, {
       destination,
       contentItemId,
       errorLabel: c.uploadError,

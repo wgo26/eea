@@ -10,36 +10,8 @@
       "schedule": "30 2 * * *"
     },
     {
-      "path": "/api/cron/db-dump",
-      "schedule": "45 2 * * *"
-    },
-    {
-      "path": "/api/cron/ops-digest",
-      "schedule": "0 6 * * *"
-    },
-    {
       "path": "/api/cron/notify",
       "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/cron/reminders",
-      "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/cron/state-schedules",
-      "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/cron/state-watchdog",
-      "schedule": "7,22,37,52 * * * *"
-    },
-    {
-      "path": "/api/cron/credential-hygiene",
-      "schedule": "0 8 * * 1"
-    },
-    {
-      "path": "/api/cron/audit-archive",
-      "schedule": "30 3 1 * *"
     },
     {
       "path": "/api/cron/weekly-digest",
@@ -48,10 +20,6 @@
     {
       "path": "/api/cron/publish-plans",
       "schedule": "15,45 * * * *"
-    },
-    {
-      "path": "/api/cron/embeddings",
-      "schedule": "30 3 * * *"
     }
   ]
 }

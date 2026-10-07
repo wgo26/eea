@@ -1,0 +1,69 @@
+-- DEFERRED — DO NOT APPLY (Phase 0 gate not met: 2026-10-07).
+-- Phase 2.5 requires backup/restore proof + per-table export/retention/FK/RLS
+-- audit + staging restore before any DROP. Code-level decommission (hide nav,
+-- stop writes, redirects) ships first; drops happen in later phased migrations.
+-- This file is kept as intent record only: every DROP below is commented out
+-- so `verify-migrations` still sees the file but applying it is a no-op.
+--
+-- P2 lean cut (merged audit §4): drop tables for product verticals removed
+-- from the UI in P0/P1 (fundraisers, polls/reactions, live broadcasts + state
+-- engine, professional storefront extras, listing boosts/watches).
+--
+-- APPLY RUNBOOK (do not blind-apply):
+--   1. pg_dump first (supabase/migrations/20261015000001_db_dumps.sql infra).
+--   2. Apply off-peak on staging; run `npm run test:rls` + full `npm run check`.
+--   3. Regenerate types: `npm run types:db` (lib/supabase/database.types.ts).
+--   4. Then production.
+--
+-- SAFETY:
+--   - Every statement is IF EXISTS, so re-runs and lagging DBs are safe.
+--   - CASCADE drops dependent RLS policies with their tables. No KEPT table
+--     references a dropped one (verified: kept code paths use safe() fallbacks
+--     and degrade to empty lists, never to a hard dependency).
+--   - Deliberately NOT dropped here (still wired, deferred to later phases):
+--     businesses + business_claims (merged into Places), listing_conversations*
+--     (account/messages pages stay reachable by URL), ad_*/billing tables
+--     (flagged-off, not deleted), branding/*, digest_*/daily_brief_*,
+--     translation_*/content_templates/llm_calls/embeddings (admin AI surfaces),
+--     analytics_daily (insights), api_credentials/credential_events,
+--     two_person_approvals, timeline/photo-pair tables, publish_plans
+--     (publish-plans cron is canonical).
+
+-- Professionals MERGE-lite leftovers (storefronts, reviews, subscriptions,
+-- paid boosts). businesses + business_claims survive (Places tab).
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.paid_boosts CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.business_reviews CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.business_media CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.professional_subscriptions CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.listing_promotions CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.listing_ratings CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.price_watches CASCADE;
+
+-- Fundraisers (donation platform; NGOs use Service Announcement notices).
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.fundraiser_transactions CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.fundraisers CASCADE;
+
+-- Polls / votes / reactions (engagement theater; "developing" status covers it).
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.poll_votes CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.poll_options CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.community_polls CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.polls CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.content_reactions CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.content_follows CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.contributor_follows CASCADE;
+
+-- Live broadcasts + RSVP + reminders (YouTube/FB link in body replaces all).
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.event_broadcast_chats CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.event_broadcasts CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.event_rsvps CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.event_reminders CASCADE;
+
+-- Incident console + operational state engine (no 24/7 staffing).
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.incident_updates CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.incidents CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.state_schedules CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.contextual_states CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.system_state_themes CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.system_states CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.emergency_publish_events CASCADE;
+-- DEFERRED (Phase 2.5 gate not met): DROP TABLE IF EXISTS public.emergency_publishing_presets CASCADE;

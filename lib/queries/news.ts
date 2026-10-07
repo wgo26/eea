@@ -2,7 +2,14 @@ import "server-only";
 
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { logger } from "@/lib/observability/logger";
+import {
+    asOne,
+    hasDatabase,
+    logCacheFailure,
+    pickLocalized,
+    safe,
+    sanitizePhrase,
+} from "./shared";
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 import type { StoryCardData } from "@/lib/queries/home";
@@ -101,79 +108,6 @@ const STORY_SELECT_WITH_LOCATION = STORY_SELECT.replace(
     "location:locations(",
     "location:locations!inner(",
 );
-
-type QueryResult<T> = {
-    data: T | null;
-    count: number | null;
-    error: { message: string } | null;
-};
-
-/** Never let a DB hiccup take the page down — every query resolves to a fallback. */
-async function safe<T>(
-    promise: PromiseLike<{
-        data: T | null;
-        count?: number | null;
-        error: { message: string } | null;
-    }>,
-): Promise<QueryResult<T>> {
-    try {
-        const { data, count, error } = await promise;
-        if (error) {
-            logger.error("news", "query failed", { error: error.message });
-            return { data: null, count: null, error };
-        }
-        return { data, count: count ?? null, error: null };
-    } catch (err) {
-        logger.error("news", "query exception", { error: err instanceof Error ? err.message : String(err) });
-        return { data: null, count: null, error: { message: String(err) } };
-    }
-}
-
-/**
- * Phase 4.1 — cached-query error policy: inside an `unstable_cache` scope a
- * failed query THROWS instead of resolving to a fallback, so a transient
- * outage is never baked into the cache. The exported wrappers catch, log, and
- * fall back (the safe() semantics) at the call boundary.
- */
-function logCacheFailure(fn: string, err: unknown): void {
-    logger.error("news", `cached query failed (${fn})`, {
-        error: err instanceof Error ? err.message : String(err),
-    });
-}
-
-/** The admin client is only usable when the service key is configured. */
-function hasDatabase(): boolean {
-    return Boolean(
-        process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
-    );
-}
-
-/** PostgREST returns to-one embeds as object or array depending on relationship detection. */
-function asOne<T>(value: T | T[] | null | undefined): T | null {
-    if (!value) return null;
-    return Array.isArray(value) ? (value[0] ?? null) : value;
-}
-
-/** Preferred locale → English fallback → first available. */
-function pickLocalized<T extends { locale: string }>(
-    rows: T[] | null | undefined,
-    locale: Locale,
-): T | null {
-    if (!rows || rows.length === 0) return null;
-    return (
-        rows.find((r) => r.locale === locale) ??
-        rows.find((r) => r.locale === "en") ??
-        rows[0]
-    );
-}
-
-/** PostgREST `or()` phrases cannot contain commas or wildcard characters. */
-function sanitizePhrase(input: string): string {
-    return input
-        .replace(/[,()%\\]/g, " ")
-        .trim()
-        .slice(0, 80);
-}
 
 /**
  * Base builder for every public news query (published, unarchived).
@@ -281,7 +215,7 @@ async function searchIds(search: string | undefined): Promise<string[] | null> {
     const phrase = sanitizePhrase(term);
     if (!phrase) return null;
 
-    const { data } = await safe(
+    const { data } = await safe("news", 
         createAdminClient()
             .from("content_translations")
             .select("content_item_id")
@@ -299,7 +233,7 @@ async function categoryIds(category: string | undefined): Promise<string[] | nul
     if (!term) return null;
     const phrase = sanitizePhrase(term);
 
-    const { data } = await safe(
+    const { data } = await safe("news", 
         createAdminClient()
             .from("categories")
             .select("id, slug, category_translations(name)")
@@ -390,7 +324,7 @@ export async function getNewsCategories(): Promise<
     try {
         return await getCachedNewsCategories();
     } catch (err) {
-        logCacheFailure("getNewsCategories", err);
+        logCacheFailure("news", "getNewsCategories", err);
         return [];
     }
 }
@@ -441,7 +375,7 @@ export async function getAdjacentNews(
     try {
         return await getCachedAdjacentNews(currentId, publishedAt, locale);
     } catch (err) {
-        logCacheFailure("getAdjacentNews", err);
+        logCacheFailure("news", "getAdjacentNews", err);
         return { prev: null, next: null };
     }
 }
@@ -475,7 +409,7 @@ export async function getMostViewedNews(
     try {
         return await getCachedMostViewedNews(locale, limit);
     } catch (err) {
-        logCacheFailure("getMostViewedNews", err);
+        logCacheFailure("news", "getMostViewedNews", err);
         return [];
     }
 }
@@ -539,7 +473,7 @@ export async function getNewsStats(): Promise<{
     try {
         return await getCachedNewsStats();
     } catch (err) {
-        logCacheFailure("getNewsStats", err);
+        logCacheFailure("news", "getNewsStats", err);
         return empty;
     }
 }
@@ -581,7 +515,7 @@ export async function getFeaturedNews(locale: Locale = "en"): Promise<NewsArticl
     try {
         return await getCachedFeaturedNews(locale);
     } catch (err) {
-        logCacheFailure("getFeaturedNews", err);
+        logCacheFailure("news", "getFeaturedNews", err);
         return null;
     }
 }
@@ -616,7 +550,7 @@ export async function getDevelopingNews(
     try {
         return await getCachedDevelopingNews(locale, limit);
     } catch (err) {
-        logCacheFailure("getDevelopingNews", err);
+        logCacheFailure("news", "getDevelopingNews", err);
         return [];
     }
 }
@@ -667,7 +601,7 @@ export async function getNewsArticles(options: {
     }
 
     const from = (page - 1) * NEWS_PAGE_SIZE;
-    const { data, count: total } = await safe(
+    const { data, count: total } = await safe("news", 
         query
             .order(
                 sort === "most_read" ? "view_count" : "published_at",
@@ -769,7 +703,7 @@ export async function getNewsBySlug(
     try {
         return await getCachedNewsBySlug(sanitized, locale);
     } catch (err) {
-        logCacheFailure("getNewsBySlug", err);
+        logCacheFailure("news", "getNewsBySlug", err);
         return null;
     }
 }
@@ -804,7 +738,7 @@ export async function getOtherNews(
     try {
         return await getCachedOtherNews(excludeId, locale, limit);
     } catch (err) {
-        logCacheFailure("getOtherNews", err);
+        logCacheFailure("news", "getOtherNews", err);
         return [];
     }
 }
@@ -900,7 +834,7 @@ export async function getRelatedNews(
     try {
         return await getCachedRelatedNews(articleId, categoryId, locale, limit);
     } catch (err) {
-        logCacheFailure("getRelatedNews", err);
+        logCacheFailure("news", "getRelatedNews", err);
         return [];
     }
 }
@@ -933,7 +867,7 @@ export async function getMicroStories(
     try {
         return await getCachedMicroStories(locale, limit);
     } catch (err) {
-        logCacheFailure("getMicroStories", err);
+        logCacheFailure("news", "getMicroStories", err);
         return [];
     }
 }

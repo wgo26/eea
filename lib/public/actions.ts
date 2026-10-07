@@ -4,8 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/observability/logger";
 import { getSessionUser } from "@/lib/auth/guards";
 import type { SubmitState } from "@/lib/public/types";
-import { checkRateLimit, getClientIp, type RateLimitOptions } from "@/lib/security/rate-limit";
-import { isIpBlocked } from "@/lib/security/ip-blocklist";
+import { checkRateLimit, type RateLimitOptions } from "@/lib/security/rate-limit";
+import { isCurrentRequestIpBlocked } from "@/lib/security/ip-blocklist";
 import { verifyTurnstileToken } from "@/lib/security/turnstile";
 import { honeypotTripped } from "@/lib/security/honeypot";
 import { enqueueStaffAlert, enqueueUser } from "@/lib/notify/queue";
@@ -41,14 +41,17 @@ const PAYLOAD_FIELDS = [
     "location",
     "location_id",
     "location_text",
-    "latitude",
-    "longitude",
+    // Lean cut (audit §3.6): latitude/longitude dropped — precise reporter
+    // coordinates are a privacy risk for vulnerable reporters. Location is
+    // `location_id` (canonical place) + free-text only. Any posted lat/lng
+    // is stripped below and never reaches the queue.
     "date",
     "photos",
     "videos",
     "audios",
     "documents",
     "noticeType",
+    "noticeDirection",
     "organization",
     "expiry",
     "item",
@@ -92,6 +95,8 @@ const NOTICE_TYPE_KEYS = [
     "other",
 ] as const;
 
+const NOTICE_DIRECTION_KEYS = ["lost", "found"] as const;
+
 const BUY_SELL_CATEGORIES = [
     "phones",
     "vehicles",
@@ -128,6 +133,12 @@ function validateSubmissionContent(
             if (
                 !payload.noticeType ||
                 !(NOTICE_TYPE_KEYS as readonly string[]).includes(payload.noticeType)
+            ) {
+                return "missing_content";
+            }
+            if (
+                payload.noticeType === "lost_found" &&
+                !(NOTICE_DIRECTION_KEYS as readonly string[]).includes(payload.noticeDirection)
             ) {
                 return "missing_content";
             }
@@ -186,7 +197,7 @@ async function guardPublicSubmission(
     // rate-limit slots, and read as throttling so they learn nothing.
     // fail-closed: these paths write rows and send mail on behalf of a guest, so
     // a limiter outage must block rather than allow unlimited submissions.
-    if (await isIpBlocked(await getClientIp())) return { ok: false, error: "rate_limited" };
+    if (await isCurrentRequestIpBlocked()) return { ok: false, error: "rate_limited" };
     const limited = await checkRateLimit(scope, { ...limits, policy: "fail-closed" });
     if (!limited.ok) return { ok: false, error: "rate_limited" };
     const tokenValue = formData.get("cf-turnstile-response");
@@ -301,7 +312,11 @@ export async function submitStory(
         }
     }
     for (const key of ["latitude", "longitude"] as const) {
-        if (payload[key] && !/^-?\d{1,3}(\.\d{1,6})?$/.test(payload[key])) {
+        // Defense in depth: a direct POST can still carry coords — drop them.
+        // (PAYLOAD_FIELDS no longer includes them, so this only fires on
+        // hand-crafted requests; the DB trigger allowlist is updated in
+        // 20261203000000's companion note — coords rejected at intake.)
+        if (payload[key]) {
             delete payload[key];
         }
     }
@@ -318,6 +333,10 @@ export async function submitStory(
     if (payload.currency && !(SUBMIT_CURRENCIES as readonly string[]).includes(payload.currency)) {
         delete payload.currency;
     }
+    if (payload.noticeDirection && !(NOTICE_DIRECTION_KEYS as readonly string[]).includes(payload.noticeDirection)) {
+        delete payload.noticeDirection;
+    }
+    if (payload.noticeType !== "lost_found") delete payload.noticeDirection;
     if (payload.price && !/^\d+(\.\d{1,2})?$/.test(payload.price)) {
         delete payload.price;
     }
@@ -384,6 +403,53 @@ export async function submitStory(
                 if (isDuplicate) return { ok: false, error: "duplicate" };
             } catch {
                 // Guard outage must never block a genuine submission.
+            }
+            // Trigram near-duplicate net (P3, migration
+            // 20261202000000_submission_similarity): paraphrased respam that
+            // defeats the exact fingerprint above. Same-identity only — two
+            // different people reporting the same fire are two reports, not
+            // spam. Fail-open: a lagging DB without the rpc skips the check.
+            if (titleKey.length >= 12) {
+                try {
+                    // Typed as unknown: the rpc ships in migration
+                    // 20261202000000, after the generated database.types.ts
+                    // snapshot — `npm run types:db` on staging absorbs it.
+                    const rpc = supabase.rpc as unknown as (
+                        fn: string,
+                        args: { p_type: string; p_title: string; p_days: number },
+                    ) => Promise<{ data: { id: string; sim: number }[] | null }>;
+                    const { data: sims } = await rpc("similar_recent_submissions", {
+                        p_type: submissionType,
+                        p_title: titleKey.slice(0, 120),
+                        p_days: 7,
+                    });
+                    const near = ((sims ?? []) as { id: string; sim: number }[]).filter(
+                        (r) => r.sim >= 0.8,
+                    );
+                    if (near.length > 0) {
+                        const { data: owners } = await supabase
+                            .from("submissions")
+                            .select("id, submitted_by, guest_email, guest_phone")
+                            .in(
+                                "id",
+                                near.map((r) => r.id),
+                            )
+                            .limit(5);
+                        const mine = ((owners ?? []) as {
+                            submitted_by: string | null;
+                            guest_email: string | null;
+                            guest_phone: string | null;
+                        }[]).some(
+                            (o) =>
+                                (submittedBy && o.submitted_by === submittedBy) ||
+                                (guestEmail && o.guest_email === guestEmail) ||
+                                (guestPhone && o.guest_phone === guestPhone),
+                        );
+                        if (mine) return { ok: false, error: "duplicate" };
+                    }
+                } catch {
+                    // Guard outage must never block a genuine submission.
+                }
             }
         }
         const { error } = await supabase.from("submissions").insert({
@@ -765,7 +831,7 @@ export async function submitContentReport(input: {
         return { ok: false, error: "Unknown report reason." };
     }
     // IP block first so blocked scanners never consume rate-limit slots.
-    if (await isIpBlocked(await getClientIp())) {
+    if (await isCurrentRequestIpBlocked()) {
         return { ok: false, error: "Too many reports. Please try again later." };
     }
     const limited = await checkRateLimit("public:report", {
@@ -870,7 +936,7 @@ export async function revealSellerContact(listingId: string): Promise<RevealCont
 
     // IP block first: contact reveal is the PII gate, blocked scrapers must
     // not consume rate-limit slots.
-    if (await isIpBlocked(await getClientIp())) {
+    if (await isCurrentRequestIpBlocked()) {
         return { ok: false, error: "rate_limited" };
     }
     const limited = await checkRateLimit("public:reveal_contact", {
@@ -885,7 +951,7 @@ export async function revealSellerContact(listingId: string): Promise<RevealCont
         const supabase = createAdminClient();
         const { data: item, error: itemError } = await supabase
             .from("content_items")
-            .select("id, slug, status, is_archived, expires_at, listings(listing_status, contact_phone, contact_email, whatsapp_number)")
+            .select("id, slug, status, is_archived, expires_at, listings(listing_status)")
             .eq("type", "listing")
             .eq("status", "published")
             .eq("is_archived", false)
@@ -908,12 +974,55 @@ export async function revealSellerContact(listingId: string): Promise<RevealCont
         };
         const listing = (Array.isArray(row.listings) ? row.listings[0] : row.listings) as {
             listing_status?: string | null;
-            contact_phone?: string | null;
-            contact_email?: string | null;
-            whatsapp_number?: string | null;
         } | null;
         if (!listing || listing.listing_status !== "active") {
             return { ok: false, error: "not_found" };
+        }
+
+        // PII lives in `seller_contacts` (Phase A migration); legacy
+        // `listings` columns are the fallback until Phase B drops them.
+        let phone: string | null = null;
+        let email: string | null = null;
+        let whatsapp: string | null = null;
+        try {
+            const { data: sc } = await supabase
+                .from("seller_contacts")
+                .select("contact_phone, contact_email, whatsapp_number")
+                .eq("content_item_id", row.id)
+                .limit(1);
+            const c = ((sc ?? []) as {
+                contact_phone?: string | null;
+                contact_email?: string | null;
+                whatsapp_number?: string | null;
+            }[])[0];
+            if (c) {
+                phone = c.contact_phone?.trim() || null;
+                email = String(c.contact_email ?? "").trim() || null;
+                whatsapp = c.whatsapp_number?.trim() || null;
+            }
+        } catch {
+            phone = null;
+            email = null;
+            whatsapp = null;
+        }
+        if (!phone && !email && !whatsapp) {
+            try {
+                const { data: leg } = await supabase
+                    .from("listings")
+                    .select("contact_phone, contact_email, whatsapp_number")
+                    .eq("content_item_id", row.id)
+                    .limit(1);
+                const l = ((leg ?? []) as {
+                    contact_phone?: string | null;
+                    contact_email?: string | null;
+                    whatsapp_number?: string | null;
+                }[])[0];
+                phone = l?.contact_phone?.trim() || null;
+                email = String(l?.contact_email ?? "").trim() || null;
+                whatsapp = l?.whatsapp_number?.trim() || null;
+            } catch {
+                /* fail-closed below: no contact, no reveal */
+            }
         }
 
         // Best-effort anti-scraping trail (moderation_log is staff-read-only;
@@ -933,9 +1042,9 @@ export async function revealSellerContact(listingId: string): Promise<RevealCont
         return {
             ok: true,
             contact: {
-                phone: listing?.contact_phone?.trim() || null,
-                email: listing?.contact_email?.trim() || null,
-                whatsapp: listing?.whatsapp_number?.trim() || null,
+                phone,
+                email,
+                whatsapp,
             },
         };
     } catch (err) {
@@ -977,7 +1086,7 @@ export async function revealNoticeContact(noticeId: string): Promise<RevealNotic
     }
 
     // IP block first: same PII-gate reasoning as seller-contact reveal.
-    if (await isIpBlocked(await getClientIp())) {
+    if (await isCurrentRequestIpBlocked()) {
         return { ok: false, error: "rate_limited" };
     }
     const limited = await checkRateLimit("public:reveal_notice_contact", {
@@ -1150,7 +1259,7 @@ export async function togglePriceWatch(
     if (!listingId || typeof listingId !== "string") return { ok: false, error: "not_found" };
     const identifier = listingId.trim().slice(0, 80);
     if (!identifier) return { ok: false, error: "not_found" };
-    if (await isIpBlocked(await getClientIp())) return { ok: false, error: "rate_limited" };
+    if (await isCurrentRequestIpBlocked()) return { ok: false, error: "rate_limited" };
     const limited = await checkRateLimit("public:price_watch", {
         ...RATE_LIMITS.watch,
         policy: "fail-closed",
@@ -1262,7 +1371,7 @@ export async function toggleContentReaction(
     const token = cleanReactionToken(reactorToken);
     if (!identifier || !token) return { ok: false, error: "invalid" };
     if (!(REACTION_KINDS as readonly string[]).includes(kind)) return { ok: false, error: "invalid" };
-    if (await isIpBlocked(await getClientIp())) return { ok: false, error: "rate_limited" };
+    if (await isCurrentRequestIpBlocked()) return { ok: false, error: "rate_limited" };
     const limited = await checkRateLimit("public:reactions", {
         ...RATE_LIMITS.reactions,
         policy: "fail-closed",

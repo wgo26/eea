@@ -3,6 +3,14 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/observability/logger";
+import {
+    asOne,
+    hasDatabase,
+    logCacheFailure,
+    pickLocalized,
+    safe,
+    sanitizePhrase,
+} from "./shared";
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 import type { MediaAttachment } from "@/lib/media/attachments";
@@ -129,79 +137,6 @@ const LISTING_SELECT_WITH_LOCATION = `id, slug, verification, published_at, expi
     translations:content_translations(locale, title, excerpt, body),
     media:media_assets(public_url, alt_text, caption, is_cover, sort_order, photographer_credit, kind, mime_type),
     listing:listings(price, currency, listing_status, seller_name)`;
-
-type QueryResult<T> = {
-    data: T | null;
-    count: number | null;
-    error: { message: string } | null;
-};
-
-/** Never let a DB hiccup take the page down — every query resolves to a fallback. */
-async function safe<T>(
-    promise: PromiseLike<{
-        data: T | null;
-        count?: number | null;
-        error: { message: string } | null;
-    }>,
-): Promise<QueryResult<T>> {
-    try {
-        const { data, count, error } = await promise;
-        if (error) {
-            logger.error("buy-sell", "query failed", { error: error.message });
-            return { data: null, count: null, error };
-        }
-        return { data, count: count ?? null, error: null };
-    } catch (err) {
-        logger.error("buy-sell", "query exception", { error: err instanceof Error ? err.message : String(err) });
-        return { data: null, count: null, error: { message: String(err) } };
-    }
-}
-
-/** The admin client is only usable when the service key is configured. */
-function hasDatabase(): boolean {
-    return Boolean(
-        process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
-    );
-}
-
-/**
- * Phase 4.1 — cached-query error policy: inside an `unstable_cache` scope a
- * failed query THROWS instead of resolving to a fallback, so a transient
- * outage is never baked into the cache. The exported wrappers catch, log, and
- * fall back (the safe() semantics) at the call boundary.
- */
-function logCacheFailure(fn: string, err: unknown): void {
-    logger.error("buy-sell", `cached query failed (${fn})`, {
-        error: err instanceof Error ? err.message : String(err),
-    });
-}
-
-/** PostgREST returns to-one embeds as object or array depending on relationship detection. */
-function asOne<T>(value: T | T[] | null | undefined): T | null {
-    if (!value) return null;
-    return Array.isArray(value) ? (value[0] ?? null) : value;
-}
-
-/** Preferred locale → English fallback → first available. */
-function pickLocalized<T extends { locale: string }>(
-    rows: T[] | null | undefined,
-    locale: Locale,
-): T | null {
-    if (!rows || rows.length === 0) return null;
-    return (
-        rows.find((r) => r.locale === locale) ??
-        rows.find((r) => r.locale === "en") ??
-        rows[0]
-    );
-}
-
-/** PostgREST `or()` phrases cannot contain commas or wildcard characters. */
-function sanitizePhrase(input: string): string {
-    return input
-        .replace(/[,()%\\]/g, " ")
-        .trim()
-        .slice(0, 80);
-}
 
 /** Base builder for every public listing query (published, unarchived). */
 function publishedListings(
@@ -381,7 +316,7 @@ export async function getListings(options: {
         listings.sort((a, b) => Number(b.isBoosted ?? false) - Number(a.isBoosted ?? false));
         return { ...grid, listings };
     } catch (err) {
-        logCacheFailure("getListings", err);
+        logCacheFailure("buy-sell", "getListings", err);
         return { listings: [], total: 0, page: 1, pageCount: 1 };
     }
 }
@@ -389,7 +324,7 @@ export async function getListings(options: {
 /** One listing by id, for the detail page (null when not found). */
 export async function getListingById(id: string, locale: Locale = "en"): Promise<ListingData | null> {
     if (!hasDatabase()) return null;
-    const { data } = await safe(
+    const { data } = await safe("buy-sell", 
         publishedListings()
             .eq("id", sanitizePhrase(id))
             .limit(1),
@@ -402,7 +337,7 @@ export async function getListingById(id: string, locale: Locale = "en"): Promise
 export async function getListingBySlugOrId(slugOrId: string, locale: Locale = "en"): Promise<ListingData | null> {
     if (!hasDatabase()) return null;
     // Try slug first
-    const { data: bySlug } = await safe(
+    const { data: bySlug } = await safe("buy-sell", 
         publishedListings()
             .eq("slug", sanitizePhrase(slugOrId))
             .limit(1),
@@ -436,7 +371,7 @@ export async function getFeaturedListing(locale: Locale = "en"): Promise<Listing
     try {
         return await getCachedFeaturedListing(locale);
     } catch (err) {
-        logCacheFailure("getFeaturedListing", err);
+        logCacheFailure("buy-sell", "getFeaturedListing", err);
         return null;
     }
 }
@@ -478,7 +413,7 @@ export async function getListingsByLocation(
     try {
         return await getCachedListingsByLocation(sanitized, locale, limit);
     } catch (err) {
-        logCacheFailure("getListingsByLocation", err);
+        logCacheFailure("buy-sell", "getListingsByLocation", err);
         return [];
     }
 }
@@ -503,7 +438,7 @@ const LISTING_DETAIL_SELECT = `id, slug, verification, published_at, expires_at,
     category:categories(category_translations(locale, name)),
     translations:content_translations(locale, title, excerpt, body),
     media:media_assets(public_url, alt_text, caption, is_cover, sort_order, photographer_credit, kind, mime_type),
-    listing:listings(price, currency, listing_status, seller_name, seller_is_verified, contact_phone, contact_email, whatsapp_number, business_id)`;
+    listing:listings(price, currency, listing_status, seller_name, seller_is_verified)`;
 
 /**
  * One listing by id or slug, with contact presence flags (null when not found).
@@ -544,7 +479,7 @@ export async function getListingDetail(
     try {
         return await getCachedListingDetail(sanitized, locale);
     } catch (err) {
-        logCacheFailure("getListingDetail", err);
+        logCacheFailure("buy-sell", "getListingDetail", err);
         return null;
     }
 }
@@ -560,38 +495,52 @@ async function toListingDetail(row: RawListingRow, locale: Locale): Promise<List
               listing_status: string | null;
               seller_name?: string | null;
               seller_is_verified?: boolean | null;
-              contact_phone?: string | null;
-              contact_email?: string | null;
-              whatsapp_number?: string | null;
-              business_id?: string | null;
           }
         | null;
-    // Town-square bridge: a listing linked to a verified pro resolves to the
-    // storefront (verified + active only — an unverified link renders nothing).
-    let business: { name: string; slug: string } | null = null;
-    if (listing?.business_id) {
-        try {
-            const { data: biz } = await createAdminClient()
-                .from("businesses")
-                .select("name, slug")
-                .eq("id", listing.business_id)
-                .eq("status", "active")
-                .eq("is_verified", true)
-                .limit(1);
-            const b = ((biz ?? []) as { name: string; slug: string }[])[0];
-            if (b) business = { name: b.name, slug: b.slug };
-        } catch {
-            business = null;
+    // PII presence comes from `seller_contacts` (service-role only) — never
+    // from the public `listings` embed. Fail-closed to false: a lookup error
+    // hides the reveal button rather than leaking or crashing.
+    let hasPhone = false;
+    let hasEmail = false;
+    let hasWhatsapp = false;
+    try {
+        const { data } = await createAdminClient()
+            .from("seller_contacts")
+            .select("contact_phone, contact_email, whatsapp_number")
+            .eq("content_item_id", row.id)
+            .limit(1);
+        const c = ((data ?? []) as {
+            contact_phone?: string | null;
+            contact_email?: string | null;
+            whatsapp_number?: string | null;
+        }[])[0];
+        // Back-compat during Phase A rollout: rows not yet backfilled fall
+        // back to the legacy `listings` columns (still present until Phase B
+        // drops them). No raw values leave this function — booleans only.
+        if (c) {
+            hasPhone = Boolean(c.contact_phone?.trim());
+            hasEmail = Boolean(String(c.contact_email ?? "").trim());
+            hasWhatsapp = Boolean(c.whatsapp_number?.trim());
+        } else {
+            const legacy = asOne((row as unknown as { listing?: { contact_phone?: string | null; contact_email?: string | null; whatsapp_number?: string | null } }).listing);
+            hasPhone = Boolean(legacy?.contact_phone?.trim());
+            hasEmail = Boolean(String(legacy?.contact_email ?? "").trim());
+            hasWhatsapp = Boolean(legacy?.whatsapp_number?.trim());
         }
+    } catch {
+        hasPhone = false;
+        hasEmail = false;
+        hasWhatsapp = false;
     }
     return {
         ...base,
         sellerName: listing?.seller_name?.trim() || base.sellerName,
-        hasPhone: Boolean(listing?.contact_phone?.trim()),
-        hasEmail: Boolean(listing?.contact_email?.trim()),
-        hasWhatsapp: Boolean(listing?.whatsapp_number?.trim()),
+        hasPhone,
+        hasEmail,
+        hasWhatsapp,
         sellerIsVerified: listing?.seller_is_verified ?? false,
-        business,
+        // Lean cut: professionals storefronts deleted — no linked pro.
+        business: null,
     };
 }
 
@@ -661,7 +610,7 @@ export async function getSimilarListings(
             limit,
         );
     } catch (err) {
-        logCacheFailure("getSimilarListings", err);
+        logCacheFailure("buy-sell", "getSimilarListings", err);
         return [];
     }
 }

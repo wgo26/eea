@@ -11,56 +11,38 @@ import {
 const en = getDictionary("en");
 
 describe("buildAccountNavGroups", () => {
-    it("groups the eleven destinations into three ordered sections", () => {
+    it("groups the five destinations into two ordered sections", () => {
         const groups = buildAccountNavGroups("en", en);
-        expect(groups.map((g) => g.key)).toEqual(["activity", "library", "settings"]);
+        expect(groups.map((g) => g.key)).toEqual(["activity", "settings"]);
         expect(groups.flatMap((g) => g.items.map((i) => i.key))).toEqual([
             "dashboard",
             "submissions",
             "listings",
             "notices",
-            "messages",
-            "saved",
-            "follows",
-            "recent",
             "profile",
-            "notifications",
-            "security",
         ]);
     });
 
     it("locale-prefixes every href while keeping the canonical path for matching", () => {
         const groups = buildAccountNavGroups("fr", getDictionary("fr"));
-        const saved = groups.flatMap((g) => g.items).find((i) => i.key === "saved");
-        expect(saved?.href).toBe("/fr/account/saved");
-        expect(saved?.path).toBe("/account/saved");
+        const listings = groups.flatMap((g) => g.items).find((i) => i.key === "listings");
+        expect(listings?.href).toBe("/fr/account/listings");
+        expect(listings?.path).toBe("/account/listings");
     });
 
-    it("decorates only the notifications entry with the unread count", () => {
+    it("carries no badges (the notifications center is unlinked in P2)", () => {
         const groups = buildAccountNavGroups("en", en, { unreadNotifications: 4 });
         const items = groups.flatMap((g) => g.items);
-        expect(items.find((i) => i.key === "notifications")?.badge).toBe(4);
-        expect(items.find((i) => i.key === "dashboard")?.badge).toBeUndefined();
+        expect(items.every((i) => i.badge === undefined)).toBe(true);
     });
 });
 
 describe("splitAccountNav", () => {
-    it("keeps the bar short: home + one anchor per group, rest overflows", () => {
+    it("shows all five destinations flat with an empty overflow", () => {
         const groups = buildAccountNavGroups("en", en);
         const { tabs, overflow } = splitAccountNav(groups);
         expect(tabs.map((t) => t.key)).toEqual(ACCOUNT_PRIMARY_TABS);
-        // Every overflowed item stays in its own group, so the menu header is
-        // the section label rather than a flat orphan list.
-        expect(overflow.map((g) => g.key)).toEqual(["activity", "library", "settings"]);
-        expect(overflow.flatMap((g) => g.items.map((i) => i.key))).toEqual([
-            "listings",
-            "notices",
-            "messages",
-            "follows",
-            "recent",
-            "notifications",
-            "security",
-        ]);
+        expect(overflow).toHaveLength(0);
     });
 
     it("omits an empty group from the overflow menu", () => {
@@ -70,13 +52,7 @@ describe("splitAccountNav", () => {
             "submissions",
             "listings",
             "notices",
-            "messages",
-            "saved",
-            "follows",
-            "recent",
             "profile",
-            "notifications",
-            "security",
         ]);
         expect(overflow).toHaveLength(0);
     });
@@ -90,19 +66,21 @@ describe("findAccountNavLocation", () => {
         expect(loc?.group.key).toBe("activity");
     });
 
-    it("matches nested routes (a message thread belongs to Messages)", () => {
+    it("matches nested routes (a listing detail belongs to Listings)", () => {
         const groups = buildAccountNavGroups("en", en);
-        expect(findAccountNavLocation(groups, "/en/account/messages/abc-123")?.item.key).toBe("messages");
+        expect(findAccountNavLocation(groups, "/en/account/listings/abc-123")?.item.key).toBe("listings");
     });
 
     it("accepts both canonical and locale-prefixed paths", () => {
         const groups = buildAccountNavGroups("en", en);
-        expect(findAccountNavLocation(groups, "/account/security")?.item.key).toBe("security");
-        expect(findAccountNavLocation(groups, "/en/account/security")?.item.key).toBe("security");
+        expect(findAccountNavLocation(groups, "/account/profile")?.item.key).toBe("profile");
+        expect(findAccountNavLocation(groups, "/en/account/profile")?.item.key).toBe("profile");
     });
 
-    it("returns null for a route outside the nav", () => {
+    it("returns null for unlinked routes (messages, saved) and outside routes", () => {
         const groups = buildAccountNavGroups("en", en);
+        expect(findAccountNavLocation(groups, "/en/account/messages/abc-123")).toBeNull();
+        expect(findAccountNavLocation(groups, "/en/account/saved")).toBeNull();
         expect(findAccountNavLocation(groups, "/en/account/login")).toBeNull();
     });
 });
@@ -117,12 +95,10 @@ describe("accountBreadcrumbs", () => {
 
     it("links Account and the group, and never the page you are on", () => {
         const groups = buildAccountNavGroups("en", en);
-        const trail = accountBreadcrumbs("en", en, groups, "/en/account/saved");
-        expect(trail).toEqual([
-            { label: "Account", href: "/en/account/dashboard" },
-            { label: "Library", href: "/en/account/follows" },
-            { label: "Reading list" },
-        ]);
+        const trail = accountBreadcrumbs("en", en, groups, "/en/account/listings");
+        expect(trail).toHaveLength(3);
+        expect(trail[0]).toEqual({ label: "Account", href: "/en/account/dashboard" });
+        expect(trail[1]?.href).toBe("/en/account/dashboard");
         expect(trail.at(-1)?.href).toBeUndefined();
     });
 

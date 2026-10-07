@@ -10,9 +10,14 @@
  *    explicit tap; explicit saves go through the SAVE message below.
  *  - Everything else (API, admin, app shell mutations): network-only.
  *
+ * P3: anonymous submissions are NOT queued-and-replayed here. Turnstile
+ * tokens are single-use, so a replayed POST would fail the captcha. The
+ * offline story for submit is draft autosave in the form (restored with a
+ * notice on return) — the worker's job is keeping READING alive offline.
+ *
  * Version the caches by hand on strategy changes (CACHE_VERSION).
  */
-const CACHE_VERSION = "eea-v1";
+const CACHE_VERSION = "eea-v2";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const ARTICLES_CACHE = `${CACHE_VERSION}-articles`;
 const MAX_ARTICLES = 50;
@@ -78,7 +83,8 @@ async function trimArticles(cache) {
 }
 
 function isContentPage(url) {
-  return /^\/(en|fr)\/(news|photo-stories|culture|notices|buy-sell|street)\//.test(url.pathname);
+  // P3: covers the P1 merged /stories feed and /locations place pages too.
+  return /^\/(en|fr)\/(news|photo-stories|culture|notices|buy-sell|street|stories|locations)(\/|$)/.test(url.pathname);
 }
 
 self.addEventListener("fetch", (event) => {

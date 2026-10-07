@@ -12,11 +12,12 @@
 export const chromeEn = {
   nav: {
     home: 'Home',
+    post: 'Post',
+    stories: 'Stories',
     photoStories: 'Photo Stories',
     news: 'Community News',
     buySell: 'Buy & Sell',
     notices: 'Notices',
-    professionals: 'Professionals',
     culture: 'Culture',
     submit: 'Submit a Story',
     search: 'Search',

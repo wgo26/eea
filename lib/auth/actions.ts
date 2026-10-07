@@ -4,8 +4,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { localePath, safeNextPath } from '@/lib/i18n/urls'
-import { checkRateLimit, getClientIp } from '@/lib/security/rate-limit'
-import { isIpBlocked } from '@/lib/security/ip-blocklist'
+import { checkRateLimit } from '@/lib/security/rate-limit'
+import { isCurrentRequestIpBlocked } from '@/lib/security/ip-blocklist'
 import { AUTH_AUDIT_ACTIONS, recordAuthEvent } from '@/lib/security/auth-audit'
 import { verifyTurnstileToken } from '@/lib/security/turnstile'
 import { SITE } from '@/lib/constants'
@@ -126,7 +126,7 @@ export async function signInWithPassword(
   // Chief-managed network block first: indistinguishable from bad credentials
   // so a blocked scanner learns nothing, but the trail records the real reason.
   // Checked before the limiter so blocked IPs never consume rate-limit slots.
-  if (await isIpBlocked(await getClientIp())) {
+  if (await isCurrentRequestIpBlocked()) {
     await recordAuthEvent({
       action: AUTH_AUDIT_ACTIONS.loginBlocked,
       identifier: email,
@@ -239,7 +239,7 @@ export async function signUpWithPassword(
   // fail-closed: signup writes an account and sends confirmation mail.
   // Chief-managed network block first: reads as throttling so a blocked
   // scanner learns nothing; checked before the limiter to save slots.
-  if (await isIpBlocked(await getClientIp())) return { ok: false, error: 'rate_limited' }
+  if (await isCurrentRequestIpBlocked()) return { ok: false, error: 'rate_limited' }
   const limited = await checkRateLimit('auth:signup', { max: 5, windowMs: 60 * 60_000, policy: 'fail-closed' })
   if (!limited.ok) return { ok: false, error: 'rate_limited' }
   const turnstileToken = formData.get('cf-turnstile-response')

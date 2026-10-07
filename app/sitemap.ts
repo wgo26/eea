@@ -14,6 +14,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const STATIC_PATHS = [
     "/",
+    "/stories",
     "/photo-stories",
     "/news",
     "/street",
@@ -25,7 +26,6 @@ const STATIC_PATHS = [
     "/notices",
     "/culture",
     "/culture/events",
-    "/professionals",
     "/professionals/claim",
     "/locations",
     "/search",
@@ -69,7 +69,7 @@ async function fetchDynamicEntries(): Promise<DynamicEntry[]> {
 
         const supabase = createAdminClient();
         const nowIso = new Date().toISOString();
-        const [content, notices, events, locations, contributors, businesses] = await Promise.all([
+        const [content, notices, events, locations, contributors] = await Promise.all([
             supabase
                 .from("content_items")
                 .select("type, id, slug, published_at, expires_at")
@@ -98,12 +98,8 @@ async function fetchDynamicEntries(): Promise<DynamicEntry[]> {
                 .eq("is_public", true)
                 .eq("is_banned", false)
                 .eq("is_suspended", false),
-            // Trusted professionals: verified + active directory rows only.
-            supabase
-                .from("businesses")
-                .select("slug")
-                .eq("status", "active")
-                .eq("is_verified", true),
+            // Lean cut: professionals storefronts deleted — claim intake lives
+            // at /professionals/claim (static path above); no per-business URLs.
         ]);
         const entries: DynamicEntry[] = [];
         const expiredNoticeIds = new Set(
@@ -157,11 +153,6 @@ async function fetchDynamicEntries(): Promise<DynamicEntry[]> {
         if (!contributors.error) {
             for (const row of (contributors.data ?? []) as { id: string }[]) {
                 entries.push({ path: `/contributors/${row.id}` });
-            }
-        }
-        if (!businesses.error) {
-            for (const row of (businesses.data ?? []) as { slug: string | null }[]) {
-                if (row.slug) entries.push({ path: `/professionals/${row.slug}` });
             }
         }
         return entries;

@@ -249,7 +249,7 @@ export async function approveBusinessClaim(claimId: string): Promise<StaffResult
       notes: claim.business_name,
     })
     revalidateTag(CACHE_TAGS.listings, 'max')
-    revalidateLocalized('/professionals')
+    revalidateLocalized('/locations')
     return { ok: true }
   } catch (e) {
     return fail(e)

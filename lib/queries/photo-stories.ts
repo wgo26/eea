@@ -3,6 +3,14 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/observability/logger";
+import {
+    asOne,
+    hasDatabase,
+    logCacheFailure,
+    pickLocalized,
+    safe,
+    sanitizePhrase,
+} from "./shared";
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 import type { StoryCardData } from "@/lib/queries/home";
@@ -116,71 +124,6 @@ const STORY_SELECT_LEGACY_WITH_LOCATION = STORY_SELECT_WITH_LOCATION.replace(
     "",
 );
 
-type QueryResult<T> = {
-    data: T | null;
-    count: number | null;
-    error: { message: string } | null;
-};
-
-/** Never let a DB hiccup take the page down — every query resolves to a fallback. */
-async function safe<T>(
-    promise: PromiseLike<{
-        data: T | null;
-        count?: number | null;
-        error: { message: string } | null;
-    }>,
-): Promise<QueryResult<T>> {
-    try {
-        const { data, count, error } = await promise;
-        if (error) {
-            logger.error("photo-stories", "query failed", { error: error.message });
-            return { data: null, count: null, error };
-        }
-        return { data, count: count ?? null, error: null };
-    } catch (err) {
-        logger.error("photo-stories", "query exception", { error: err instanceof Error ? err.message : String(err) });
-        return { data: null, count: null, error: { message: String(err) } };
-    }
-}
-
-/** The admin client is only usable when the service key is configured. */
-function hasDatabase(): boolean {
-    return Boolean(
-        process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
-    );
-}
-
-/**
- * Phase 4.1 — cached-query error policy: inside an `unstable_cache` scope a
- * failed query THROWS instead of resolving to a fallback, so a transient
- * outage is never baked into the cache. The exported wrappers catch, log, and
- * fall back (the safe() semantics) at the call boundary.
- */
-function logCacheFailure(fn: string, err: unknown): void {
-    logger.error("photo-stories", `cached query failed (${fn})`, {
-        error: err instanceof Error ? err.message : String(err),
-    });
-}
-
-/** PostgREST returns to-one embeds as object or array depending on relationship detection. */
-function asOne<T>(value: T | T[] | null | undefined): T | null {
-    if (!value) return null;
-    return Array.isArray(value) ? (value[0] ?? null) : value;
-}
-
-/** Preferred locale → English fallback → first available. */
-function pickLocalized<T extends { locale: string }>(
-    rows: T[] | null | undefined,
-    locale: Locale,
-): T | null {
-    if (!rows || rows.length === 0) return null;
-    return (
-        rows.find((r) => r.locale === locale) ??
-        rows.find((r) => r.locale === "en") ??
-        rows[0]
-    );
-}
-
 /** "wildlife-safari" → "Wildlife Safari" (facet fallback label from the slug). */
 export function prettifyCategory(slug: string): string {
     return slug
@@ -236,14 +179,6 @@ async function selectStories(
         error: first.error.message,
     });
     return build(legacy);
-}
-
-/** PostgREST `or()` phrases cannot contain commas or wildcard characters. */
-function sanitizePhrase(input: string): string {
-    return input
-        .replace(/[,()%\\]/g, " ")
-        .trim()
-        .slice(0, 80);
 }
 
 /** Orders embedded media rows by `sort_order` into the essay gallery. */
@@ -354,7 +289,7 @@ export async function getFeaturedPhotoStory(): Promise<PhotoStoryData | null> {
     try {
         return await getCachedFeaturedPhotoStory("en");
     } catch (err) {
-        logCacheFailure("getFeaturedPhotoStory", err);
+        logCacheFailure("photo-stories", "getFeaturedPhotoStory", err);
         return null;
     }
 }
@@ -460,7 +395,7 @@ export async function getPhotoStories(filters: {
     try {
         return await getCachedPhotoStories(search, category, location, locale, page, year);
     } catch (err) {
-        logCacheFailure("getPhotoStories", err);
+        logCacheFailure("photo-stories", "getPhotoStories", err);
         return { stories: [], total: 0, page: 1, pageCount: 1 };
     }
 }
@@ -524,7 +459,7 @@ export async function getPhotoStoryCategories(): Promise<CategoryFacet[]> {
     try {
         return await getCachedPhotoStoryCategories();
     } catch (err) {
-        logCacheFailure("getPhotoStoryCategories", err);
+        logCacheFailure("photo-stories", "getPhotoStoryCategories", err);
         return [];
     }
 }
@@ -564,7 +499,7 @@ export async function getPhotoStoryYears(): Promise<number[]> {
     try {
         return await getCachedPhotoStoryYears();
     } catch (err) {
-        logCacheFailure("getPhotoStoryYears", err);
+        logCacheFailure("photo-stories", "getPhotoStoryYears", err);
         return [];
     }
 }
@@ -600,7 +535,7 @@ export async function getPhotoStoryBySlug(
     try {
         return await getCachedPhotoStoryBySlug(sanitized, locale);
     } catch (err) {
-        logCacheFailure("getPhotoStoryBySlug", err);
+        logCacheFailure("photo-stories", "getPhotoStoryBySlug", err);
         return null;
     }
 }
@@ -636,7 +571,7 @@ export async function getOtherPhotoStories(
     try {
         return await getCachedOtherPhotoStories(excludeId, locale, limit);
     } catch (err) {
-        logCacheFailure("getOtherPhotoStories", err);
+        logCacheFailure("photo-stories", "getOtherPhotoStories", err);
         return [];
     }
 }
@@ -676,7 +611,7 @@ export async function getMostViewedPhotoStories(
     try {
         return await getCachedMostViewedPhotoStories(locale, limit);
     } catch (err) {
-        logCacheFailure("getMostViewedPhotoStories", err);
+        logCacheFailure("photo-stories", "getMostViewedPhotoStories", err);
         return [];
     }
 }
@@ -724,7 +659,7 @@ export async function getPhotoStoriesStats(): Promise<{
     try {
         return await getCachedPhotoStoriesStats();
     } catch (err) {
-        logCacheFailure("getPhotoStoriesStats", err);
+        logCacheFailure("photo-stories", "getPhotoStoriesStats", err);
         return { stories: 0, photos: 0, places: 0 };
     }
 }
@@ -777,7 +712,7 @@ export async function getAdjacentPhotoStories(
     try {
         return await getCachedAdjacentPhotoStories(currentId, publishedAt, locale);
     } catch (err) {
-        logCacheFailure("getAdjacentPhotoStories", err);
+        logCacheFailure("photo-stories", "getAdjacentPhotoStories", err);
         return { prev: null, next: null };
     }
 }
@@ -785,7 +720,7 @@ export async function getAdjacentPhotoStories(
 /** All slugs of published photo stories (locale-agnostic). */
 async function allPhotoStorySlugs(): Promise<string[]> {
     if (!hasDatabase()) return [];
-    const { data } = await safe(
+    const { data } = await safe("photo-stories", 
         createAdminClient()
             .from("content_items")
             .select("slug")

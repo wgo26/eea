@@ -26,7 +26,7 @@ const STAFF_CAPS = ['manageContent', 'listings.manage'] as const
 
 function bustBillingCache() {
   revalidateTag(CACHE_TAGS.listings, 'max')
-  revalidateLocalized('/professionals')
+  revalidateLocalized('/locations')
   revalidateLocalized('/buy-sell')
 }
 

@@ -5,11 +5,12 @@
 export const chromeFr = {
   nav: {
     home: 'Accueil',
+    post: 'Publier',
+    stories: 'Histoires',
     photoStories: 'Reportages photo',
     news: 'Actualités communautaires',
     buySell: 'Acheter & vendre',
     notices: 'Avis',
-    professionals: 'Professionnels',
     culture: 'Culture',
     submit: 'Soumettre une histoire',
     search: 'Recherche',

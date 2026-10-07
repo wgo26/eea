@@ -14,7 +14,7 @@ import { localePath } from '@/lib/i18n/urls'
  * `path` stays canonical for route matching.
  */
 
-export type AccountNavGroupKey = 'activity' | 'library' | 'settings'
+export type AccountNavGroupKey = 'activity' | 'settings'
 
 /** Keys of `dict.account.topbar` that name a nav destination. */
 export type AccountNavItemKey =
@@ -22,13 +22,7 @@ export type AccountNavItemKey =
   | 'submissions'
   | 'listings'
   | 'notices'
-  | 'messages'
-  | 'saved'
-  | 'follows'
-  | 'recent'
   | 'profile'
-  | 'notifications'
-  | 'security'
 
 /** A breadcrumb entry: the last one is the current page (no href). */
 export type AccountBreadcrumb = { label: string; href?: string }
@@ -56,33 +50,33 @@ type AccountNavSpec = {
   group: AccountNavGroupKey
 }
 
+// P2 (merged audit): 11 destinations → 5. Follows/saves/recent,
+// messages/chat, notifications center and the security hub are UNLINKED, not
+// deleted — their pages keep their session guards; the nav stops selling
+// engagement surfaces the platform has no retention data to justify. Kept:
+// activity (dashboard, submissions, listings, notices) + settings (profile).
 const ACCOUNT_NAV_SPECS: AccountNavSpec[] = [
   { key: 'dashboard', path: '/account/dashboard', group: 'activity' },
   { key: 'submissions', path: '/account/submissions', group: 'activity' },
   { key: 'listings', path: '/account/listings', group: 'activity' },
   { key: 'notices', path: '/account/notices', group: 'activity' },
-  { key: 'messages', path: '/account/messages', group: 'activity' },
-  { key: 'saved', path: '/account/saved', group: 'library' },
-  { key: 'follows', path: '/account/follows', group: 'library' },
-  { key: 'recent', path: '/account/recent', group: 'library' },
   { key: 'profile', path: '/account/profile', group: 'settings' },
-  { key: 'notifications', path: '/account/notifications', group: 'settings' },
-  { key: 'security', path: '/account/security', group: 'settings' },
 ]
 
-const ACCOUNT_NAV_GROUP_ORDER: AccountNavGroupKey[] = ['activity', 'library', 'settings']
+const ACCOUNT_NAV_GROUP_ORDER: AccountNavGroupKey[] = ['activity', 'settings']
 
 /**
- * Groups + items with badges applied. `unreadNotifications` decorates the
- * Notifications entry — the count that used to sit on a tenth flat tab now
- * lives where users look for it.
+ * Groups + items. `unreadNotifications` is retained in the signature for
+ * callers but no longer decorates any entry (the notifications center is
+ * unlinked in P2) — kept so the next destination that needs a badge does not
+ * require a signature change.
  */
 export function buildAccountNavGroups(
   locale: Locale,
   dict: Dictionary,
   opts: { unreadNotifications?: number } = {},
 ): AccountNavGroup[] {
-  const { unreadNotifications = 0 } = opts
+  void opts
   const byKey = new Map<AccountNavGroupKey, AccountNavItem[]>()
   for (const spec of ACCOUNT_NAV_SPECS) {
     const item: AccountNavItem = {
@@ -90,7 +84,7 @@ export function buildAccountNavGroups(
       path: spec.path,
       href: localePath(locale, spec.path),
       label: dict.account.topbar[spec.key],
-      badge: spec.key === 'notifications' ? unreadNotifications : undefined,
+      badge: undefined,
     }
     const list = byKey.get(spec.group)
     if (list) list.push(item)
@@ -104,11 +98,10 @@ export function buildAccountNavGroups(
 }
 
 /**
- * Anchors shown flat on the desktop bar: the area home plus one entry per
- * group. Everything else folds into the "More" menu, so the bar never becomes
- * the unbounded horizontal scroll strip the audit flagged.
+ * Anchors shown flat on the desktop bar. With five destinations the bar shows
+ * all of them — nothing folds into "More" until a destination is re-added.
  */
-export const ACCOUNT_PRIMARY_TABS: AccountNavItemKey[] = ['dashboard', 'submissions', 'saved', 'profile']
+export const ACCOUNT_PRIMARY_TABS: AccountNavItemKey[] = ['dashboard', 'submissions', 'listings', 'notices', 'profile']
 
 /** Flat bar links, plus the remaining items still grouped for the menu. */
 export function splitAccountNav(
