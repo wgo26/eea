@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { Dictionary } from "@/lib/i18n";
 import type L from "leaflet";
-// NOTE: leaflet plugins (markercluster, defaulticon-compatibility) and ALL
-// leaflet CSS load dynamically inside the effect below — never at module
-// scope. Module-scope plugin imports touch `window` at import time and crash
-// SSR prerendering (the /map page is ISR, not force-dynamic).
+// NOTE: leaflet plugins (markercluster) and ALL leaflet CSS load dynamically
+// inside the effect below — never at module scope. Module-scope plugin imports
+// touch `window` at import time and crash SSR prerendering (the /map page is
+// ISR, not force-dynamic). Default pin icons are DivIcons (no image assets,
+// no extra package) so no defaulticon-compatibility shim is needed.
 
 export type MappedHub = {
     slug: string;
@@ -57,7 +58,6 @@ export function LocationMap({
         let cancelled = false;
         void (async () => {
             const L = await import("leaflet");
-            await import("leaflet-defaulticon-compatibility");
             await import("leaflet.markercluster");
             await import("leaflet/dist/leaflet.css");
             await import("leaflet.markercluster/dist/MarkerCluster.css");
@@ -77,9 +77,15 @@ export function LocationMap({
 
             const points: [number, number][] = [];
 
-            // Add location hubs
+            // Add location hubs (DivIcon pins — no image assets needed).
+            const hubIcon = L.divIcon({
+                html: `<div class="content-marker" title="">📍</div>`,
+                className: "content-marker-icon",
+                iconSize: [28, 28],
+                iconAnchor: [14, 14],
+            });
             for (const hub of hubs) {
-                const marker = L.marker([hub.latitude, hub.longitude]).addTo(map);
+                const marker = L.marker([hub.latitude, hub.longitude], { icon: hubIcon }).addTo(map);
                 marker.bindPopup(`<a href="${hub.href}">${hub.name}</a>`);
                 marker.bindTooltip(hub.name);
                 points.push([hub.latitude, hub.longitude]);
@@ -148,9 +154,15 @@ export function LocationMap({
                 map.addLayer(clusterGroup);
                 setMarkerClusterGroup(clusterGroup);
             } else {
-                // Add content without clustering
+                // Add content without clustering (same asset-free pin).
+                const pinIcon = L.divIcon({
+                    html: `<div class="content-marker" title="">📍</div>`,
+                    className: "content-marker-icon",
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14],
+                });
                 for (const item of content) {
-                    const marker = L.marker([item.latitude, item.longitude]).addTo(map);
+                    const marker = L.marker([item.latitude, item.longitude], { icon: pinIcon }).addTo(map);
                     marker.bindPopup(`<a href="${item.href}">${item.title}</a>`);
                     marker.bindTooltip(item.title);
                     points.push([item.latitude, item.longitude]);

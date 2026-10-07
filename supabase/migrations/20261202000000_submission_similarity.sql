@@ -51,9 +51,9 @@ AS $$
         p_title
     ) AS sim
     FROM public.submissions s
-    WHERE s.submission_type = p_type
+    WHERE s.submission_type::text = p_type
       AND s.status = 'pending'
-      AND s.created_at >= now() - (p_days || ' days')::interval
+      AND s.submitted_at >= now() - (p_days || ' days')::interval
       AND similarity(
         coalesce(
             s.payload ->> 'headline',

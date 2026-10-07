@@ -24,7 +24,7 @@ alter table public.businesses
 create table if not exists public.professional_subscriptions (
     id               uuid primary key default gen_random_uuid(),
     business_id      uuid not null references public.businesses (id) on delete cascade,
-    tier             text not null default 'pro' check (tier in ('pro',)),
+    tier             text not null default 'pro' check (tier in ('pro')),
     plan_id          text not null,
     amount_xaf       integer not null check (amount_xaf > 0),
     days             integer not null check (days between 1 and 365),

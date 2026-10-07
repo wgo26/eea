@@ -3294,6 +3294,13 @@ export type Database = {
                     referencedRelation: "content_items",
                     referencedColumns: ["id"],
                 },
+                {
+                    foreignKeyName: "public_listings_business_id_fkey",
+                    columns: ["business_id"],
+                    isOneToOne: false,
+                    referencedRelation: "businesses",
+                    referencedColumns: ["id"],
+                },
             ];
         }
         llm_calls: {
