@@ -20,7 +20,10 @@ export function DigestCta({ dict, digestHref }: { dict: Dictionary; digestHref: 
             {dict.home.digestCtaBody}
           </p>
         </div>
-        <Button size="lg" variant="default" render={<Link href={digestHref} />}>
+        {/* Secondary by design: the page's one primary is the Submit band
+            above (the core participation loop); this return leg stays quiet
+            so the two stacked bands never compete for the same hue. */}
+        <Button size="lg" variant="outline" render={<Link href={digestHref} />}>
           {dict.home.digestCtaButton}
         </Button>
       </div>

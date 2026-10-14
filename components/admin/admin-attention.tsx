@@ -48,6 +48,8 @@ export function AdminAttention({
   unreadNotifications,
   actionableApprovals,
   overdueScheduled,
+  translationQueue = 0,
+  digestOpen = 0,
   dashboardHref,
 }: {
   alerts: OperationalAlert[]
@@ -56,6 +58,10 @@ export function AdminAttention({
   unreadNotifications: number
   actionableApprovals: number
   overdueScheduled: number
+  /** Pre-gated by the layout on `manageContent` — 0 for everyone else. */
+  translationQueue?: number
+  /** Pre-gated by the layout on `manageContent` — 0 for everyone else. */
+  digestOpen?: number
   dashboardHref: string
 }) {
   const locale = useLocaleFromPath()
@@ -71,6 +77,8 @@ export function AdminAttention({
       unreadNotifications,
       actionableApprovals,
       overdueScheduled,
+      translationQueue,
+      digestOpen,
     },
     {
       alertLabel: (alert) => alertLabel(alert, dashboard),
@@ -79,12 +87,16 @@ export function AdminAttention({
         approvals: topbar.work.approvals,
         mail: topbar.work.mail,
         'overdue-scheduled': topbar.work.overdue,
+        translations: topbar.work.translations,
+        digest: topbar.work.digest,
       },
       workHref: {
         submissions: '/admin/moderation',
         approvals: '/admin/approvals',
         mail: '/admin/inbox',
         'overdue-scheduled': '/admin/content?status=scheduled',
+        translations: '/admin/translations',
+        digest: '/admin/digest',
       },
     },
   )

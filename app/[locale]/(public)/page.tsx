@@ -12,12 +12,9 @@ import {
     HeroSkeleton,
     HomeBannerAd,
     HomeBoard,
-    HomeCulture,
     HomeHeroSection,
-    HomeInlineBottomAd,
     HomeInlineMidAd,
-    HomeNewsTrending,
-    HomePhotoStories,
+    HomeStoriesRiver,
 } from "@/components/home/home-sections";
 import { HomeDegradedNotice } from "@/components/home/home-degraded-notice";
 import { HomeNearYouClient } from "@/components/home/home-near-you-client";
@@ -106,15 +103,13 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
                 reading decision happens. Renders nothing for a first visit. */}
             <ContinueReadingRail locale={locale} dict={dict} />
 
-            {/* Only surface live editorial sections. Empty cards and ad
-                placeholders make the homepage look unfinished. */}
+            {/* The river: photo stories + news + culture, newest first, with
+                the trending rail and rail ad docked in the aside. One header,
+                one decision — the vertical archives stay a click away inside
+                the section. Only surface live editorial sections. Empty cards
+                and ad placeholders make the homepage look unfinished. */}
             <Suspense fallback={<GridSkeleton />}>
-                <HomePhotoStories locale={locale} dict={dict} />
-            </Suspense>
-
-            {/* Latest Community News + Trending rail */}
-            <Suspense fallback={<GridSkeleton />}>
-                <HomeNewsTrending locale={locale} dict={dict} />
+                <HomeStoriesRiver locale={locale} dict={dict} />
             </Suspense>
 
             {/* Inline ad — mid page (spec §11) */}
@@ -127,19 +122,11 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
                 <HomeBoard locale={locale} dict={dict} />
             </Suspense>
 
-            {/* Culture & Entertainment preview */}
-            <Suspense fallback={<GridSkeleton cards={3} />}>
-                <HomeCulture locale={locale} dict={dict} />
-            </Suspense>
-
-            {/* Sponsorship supports the record but stays below community coverage. */}
+            {/* Sponsorship supports the record but stays below community coverage.
+                One banner only: the old mid + banner + bottom-inline stack ran
+                three ad interruptions back-to-back before the CTAs. */}
             <Suspense fallback={<AdSkeleton />}>
                 <HomeBannerAd locale={locale} dict={dict} />
-            </Suspense>
-
-            {/* Inline ad — before the participation loop CTA (spec §11) */}
-            <Suspense fallback={<AdSkeleton />}>
-                <HomeInlineBottomAd locale={locale} dict={dict} />
             </Suspense>
 
             <SubmitCta dict={dict} submitHref={`/${locale}/submit`} />

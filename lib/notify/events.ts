@@ -247,8 +247,8 @@ export function renderEvent(payload: NotifyPayload): RenderedNotify {
       return {
         title: 'A community poll has closed',
         titleFr: 'Un sondage communautaire est clos',
-        body: `${S(d.question)} — ${S(d.count, '999')} votes recorded. Review the results in the polls panel.`,
-        bodyFr: `${S(d.question)} — ${S(d.count, '999')} vote(s) enregistré(s). Consultez les résultats dans le panneau des sondages.`,
+        body: `${S(d.question)} — ${S(d.count, '999')} votes recorded. Review the results in Insights.`,
+        bodyFr: `${S(d.question)} — ${S(d.count, '999')} vote(s) enregistré(s). Consultez les résultats dans Insights.`,
       };
     case 'credential.hygiene':
       return {
@@ -300,8 +300,13 @@ export function defaultStaffPath(event: NotifyEvent): string {
       return '/admin/automations';
     case 'digest.ready_for_review':
       return '/admin/templates';
+    // The polls + fundraisers desks were cut (no pages), so their events land
+    // on the closest live desk: closed-poll results read as engagement in
+    // Insights, fundraiser milestones amplify from the Content desk that owns
+    // the story. A staff deep-link must never 404 — notify.test.ts pins every
+    // path below against the admin pages on disk.
     case 'poll.closed':
-      return '/admin/polls';
+      return '/admin/insights';
     case 'credential.hygiene':
       return '/admin/secrets';
     case 'storage.hygiene':
@@ -315,7 +320,7 @@ export function defaultStaffPath(event: NotifyEvent): string {
     case 'translation.gap':
       return '/admin/translations';
     case 'content.milestone':
-      return '/admin/fundraisers';
+      return '/admin/content';
     default:
       return '/admin/dashboard';
   }

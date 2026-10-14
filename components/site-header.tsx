@@ -127,7 +127,10 @@ export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chro
                                 key={item.href}
                                 href={item.href}
                                 aria-current={isActive ? "page" : undefined}
-                                className={`rounded-md px-2.5 py-2 text-sm font-medium transition-colors ${
+                                // Public "you are here" keeps brand blue on purpose:
+                                // the admin shell uses gold instead, so the hue
+                                // itself tells visitors which mode they are in.
+                                className={`rounded-md px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                                     isActive
                                         ? "bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
                                         : "text-muted-foreground hover:bg-accent hover:text-foreground"

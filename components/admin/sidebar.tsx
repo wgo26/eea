@@ -16,7 +16,6 @@ import {
   adminBackToSiteHref,
   adminHomeHref,
   buildAdminNavGroups,
-  type AdminNavBadges,
   type AdminNavItem,
 } from './nav-items'
 import {
@@ -43,7 +42,8 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
 }
 
-function isActiveItem(pathname: string, item: AdminNavItem): boolean {
+/** Shared with the mobile drawer so both shells match the same routes. */
+export function isActiveItem(pathname: string, item: AdminNavItem): boolean {
   return (
     pathname === item.href ||
     pathname.startsWith(`${item.href}/`) ||
@@ -139,8 +139,8 @@ function NavRow({
  * The presentation details that make it read as an operations console:
  *   - the header is `h-14` and rows are 36px, so the brand block lines up with
  *     the topbar and its controls across the whole shell;
- *   - the current page is a quiet `sidebar-accent` row plus a gold rail, not a
- *     solid brand fill, so labels, icons and counts stay legible;
+ *   - the current page is a gold wash plus a deep-gold rail (never brand blue —
+ *     see nav-styles.ts), so labels, icons and counts stay legible;
  *   - only counts that need action now are destructive red;
  *   - domain labels are sticky, so a twelve-entry group never scrolls away from
  *     its heading;
@@ -150,21 +150,17 @@ export function AdminSidebar({
   pendingCount = 0,
   roles,
   adminRoles = [],
-  unreadNotifications = 0,
-  badges = {},
   logoUrl = null,
 }: {
   pendingCount?: number
   roles: AppRole[]
   adminRoles?: AdminRole[]
-  unreadNotifications?: number
-  badges?: AdminNavBadges
   logoUrl?: string | null
 }) {
   const pathname = usePathname() ?? ''
   const locale: Locale = useLocaleFromPath()
   const dict = getDictionary(locale)
-  const groups = buildAdminNavGroups(locale, dict, roles, pendingCount, adminRoles, unreadNotifications, badges)
+  const groups = buildAdminNavGroups(locale, dict, roles, pendingCount, adminRoles)
   const { rail, toggleRail } = useSidebarRail()
   const { collapsed, toggleDomain } = useCollapsedDomains()
   const { paths: recentPaths, pushPath } = useRecentPaths()

@@ -186,8 +186,10 @@ export async function removeDemoData(): Promise<RemoveDemoDataResult> {
     revalidateLocalized('/admin/dashboard')
     revalidateLocalized('/admin/content')
     revalidateLocalized('/admin/listings')
-    revalidateLocalized('/admin/fundraisers')
-    revalidateLocalized('/admin/polls')
+    // The polls + fundraisers desks were cut: their demo rows are deleted
+    // above, and engagement changes surface on the Insights desk instead of a
+    // page that no longer exists.
+    revalidateLocalized('/admin/insights')
     revalidateLocalized('/admin/ads')
     revalidateLocalized('/admin/taxonomy')
 

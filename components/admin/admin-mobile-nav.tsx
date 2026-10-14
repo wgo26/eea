@@ -12,15 +12,22 @@ import {
 } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 import { SiteMark } from '@/components/site-mark'
-import type { AdminNavGroup } from './nav-items'
+import { useLocaleFromPath } from '@/components/site-header'
+import {
+  adminHomeHref,
+  type AdminNavGroup,
+  type AdminNavItem,
+} from './nav-items'
 import {
   ADMIN_NAV_ACTIVE_BAR_CLASS,
   ADMIN_NAV_BADGE_CLASS,
   ADMIN_NAV_DOMAIN_TOGGLE_CLASS,
+  ADMIN_NAV_SECTION_LABEL_CLASS,
   adminNavBadgeClass,
   adminNavRowClass,
 } from './nav-styles'
-import { useCollapsedDomains } from './nav-preferences'
+import { useCollapsedDomains, useRecentPaths } from './nav-preferences'
+import { isActiveItem } from './sidebar'
 
 /**
  * Admin navigation drawer (AppShell, < lg) — checklist item 8: admin on
@@ -33,6 +40,12 @@ import { useCollapsedDomains } from './nav-preferences'
  * Row metrics, active treatment, badge tones and domain headers all come from
  * `nav-styles.ts`, the module the desktop sidebar renders from, so the drawer is
  * the same menu on a smaller screen rather than a second design.
+ *
+ * Parity checklist with the desktop sidebar (keep these in step):
+ *   - recents (same store, resolved against the same groups);
+ *   - brand lockup links home; back-to-site is a pinned footer, never a row
+ *     that scrolls away with a long domain;
+ *   - active matching is the shared `isActiveItem`, not a local copy.
  */
 export function AdminMobileNav({
   groups,
@@ -42,12 +55,27 @@ export function AdminMobileNav({
 }: {
   groups: AdminNavGroup[]
   backToSiteHref: string
-  labels: { menu: string; backToSite: string; brand: string; consoleLabel: string }
+  labels: { menu: string; backToSite: string; brand: string; consoleLabel: string; recents: string }
   logoUrl?: string | null
 }) {
   const [open, setOpen] = useState(false)
   const { collapsed, toggleDomain } = useCollapsedDomains()
+  const { paths: recentPaths, pushPath } = useRecentPaths()
   const pathname = usePathname() ?? ''
+  const locale = useLocaleFromPath()
+
+  // Same resolution rule as the desktop sidebar: plain stored paths matched
+  // against the current capability-filtered nav, so a revoked entry or a
+  // language switch can never surface a stale shortcut.
+  const allItems = groups.flatMap((g) => g.items)
+  const recents = recentPaths
+    .map((p) => allItems.find((i) => i.path === p))
+    .filter((i): i is AdminNavItem => i != null)
+
+  const navigate = (item: AdminNavItem) => {
+    pushPath(item.path)
+    setOpen(false)
+  }
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -67,25 +95,58 @@ export function AdminMobileNav({
         className="w-72 gap-0 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground"
       >
         <SheetTitle className="sr-only">{labels.menu}</SheetTitle>
-        {/* Brand lockup. `pr-14` reserves the sheet's own close button, so the
-            wordmark can never slide underneath it. */}
+        {/* Brand lockup links home, like the desktop sidebar — a dead brand
+            block on mobile was a navigation affordance that went nowhere. The
+            `pr-14` reserves the sheet's own close button, so the wordmark can
+            never slide underneath it. */}
         <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-sidebar-border px-3 pr-14">
-          <SiteMark
-            logoUrl={logoUrl}
-            alt={labels.brand}
-            badgeClassName="h-9 w-9 rounded-xl"
-            iconClassName="h-5 w-5"
-            imgClassName="h-9 w-auto max-w-14 rounded-lg object-contain"
-          />
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate text-sm font-semibold leading-5">{labels.brand}</span>
-            <span className="truncate text-xs leading-4 text-muted-foreground">{labels.consoleLabel}</span>
-          </span>
+          <Link
+            href={adminHomeHref(locale)}
+            onClick={() => setOpen(false)}
+            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <SiteMark
+              logoUrl={logoUrl}
+              alt={labels.brand}
+              badgeClassName="h-9 w-9 rounded-xl"
+              iconClassName="h-5 w-5"
+              imgClassName="h-9 w-auto max-w-14 rounded-lg object-contain"
+            />
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate text-sm font-semibold leading-5">{labels.brand}</span>
+              <span className="truncate text-xs leading-4 text-muted-foreground">{labels.consoleLabel}</span>
+            </span>
+          </Link>
         </div>
         <nav
-          className="admin-nav-scroll flex flex-1 flex-col overflow-y-auto overscroll-contain p-2"
+          className="admin-nav-scroll flex-1 overflow-y-auto overscroll-contain p-2"
           aria-label={labels.menu}
         >
+          {recents.length > 0 && (
+            <div className="mb-3">
+              <p className={cn(ADMIN_NAV_SECTION_LABEL_CLASS, 'px-3 py-1.5')}>{labels.recents}</p>
+              <div className="space-y-0.5">
+                {recents.map((item) => {
+                  const active = isActiveItem(pathname, item)
+                  const Icon = item.icon
+                  return (
+                    <Link
+                      key={`recent-${item.path}`}
+                      href={item.href}
+                      onClick={() => navigate(item)}
+                      aria-current={active ? 'page' : undefined}
+                      data-active={active ? 'true' : undefined}
+                      className={adminNavRowClass(active, 'mobile')}
+                    >
+                      {active && <span aria-hidden className={ADMIN_NAV_ACTIVE_BAR_CLASS} />}
+                      <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                      <span className="flex-1 truncate">{item.label}</span>
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           {groups.map((group, gi) => {
             const isCollapsed = collapsed.includes(group.domain)
             const listId = `admin-mobile-nav-${group.domain}`
@@ -108,18 +169,15 @@ export function AdminMobileNav({
                   <div id={listId} className="mt-0.5 space-y-0.5">
                     {group.items.map((item) => {
                       const Icon = item.icon
-                      const isActive =
-                        pathname === item.href ||
-                        pathname.startsWith(`${item.href}/`) ||
-                        pathname === item.path ||
-                        pathname.startsWith(`${item.path}/`)
+                      const isActive = isActiveItem(pathname, item)
                       const count = item.badge != null && item.badge > 0 ? item.badge : 0
                       return (
                         <Link
                           key={item.path}
                           href={item.href}
-                          onClick={() => setOpen(false)}
+                          onClick={() => navigate(item)}
                           aria-current={isActive ? 'page' : undefined}
+                          data-active={isActive ? 'true' : undefined}
                           className={adminNavRowClass(isActive, 'mobile')}
                         >
                           {isActive && <span aria-hidden className={ADMIN_NAV_ACTIVE_BAR_CLASS} />}
@@ -138,15 +196,20 @@ export function AdminMobileNav({
               </div>
             )
           })}
+        </nav>
+        {/* Pinned footer, outside the scroll region: on a long domain list the
+            exit affordance used to scroll below the fold. Matches the desktop
+            sidebar's fixed back-to-site row. */}
+        <div className="shrink-0 border-t border-sidebar-border p-2">
           <Link
             href={backToSiteHref}
             onClick={() => setOpen(false)}
-            className={cn(adminNavRowClass(false, 'mobile'), 'mt-auto')}
+            className={cn(adminNavRowClass(false, 'mobile'))}
           >
             <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
             <span className="truncate">{labels.backToSite}</span>
           </Link>
-        </nav>
+        </div>
       </SheetContent>
     </Sheet>
   )

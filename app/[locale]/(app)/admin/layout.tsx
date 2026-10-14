@@ -82,7 +82,6 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     })(),
   ])
   const pendingCount = shell.pendingSubmissions
-  const unreadNotifications = shell.unreadNotifications
 
   // Spec §30: State → Semantic Tokens → Design System → Components. The
   // effective state resolves once per request here; the tokens ride the
@@ -145,8 +144,6 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               pendingCount={pendingCount}
               roles={roles}
               adminRoles={adminRoles}
-              unreadNotifications={unreadNotifications}
-              badges={{ translations: shell.org.translationQueue, digest: shell.org.digestOpen }}
               logoUrl={siteSettings.logoUrl}
             />
           </div>
@@ -159,6 +156,11 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             displayName={displayName}
             email={user.email ?? ''}
             logoUrl={siteSettings.logoUrl}
+            // Queue depths for the attention centre. Both desks guard on
+            // `manageContent`, so viewers without it get 0 (renders nothing) —
+            // the server decides which topics exist; the client only renders.
+            translationQueue={caps.has('manageContent') ? shell.org.translationQueue : 0}
+            digestOpen={caps.has('manageContent') ? shell.org.digestOpen : 0}
           />
           {!isNormal && (
             <StateBanner
@@ -220,8 +222,6 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         roles={roles}
         adminRoles={adminRoles}
         pendingCount={pendingCount}
-        unreadNotifications={unreadNotifications}
-        badges={{ translations: shell.org.translationQueue, digest: shell.org.digestOpen }}
       />
     </AdminClientWrapper>
   )

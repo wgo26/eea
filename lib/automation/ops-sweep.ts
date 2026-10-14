@@ -335,7 +335,7 @@ export async function closeOverduePolls(): Promise<number> {
         await enqueueStaff(
           'poll.closed',
           { question: poll.question, count: String(voteCount ?? 0) },
-          '/admin/polls',
+          '/admin/insights',
         )
       }
     } catch {
@@ -380,7 +380,7 @@ export async function announceFundraiserMilestones(): Promise<number> {
       notified += 1
       // Staff nudge: the milestone is a moment worth amplifying. (Public
       // milestone posts are a template concern — the recap picks them up.)
-      await enqueueStaff('content.milestone', { title, pct: String(m) }, '/admin/fundraisers')
+      await enqueueStaff('content.milestone', { title, pct: String(m) }, '/admin/content')
     }
   }
   return notified

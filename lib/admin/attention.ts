@@ -92,7 +92,13 @@ export function schedulerTone(issues: SchedulerIssue[]): AttentionTone {
 /* ------------------------------------------------------------------ */
 
 /** The work-queue ids — everything that is not a derived operational alert. */
-export type AttentionWorkId = 'submissions' | 'approvals' | 'mail' | 'overdue-scheduled'
+export type AttentionWorkId =
+  | 'submissions'
+  | 'approvals'
+  | 'mail'
+  | 'overdue-scheduled'
+  | 'translations'
+  | 'digest'
 
 /** Counts the shell already has; `alerts` arrive pre-filtered for the viewer. */
 export type AttentionInput = {
@@ -101,6 +107,13 @@ export type AttentionInput = {
   unreadNotifications: number
   actionableApprovals: number
   overdueScheduled: number
+  /**
+   * Translation + digest queues. The server passes 0 for viewers without
+   * `manageContent` (both desks guard on it), so the client never decides
+   * visibility — it renders what it is handed, per the module contract above.
+   */
+  translationQueue: number
+  digestOpen: number
 }
 
 /** Localized strings, injected so this module stays free of the dictionary. */
@@ -140,6 +153,11 @@ export function buildAttentionTopics(
     { id: 'approvals', count: input.actionableApprovals },
     { id: 'mail', count: input.unreadNotifications },
     { id: 'overdue-scheduled', count: input.overdueScheduled },
+    // Formerly sidebar-badge-only counts that never reached a badge (neither
+    // desk has a nav entry): they surface here instead, so no work queue is
+    // discoverable only by opening its page.
+    { id: 'translations', count: input.translationQueue },
+    { id: 'digest', count: input.digestOpen },
   ]
 
   for (const line of work) {

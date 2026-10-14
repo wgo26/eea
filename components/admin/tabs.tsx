@@ -25,15 +25,16 @@ type TabsProps = {
 
 export function Tabs({ tabs, active, hrefFor, className }: TabsProps) {
   return (
-    <div className={cn('flex items-center gap-1 border-b border-border overflow-x-auto', className)}>
+    <div role="tablist" aria-label="Sections" className={cn('flex items-center gap-1 border-b border-border overflow-x-auto', className)}>
       {tabs.map((tab) => {
+        const isActive = active === tab.key
         const inner = (
           <>
             {tab.label}
             {tab.count != null && (
               <span className={cn(
                 'inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-medium',
-                active === tab.key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                isActive ? 'bg-admin-active text-admin-active-foreground' : 'bg-muted text-muted-foreground',
               )}>
                 {tab.count}
               </span>
@@ -41,23 +42,28 @@ export function Tabs({ tabs, active, hrefFor, className }: TabsProps) {
           </>
         )
         const state = cn(
-          'relative flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors',
-          active === tab.key
-            ? 'text-foreground'
+          // 44px touch floor + visible focus ring (keyboard-first ops audience).
+          'relative flex min-h-11 items-center gap-1.5 px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset rounded-t-md',
+          isActive
+            ? 'font-semibold text-foreground'
             : 'text-muted-foreground hover:text-foreground',
         )
         return (
           <span key={tab.key} className="relative">
             <Link
               href={hrefFor(tab.key)}
-              aria-current={active === tab.key ? 'page' : undefined}
+              role="tab"
+              aria-selected={isActive}
+              aria-current={isActive ? 'page' : undefined}
               scroll={false}
               className={state}
             >
               {inner}
             </Link>
-            {active === tab.key && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t" />
+            {isActive && (
+              // Gold underline: admin-active is never brand blue (see nav-styles).
+              <span aria-hidden className="absolute bottom-0 left-0 right-0 h-[3px] rounded-t bg-admin-rail" />
             )}
           </span>
         )

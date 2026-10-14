@@ -69,6 +69,18 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  /**
+   * Admin active accent — deliberately NOT the brand blue. Public nav keeps
+   * `primary` (brand identity); the command center marks "you are here" with
+   * a gold wash + deep-gold rail so staff never confuse the two modes
+   * (mode-confusion is the #1 admin navigation error). Fills use
+   * `admin-active` (gold tint, dark text); hairline indicators (rails,
+   * tab underlines) use `admin-rail`, a darker gold that stays visible on
+   * light surfaces where the pale fill would vanish.
+   */
+  --color-admin-active: var(--admin-active);
+  --color-admin-active-foreground: var(--admin-active-foreground);
+  --color-admin-rail: var(--admin-rail);
   --color-link: var(--link);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
@@ -121,6 +133,10 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.65 0.19 225);
+  /* Admin "you are here" tokens — gold family, never brand blue. */
+  --admin-active: oklch(0.8 0.22 82);
+  --admin-active-foreground: oklch(0.2 0.08 225);
+  --admin-rail: oklch(0.55 0.18 82);
 }
 
 .dark {
@@ -158,6 +174,9 @@
   --sidebar-accent-foreground: oklch(0.2 0.08 225);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.7 0.18 225);
+  --admin-active: oklch(0.84 0.22 82);
+  --admin-active-foreground: oklch(0.2 0.08 225);
+  --admin-rail: oklch(0.84 0.22 82);
 }
 
 @layer base {
@@ -531,6 +550,9 @@ html.high-contrast {
   --accent-foreground: oklch(0 0 0);
   --border: oklch(0.35 0 0);
   --input: oklch(0.35 0 0);
+  --admin-active: oklch(0 0 0);
+  --admin-active-foreground: oklch(1 0 0);
+  --admin-rail: oklch(0 0 0);
 }
 html.high-contrast.dark {
   --background: oklch(0 0 0);
@@ -544,6 +566,9 @@ html.high-contrast.dark {
   --accent-foreground: oklch(1 0 0);
   --border: oklch(0.75 0 0);
   --input: oklch(0.75 0 0);
+  --admin-active: oklch(1 0 0);
+  --admin-active-foreground: oklch(0 0 0);
+  --admin-rail: oklch(1 0 0);
 }
 html.high-contrast a {
   text-decoration: underline;

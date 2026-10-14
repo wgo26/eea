@@ -103,8 +103,18 @@ export function specCapabilities(spec: AdminNavItemSpec): Capability[] {
  * lib/admin/nav-integrity.test.ts, which fails if any role loses its screen).
  * Trust & safety, inbox, policies, approvals, notifications, translations and
  * the ops-theater sections (states, secrets, incidents, emergency,
- * automations, templates, digest, branding, polls, fundraisers) remain
- * reachable by URL for the roles that hold their capabilities.
+ * automations, templates, digest, branding) remain reachable by URL for the
+ * roles that hold their capabilities. The polls + fundraisers desks were cut
+ * (their events repoint to insights + content — see lib/notify/events.ts),
+ * so they are reachable nowhere, by design.
+ *
+ * Emergency's permanent home, decided 2026-10-14: the floating FAB
+ * (`admin-floating-quick-actions.tsx`), gated on the content desk's
+ * `manageContent` — the exact capability the page guards on — and relabeled
+ * via `labelKey`. Rationale: crisis publishing must be one tap from ANY desk
+ * (not a dashboard detour), thumb-reachable on phones with no sidebar, and
+ * the 13-section sidebar sells daily destinations, which emergency is not.
+ * The palette stays nav-pure; it never carried emergency and still doesn't.
  */
 export const ADMIN_NAV_SPECS: AdminNavItemSpec[] = [
   // Command — your own desk: what landed and how it is going.
@@ -139,33 +149,17 @@ const ADMIN_NAV_DOMAIN_ORDER: AdminNavDomain[] = ['command', 'newsroom', 'commun
  */
 export const ADMIN_NAV_TOTAL = ADMIN_NAV_SPECS.length
 
-/** Live queue counts for badged entries (all optional — absent means no badge). */
-export type AdminNavBadges = {
-  translations?: number
-  digest?: number
-}
-
 function navItemFromSpec(
   spec: AdminNavItemSpec,
   locale: Locale,
   dict: Dictionary,
   pendingCount: number,
-  unreadNotifications: number,
-  badges: AdminNavBadges = {},
 ): AdminNavItem {
-  // P6: translations + digest join moderation/inbox as badged queues so no
-  // work queue is discoverable only by opening its page. Tones stay quiet
-  // (neutral) except moderation's alert — badges inform, only one shouts.
-  const badge =
-    spec.key === 'moderation'
-      ? pendingCount
-      : spec.key === 'inbox'
-        ? unreadNotifications
-        : spec.key === 'translations'
-          ? badges.translations
-          : spec.key === 'digest'
-            ? badges.digest
-            : undefined
+  // One red thing: only the moderation queue needs action now, so it is the
+  // only badged entry. The translation + digest queues have no nav entries and
+  // surface in the attention centre instead (see lib/admin/attention.ts) — a
+  // badge with nowhere to attach is a number nobody can act on.
+  const badge = spec.key === 'moderation' ? pendingCount : undefined
   return {
     key: spec.key,
     path: spec.path,
@@ -184,12 +178,10 @@ export function buildAdminNavItems(
   roles: AppRole[],
   pendingCount = 0,
   adminRoles: AdminRole[] = [],
-  unreadNotifications = 0,
-  badges: AdminNavBadges = {},
 ): AdminNavItem[] {
   const caps = effectiveCapabilities(roles, adminRoles)
   return ADMIN_NAV_SPECS.filter((spec) => hasSpecCapability(spec, caps)).map((spec) =>
-    navItemFromSpec(spec, locale, dict, pendingCount, unreadNotifications, badges),
+    navItemFromSpec(spec, locale, dict, pendingCount),
   )
 }
 
@@ -205,14 +197,12 @@ export function buildAdminNavGroups(
   roles: AppRole[],
   pendingCount = 0,
   adminRoles: AdminRole[] = [],
-  unreadNotifications = 0,
-  badges: AdminNavBadges = {},
 ): AdminNavGroup[] {
   const caps = effectiveCapabilities(roles, adminRoles)
   const groups = new Map<AdminNavDomain, AdminNavItem[]>()
   for (const spec of ADMIN_NAV_SPECS) {
     if (!hasSpecCapability(spec, caps)) continue
-    const item = navItemFromSpec(spec, locale, dict, pendingCount, unreadNotifications, badges)
+    const item = navItemFromSpec(spec, locale, dict, pendingCount)
     const list = groups.get(spec.domain)
     if (list) list.push(item)
     else groups.set(spec.domain, [item])

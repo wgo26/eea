@@ -1,9 +1,14 @@
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
 /**
  * Unified filter pill bar for admin pages. Server-rendered link pills
  * that carry query params — replaces the 4+ ad-hoc pill arrays across
  * content, moderation, trust-safety, polls, etc.
+ *
+ * Active pill is gold (`bg-admin-active`), never brand blue: the command
+ * center reserves blue for primary actions so "selected filter" and
+ * "do the thing" never compete for the same hue.
  */
 export type FilterPill = {
   key: string
@@ -26,26 +31,29 @@ export function FilterPills({
       {pills.map((pill) => {
         const isActive = active === pill.key
         return (
-          <a
+          <Link
             key={pill.key}
             href={pill.href}
+            aria-current={isActive ? 'true' : undefined}
+            scroll={false}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors',
+              'inline-flex min-h-8 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               isActive
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-card border-border text-muted-foreground hover:text-foreground',
+                ? 'border-admin-rail bg-admin-active font-semibold text-admin-active-foreground shadow-sm'
+                : 'bg-card border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground',
             )}
           >
             {pill.label}
             {pill.count != null && (
               <span className={cn(
                 'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-xs font-semibold',
-                isActive ? 'bg-primary-foreground/20' : 'bg-muted',
+                isActive ? 'bg-admin-active-foreground/15 text-admin-active-foreground' : 'bg-muted text-muted-foreground',
               )}>
                 {pill.count}
               </span>
             )}
-          </a>
+          </Link>
         )
       })}
     </div>
@@ -88,10 +96,10 @@ export function ActiveFilters({
           href={chip.removeHref}
           aria-label={`${labels.removeFilter}: ${chip.label}`}
           title={chip.label}
-          className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 py-0.5 pr-1 pl-2.5 text-xs font-medium text-foreground transition-colors hover:bg-primary/20"
+          className="inline-flex items-center gap-1 rounded-full border border-admin-rail/50 bg-admin-active/20 py-0.5 pr-1 pl-2.5 text-xs font-medium text-foreground transition-colors hover:bg-admin-active/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span className="max-w-[14rem] truncate">{chip.label}</span>
-          <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary-foreground" aria-hidden>
+          <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-admin-rail/25 text-foreground" aria-hidden>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="h-2.5 w-2.5">
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>

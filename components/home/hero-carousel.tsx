@@ -17,7 +17,7 @@ type HeroCarouselProps = {
 };
 
 const controlClasses =
-    "z-10 flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/35 text-white backdrop-blur transition-colors hover:bg-black/60";
+    "z-10 flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-black/35 text-white backdrop-blur transition-colors hover:bg-black/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white";
 
 /**
  * Hero crossfade (spec §1A): the featured stories fade in/out over a fixed
@@ -173,7 +173,7 @@ export function HeroCarousel({ stories, dict, locale }: HeroCarouselProps) {
                         >
                             {selected + 1} / {slides.length}
                         </span>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1">
                             {slides.map((story, index) => (
                                 <button
                                     key={story.id}
@@ -181,13 +181,20 @@ export function HeroCarousel({ stories, dict, locale }: HeroCarouselProps) {
                                     onClick={() => goTo(index)}
                                     aria-label={story.title}
                                     aria-current={index === selected ? "true" : undefined}
-                                    className={cn(
-                                        "h-1.5 rounded-full transition-all",
-                                        index === selected
-                                            ? "w-6 bg-primary"
-                                            : "w-1.5 bg-white/50 hover:bg-white/80"
-                                    )}
-                                />
+                                    // 44px hit floor: the visual dot stays small
+                                    // but the tap target never drops below it.
+                                    className="flex h-11 min-w-11 items-center justify-center px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white rounded-full"
+                                >
+                                    <span
+                                        aria-hidden
+                                        className={cn(
+                                            "h-1.5 rounded-full transition-all",
+                                            index === selected
+                                                ? "w-6 bg-primary"
+                                                : "w-1.5 bg-white/50 hover:bg-white/80"
+                                        )}
+                                    />
+                                </button>
                             ))}
                         </div>
                     </div>

@@ -48,8 +48,9 @@ export function DialogTabSwitcher({
   labels: { editor: string; preview: string }
 }) {
   const base =
-    'inline-flex h-7 items-center rounded-md px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-  const active = 'bg-primary text-primary-foreground'
+    'inline-flex h-7 min-w-11 items-center justify-center rounded-md px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  // Gold active (never brand blue): matches Tabs + FilterPills + sidebar.
+  const active = 'bg-admin-active font-semibold text-admin-active-foreground shadow-sm'
   const idle = 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
   return (
     <div className="flex items-center gap-1 rounded-md bg-muted/60 p-0.5" role="tablist">

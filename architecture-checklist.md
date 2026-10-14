@@ -602,6 +602,37 @@ below.*
 
 ## Changelog
 
+- 2026-10-14 — **Command-center + homepage audit: emergency homed in FAB, dead
+  quick-action code cut, palette touch target fixed, river OG verified.**
+  - *Emergency's home, decided:* the floating FAB (`QUICK_ACTIONS` in
+    `admin-floating-quick-actions.tsx`), gated on the content desk's
+    `manageContent` — the exact capability `/admin/emergency` guards on —
+    relabeled via `labelKey` (no new dictionary keys). Crisis publishing is
+    one tap from any desk, thumb-reachable with no sidebar; the 13-section
+    sidebar keeps selling daily destinations only. Recorded in the
+    `ADMIN_NAV_SPECS` comment; palette stays nav-pure by design.
+  - *Dead cut:* `AdminQuickActions` component (zero importers — the topbar
+    renders the FAB, not the dropdown), `useQuickActionKeys` + store + storage
+    key (the manage-UI it was built for never shipped), and the
+    `quickActionsManage`/`quickActionsDone` keys in en+fr (zero usages;
+    parity untouched). `QUICK_ACTIONS` config moved into its sole consumer.
+    Also fixed the config's latent duplicate-`id` hazard (relabeled entries
+    take `labelKey` as id) and stripped the gating desk's badge off relabeled
+    rows (content's pending count is not an emergency signal).
+  - *320/390 walk-through (FR):* drawer (44px trigger, left sheet w-72,
+    truncating labels, pinned back-to-site), dashboard (1-col StatGrid <480,
+    wrapping header/glance, truncating pipeline labels), tables (internal
+    scroll) all pass with no horizontal scroll or unreachable controls. One
+    fix: palette trigger `h-8` met neither the 44px touch nor the 36px
+    ops-density standard — now 44px square icon button on phones, 36px +
+    220/280px field from md up. Bell/preferences/identity stay 36px per the
+    ops-density standard (checklist item 8 covers primary CTAs).
+  - *River OG spot-check (FR):* news, photo-story and culture detail pages all
+    carry locale titles, `buildAlternates` canonical+hreflang and an auto
+    `opengraph-image.tsx` (locale kicker + title + cover) — shared river
+    cards unfurl identically on WhatsApp in both locales. No change needed.
+  - Validation: `tsc` clean, full unit suite green, bare-href audit clean,
+    eslint clean on every touched file.
 - 2026-10-14 — **Auth-gap audit: 5 of 6 claims stale, 1 recorded, 0 code defects.**
   Verified each claim against the working tree (which already carries the
   uncommitted auth-hardening pass: config fixes, email-function deletion,

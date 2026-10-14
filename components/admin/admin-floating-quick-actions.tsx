@@ -8,8 +8,7 @@ import { localePath } from '@/lib/i18n/urls'
 import { useLocaleFromPath } from '@/components/site-header'
 import { type AppRole } from '@/lib/auth/types'
 import { type AdminRole } from '@/lib/auth/admin-roles'
-import { buildAdminNavGroups } from './nav-items'
-import { QUICK_ACTIONS } from './admin-quick-actions'
+import { buildAdminNavGroups, type SidebarKey } from './nav-items'
 import { cn } from '@/lib/utils'
 
 /**
@@ -30,18 +29,38 @@ export type FabAction = {
   severity?: 'alert' | 'neutral'
 }
 
+/**
+ * Quick actions — the "start something" destinations, promoted out of ⌘K so
+ * they are one visible tap on every admin page, including phones with no
+ * keyboard and no sidebar (the FAB renders on all breakpoints).
+ *
+ * Gating is the nav, not a role test: an action appears only when `key` is in
+ * the viewer's own capability-filtered entries. `labelKey` relabels without
+ * re-gating, which is how the emergency console rides here: it is a URL-only
+ * desk with no nav entry (the 13-section sidebar sells daily destinations;
+ * crisis publishing is rare-but-critical), so `key: 'content'` borrows the
+ * content desk's visibility — the exact capability (`manageContent`) the
+ * emergency page guards on. If emergency ever rejoins the nav, drop the
+ * labelKey and gate on its own key.
+ *
+ * Only live destinations belong here: polls/fundraisers pointed at cut pages
+ * (their events repoint to insights/content — see lib/notify/events.ts), so
+ * they are listed nowhere, by design.
+ */
+export const QUICK_ACTIONS: { key: SidebarKey; labelKey?: SidebarKey; path: string }[] = [
+  { key: 'content', path: '/admin/content?create=new' },
+  { key: 'moderation', path: '/admin/moderation' },
+  { key: 'content', labelKey: 'emergency', path: '/admin/emergency' },
+]
+
 export function AdminFloatingQuickActions({
   roles,
   adminRoles = [],
   pendingCount = 0,
-  unreadNotifications = 0,
-  badges = {},
 }: {
   roles: AppRole[]
   adminRoles?: AdminRole[]
   pendingCount?: number
-  unreadNotifications?: number
-  badges?: { translations?: number; digest?: number }
 }) {
   const [open, setOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
@@ -60,8 +79,6 @@ export function AdminFloatingQuickActions({
     roles,
     pendingCount,
     adminRoles,
-    unreadNotifications,
-    badges,
   ).flatMap((group) => group.items)
   const visible = new Map(items.map((item) => [item.key, item]))
 
@@ -70,12 +87,15 @@ export function AdminFloatingQuickActions({
     if (!item) return []
     return [
       {
-        id: action.key,
-        label: item.label,
+        // Relabeled entries get their own id: two actions can share one gate.
+        id: action.labelKey ?? action.key,
+        label: action.labelKey ? dict.admin.sidebar[action.labelKey] : item.label,
         href: localePath(locale, action.path),
         icon: item.icon,
-        count: item.badge,
-        severity: item.badgeTone,
+        // Badges belong to the gating desk — content's pending count says
+        // nothing about emergencies, so relabeled entries carry none.
+        count: action.labelKey ? undefined : item.badge,
+        severity: action.labelKey ? undefined : item.badgeTone,
       },
     ]
   }) satisfies FabAction[]

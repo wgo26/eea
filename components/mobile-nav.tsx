@@ -81,7 +81,7 @@ export function MobileNav({
                   href={item.href}
                   onClick={() => setOpen(false)}
                   aria-current={isActive ? "page" : undefined}
-                  className={`rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
+                  className={`min-h-11 rounded-md px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                     isActive
                       ? "bg-primary font-semibold text-primary-foreground"
                       : "text-muted-foreground hover:bg-accent hover:text-foreground"

@@ -45,6 +45,8 @@ export function AdminTopbar({
   displayName,
   email,
   logoUrl = null,
+  translationQueue = 0,
+  digestOpen = 0,
 }: {
   roles: AppRole[]
   adminRoles?: AdminRole[]
@@ -52,6 +54,13 @@ export function AdminTopbar({
   displayName: string
   email: string
   logoUrl?: string | null
+  /**
+   * Queue depths for the attention centre, pre-gated by the layout on
+   * `manageContent` (both desks guard on it). The topbar never decides
+   * visibility — 0 renders nothing.
+   */
+  translationQueue?: number
+  digestOpen?: number
 }) {
   const locale = useLocaleFromPath()
   const dict = getDictionary(locale)
@@ -61,7 +70,6 @@ export function AdminTopbar({
     roles,
     shell.pendingSubmissions,
     adminRoles,
-    shell.unreadNotifications,
   )
   const items = groups.flatMap((group) => group.items)
   const systemState = useSystemState()
@@ -92,6 +100,7 @@ export function AdminTopbar({
             backToSite: dict.admin.sidebar.backToSite,
             brand: dict.admin.sidebar.brand,
             consoleLabel: dict.admin.sidebar.consoleLabel,
+            recents: dict.admin.sidebar.recents,
           }}
         />
 
@@ -149,6 +158,8 @@ export function AdminTopbar({
             unreadNotifications={shell.unreadNotifications}
             actionableApprovals={shell.actionableApprovals}
             overdueScheduled={shell.org.overdueScheduled}
+            translationQueue={translationQueue}
+            digestOpen={digestOpen}
             dashboardHref={dashboardHref}
           />
 

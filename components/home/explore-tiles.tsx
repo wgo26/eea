@@ -1,11 +1,9 @@
 import Link from "next/link";
 import {
   ArrowUpRight,
-  Camera,
   MapPin,
   Megaphone,
   Newspaper,
-  Palette,
   Tag,
 } from "lucide-react";
 import type { Dictionary } from "@/lib/i18n";
@@ -16,26 +14,25 @@ type ExploreTilesProps = {
   /** Only surface sections that currently have something useful to browse. */
   available?: readonly (keyof ExploreTilesProps["hrefs"])[];
   hrefs: {
-    photoStories: string;
-    news: string;
+    stories: string;
     notices: string;
     buySell: string;
-    culture: string;
     locations: string;
   };
 };
 
 /**
  * Quick-navigation tiles (spec §1A — the homepage is a hub, not a
- * destination): one tap into every content vertical and the location index.
+ * destination): one tap into each live surface. Photo stories, news and
+ * culture fold into the single Stories river (same merge as the homepage
+ * river and the /stories feed), so the tiles sell four destinations, not six
+ * — the header's five-item model minus Home, which the visitor is already on.
  */
 export function ExploreTiles({ dict, hrefs, available }: ExploreTilesProps) {
   const tiles = [
-    { key: "photoStories" as const, href: hrefs.photoStories, label: dict.nav.photoStories, Icon: Camera },
-    { key: "news" as const, href: hrefs.news, label: dict.nav.news, Icon: Newspaper },
+    { key: "stories" as const, href: hrefs.stories, label: dict.nav.stories, Icon: Newspaper },
     { key: "notices" as const, href: hrefs.notices, label: dict.nav.notices, Icon: Megaphone },
     { key: "buySell" as const, href: hrefs.buySell, label: dict.nav.buySell, Icon: Tag },
-    { key: "culture" as const, href: hrefs.culture, label: dict.nav.culture, Icon: Palette },
     { key: "locations" as const, href: hrefs.locations, label: dict.nav.locations, Icon: MapPin },
   ];
 
@@ -48,7 +45,7 @@ export function ExploreTiles({ dict, hrefs, available }: ExploreTilesProps) {
   return (
     <section>
       <SectionHeader title={dict.home.exploreTitle} />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {visibleTiles.map(({ href, label, Icon }) => (
           <Link
             key={href}

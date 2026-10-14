@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { defaultStaffPath, renderEvent } from './events';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { defaultStaffPath, renderEvent, type NotifyEvent } from './events';
 import { isWindowError, normalizePhone, waMeLink, whatsappTemplateFor } from './channels';
 import { isReceiptEmail } from './guest-receipts';
 import { doualaHour, isQuietHour } from './worker';
@@ -23,6 +25,47 @@ describe('notify events', () => {
     expect(defaultStaffPath('advertise.inquiry')).toContain('/admin/ads');
     expect(defaultStaffPath('legal.takedown')).toBe('/admin/policies');
     expect(defaultStaffPath('content.correction')).toBe('/admin/trust-safety');
+  });
+
+  it('never routes staff to a cut desk (every path resolves to a live page)', () => {
+    // Full contract: each event's deep-link must land on an admin page that
+    // exists on disk. The polls + fundraisers desks were cut while their
+    // events kept firing — staff tapped through to 404s. This fails the day
+    // any path stops resolving, instead of the night staff finds out.
+    const expected: Record<NotifyEvent, string> = {
+      'submission.received': '/admin/moderation',
+      'submission.confirmation': '/admin/dashboard',
+      'submission.approved': '/admin/dashboard',
+      'submission.rejected': '/admin/dashboard',
+      'submission.clarification': '/admin/dashboard',
+      'advertise.inquiry': '/admin/ads?tab=inquiries',
+      'advertise.approved': '/admin/ads?tab=inquiries',
+      'legal.takedown': '/admin/policies',
+      'legal.contact': '/admin/policies',
+      'legal.data_request': '/admin/policies',
+      'content.correction': '/admin/trust-safety',
+      'content.updated': '/admin/trust-safety',
+      'listing.update': '/admin/dashboard',
+      'event.reminder': '/admin/dashboard',
+      'poll.closed': '/admin/insights',
+      'plan.failed': '/admin/automations',
+      'translation.gap': '/admin/translations',
+      'content.milestone': '/admin/content',
+      'contributor.milestone': '/admin/dashboard',
+      'correction.resolved': '/admin/trust-safety',
+      'digest.ready_for_review': '/admin/templates',
+      'credential.hygiene': '/admin/secrets',
+      'storage.hygiene': '/admin/storage-backup',
+      'security.critical': '/admin/incidents',
+      'system.degraded': '/admin/states',
+    };
+    const adminRoot = join(process.cwd(), 'app', '[locale]', '(app)', 'admin');
+    for (const [event, path] of Object.entries(expected) as [NotifyEvent, string][]) {
+      expect(defaultStaffPath(event)).toBe(path);
+      const route = path.split('?')[0].replace(/^\/admin/, '');
+      const page = join(adminRoot, route, 'page.tsx');
+      expect(existsSync(page), `${event} → ${path} has no page`).toBe(true);
+    }
   });
 });
 

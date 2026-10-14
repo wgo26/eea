@@ -54,12 +54,19 @@ export function AdminBreadcrumbs({
   const pathname = usePathname() ?? ''
 
   const location = findAdminNavLocation(groups, pathname)
-  if (!location) return null
+
+  // URL-only desks (secrets, states, inbox, emergency…) have no nav entry, so
+  // the lookup misses — but a blank header is worse than an approximate one.
+  // Fall back to a prettified path segment so every admin screen still answers
+  // "where am I". The crumb links to the section root operators can open.
+  const fallback = location == null ? fallbackLocation(pathname) : null
+  const trail = location ?? fallback
+  if (!trail) return null
 
   // On a detail route the matched section is the parent crumb and the id is the
   // leaf; on a section route the section itself is the leaf.
-  const entity = entityContextFor(pathname, location.path)
-  const state = sectionState[location.path]
+  const entity = entityContextFor(pathname, trail.path)
+  const state = sectionState[trail.path]
 
   return (
     // Hidden below `md`, as the inline trail it replaces was: at phone width the
@@ -81,7 +88,7 @@ export function AdminBreadcrumbs({
             the sidebar already groups by it visually. */}
         <li className="hidden min-w-0 shrink items-center gap-1.5 lg:flex">
           <Separator />
-          <span className="truncate text-muted-foreground/80">{location.groupLabel}</span>
+          <span className="truncate text-muted-foreground/80">{trail.groupLabel}</span>
         </li>
 
         <li className="flex min-w-0 items-center gap-1.5">
@@ -91,11 +98,11 @@ export function AdminBreadcrumbs({
               href={localePath(locale, entity.sectionPath)}
               className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
             >
-              {location.itemLabel}
+              {trail.itemLabel}
             </Link>
           ) : (
             <span aria-current="page" className="min-w-0 truncate font-medium text-foreground">
-              {location.itemLabel}
+              {trail.itemLabel}
             </span>
           )}
         </li>
@@ -133,4 +140,23 @@ function Separator() {
       /
     </span>
   )
+}
+
+/**
+ * Last-resort trail for admin paths with no nav entry (URL-only desks). The
+ * segment after `/admin/` becomes the label ("storage-backup" → "Storage
+ * backup") under the closest group name we can honestly claim — the admin
+ * root itself. Deliberately unlocalized: these desks are staff-only surfaces
+ * whose pages already own their localized titles; the breadcrumb's job here
+ * is orientation, not translation.
+ */
+function fallbackLocation(pathname: string): { path: string; itemLabel: string; groupLabel: string } | null {
+  const match = pathname.match(/\/(?:en|fr)\/admin\/([^/]+)/) ?? pathname.match(/\/admin\/([^/]+)/)
+  const segment = match?.[1]
+  if (!segment) return null
+  const itemLabel = segment
+    .split('-')
+    .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
+    .join(' ')
+  return { path: `/admin/${segment}`, itemLabel, groupLabel: 'Admin' }
 }

@@ -11,6 +11,11 @@ import type { AdminNavBadgeTone } from './nav-items'
  * not on cards, so hover/active states use `sidebar-accent`. Those tokens are
  * theme-aware (light, dark, high-contrast), which is why an active row stays
  * legible everywhere while the brand cue is carried by the gold rail.
+ *
+ * Mode cue: public navigation marks "you are here" with brand blue
+ * (`bg-primary`); the command center NEVER does. Admin-active is a gold wash
+ * (`bg-admin-active/25`) + a deep-gold rail (`bg-admin-rail`) so staff always
+ * know which mode they are in at a glance — no mode-confusion errors.
  */
 
 /**
@@ -31,14 +36,14 @@ export function adminNavRowClass(active: boolean, variant: AdminNavRowVariant = 
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
     ROW_VARIANT[variant],
     active
-      ? 'bg-sidebar-accent font-semibold text-sidebar-accent-foreground'
+      ? 'bg-admin-active/25 font-semibold text-foreground ring-1 ring-inset ring-admin-rail/30'
       : 'font-medium text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
   )
 }
 
-/** Brand-gold rail marking the current page inside an active row. */
+/** Gold rail marking the current page inside an active row (never brand blue). */
 export const ADMIN_NAV_ACTIVE_BAR_CLASS =
-  'pointer-events-none absolute inset-y-2 left-0 w-0.5 rounded-full bg-primary'
+  'pointer-events-none absolute inset-y-1.5 left-0 w-1 rounded-full bg-admin-rail'
 
 /** Badge shell — 12px type is the documented legibility floor, never smaller. */
 export const ADMIN_NAV_BADGE_CLASS =

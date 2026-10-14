@@ -70,6 +70,10 @@ export const COLOR_VARIABLES: Record<keyof ColorTokens, string> = {
  *                    uses its own `AppShell`/`AdminSidebar` styling. Wiring these
  *                    is a decision to adopt the shadcn sidebar, not a branding
  *                    gap.
+ *   - admin-active* — command-center "you are here" accent, deliberately gold
+ *                    (never brand blue) so staff never confuse admin-active with
+ *                    public-brand. Derived from the gold ramp; not part of the
+ *                    public brand vocabulary on purpose.
  *
  * Unlike the mapped tokens, a deferred var is NOT theme-overridable: it keeps
  * whatever globals.css ships, so a rebrand cannot leave it stranded on the old
@@ -89,6 +93,9 @@ export const DEFERRED_COLOR_VARIABLES: Record<string, string> = {
   sidebarAccentForeground: '--sidebar-accent-foreground',
   sidebarBorder: '--sidebar-border',
   sidebarRing: '--sidebar-ring',
+  adminActive: '--admin-active',
+  adminActiveForeground: '--admin-active-foreground',
+  adminRail: '--admin-rail',
 }
 
 const COLOR_KEYS = Object.keys(COLOR_VARIABLES) as (keyof ColorTokens)[]

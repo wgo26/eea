@@ -26,12 +26,15 @@ import { ADMIN_NAV_BADGE_CLASS, adminNavBadgeClass } from './nav-styles'
  * rather than merely navigating. `?create=new` auto-opens the content dialog;
  * the others land on pages whose primary form is already above the fold. Each
  * entry keys off a nav item, so visibility follows the same capability filter
- * as the sidebar — a contributor never sees the emergency broadcast.
+ * as the sidebar.
+ *
+ * Only live nav destinations belong here — `emergency` was pruned with the
+ * quick-actions list (URL-only desk, no nav entry, so the gate dropped it
+ * silently every render). It returns with one line if it rejoins the nav.
  */
 const QUICK_ACTIONS: { key: SidebarKey; href: string }[] = [
   { key: 'content', href: '/admin/content?create=new' },
   { key: 'moderation', href: '/admin/moderation' },
-  { key: 'emergency', href: '/admin/emergency' },
 ]
 
 /**
@@ -96,15 +99,15 @@ export function AdminCommandPalette({ groups }: { groups: AdminNavGroup[] }) {
    * capability filter — a role that cannot open the page never sees its AI
    * command. Labels reuse the destination's sidebar label under the
    * language-neutral "AI ·" token, so only the heading needs dictionary copy.
+   * Live nav destinations only: digest/automations/secrets are URL-only desks
+   * with no nav entry, so the gate dropped them silently — they return with
+   * the desk if it rejoins the nav.
    */
   const AI_COMMANDS: { key: SidebarKey; href: string }[] = [
     { key: 'content', href: '/admin/content' },
-    { key: 'digest', href: '/admin/digest' },
     { key: 'moderation', href: '/admin/moderation' },
     { key: 'dashboard', href: '/admin/dashboard' },
     { key: 'insights', href: '/admin/insights' },
-    { key: 'automations', href: '/admin/automations' },
-    { key: 'secrets', href: '/admin/secrets' },
   ]
   const aiCommands = AI_COMMANDS.flatMap((action) =>
     visibleKeys.has(action.key)
@@ -119,7 +122,10 @@ export function AdminCommandPalette({ groups }: { groups: AdminNavGroup[] }) {
         onClick={() => setOpen(true)}
         aria-label={common.search}
         title={common.search}
-        className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:w-[220px] lg:w-[280px]"
+        // 44px on phones (matches the drawer trigger beside it), 36px
+        // ops density from md up (matches the topbar icon buttons) — h-8 met
+        // neither standard.
+        className="inline-flex h-11 w-11 items-center justify-center gap-2 rounded-md border border-border bg-muted/50 px-0 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:h-9 md:w-[220px] md:justify-start md:px-2.5 lg:w-[280px]"
       >
         <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span className="hidden flex-1 truncate text-left md:inline">{common.searchPlaceholder}</span>

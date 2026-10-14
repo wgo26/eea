@@ -37,8 +37,9 @@ export type AdminFundraiserRow = {
 /**
  * Paginated page of fundraiser campaigns with its parent story. `content_item_id`
  * is the fundraisers primary key, so the join is one-to-one. The story title
- * prefers the requested locale so /fr/admin/fundraisers shows French titles
- * instead of leaking English copy into the French back office. Search matches
+ * prefers the requested locale so French callers get French titles instead of
+ * leaking English copy into the French back office (the fundraisers admin desk
+ * itself was cut; this query serves the data layer). Search matches
  * the story slug, both translation titles, and the organizer name.
  */
 export async function getFundraisersAdmin(options?: {

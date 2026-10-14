@@ -27,12 +27,16 @@ const copy: AttentionCopy = {
     approvals: "Approvals",
     mail: "Mail",
     "overdue-scheduled": "Overdue",
+    translations: "Translations",
+    digest: "Digest",
   },
   workHref: {
     submissions: "/admin/moderation",
     approvals: "/admin/approvals",
     mail: "/admin/inbox",
     "overdue-scheduled": "/admin/content?status=scheduled",
+    translations: "/admin/translations",
+    digest: "/admin/digest",
   },
 }
 
@@ -51,6 +55,8 @@ const input = (over: Partial<Parameters<typeof buildAttentionTopics>[0]> = {}) =
   unreadNotifications: 0,
   actionableApprovals: 0,
   overdueScheduled: 0,
+  translationQueue: 0,
+  digestOpen: 0,
   ...over,
 })
 
@@ -112,6 +118,18 @@ describe("buildAttentionTopics", () => {
     const mail = topics.find((t) => t.id === "mail")
     expect(reports?.oldestHours).toBe(30)
     expect(mail?.oldestHours).toBeNull()
+  })
+
+  it("surfaces the translation and digest queues as work, never as alerts", () => {
+    const topics = buildAttentionTopics(input({ translationQueue: 4, digestOpen: 7 }), copy)
+    expect(topics.map((t) => t.id)).toEqual(["digest", "translations"])
+    for (const topic of topics) {
+      expect(topic.group).toBe("work")
+      expect(topic.tone).toBe("notice")
+      expect(topic.severity).toBeNull()
+    }
+    expect(topics.find((t) => t.id === "translations")?.href).toBe("/admin/translations")
+    expect(topics.find((t) => t.id === "digest")?.href).toBe("/admin/digest")
   })
 })
 

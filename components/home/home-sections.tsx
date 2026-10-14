@@ -1,7 +1,8 @@
 import { getHomeData } from "@/lib/queries/home";
+import Link from "next/link";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import { HomeHero } from "@/components/home/home-hero";
-import { EmptySection, StoryCard } from "@/components/home/story-card";
+import { StoryCard } from "@/components/home/story-card";
 import { SectionHeader } from "@/components/home/section-header";
 import { AdSlot } from "@/components/home/ad-slot";
 import { ListingCard } from "@/components/home/listing-card";
@@ -70,20 +71,18 @@ export function AdSkeleton() {
 /** Hero + explore tiles: the first paint after the shell. */
 export async function HomeHeroSection({ locale, dict }: SectionProps) {
     const data = await getHomeData(locale);
+    const hasStories =
+        data.photoStories.length > 0 || data.news.length > 0 || data.culture.length > 0;
     const availableSections: readonly (
-        | "photoStories"
-        | "news"
+        | "stories"
         | "notices"
         | "buySell"
-        | "culture"
         | "locations"
     )[] = [
         "locations",
-        ...(data.photoStories.length > 0 ? ["photoStories" as const] : []),
-        ...(data.news.length > 0 ? ["news" as const] : []),
+        ...(hasStories ? ["stories" as const] : []),
         ...(data.notices.length > 0 ? ["notices" as const] : []),
         ...(data.listings.length > 0 ? ["buySell" as const] : []),
-        ...(data.culture.length > 0 ? ["culture" as const] : []),
     ];
     return (
         <>
@@ -99,11 +98,9 @@ export async function HomeHeroSection({ locale, dict }: SectionProps) {
                 dict={dict}
                 available={availableSections}
                 hrefs={{
-                    photoStories: href(locale, "/photo-stories"),
-                    news: href(locale, "/news"),
+                    stories: href(locale, "/stories"),
                     notices: href(locale, "/notices"),
                     buySell: href(locale, "/buy-sell"),
-                    culture: href(locale, "/culture"),
                     locations: href(locale, "/locations"),
                 }}
             />
@@ -117,61 +114,74 @@ export async function HomeBannerAd({ locale, dict }: SectionProps) {
     return <AdSlot ad={data.ads.banner} dict={dict} variant="banner" />;
 }
 
-/** Latest photo stories + rail ad. */
-export async function HomePhotoStories({ locale, dict }: SectionProps) {
+/** Newest-first ordering for mixed-type rivers (same rule as /stories). */
+function byNewest(a: { publishedAt: string | null }, b: { publishedAt: string | null }): number {
+    const ta = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+    const tb = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+    return tb - ta;
+}
+
+/** River size: six fresh cards beats eleven stale ones — the archives carry depth. */
+const RIVER_LIMIT = 6;
+
+/**
+ * Unified Stories river — photo stories + news + culture, newest first.
+ *
+ * Replaces the three split rails (photo / news / culture), which forced three
+ * "what is this section" decisions and tripled the scroll for the same
+ * freshness. Cards already carry their category pill, and the merged /stories
+ * feed proved mixed cards read fine without per-type chrome — so the river
+ * needs one header, not three. The vertical archives stay one click away in
+ * the archive row; the trending rail and the rail ad dock in the aside, so no
+ * inventory or discovery is lost in the merge.
+ */
+export async function HomeStoriesRiver({ locale, dict }: SectionProps) {
     const data = await getHomeData(locale);
-    if (data.photoStories.length === 0) return null;
+    const seen = new Set<string>();
+    const items = [...data.photoStories, ...data.news, ...data.culture]
+        .filter((s) => (seen.has(s.id) ? false : (seen.add(s.id), true)))
+        .sort(byNewest)
+        .slice(0, RIVER_LIMIT);
+    if (items.length === 0) return null;
+    const archives = [
+        { label: dict.nav.news, path: '/news' },
+        { label: dict.nav.photoStories, path: '/photo-stories' },
+        { label: dict.nav.culture, path: '/culture' },
+    ] as const;
     return (
         <section className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
             <div className="min-w-0">
                 <SectionHeader
-                    title={dict.home.latestPhotoStories}
-                    hint={dict.home.sectionHintPhoto}
-                    viewAllHref={href(locale, "/photo-stories")}
-                    viewAllLabel={dict.home.viewAllPhotoStories}
+                    title={dict.nav.stories}
+                    viewAllHref={href(locale, "/stories")}
+                    viewAllLabel={dict.home.viewAll}
                 />
                 <div className="grid gap-5 sm:grid-cols-2">
-                    {data.photoStories.map((s) => (
+                    {items.map((s) => (
                         <StoryCard key={s.id} story={s} dict={dict} locale={locale} />
                     ))}
                 </div>
+                <nav aria-label={dict.nav.stories} className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                    {archives.map((a, i) => (
+                        <span key={a.path} className="inline-flex items-center gap-3">
+                            {i > 0 && (
+                                <span aria-hidden className="text-muted-foreground">·</span>
+                            )}
+                            <Link href={href(locale, a.path)} className="font-medium text-link hover:underline">
+                                {a.label}
+                            </Link>
+                        </span>
+                    ))}
+                </nav>
             </div>
-            <aside>
+            <aside className="min-w-0 space-y-8">
+                <TrendingList stories={data.trending} dict={dict} locale={locale} />
                 <AdSlot
                     ad={data.ads.rail}
                     dict={dict}
                     variant="rail"
                     className="lg:sticky lg:top-24"
                 />
-            </aside>
-        </section>
-    );
-}
-
-/** Latest news + trending rail. */
-export async function HomeNewsTrending({ locale, dict }: SectionProps) {
-    const data = await getHomeData(locale);
-    return (
-        <section className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
-            <div className="min-w-0">
-                <SectionHeader
-                    title={dict.home.latestNews}
-                    hint={dict.home.sectionHintNews}
-                    viewAllHref={href(locale, "/news")}
-                    viewAllLabel={dict.home.viewAllNews}
-                />
-                {data.news.length > 0 ? (
-                    <div className="grid gap-5 sm:grid-cols-2">
-                        {data.news.map((s) => (
-                            <StoryCard key={s.id} story={s} dict={dict} locale={locale} />
-                        ))}
-                    </div>
-                ) : (
-                    <EmptySection dict={dict} href={href(locale, "/news")} label={dict.home.viewAllNews} />
-                )}
-            </div>
-            <aside>
-                <TrendingList stories={data.trending} dict={dict} locale={locale} />
             </aside>
         </section>
     );
@@ -214,32 +224,4 @@ export async function HomeBoard({ locale, dict }: SectionProps) {
             </div> : null}
         </section>
     );
-}
-
-/** Culture preview. */
-export async function HomeCulture({ locale, dict }: SectionProps) {
-    const data = await getHomeData(locale);
-    if (data.culture.length === 0) return null;
-    return (
-        <section>
-            <SectionHeader
-                title={dict.home.culture}
-                hint={dict.home.sectionHintCulture}
-                viewAllHref={href(locale, "/culture")}
-                viewAllLabel={dict.home.viewAllCulture}
-            />
-            <div className="grid gap-5 sm:grid-cols-3">
-                {data.culture.map((s) => (
-                    <StoryCard key={s.id} story={s} dict={dict} locale={locale} />
-                ))}
-            </div>
-        </section>
-    );
-}
-
-/** Bottom inline ad strip. */
-export async function HomeInlineBottomAd({ locale, dict }: SectionProps) {
-    const data = await getHomeData(locale);
-    if (!data.ads.inlineBottom) return null;
-    return <AdSlot ad={data.ads.inlineBottom} dict={dict} variant="strip" />;
 }
