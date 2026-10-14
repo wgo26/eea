@@ -75,5 +75,10 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^3.2.7"
+  },
+  "overrides": {
+    "proxy-addr": "2.0.8",
+    "source-map-js": "1.2.2",
+    "@modelcontextprotocol/sdk": "1.32.1"
   }
 }
