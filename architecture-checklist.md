@@ -628,9 +628,21 @@ below.*
     220/280px field from md up. Bell/preferences/identity stay 36px per the
     ops-density standard (checklist item 8 covers primary CTAs).
   - *River OG spot-check (FR):* news, photo-story and culture detail pages all
-    carry locale titles, `buildAlternates` canonical+hreflang and an auto
-    `opengraph-image.tsx` (locale kicker + title + cover) — shared river
-    cards unfurl identically on WhatsApp in both locales. No change needed.
+    carry locale titles and `buildAlternates` canonical+hreflang — shared
+    river cards unfurl identically on WhatsApp in both locales. Follow-up
+    shipped below: explicit cover-photo `og:image` on all five detail types.
+  - *Cover-photo share previews + gallery gap closed:* news/culture detail
+    pages showed the cover while the rest of a multi-photo story rendered
+    nowhere (`supportingMedia()` carries video/audio/docs only). Queries now
+    expose non-cover `photos` (existing `PhotoStoryPhoto` type, editorial
+    order) and both pages render the shared `GalleryGrid` — no new
+    components or keys. All five detail types set an explicit cover-photo
+    `og:image` (brand default when imageless), so WhatsApp shows the
+    photograph, not the generated title card; the 5 `opengraph-image.tsx` +
+    5 `twitter-image.tsx` files, `lib/seo/og-image.tsx` and its test are
+    deleted (Next falls back to `og:image` for Twitter). Living refs updated
+    (`docs/perf-budget.md`, `attachments.ts` doc comment); point-in-time
+    audit docs left as history.
   - Validation: `tsc` clean, full unit suite green, bare-href audit clean,
     eslint clean on every touched file.
 - 2026-10-14 — **Auth-gap audit: 5 of 6 claims stale, 1 recorded, 0 code defects.**

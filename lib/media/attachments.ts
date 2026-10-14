@@ -164,7 +164,7 @@ export function videoThumbnailUrl(url: string): string | null {
 /**
  * First usable share-preview image for a post: the cover when present,
  * otherwise the first video attachment's thumbnail (e.g. YouTube) or its
- * uploaded poster frame. Used by the opengraph-image routes so video-only
+ * uploaded poster frame. Used by detail-page metadata so video-only
  * posts still get a picture preview on WhatsApp / X / Facebook instead of
  * a text-only card.
  */

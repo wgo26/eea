@@ -32,6 +32,7 @@ import {
 } from "@/lib/queries/buy-sell";
 import { getAdForSlot } from "@/lib/queries/ads";
 import { breadcrumbJsonLd, productJsonLd, renderJsonLd } from "@/lib/seo/jsonld";
+import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
 
 type ListingPageProps = { params: Promise<{ locale: string; id: string }> };
 
@@ -59,8 +60,9 @@ export async function generateMetadata({
             title: listing.title,
             description: listing.excerpt ?? undefined,
             type: "article",
-            // Cover: served by ./opengraph-image.tsx (branded title card that
-            // embeds the cover) — Next injects it automatically.
+            // WhatsApp shows the cover photograph itself (brand default when
+            // imageless) — the same rule as every other detail page.
+            images: [{ url: listing.imageUrl ?? DEFAULT_OG_IMAGE }],
         },
     };
 }

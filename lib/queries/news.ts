@@ -13,6 +13,7 @@ import {
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 import type { StoryCardData } from "@/lib/queries/home";
+import type { PhotoStoryPhoto } from "@/lib/queries/photo-stories";
 import { mapAttachments, previewImageUrl, supportingMedia } from "@/lib/media/attachments";
 
 /**
@@ -53,6 +54,12 @@ export type NewsArticle = StoryCardData & {
     tags?: { name: string; slug: string }[];
     coverCaption?: string | null;
     coverCredit?: string | null;
+    /**
+     * Non-cover photographs, in `sort_order`, for the detail-page gallery.
+     * The hero shows the cover; without this the rest of a multi-photo story
+     * never rendered anywhere (SupportingMedia carries video/audio/docs only).
+     */
+    photos: PhotoStoryPhoto[];
     /** Estimated reading time in minutes (200 wpm, minimum 1). */
     readingMinutes?: number;
 };
@@ -84,7 +91,7 @@ type RawStoryRow = {
         | { locale: string; title: string | null; excerpt: string | null; body: string | null; byline: string | null; share_text?: string | null; voice_type?: string | null }[]
         | null;
     media?:
-        | { public_url: string | null; alt_text: string | null; photographer_credit: string | null; caption: string | null; is_cover: boolean | null; kind: string | null; mime_type: string | null }[]
+        | { public_url: string | null; alt_text: string | null; photographer_credit: string | null; caption: string | null; is_cover: boolean | null; sort_order: number | null; kind: string | null; mime_type: string | null }[]
         | null;
     author?: { id: string; display_name: string | null } | { id: string; display_name: string | null }[] | null;
     category_id?: string | null;
@@ -94,7 +101,7 @@ const STORY_SELECT = `id, slug, type, verification, published_at, view_count, sh
     location:locations(name, slug),
     category:categories(category_translations(locale, name), slug),
     translations:content_translations(locale, title, excerpt, body, byline),
-    media:media_assets(public_url, alt_text, caption, photographer_credit, is_cover, kind, mime_type),
+    media:media_assets(public_url, alt_text, caption, photographer_credit, is_cover, sort_order, kind, mime_type),
     tags:content_tags(tags(slug, tag_translations(locale, name))),
     author:profiles!content_items_author_id_fkey(id, display_name)`;
 
@@ -143,6 +150,23 @@ function toCard(row: RawStoryRow, locale: Locale): NewsArticle | null {
     const cover = (row.media ?? []).find((m) => m.is_cover) ?? null;
     const rawCoverUrl = cover?.public_url ?? images[0]?.url ?? null;
     const coverUrl = previewImageUrl(rawCoverUrl, allMedia);
+    // Every non-cover photograph, in editorial order: the hero shows the
+    // cover, the gallery shows these. Rows without a usable URL never reach
+    // the renderer (an <img> cannot render them — see home.ts).
+    const photos: PhotoStoryPhoto[] = (row.media ?? [])
+        .map((m, index) => ({ m, index }))
+        .filter(({ m }) => (m.kind ?? 'image') === 'image' && (m.public_url ?? '').trim() !== '' && m.public_url !== rawCoverUrl)
+        .sort((a, b) => ((a.m.sort_order ?? 0) - (b.m.sort_order ?? 0)))
+        .map(({ m, index }) => ({
+            id: `${row.id}-photo-${index}`,
+            url: (m.public_url ?? '').trim(),
+            alt: m.alt_text ?? null,
+            credit: m.photographer_credit ?? null,
+            caption: m.caption ?? null,
+            position: m.sort_order ?? index,
+            width: null,
+            height: null,
+        }));
     const author = asOne(row.author);
     return {
         id: row.id,
@@ -171,6 +195,7 @@ function toCard(row: RawStoryRow, locale: Locale): NewsArticle | null {
         hasVideo: allMedia.some((m) => m.kind === 'video'),
         hasAudio: allMedia.some((m) => m.kind === 'audio'),
         attachments: supportingMedia(allMedia),
+        photos,
         categorySlug: category?.slug ?? null,
         categoryId: row.category_id ?? null,
         tags: ((row.tags ?? []) as {

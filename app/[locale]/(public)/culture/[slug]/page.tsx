@@ -14,6 +14,7 @@ import { FeedbackWidget } from "@/components/system/feedback-widget";
 import { AddToCalendar } from "@/components/events/add-to-calendar";
 import { ReminderButton } from "@/components/events/reminder-button";
 import { SupportingMedia } from "@/components/media/supporting-media";
+import { GalleryGrid } from "@/components/photo-stories/gallery-grid";
 import { CorrectionsNotice } from "@/components/system/corrections-notice";
 import { CorrectionForm } from "@/components/news/correction-form";
 import { getCorrectionsForContent } from "@/lib/queries/corrections";
@@ -23,6 +24,7 @@ import { formatDate, getDictionary, resolveLocale } from "@/lib/i18n";
 import { getCultureBySlug, getCultureArticles } from "@/lib/queries/culture";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { sanitizeBodyHtml } from "@/lib/security/html";
+import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
 import { articleJsonLd, breadcrumbJsonLd, renderJsonLd } from "@/lib/seo/jsonld";
 
 type Props = {
@@ -47,6 +49,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         title: article.title,
         description: article.excerpt ?? undefined,
         alternates: buildAlternates(locale, `/culture/${article.slug}`),
+        // WhatsApp shows the cover photograph itself (brand default when
+        // imageless) — the same rule as every other detail page.
+        openGraph: {
+            title: article.title,
+            description: article.excerpt ?? undefined,
+            type: "article",
+            images: [{ url: article.imageUrl ?? DEFAULT_OG_IMAGE }],
+        },
     };
 }
 
@@ -314,6 +324,19 @@ export default async function CultureDetailPage({ params }: Props) {
                         className="prose prose-neutral dark:prose-invert max-w-none"
                         dangerouslySetInnerHTML={{ __html: bodyHtml }}
                     />
+                ) : null}
+
+                {/* Remaining photographs: the hero above shows the cover; the
+                    rest of a multi-photo story lives here (SupportingMedia
+                    carries video/audio/docs only). */}
+                {article.photos.length > 0 ? (
+                    <section className="mt-8" aria-label={dict.photoStories.gallery}>
+                        <GalleryGrid
+                            photos={article.photos}
+                            storyTitle={article.title}
+                            dict={dict}
+                        />
+                    </section>
                 ) : null}
 
                 {(article.attachments ?? []).length > 0 ? (

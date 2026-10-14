@@ -12,6 +12,7 @@ import {
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 import type { StoryCardData } from "@/lib/queries/home";
+import type { PhotoStoryPhoto } from "@/lib/queries/photo-stories";
 import { mapAttachments, previewImageUrl, supportingMedia } from "@/lib/media/attachments";
 
 /**
@@ -40,6 +41,11 @@ export type CultureArticle = StoryCardData & {
     ticketInfo?: string | null;
     organizer?: string | null;
     isEvent?: boolean;
+    /**
+     * Non-cover photographs, in `sort_order`, for the detail-page gallery
+     * (same gap as news: the hero shows the cover, the rest never rendered).
+     */
+    photos: PhotoStoryPhoto[];
 };
 
 export type EventData = CultureArticle & {
@@ -163,6 +169,21 @@ function toCard(row: RawCultureRow, locale: Locale): CultureArticle | null {
     const cover = (row.media ?? []).find((m) => m.is_cover) ?? null;
     const rawCoverUrl = cover?.public_url ?? images[0]?.url ?? null;
     const coverUrl = previewImageUrl(rawCoverUrl, allMedia);
+    // Non-cover photographs in editorial order (same contract as news).
+    const photos: PhotoStoryPhoto[] = (row.media ?? [])
+        .map((m, index) => ({ m, index }))
+        .filter(({ m }) => (m.kind ?? 'image') === 'image' && (m.public_url ?? '').trim() !== '' && m.public_url !== rawCoverUrl)
+        .sort((a, b) => ((a.m.sort_order ?? 0) - (b.m.sort_order ?? 0)))
+        .map(({ m, index }) => ({
+            id: `${row.id}-photo-${index}`,
+            url: (m.public_url ?? '').trim(),
+            alt: m.alt_text ?? null,
+            credit: m.photographer_credit ?? null,
+            caption: m.caption ?? null,
+            position: m.sort_order ?? index,
+            width: null,
+            height: null,
+        }));
     const author = asOne(row.author);
     const event = asOne(row.events);
     const isEvent = Boolean(event?.starts_at);
@@ -192,6 +213,7 @@ function toCard(row: RawCultureRow, locale: Locale): CultureArticle | null {
         hasVideo: allMedia.some((m) => m.kind === 'video'),
         hasAudio: allMedia.some((m) => m.kind === 'audio'),
         attachments: supportingMedia(allMedia),
+        photos,
         eventDate: event?.starts_at ?? null,
         eventTime: event?.ends_at ?? null,
         venue: event?.venue_name ?? null,

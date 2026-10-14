@@ -41,6 +41,7 @@ import { getNoticeById, getNotices, NOTICE_TYPE_LABELS } from "@/lib/queries/not
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { sanitizeBodyHtml } from "@/lib/security/html";
 import { articleJsonLd, breadcrumbJsonLd, renderJsonLd } from "@/lib/seo/jsonld";
+import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
 
 type NoticePageProps = { params: Promise<{ locale: string; id: string }> };
 
@@ -69,8 +70,9 @@ export async function generateMetadata({
             title: notice.title,
             description: notice.excerpt ?? undefined,
             type: "article",
-            // Cover: served by ./opengraph-image.tsx (branded title card that
-            // embeds the cover) — Next injects it automatically.
+            // WhatsApp shows the cover photograph itself (brand default when
+            // imageless) — the same rule as every other detail page.
+            images: [{ url: notice.imageUrl ?? DEFAULT_OG_IMAGE }],
         },
     };
 }

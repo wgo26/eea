@@ -13,7 +13,7 @@ Measure on a Moto G-class device, 4G throttled, `/en` homepage + one
 | LCP, homepage + article | < 2.5 s on 4G (warn) / 5 s (red) | `.github/workflows/lighthouse.yml` weekly lab run (mobile preset + 4G throttling); run locally via `npm run perf:lighthouse` |
 | Article images | Optimized hosts via `next/image`; external pasted URLs fall back to lazy `<img>` | `SmartImage` (`components/media/smart-image.tsx`), `remotePatterns` env-driven |
 | Imported Blogger bodies | ≤ 10 `<img>`, lazy past the lead | `capImportedImages` at ingestion (`lib/admin/blogger.ts` + `scripts/import-blogger.mjs` mirror); render-side `loading="lazy"` (`components/media/media-attachment.tsx`) |
-| OG share cards | 1200×630 PNG; cover fetch capped 2.5 MB | `lib/seo/og-image.tsx` (+ per-route `opengraph-image.tsx`); default `public/og-default.png` (~43 KB) |
+| OG share images | Cover photograph (absolute URL) or default `public/og-default.png` (~43 KB); no per-request image rendering | Explicit `openGraph.images` in each detail `generateMetadata` (news, photo-stories, culture, notices, buy-sell) |
 | Fonts | Inter variable + Newsreader Bold/ExtraBold static only (~47 KB); mono subtree-only | `verify-anon-bundle.mjs` root-font gate |
 | DB weight per page | Indexed reads; 300 s ISR backstop; on-demand `revalidateTag` on publish | `lib/cache/tags.ts`, `revalidatePublicContentCache()` |
 

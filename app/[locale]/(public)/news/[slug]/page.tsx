@@ -27,6 +27,7 @@ import { AdaptiveImage } from "@/components/media/adaptive-image";
 import { SaveOfflineButton } from "@/components/system/save-offline-button";
 import { MobileReaderPill } from "@/components/system/mobile-reader-pill";
 import { SupportingMedia } from "@/components/media/supporting-media";
+import { GalleryGrid } from "@/components/photo-stories/gallery-grid";
 import { ArticleShare } from "@/components/news/article-share";
 import { CorrectionForm } from "@/components/news/correction-form";
 import { CorrectionsNotice } from "@/components/system/corrections-notice";
@@ -51,6 +52,7 @@ import { getAdForSlot } from "@/lib/queries/ads";
 import { isFeatureEnabled } from "@/lib/features";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { sanitizeBodyHtml, escapeJsonForLd } from "@/lib/security/html";
+import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
 import { extractHeadings, extractPullQuote, hasDropCapLead, isHtmlBody, withHeadingAnchors } from "@/lib/news/article-body";
 
 type NewsPageProps = { params: Promise<{ locale: string; slug: string }> };
@@ -85,9 +87,9 @@ export async function generateMetadata({
             title: article.title,
             description: article.excerpt ?? undefined,
             type: "article",
-            // Cover: served by ./opengraph-image.tsx (branded title card that
-            // embeds the cover) — Next injects it automatically, so no
-            // explicit images here (they would duplicate the tags).
+            // WhatsApp shows the cover photograph itself (brand default when
+            // imageless) — the same rule as every other detail page.
+            images: [{ url: article.imageUrl ?? DEFAULT_OG_IMAGE }],
         },
     };
 }
@@ -406,6 +408,20 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                     </section>
                 ) : null}
             </div>
+
+            {/* Remaining photographs: the hero shows the cover; the rest of a
+                multi-photo story lives here (SupportingMedia carries
+                video/audio/docs only, so without this they rendered nowhere).
+                Same GalleryGrid the photo-story page uses — no new pattern. */}
+            {article.photos.length > 0 ? (
+                <section className="mt-8 max-w-4xl" aria-label={dict.photoStories.gallery}>
+                    <GalleryGrid
+                        photos={article.photos}
+                        storyTitle={article.title}
+                        dict={dict}
+                    />
+                </section>
+            ) : null}
 
             {/* Tags */}
             {(article.tags ?? []).length > 0 ? (
