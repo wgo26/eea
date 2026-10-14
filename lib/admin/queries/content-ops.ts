@@ -327,14 +327,14 @@ export async function searchAuthorProfiles(term: string, limit = 12): Promise<{ 
     const { data } = await safe(
       db()
         .from('profiles')
-        .select('id, display_name, full_name')
+        .select('id, display_name')
         .ilike('display_name', `%${q}%`)
         .order('display_name', { ascending: true, nullsFirst: true })
         .limit(limit),
     )
     return (data ?? []).map((r) => ({
       id: r.id,
-      name: (r.display_name || r.full_name || '—').trim(),
+      name: (r.display_name || '—').trim(),
     }))
   } catch (e) {
     logger.error('admin', 'searchAuthorProfiles failed', { error: e instanceof Error ? e.message : String(e) })
@@ -723,4 +723,3 @@ export async function queryContentForSlotAssign(query: string, limit = 10): Prom
     }
   })
 }
-

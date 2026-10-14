@@ -3,6 +3,14 @@ import type { Locale } from '@/lib/i18n'
 /**
  * Formatting helpers shared across the admin section. Centralised so every
  * page renders dates, file sizes and prices consistently.
+ *
+ * Boundary (deliberate, do not "unify" away): this module's contract is
+ * "admin tables" — null/undefined renders '—' and locale defaults to 'en'.
+ * `lib/format.ts` (public money/expiry/WhatsApp) and `lib/i18n/index.ts`
+ * (public dates, '' on invalid) serve different contracts: merging them
+ * would change null-rendering across 95+ call sites. `formatPrice` and
+ * `formatPercent` intentionally differ in signature/semantics from their
+ * public namesakes — same name, different job.
  */
 
 const localeTag: Record<Locale, string> = { en: 'en-GB', fr: 'fr-FR' }

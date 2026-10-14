@@ -22,7 +22,7 @@ import {
     type Dictionary,
     type Locale,
 } from "@/lib/i18n";
-import { getCommunityStats, type CommunityStats } from "@/lib/queries/about";
+import { getCommunityStats } from "@/lib/queries/about";
 import { getCorrectionRegister, type RegisterEntry } from "@/lib/queries/corrections";
 import { getAboutOverrides } from "@/lib/admin/queries";
 import { formatMoneyCompact } from "@/lib/format";
@@ -156,7 +156,7 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
                     <p className="mt-1 text-sm text-muted-foreground">{statsHint}</p>
                 </header>
                 <div className="mt-8 grid grid-cols-2 gap-8 lg:grid-cols-4">
-                    <StatBlock value={stats.storiesPublished.toLocaleString()} label={a.statStories} accent />
+                    <StatBlock value={stats.itemsPublished.toLocaleString()} label={a.statItems} accent />
                     <StatBlock value={stats.contributors.toLocaleString()} label={a.statContributors} />
                     <StatBlock value={stats.locationsCovered.toLocaleString()} label={a.statLocations} />
                     <StatBlock
@@ -165,15 +165,18 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
                         accent
                     />
                 </div>
-                {stats.raisedHeadlineCurrency ? (
-                    <p className="mt-8 border-t border-border/60 pt-5 text-sm text-muted-foreground">
-                        <span className="font-bold text-foreground">
-                            {formatMoneyCompact(stats.raisedHeadlineTotal, stats.raisedHeadlineCurrency, locale)}
-                        </span>{" "}
-                        {raisedFootnote(stats, a, locale)}
-                    </p>
-                ) : null}
             </section>
+
+            {stats.raisedByCurrency.length > 0 ? (
+                <section className="rounded-[2rem] border bg-card p-6 md:p-8">
+                    <h2 className="text-lg font-extrabold">{a.statRaised}</h2>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                        {stats.raisedByCurrency
+                            .map((row) => formatMoneyCompact(row.total, row.currency, locale))
+                            .join(" · ")}
+                    </p>
+                </section>
+            ) : null}
 
             {/* ------------------------------------------ The accountable record */}
             <section>
@@ -385,18 +388,6 @@ function LiveCorrections({
             </Link>
         </div>
     );
-}
-
-/**
- * The raised-funds footnote. Totals are never fused across currencies, so the
- * line names every bucket once the RPC returns it — "1.25M FCFA · €3 200"
- * carries its own evidence. One bucket: just that. None: nothing renders.
- */
-function raisedFootnote(stats: CommunityStats, a: Dictionary["about"], locale: Locale): string {
-    const parts = stats.raisedByCurrency.map((row) =>
-        formatMoneyCompact(row.total, row.currency, locale),
-    );
-    return `${a.statRaised}: ${parts.join(" · ")}`;
 }
 
 function StatBlock({ value, label, accent }: { value: string; label: string; accent?: boolean }) {

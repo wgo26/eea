@@ -227,11 +227,25 @@ staff member with no per-role filtering.
 
 **Lock in these decisions**
 - 🔧 Role model: `admin`, `editor`, `contributor`, `advertiser` exist in
-  `public.app_role`. Decide: **member = an authenticated user with no rows in `user_roles`**
-  (current implicit behavior — document it) or add an explicit `member` enum value. Pick one,
-  record it here; don't leave it implicit.
+  `public.app_role` — no `member` enum value. **Decided and recorded
+  2026-10-14:** **member = an authenticated user with no rows in `user_roles`**
+  (implicit state, e.g. after a staff row removal); every fresh signup instead
+  receives the `contributor` row from `handle_new_user()`. The two states have
+  identical power today (`contributor: []` capabilities), so this is a product
+  distinction, not a privilege one: contributors get the contributor identity
+  (badge, credit line, contributions view), members get the plain member
+  label (`lib/account/identity.ts`). Do not "fix" the trigger to stop
+  inserting the row — the invite flow, role UI and identity copy all assume
+  the default.
 - 🔧 Defense in depth, in order: page/layout guards (always) → server-action role checks
   (every mutating action) → RLS policies (data layer). Never rely on one layer.
+- 🔧 Profile contact and account-control fields are not browser-readable by
+  table-wide grants. Browser clients get only public profile columns and
+  allow-listed self-service update columns; guarded server code uses the
+  service-role client for contact, status, verification, and curation fields.
+  Verified TOTP enrollment also requires an aal2 session for staff RLS
+  branches. Regression coverage lives in `tests/integration/rls.test.ts`;
+  setup and rollout steps live in `docs/supabase-auth-setup.md`.
 - 🔧 Menu visibility is role-driven, not hardcoded: the sidebar/topbar render from a
   capability map (`canManageUsers`, `canModerate`, `canManageAds`, …), so editors and admins
   see different menus.
@@ -588,6 +602,94 @@ below.*
 
 ## Changelog
 
+- 2026-10-14 — **Auth-gap audit: 5 of 6 claims stale, 1 recorded, 0 code defects.**
+  Verified each claim against the working tree (which already carries the
+  uncommitted auth-hardening pass: config fixes, email-function deletion,
+  `20261203120000_auth_security_hardening.sql`): localhost allowlist present,
+  email confirmations ON, TOTP enroll+verify ON, email docs already
+  built-in-only with the custom function retired+dropped, password reset
+  already behind IP-block + fail-closed rate limit + Turnstile + audit, and
+  `docs/supabase-auth-setup.md` already covering every hosted verification
+  item. Real outputs: removed the empty `supabase/functions/send-auth-email/`
+  shell (files already deleted; no references remain) and recorded the
+  member-vs-default-contributor decision in item 5 + `capabilities.ts`
+  (identical power — product identity, not privilege; trigger intentionally
+  untouched). Hosted Dashboard state remains operator-verified by definition.
+- 2026-10-14 — **Remains, implemented: offline outbox, SMS fallback, Pidgin share.**
+  - *Offline outbox* (`components/submit/use-submit-queue.ts`): the Send tap
+    while offline snapshots text fields into a per-type localStorage slot and
+    shows a queued receipt; on reconnect one tap restores (empty fields only
+    — never overwrites reporter fixes) and submits normally with a fresh
+    Turnstile token. Success clears the slot. Honest limit in the copy: file
+    uploads can't serialize — URL media survives, picked files re-attach.
+  - *SMS fallback* (`contact_sms` site setting, no DDL — key-value row):
+    queries/settings (key/type/map) + policies allowlist/validation + admin
+    ContactChannelsForm field + en/fr admin copy + en/fr `fallbackSms` +
+    `SubmitOfflineNotice` sms: row + all 5 submit pages + seed preset (the
+    seed-coverage test caught the missing preset — fixed). Also fixed a live
+    bug found on the way: `getSiteSettingsAdmin` fetched but never mapped
+    contact rows, so the admin form always rendered empty/"not set".
+  - *Pidgin share-voice* (`lib/share/pidgin.ts` + test): per-type fallback
+    lines when editors wrote no `share_text` (share_text still wins);
+    `contentType` threaded through ShareSheet/ShareButtons/ArticleShare/
+    ArticleActionRow across all 7 detail surfaces (events → culture frame).
+  - *Champion kit*: verified `docs/champion-kit.md` already current (Lost
+    deep-links, mic training, safety tip, scoreboard) — no change needed.
+  - *Table drops*: explicitly NOT done — the lean-cut migration forbids
+    applying without backup/restore proof; refusing is the implementation.
+  - Validation: `npm run check` exit 0, full unit suite 883/883, `next build`
+    202/202 green, no static qrcode/leaflet imports (dynamic-only verified).
+- 2026-10-14 — **Batches 3–4 audit outcome: no cut — every stack is live.**
+  Importer-verified all six audit cut targets: lib/ai (11 importers incl.
+  admin layout, secrets UI, news/search queries), lib/translate (6 incl.
+  content/credentials/translations actions), lib/billing (listings-claims
+  pages, billing panel, buy-sell queries), lib/digest (weekly-digest cron +
+  digest actions), lib/automation (all 5 canonical crons + admin shell),
+  lib/branding (root + locale layouts, public shell, icon/manifest routes),
+  plus ratings/messages/follows/saves (account surfaces) and ProEditor
+  (content-form story section). Zero dead files — an early `brief.ts`
+  suspect was a relative-import blind spot (`deliver.ts`, `freeze.ts` import
+  it). Deleting any of these unships tested product (parity, nav-integrity,
+  e2e pin them) and contradicts the Oct 6 direction; per the lean-cut
+  migration's own rule, decommission ships first and table drops wait for the
+  Phase 2.5 backup gate. No code changed in this batch by design.
+- 2026-10-14 — **Lean-audit follow-through, batch 3: content-form split.**
+  `admin/content/content-form.tsx` 1426 → 418 lines: three hooks extracted
+  (`form/use-author-search`, `form/use-selection-ai`, `form/use-content-submit`)
+  and seven section components (`form/section-details/story/media/meta/type/
+  seo/publishing`), all verbatim moves — the file is now pure orchestration
+  (values, autosave, translator, assist, submit wiring). Size-ratchet
+  allowlist retired (0 allowlisted, cap 800 holds). `form-parity` (14) +
+  `submission-prefill` (22) green; full `npm run check` exit 0; full unit
+  suite 875/875 green across two consecutive runs (one transient single-test
+  flake on the first pass, unrelated area, clean on retry ×2).
+- 2026-10-14 — **Lean-audit follow-through, batch 2: god-file split + UI prune.**
+  `lib/public/actions.ts` (1415 lines) split into `abuse.ts` (plain shared
+  module: budgets, allowlists, `validateSubmissionContent`, fingerprint,
+  `guardPublicSubmission`) + four `use server` leaves (`submit-actions`,
+  `contact-actions`, `report-actions`, `engagement-actions`); all 11
+  component importers + both unit tests repointed, old file deleted (a
+  re-export barrel would trip `verify-server-actions.mjs`). New
+  `abuse.test.ts` (9 tests) closes the submit-validation unit-test gap.
+  `components/ui/` pruned 55 → 25 (30 zero-importer files deleted, locked in
+  `verify-lean-deps.mjs`). Formatters deliberately NOT merged:
+  `lib/admin/format.ts` vs `lib/format.ts` vs `lib/i18n/index.ts` carry
+  different null/locale contracts — boundary now documented in the module
+  doc. Also fixed 6 pre-existing `text-[10/11px]` floor violations so
+  `npm run check` is fully green again.
+- 2026-10-14 — **Lean-audit follow-through, batch 1 (verified before cutting).**
+  A fresh tree verification showed most of the merged-audit roadmap already
+  shipped (5-item nav, 13-section admin nav, 5 crons, Stories feed, voice
+  input, offline drafts, Lost & Found deep-links + notices hero, safety tips,
+  rotated keys, guest-lost-found + trader-listing e2e) and several audit
+  claims stale (`cmdk`/leaflet/qrcode in use, `js-yaml` already dev-only,
+  per-route OG files by design, `/buy-sell/post` a contextual entry — kept).
+  Shipped: `qrcode` dynamically imported in `QrShareButton` (out of the
+  public first-load bundle); `/submit` index gains a Lost & Found fast-track
+  (lost/found/missing-preset deep-links, `dict.notices.*` labels reused — no
+  new dictionary keys, parity untouched). Deferred deliberately: table drops
+  (Phase 2.5 gate in `20261201000000_lean_cut.sql`), B2/Cloudinary removal
+  (backup cron + CSP still wired), god-file splits (need test cover first).
 - 2026-10-06 — **Community-first build-out, phases 1–7: pro editor, live
   events, trusted directory, MoMo billing, lifecycle parity, launch
   hardening.** Six phases shipped as one arc, each keeping the invariants
@@ -1143,7 +1245,7 @@ below.*
     — NOT VALID so legacy rows can't fail the migration) and a
     `before insert or update of payload` trigger
     `enforce_submission_payload_shape()` that whitelists the 18 intake fields
-    (mirror of `PAYLOAD_FIELDS` in `lib/public/actions.ts` — keep in sync),
+    (mirror of `PAYLOAD_FIELDS` in `lib/public/abuse.ts` — keep in sync),
     caps strings at 4000 chars (photos 8000) and rejects non-string values.
     Triggers fire for service_role too, closing the service-role-bypass gap
     for the public intake.
@@ -1443,8 +1545,6 @@ below.*
   - **Tests** — `lib/storage/validate.test.ts` pins the re-encode contract
     with real sharp buffers (WebP output + 2560 cap + no upscale + PNG
     lossless + executable rejection).
-
-
 
 
 

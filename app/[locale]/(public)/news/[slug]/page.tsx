@@ -317,6 +317,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                     <ArticleShare
                         url={shareUrl}
                         title={article.title}
+                        contentType="news"
                         copyLabel={dict.news.shareCopy}
                         copiedLabel={dict.news.shareCopied}
                         shareLabel={dict.news.shareNative}
@@ -537,6 +538,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
                                 shareUrl={shareUrl}
                                 title={article.title}
                                 locale={locale}
+                                contentType="news"
                                 listenText={`${article.excerpt ?? ""}\n\n${rawBody}`}
                                 showReadingMode={readingModeOn}
                                 showListen={ttsOn}

@@ -4,7 +4,7 @@ import * as React from "react";
 import { Bell, BellOff, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { getPriceWatchState, togglePriceWatch } from "@/lib/public/actions";
+import { getPriceWatchState, togglePriceWatch } from "@/lib/public/engagement-actions";
 
 /**
  * Phase 3 — price-drop watch toggle for a listing. Shows watcher count as

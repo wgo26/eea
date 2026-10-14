@@ -1,4 +1,5 @@
 import { ShareSheet } from "@/components/system/share-sheet";
+import type { ShareContentType } from "@/lib/share/pidgin";
 
 type ShareButtonsProps = {
     url: string;
@@ -9,6 +10,8 @@ type ShareButtonsProps = {
     locale?: string;
     /** Per-content id — taps bump `share_count` + voice aggregate. */
     contentId?: string | null;
+    /** Content type for the Pidgin fallback line (shareText wins). */
+    contentType?: ShareContentType | null;
     /** Localized labels — passed by localized pages (defaults keep English). */
     labels?: {
         share: string;
@@ -25,7 +28,7 @@ const DEFAULT_LABELS = {
     copied: "Copied!",
 };
 
-export function ShareButtons({ url, title, shareText, voiceType, locale, contentId, labels }: ShareButtonsProps) {
+export function ShareButtons({ url, title, shareText, voiceType, locale, contentId, contentType, labels }: ShareButtonsProps) {
     const t = { ...DEFAULT_LABELS, ...labels };
     return (
         <ShareSheet
@@ -35,6 +38,7 @@ export function ShareButtons({ url, title, shareText, voiceType, locale, content
             voiceType={voiceType}
             locale={locale}
             contentId={contentId}
+            contentType={contentType}
             labels={{
                 ...t,
                 facebook: "Facebook",

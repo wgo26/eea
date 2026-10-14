@@ -3,9 +3,9 @@ import { chromeEn } from './chrome-en'
 
 export const en = {
   meta: {
-    title: 'Eagle Eye Africa | Pan-African News & Community Insights',
+    title: 'Eagle Eye Africa | African Community Stories & Local Record',
     description:
-      'A pan-African media platform: journalism, photo stories, community notices, buy & sell and culture across the continent — reported by Africans, verified on the ground.',
+      'A place-based public record of African community life: local journalism, photo stories, notices and culture, with visible sources, verification states and corrections.',
   },
   // A2: every-page chrome strings live in chrome-en.ts (single source shared
   // with the lightweight client module). Referenced here so Dictionary keeps
@@ -529,6 +529,16 @@ export const en = {
       'Your draft is saved on this device and will be restored when you return. Reconnect, then tap Send — submissions need a connection (spam protection cannot run offline).',
     fallbackWhatsapp:
       'No internet at all? Send your report by WhatsApp to {number} and our editors will post it for you.',
+    fallbackSms:
+      'Prefer text? Send your report by SMS to {number} and our editors will post it for you.',
+    // Offline outbox: the Send tap snapshots text fields while offline; the
+    // reporter completes the send on reconnect (spam checks run online).
+    queuedTitle: 'Saved on this device — will send when online',
+    queuedBody:
+      'Your report is queued. Reconnect, then tap “Send queued report” — it goes through the normal review with a fresh verification.',
+    queuedNote: 'Text and links are saved. Photos picked from your device must be re-attached.',
+    queuedSend: 'Send queued report',
+    queuedDiscard: 'Discard queued report',
     types: {
       photoStory: {
         title: 'Photo Story',
@@ -728,12 +738,12 @@ export const en = {
   },
   about: {
     title: 'About Eagle Eye Africa',
-    tagline: 'From Bamenda to the Continent — Telling African Stories by Africans.',
+    tagline: 'From Bamenda to the continent: a public record told by the people who live it.',
     intro:
-      'Eagle Eye Africa is a pan-African media platform. We combine journalism, visual storytelling, community information, classifieds and culture into one trusted continental board — reported by Africans, verified on the ground.',
+      'Eagle Eye Africa is building a durable, place-based public record of what happens in African communities. People close to events can contribute reporting and photographs; editors review evidence and context; readers can see who reported a story, what has been checked and what changed. Notices and culture document local life. Classifieds are a separate local service, not verified reporting.',
     missionTitle: 'Our mission',
     missionBody:
-      'From Bamenda to the Continent — Telling African Stories by Africans. We exist to give every African community a clear, verified view of what is happening around them, and to put the people who live there at the centre of the story.',
+      'Events witnessed by local people can be hard to find, verify, attribute and revisit after the news cycle moves on. We make those accounts discoverable and accountable: people closest to an event can contribute, editors check what they can, and readers can follow the sources, uncertainty and corrections.',
     policiesTitle: 'Policies & legal',
     languageNote: 'You are reading the {lang} version. Content may be available in other languages.',
     comingSoon: 'This section is being finalised — check back shortly.',
@@ -789,33 +799,33 @@ export const en = {
     contactTitle: 'Contact us',
     back: 'Back to About',
     heroKicker: 'From Bamenda to the Continent',
-    heroTitle: 'A pan-African record of what is happening across Africa.',
+    heroTitle: 'What happens in African communities should not disappear into the feed.',
     heroBody:
-      'Eagle Eye Africa turns sightings into stories: photo essays, community news, official notices, classifieds and culture — submitted by the people who live it, verified on the ground across the continent.',
+      'Eagle Eye Africa builds a lasting, place-based record from local reporting, photographs, notices and cultural stories. People who witness events can contribute; editors review evidence and context; readers can see what is known, what remains uncertain and what changed. Classifieds serve local exchange alongside the record, not as journalism.',
     ctaSubmit: 'Submit a story',
     ctaExplore: 'Explore the sections',
     ctaSearch: 'Search the record',
     statsTitle: 'The record so far',
     statsHint: 'Live from the platform — updated as the community grows.',
-    statStories: 'Stories published',
+    statItems: 'Published content items',
     statContributors: 'Contributors',
-    statLocations: 'Locations covered',
+    statLocations: 'Places with published items',
     statRaised: 'Raised for communities',
     pipelineTitle: 'From sighting to verified story',
     pipelineHint: 'Every submission passes through the same editorial pipeline before it joins the continental record.',
     pipeSubmitted: 'Submitted',
-    pipeSubmittedBody: 'Anyone can submit — no account needed. Photos, news, notices, listings and culture from across Africa.',
-    pipeReview: 'In review',
-    pipeReviewBody: 'Editors check facts, context and rights before anything is approved.',
+    pipeSubmittedBody: 'Anyone can contribute — no account needed. Send firsthand reporting, photographs, notices, listings or cultural stories from your community.',
+    pipeReview: 'Editorial review',
+    pipeReviewBody: 'Editors review evidence, context and rights, applying the checks appropriate to each kind of submission.',
     pipeVerified: 'Verified on the ground',
     pipeVerifiedBody: 'Confirmed reports and official notices earn the verification mark — reported firsthand by local correspondents.',
     pipePublished: 'Published',
-    pipePublishedBody: 'The story joins the continental record — credited to its contributor, shareable everywhere with #EagleEyeAfrica.',
+    pipePublishedBody: 'Editorial stories join the community record with contributor credit and a visible status. Listings remain clearly identified as marketplace offers, not verified reporting.',
 valuesTitle: 'What we stand for',
-    vCommunityTitle: 'Africa first',
+    vCommunityTitle: 'Start with the people who were there',
     vCommunityBody: 'The people who live the story tell the story — from Bamenda to Cape Town, Eagle Eye is their lens, not a gatekeeper.',
     vVerifiedTitle: 'Verification before reach',
-    vVerifiedBody: 'Nothing is published unreviewed. Stories are verified on the ground by local correspondents; rumours are not amplified.',
+    vVerifiedBody: 'Editorial review is not a promise that every detail is certain. We show what has been checked and what is still developing; rumours are not presented as fact.',
     vCreditTitle: 'Credit where it is due',
     vCreditBody: 'Every photograph and report carries its contributor\'s name — visibility across the continent is the reward.',
     vOpenTitle: 'An open record',
@@ -916,9 +926,9 @@ valuesTitle: 'What we stand for',
     guideMetaDesc: 'How to read, contribute, stay safe and advertise on Eagle Eye Africa — the community guide.',
     guideTitle: 'Community Guide',
     guideIntro:
-      'Eagle Eye Africa is a community-first African media platform: local journalism, visual storytelling, community notices, buy & sell and culture — reported by Africans, verified on the ground. This guide shows how to read it, contribute to it, and stay safe using it.',
+      'Eagle Eye Africa is building a lasting record of African community life through local reporting, photographs, notices and culture. Stories show their source and verification state; accepted corrections stay public. Buy & Sell is a separate local service. This guide explains how to read, contribute and use each section safely.',
     guideBrowseTitle: 'Find your section',
-    guideNews: 'Verified local reporting, filterable by category and place.',
+    guideNews: 'Local reporting, searchable by category and place, with each story’s source status shown.',
     guidePhotos: 'Visual storytelling from community photographers.',
     guideCulture: 'Arts, events and culture — including what is on near you.',
     guideNotices: 'Lost & found, alerts, school and official announcements.',

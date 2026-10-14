@@ -24,7 +24,7 @@ import { logger } from "@/lib/observability/logger";
  * WHY THE BASE TABLE AND NOT THE VIEW: generated `Database` types only cover
  * views when the generator runs against a live schema, so a view read breaks
  * `tsc` on DDL-only regeneration — the same trade-off documented on
- * getContentReactionState() (lib/public/actions.ts). These reads run on the
+ * getContentReactionState() (lib/public/engagement-actions.ts). These reads run on the
  * service-role client, which bypasses RLS by design, so the column list here
  * IS the filter. Keep it in step with the view; the RLS suite asserts the
  * view's shape, so the two cannot drift silently.

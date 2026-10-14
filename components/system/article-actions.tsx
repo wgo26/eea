@@ -7,6 +7,7 @@ import { TextSizeControl } from "@/components/system/text-size-control";
 import { ReadingModeToggle } from "@/components/system/reading-mode-toggle";
 import { ListenButton } from "@/components/system/listen-button";
 import { QrShareButton } from "@/components/system/qr-share-button";
+import type { ShareContentType } from "@/lib/share/pidgin";
 import { useExperiment } from "@/lib/experiments";
 import type { Dictionary, Locale } from "@/lib/i18n";
 
@@ -23,6 +24,7 @@ export function ArticleActionRow({
     shareUrl,
     title,
     locale,
+    contentType,
     listenText,
     saveVariant = "bookmark",
     showTextSize = true,
@@ -35,6 +37,8 @@ export function ArticleActionRow({
     shareUrl: string;
     title: string;
     locale: Locale;
+    /** Content type for the Pidgin share fallback (shareText wins). */
+    contentType?: ShareContentType | null;
     /** Plain-ish text for audio playback (tags are stripped defensively). */
     listenText?: string | null;
     saveVariant?: "bookmark" | "heart";
@@ -59,7 +63,7 @@ export function ArticleActionRow({
         signIn: dict.common.signInToSave,
     };
 
-    const share = <ShareButtons url={shareUrl} title={title} locale={locale} contentId={contentItemId} labels={shareLabels} />;
+    const share = <ShareButtons url={shareUrl} title={title} locale={locale} contentId={contentItemId} contentType={contentType} labels={shareLabels} />;
     const save = <SaveButton contentItemId={contentItemId} variant={saveVariant} labels={saveLabels} />;
 
     return (

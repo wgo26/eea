@@ -80,9 +80,13 @@ export async function getMyPrefs(): Promise<NotificationPrefs> {
 
 /** Phone + account email backing the email/WhatsApp toggles (own-row RLS). */
 export async function getMyContact(): Promise<{ phone: string; email: string }> {
-  const { supabase, user } = await getSessionUser();
+  const { user } = await getSessionUser();
   if (!user) return { phone: '', email: '' };
-  const { data } = await supabase.from('profiles').select('phone').eq('id', user.id).maybeSingle();
+  const { data } = await createAdminClient()
+    .from('profiles')
+    .select('phone')
+    .eq('id', user.id)
+    .maybeSingle();
   const row = data as { phone?: string | null } | null;
   return { phone: row?.phone ?? '', email: user.email ?? '' };
 }

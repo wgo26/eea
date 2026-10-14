@@ -1,4 +1,5 @@
 import { ShareSheet } from "@/components/system/share-sheet";
+import type { ShareContentType } from "@/lib/share/pidgin";
 
 /**
  * Rich share row for the article page — thin wrapper over the shared
@@ -30,6 +31,7 @@ export function ArticleShare({
     locale,
     /** Per-content id — taps bump `share_count` + voice aggregate. */
     contentId,
+    contentType,
     moreOptionsLabel,
 }: {
     url: string;
@@ -45,6 +47,8 @@ export function ArticleShare({
     voiceType?: string | null;
     locale?: string;
     contentId?: string | null;
+    /** Content type for the Pidgin fallback line (shareText wins). */
+    contentType?: ShareContentType | null;
     moreOptionsLabel?: string;
 }) {
     return (
@@ -55,6 +59,7 @@ export function ArticleShare({
             voiceType={voiceType}
             locale={locale}
             contentId={contentId}
+            contentType={contentType}
             labels={{
                 share: shareLabel,
                 whatsapp: whatsappLabel,

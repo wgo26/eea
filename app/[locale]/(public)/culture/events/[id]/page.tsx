@@ -282,6 +282,7 @@ export default async function EventDetailPage({ params }: Props) {
                         title={event.title}
                         locale={locale}
                         contentId={event.id}
+                        contentType="culture"
                         labels={{
                             share: dict.common.share,
                             whatsapp: dict.common.whatsapp,

@@ -167,10 +167,10 @@ export async function getThread(conversationId: string): Promise<ThreadDetail | 
     .maybeSingle()
   const { data: profile } = await supabase
     .from('profiles')
-    .select('display_name, full_name')
+    .select('display_name')
     .eq('id', otherId)
     .maybeSingle()
-  const p = profile as { display_name?: string | null; full_name?: string | null } | null
+  const p = profile as { display_name?: string | null } | null
   const content = (Array.isArray(row.content) ? row.content[0] : row.content) as {
     translations?: { title?: string | null } | { title?: string | null }[] | null
   } | null
@@ -186,7 +186,7 @@ export async function getThread(conversationId: string): Promise<ThreadDetail | 
     id: row.id as string,
     contentItemId: row.content_item_id as string,
     listingTitle: list[0]?.title ?? 'Listing',
-    otherName: p?.display_name ?? p?.full_name ?? null,
+    otherName: p?.display_name ?? null,
     otherUserId: otherId,
     blockedByMe: Boolean(myBlock),
     messages: ((msgs ?? []) as { id: string; sender_id: string; body: string; created_at: string }[]).map((m) => ({

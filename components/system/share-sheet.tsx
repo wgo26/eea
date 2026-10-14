@@ -16,7 +16,7 @@ import {
   beaconContentShare,
   resolveShareVoice,
 } from "@/lib/analytics/share-voice";
-
+import { pidginShareLine, type ShareContentType } from "@/lib/share/pidgin";
 export type ShareSheetLabels = {
   share: string;
   whatsapp: string;
@@ -46,6 +46,7 @@ export function ShareSheet({
   voiceType,
   locale,
   contentId,
+  contentType,
   labels,
 }: {
   url: string;
@@ -55,13 +56,17 @@ export function ShareSheet({
   locale?: string;
   /** Per-content id — when set, taps bump `share_count` + voice aggregate. */
   contentId?: string | null;
+  /** Content type for the Pidgin fallback line (editor share_text wins). */
+  contentType?: ShareContentType | null;
   labels: ShareSheetLabels;
 }) {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const loc = locale === "fr" ? "fr" : "en";
 
-  const shareLine = shareText?.trim() || title;
+  // Editor-written share_text wins; otherwise the street-voice fallback so
+  // every story shares like a person even when nobody wrote a share line.
+  const shareLine = shareText?.trim() || pidginShareLine(title, contentType);
   const encodedUrl = encodeURIComponent(url);
   const encodedTitle = encodeURIComponent(shareLine);
   const waHref = `https://wa.me/?text=${encodedTitle}%20${encodedUrl}`;

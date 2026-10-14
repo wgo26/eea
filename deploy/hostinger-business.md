@@ -102,10 +102,11 @@ In Supabase Authentication settings:
 
 - [ ] Set the Site URL to `https://eagleeyeafrica.org`.
 - [ ] Allow `https://eagleeyeafrica.org/auth/callback`.
-- [ ] Allow `https://eagleeyeafrica.org/en/auth/callback`.
-- [ ] Allow `https://eagleeyeafrica.org/fr/auth/callback`.
-- [ ] Configure password reset and email confirmation URLs.
+- [ ] Allow the `www` callback only if that host is intentionally supported.
+- [ ] Configure email confirmation and password recovery links through the root callback.
 - [ ] Configure production SMTP.
+- [ ] Install the six built-in Auth email templates from `supabase/templates/`.
+- [ ] Disable any retired custom Auth email hook before applying the cleanup migration.
 - [ ] Verify the `admin-asset` Storage bucket and policies.
 
 The repository migration [20260907000000_admin_asset_storage.sql](../supabase/migrations/20260907000000_admin_asset_storage.sql)
@@ -139,6 +140,8 @@ repository alone:
 - [ ] Allowed redirect URLs include `https://eagleeyeafrica.org/auth/callback` (plus `www.` variant). Note: the callback is a root route (`app/auth/callback/route.ts`, exempt from locale redirect) — there are no `/en|fr/auth/callback` routes; locale is carried in `?next=`.
 - [ ] Password reset redirect uses the production HTTPS domain.
 - [ ] Email confirmation redirect uses the production HTTPS domain.
+- [ ] Password confirmation minimum is 8 characters and secure password change is enabled.
+- [ ] Authenticator-app TOTP is enabled and a verified factor was tested end-to-end.
 - [ ] Production SMTP is configured and a test email was delivered.
 - [ ] Sender name and sender email are correct.
 - [ ] SPF, DKIM, and DMARC pass for the sender domain.
@@ -204,7 +207,7 @@ Options, in order of preference:
 
 Apply all migrations from `supabase/migrations/` in filename order
 (`scripts/verify-migrations.mjs`, wired into `npm run check`, reports the
-count — currently 57 — and gates the build on filename format, duplicate
+count — currently 98 — and gates the build on filename format, duplicate
 timestamps, and empty files):
 
 - Preferred: Supabase CLI — `supabase link --project-ref <ref>`, then

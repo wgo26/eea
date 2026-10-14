@@ -120,7 +120,7 @@ export async function sendTestDigest(
   try {
     const { supabase, user } = await assertCapability('manageContent')
     // Get admin's contact info
-    const { data: profile } = await supabase
+    const { data: profile } = await createAdminClient()
       .from('profiles')
       .select('email, phone')
       .eq('id', user.id)

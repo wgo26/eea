@@ -123,8 +123,8 @@ export async function getPolicies(
 }
 
 export type CommunityStats = {
-    /** Due, published, unarchived stories (from the content pipeline). */
-    storiesPublished: number;
+    /** Due, published, unarchived content items across the product. */
+    itemsPublished: number;
     /** Distinct people with at least one live published story — not accounts. */
     contributors: number;
     /** Active locations that actually hold published content. */
@@ -133,23 +133,18 @@ export type CommunityStats = {
     correctionsPublished30d: number;
     /** Raised funds, one total per currency (never fused across currencies). */
     raisedByCurrency: { currency: string; total: number }[];
-    /** The currency of the headline "raised" figure, or null when empty. */
-    raisedHeadlineCurrency: string | null;
-    /** The headline "raised" figure (largest currency bucket by total). */
-    raisedHeadlineTotal: number;
 };
 
 const EMPTY_STATS: CommunityStats = {
-    storiesPublished: 0,
+    itemsPublished: 0,
     contributors: 0,
     locationsCovered: 0,
     correctionsPublished30d: 0,
     raisedByCurrency: [],
-    raisedHeadlineCurrency: null,
-    raisedHeadlineTotal: 0,
 };
 
 type RecordStatsRpc = {
+    /** Legacy RPC key; the value counts every published content type. */
     stories_published?: unknown;
     contributors?: unknown;
     places_covered?: unknown;
@@ -184,15 +179,12 @@ export function mapRecordStats(payload: RecordStatsRpc | null | undefined): Comm
         }
     }
     raisedByCurrency.sort((a, b) => b.total - a.total);
-    const headline = raisedByCurrency[0] ?? null;
     return {
-        storiesPublished: toCount(payload.stories_published),
+        itemsPublished: toCount(payload.stories_published),
         contributors: toCount(payload.contributors),
         locationsCovered: toCount(payload.places_covered),
         correctionsPublished30d: toCount(payload.corrections_30d),
         raisedByCurrency,
-        raisedHeadlineCurrency: headline?.currency ?? null,
-        raisedHeadlineTotal: headline?.total ?? 0,
     };
 }
 

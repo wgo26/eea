@@ -4,7 +4,7 @@ import * as React from "react";
 import { Eye, EyeOff, Loader2, Mail, Phone } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { revealNoticeContact } from "@/lib/public/actions";
+import { revealNoticeContact } from "@/lib/public/contact-actions";
 
 type RevealNoticeContactProps = {
     noticeId: string;

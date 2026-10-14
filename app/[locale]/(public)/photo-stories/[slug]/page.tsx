@@ -359,6 +359,7 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                                 shareText={story.shareText ?? undefined}
                                 locale={locale}
                                 contentId={story.id}
+                                contentType="photo_story"
                                 labels={{
                                     share: dict.common.share,
                                     whatsapp: dict.common.whatsapp,

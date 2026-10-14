@@ -67,7 +67,7 @@ export function AiPanel({ copy, disabled, working, onAction, lastResult }: Props
             }}
           >
             <span className="block text-xs font-semibold text-foreground">{c.label}</span>
-            <span className="block text-[11px] leading-snug text-muted-foreground">{c.desc}</span>
+            <span className="block text-xs leading-snug text-muted-foreground">{c.desc}</span>
           </button>
         ))}
       </div>

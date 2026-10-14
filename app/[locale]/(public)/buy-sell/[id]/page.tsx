@@ -299,6 +299,7 @@ export default async function ListingPage({ params }: ListingPageProps) {
                             shareUrl={shareUrl}
                             title={listing.title}
                             locale={locale}
+                            contentType="listing"
                             saveVariant="heart"
                             showTextSize={false}
                             dict={dict}

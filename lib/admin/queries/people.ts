@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { isRole } from '@/lib/auth/roles'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { AppRole, db, hasDatabase, safe } from './shared'
 
 /* ------------------------------------------------------------------ */
@@ -82,7 +83,7 @@ export async function getUsers(options?: { search?: string; role?: AppRole | 'al
   const page = options?.page ?? 1
   const offset = (page - 1) * limit
 
-  let query = db()
+  let query = createAdminClient()
     .from('profiles')
     .select(USER_SELECT, { count: 'exact' })
     .order('created_at', { ascending: false })
@@ -132,7 +133,7 @@ export type UserDetail = {
 export async function getUserDetail(userId: string): Promise<UserDetail | null> {
   if (!hasDatabase()) return null
   const profileRes = await safe(
-    db()
+    createAdminClient()
       .from('profiles')
       .select(USER_SELECT)
       .eq('id', userId)
@@ -500,4 +501,3 @@ export async function getCampaigns(options?: {
   })
   return { rows, total: res.count ?? rows.length }
 }
-

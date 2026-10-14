@@ -1,6 +1,6 @@
 # EAGLE EYE AFRICA — SITE MAP
 
-This maps every primary page implied by the Master Feature Set (Sections 1–18) and the Gap-Fill Sections (19–24) into a hierarchy, plus how pages link to each other.
+This maps the product's public record, participation flows and supporting local services into a hierarchy, plus how pages link to each other. The editorial record is the spine: reporting, photographs, notices and culture are discoverable by place, attributable to their sources, and open to correction. Marketplace and advertising surfaces remain distinct from editorial content.
 
 ---
 
@@ -23,7 +23,7 @@ This maps every primary page implied by the Master Feature Set (Sections 1–18)
 └── /about (legal & static)
 ```
 
-Every top-level section follows the same **Index → Detail** pattern, and every Detail page follows the same **content + related + share + report** pattern. That repetition is intentional — it's what makes the "One Community Board" differentiator (Section 18, #4) feel coherent rather than like five separate mini-sites stitched together.
+Editorial sections follow a consistent **Index → Detail** pattern. Detail pages connect related material, source and place context, sharing, and correction/report paths where appropriate. The shared structure helps readers navigate one place-based record without implying that a listing, ad, notice and reported story carry the same evidence standard.
 
 ---
 
@@ -53,7 +53,7 @@ Every top-level section follows the same **Index → Detail** pattern, and every
     └── /locations
 ```
 
-The homepage is a **hub, not a destination** — every module exists to route the visitor into one of the six content verticals or into `/submit`.
+The homepage is the front door to the community record: lead with local reporting and visual stories, then connect notices and culture. Buy & Sell is a separate practical service; advertisements are labeled, kept out of the editorial hierarchy, and never presented as reporting. Submission and digest links bring readers back into the participation loop.
 
 ---
 
@@ -321,7 +321,7 @@ Rather than five silos, most detail pages carry the same four link types outward
 | **Contributor/byline/org** | `/contributors/[id]` |
 | **Share/WhatsApp** | external, but drives return traffic back into whichever detail page was shared |
 
-This is what makes Differentiator #4 ("One Community Board") actually work as a site structure and not just a homepage layout: a reader following a **location** tag from a road-closure notice can land on `/locations/mankon` and see a photo story, a news update, and a for-sale listing from the same place, without ever going back through the homepage.
+This is what makes the place-first record work as a site structure: a reader following a **location** tag from a road-closure notice can land on `/locations/mankon` and find reporting and photos from that place. Related listings may appear as separate local offers, never as evidence or verified editorial coverage.
 
 `/search` and `/locations/[place]` are the two "everything" pages — every other page is reachable from either.
 

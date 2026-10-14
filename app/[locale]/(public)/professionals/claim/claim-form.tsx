@@ -124,7 +124,7 @@ export function ClaimForm({
         {form.skillsRaw.trim() ? (
           <span className="flex flex-wrap gap-1 pt-1">
             {parseSkills(form.skillsRaw).map((s) => (
-              <span key={s} className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+              <span key={s} className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                 {s}
               </span>
             ))}

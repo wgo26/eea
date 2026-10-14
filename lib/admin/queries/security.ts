@@ -35,6 +35,9 @@ export const SECURITY_ACTIONS: Record<string, SecurityCategory> = {
   'auth.login.succeeded': 'auth',
   'auth.mfa.challenge': 'auth',
   'auth.logout': 'auth',
+  'auth.password_reset.requested': 'auth',
+  'auth.password_reset.failed': 'auth',
+  'auth.password_reset.blocked': 'auth',
   // §53 permission escalation + network enforcement
   'user:role:assign': 'permissions',
   'user:role:remove': 'permissions',

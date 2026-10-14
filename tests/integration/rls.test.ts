@@ -41,6 +41,10 @@ async function asUser<T>(
   try {
     if (userId) {
       await client.query('select set_config($1, $2, true)', ['request.jwt.claim.sub', userId])
+      await client.query(
+        'select set_config($1, $2, true)',
+        ['request.jwt.claims', JSON.stringify({ aal: userId === U.admin ? 'aal2' : 'aal1' })],
+      )
     }
     await client.query(`set local role ${role}`)
     return await fn(client)
@@ -79,6 +83,15 @@ suite('RLS invariants — RBAC core', () => {
       `insert into public.user_roles (user_id, role) values ($1, 'admin'), ($2, 'editor')
        on conflict (user_id, role) do nothing`,
       [U.admin, U.editor],
+    )
+    await client.query(
+      `insert into auth.mfa_factors (user_id, factor_type, status)
+       select $1, 'totp', 'verified'
+       where not exists (
+         select 1 from auth.mfa_factors
+         where user_id = $1 and factor_type = 'totp' and status = 'verified'
+       )`,
+      [U.admin],
     )
     await client.query(
       `insert into public.content_items (type, slug, status, published_at, is_archived) values
@@ -244,6 +257,52 @@ suite('RLS invariants — RBAC core', () => {
         ]),
       ),
     ).rejects.toThrow(/row-level security/i)
+  })
+
+  it('members cannot read private profile contact fields or edit trust/status flags', async () => {
+    await expect(
+      asUser('authenticated', U.member, (c) =>
+        c.query('select phone from public.profiles where id = $1', [U.member]),
+      ),
+    ).rejects.toThrow(/permission denied/i)
+    await expect(
+      asUser('authenticated', U.member, (c) =>
+        c.query('update public.profiles set is_verified = true where id = $1', [U.member]),
+      ),
+    ).rejects.toThrow(/permission denied/i)
+    await expect(
+      asUser('authenticated', U.member, (c) =>
+        c.query('update public.profiles set is_suspended = true where id = $1', [U.member]),
+      ),
+    ).rejects.toThrow(/permission denied/i)
+    await expect(
+      asUser('authenticated', U.member, (c) =>
+        c.query('update public.profiles set is_banned = true where id = $1', [U.member]),
+      ),
+    ).rejects.toThrow(/permission denied/i)
+    await expect(
+      asUser('authenticated', U.member, (c) =>
+        c.query('update public.profiles set contributor_featured = true where id = $1', [U.member]),
+      ),
+    ).rejects.toThrow(/permission denied/i)
+  })
+
+  it('RLS denies enrolled staff at aal1 and restores staff access at aal2', async () => {
+    await asUser('authenticated', U.admin, async (c) => {
+      await c.query(
+        'select set_config($1, $2, true)',
+        ['request.jwt.claims', JSON.stringify({ aal: 'aal1' })],
+      )
+      expect(await count(c, `select count(*)::int as n from public.profiles where id = $1`, [U.hidden])).toBe(0)
+      expect((await c.query('select public.is_staff() as allowed')).rows[0].allowed).toBe(false)
+
+      await c.query(
+        'select set_config($1, $2, true)',
+        ['request.jwt.claims', JSON.stringify({ aal: 'aal2' })],
+      )
+      expect(await count(c, `select count(*)::int as n from public.profiles where id = $1`, [U.hidden])).toBe(1)
+      expect((await c.query('select public.is_staff() as allowed')).rows[0].allowed).toBe(true)
+    })
   })
 
   it('profiles: members update only their own row; non-public profiles stay invisible', async () => {

@@ -62,7 +62,7 @@ function emailHtml(title: string, body: string, ctaUrl: string | null, ctaLabel:
 <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#333;">${safe(body)}</p>
 ${ctaUrl ? `<a href="${safe(ctaUrl)}" style="display:inline-block;background:#0f3d2e;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-size:15px;">${safe(ctaLabel)}</a>` : ''}
 </td></tr>
-<tr><td style="padding:16px 24px;font-size:12px;color:#888;border-top:1px solid #eee;">Seen by the community. Verified by Eagle Eye.</td></tr>
+<tr><td style="padding:16px 24px;font-size:12px;color:#888;border-top:1px solid #eee;">Local stories. Sources and changes in view.</td></tr>
 </table></td></tr></table></body></html>`;
 }
 

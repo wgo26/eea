@@ -7,7 +7,7 @@
  * somewhere honest — not inline in a dialog, where it can only be read in
  * context and never tested.
  *
- * The payload contract is `PAYLOAD_FIELDS` in lib/public/actions.ts, validated
+ * The payload contract is `PAYLOAD_FIELDS` in lib/public/abuse.ts, validated
  * per type by `validateSubmissionContent`:
  *   photo_story → what
  *   news / culture → headline + description

@@ -3,6 +3,7 @@ import { getDictionary } from "@/lib/i18n";
 import { getRequestLocale } from "@/lib/i18n/server";
 import { localePath } from "@/lib/i18n/urls";
 import { requireUser } from "@/lib/auth/guards";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { accountPageBreadcrumb } from "@/lib/account/nav";
 import { AccountBadge, AccountPageShell } from "@/components/account/account-page-shell";
 import { ProfileForm, type ProfileInitial } from "@/components/account/profile-form";
@@ -20,7 +21,7 @@ export default async function Page() {
   const { supabase, user } = await requireUser("/account/profile")
 
   const [{ data: profile }, { data: locations }, { data: rolesRows }] = await Promise.all([
-    supabase
+    createAdminClient()
       .from("profiles")
       .select(
         "display_name, full_name, bio, phone, email, avatar_url, location_id, is_verified, is_public, preferred_locale, preferred_voice, contributor_handle",

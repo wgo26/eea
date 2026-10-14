@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { submitArticleCorrection } from "@/lib/public/actions";
+import { submitArticleCorrection } from "@/lib/public/report-actions";
 import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import type { SubmitState } from "@/lib/public/types";
 import { localePath } from "@/lib/i18n/urls";

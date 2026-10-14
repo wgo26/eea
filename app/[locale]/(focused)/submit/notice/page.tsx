@@ -42,9 +42,10 @@ export default async function Page({
         trimmed === "lost_found" && (direction === "lost" || direction === "found")
             ? direction
             : undefined;
-    // Offline/zero-data fallback: admin-configured WhatsApp intake number
-    // (site settings `contact_whatsapp`, null when unset — banner hides).
-    const { contactWhatsapp } = await getPublicSiteSettings().catch(() => ({ contactWhatsapp: null as string | null }));
+    // Offline/zero-data fallback: admin-configured WhatsApp/SMS intake
+    // numbers (site settings `contact_whatsapp` / `contact_sms`, null when
+    // unset — rows hide).
+    const { contactWhatsapp, contactSms } = await getPublicSiteSettings().catch(() => ({ contactWhatsapp: null as string | null, contactSms: null as string | null }));
     return (
         <div className="mx-auto w-full max-w-2xl px-4 py-8 md:px-6 lg:px-8">
             <Link
@@ -61,9 +62,11 @@ export default async function Page({
             <div className="mt-6">
                 <SubmitOfflineNotice
                     whatsapp={contactWhatsapp}
+                    sms={contactSms}
                     title={dict.submit.offlineTitle}
                     body={dict.submit.offlineBody}
                     fallback={dict.submit.fallbackWhatsapp}
+                    fallbackSms={dict.submit.fallbackSms}
                 />
                 <SubmitFormGated type="notice" dict={dict} initialNoticeType={initialNoticeType} initialNoticeDirection={initialNoticeDirection} />
             </div>

@@ -20,11 +20,11 @@ export const resolveProfileDisplayName = cache(
     const supabase = await createClient()
     const { data: profile } = await supabase
       .from('profiles')
-      .select('display_name, full_name')
+      .select('display_name')
       .eq('id', userId)
       .maybeSingle()
-    const p = profile as { display_name?: string | null; full_name?: string | null } | null
-    return p?.display_name?.trim() || p?.full_name?.trim() || null
+    const p = profile as { display_name?: string | null } | null
+    return p?.display_name?.trim() || null
   },
 )
 

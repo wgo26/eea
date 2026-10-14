@@ -360,6 +360,7 @@ export default async function NoticePage({ params }: NoticePageProps) {
                                 title={notice.title}
                                 locale={locale}
                                 contentId={notice.id}
+                                contentType="notice"
                                 labels={{
                                     share: dict.common.share,
                                     whatsapp: dict.common.whatsapp,

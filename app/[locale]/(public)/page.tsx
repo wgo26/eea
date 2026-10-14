@@ -106,10 +106,6 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
                 reading decision happens. Renders nothing for a first visit. */}
             <ContinueReadingRail locale={locale} dict={dict} />
 
-            <Suspense fallback={<AdSkeleton />}>
-                <HomeBannerAd locale={locale} dict={dict} />
-            </Suspense>
-
             {/* Only surface live editorial sections. Empty cards and ad
                 placeholders make the homepage look unfinished. */}
             <Suspense fallback={<GridSkeleton />}>
@@ -126,7 +122,7 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
                 <HomeInlineMidAd locale={locale} dict={dict} />
             </Suspense>
 
-            {/* Notices + Buy & Sell previews (One Community Board, Diff. #4) */}
+            {/* Notices and listings share local context, but retain distinct trust standards. */}
             <Suspense fallback={<GridSkeleton cards={2} />}>
                 <HomeBoard locale={locale} dict={dict} />
             </Suspense>
@@ -134,6 +130,11 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
             {/* Culture & Entertainment preview */}
             <Suspense fallback={<GridSkeleton cards={3} />}>
                 <HomeCulture locale={locale} dict={dict} />
+            </Suspense>
+
+            {/* Sponsorship supports the record but stays below community coverage. */}
+            <Suspense fallback={<AdSkeleton />}>
+                <HomeBannerAd locale={locale} dict={dict} />
             </Suspense>
 
             {/* Inline ad — before the participation loop CTA (spec §11) */}

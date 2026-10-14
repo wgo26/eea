@@ -70,10 +70,16 @@ export function TurnstileWidget() {
     const [status, setStatus] = useState<"loading" | "ready" | "failed" | "missing">(
         SITE_KEY ? "loading" : "missing",
     );
+    // In-place retry counter: a failed CDN load re-attempts the script +
+    // render without a full page reload (metered connections cannot afford
+    // to re-download the page on every challenge hiccup). Parents still
+    // remount via `key` after a failed submit (single-use tokens).
+    const [attempt, setAttempt] = useState(0);
 
     useEffect(() => {
         if (!SITE_KEY || !containerRef.current) return;
         let cancelled = false;
+        let observer: IntersectionObserver | null = null;
 
         const resetWidget = () => {
             const id = widgetIdRef.current;
@@ -96,6 +102,10 @@ export function TurnstileWidget() {
             try {
                 widgetIdRef.current = window.turnstile.render(element, {
                     sitekey: SITE_KEY,
+                    // Compact (~164px) instead of the fixed 300px widget:
+                    // fits 320px viewports without scrolling and costs
+                    // fewer bytes/observers on slow links.
+                    size: "compact",
                     callback: (value: string) => {
                         setToken(value);
                         setStatus("ready");
@@ -116,12 +126,36 @@ export function TurnstileWidget() {
             }
         };
 
-        loadTurnstile(render, () => {
-            if (!cancelled) setStatus("failed");
-        });
+        const start = () => {
+            if (cancelled) return;
+            loadTurnstile(render, () => {
+                if (!cancelled) setStatus("failed");
+            });
+        };
+
+        // Deferred load: don't fetch the challenge CDN until the widget
+        // scrolls near the viewport (submission forms sit below the fold on
+        // small screens). Falls back to immediate load without IO support.
+        const element = containerRef.current;
+        if (typeof IntersectionObserver !== "undefined" && element) {
+            observer = new IntersectionObserver(
+                (entries) => {
+                    if (entries.some((e) => e.isIntersecting)) {
+                        observer?.disconnect();
+                        observer = null;
+                        start();
+                    }
+                },
+                { rootMargin: "200px" },
+            );
+            observer.observe(element);
+        } else {
+            start();
+        }
 
         return () => {
             cancelled = true;
+            observer?.disconnect();
             if (widgetIdRef.current && window.turnstile) {
                 try {
                     window.turnstile.remove(widgetIdRef.current);
@@ -131,10 +165,9 @@ export function TurnstileWidget() {
                 widgetIdRef.current = null;
             }
         };
-        // Render once per mount. Parents remount the widget (via `key`) after
-        // a failed submit because Turnstile tokens are single-use — a spent
-        // token must never be replayed.
-    }, []);
+        // Re-run on retry attempts. Parents remount the widget (via `key`)
+        // after a failed submit because Turnstile tokens are single-use.
+    }, [attempt]);
 
     if (!SITE_KEY) {
         return (
@@ -153,20 +186,26 @@ export function TurnstileWidget() {
     }
 
     if (status === "failed") {
+        const retry = () => {
+            widgetIdRef.current = null;
+            setToken("");
+            setStatus("loading");
+            setAttempt((n) => n + 1);
+        };
         return (
             <div className="space-y-2">
                 <div ref={containerRef} className="overflow-x-auto" />
                 <p role="alert" className="text-xs text-muted-foreground">
-                    The verification widget could not load (network or content-blocker).
-                    Disable blockers for this site and{" "}
+                    The verification widget could not load (slow network or content-blocker).
+                    Check your connection, disable blockers for this site, then{" "}
                     <button
                         type="button"
                         className="font-medium text-primary hover:underline"
-                        onClick={() => window.location.reload()}
+                        onClick={retry}
                     >
-                        reload the page
+                        try again
                     </button>{" "}
-                    to continue.
+                    — no page reload needed.
                 </p>
                 <input type="hidden" name="cf-turnstile-response" value={token} />
             </div>
@@ -175,11 +214,9 @@ export function TurnstileWidget() {
 
     return (
         <div className="space-y-2">
-            {/* Turnstile renders a fixed 300px widget; on viewports narrower
-                than 300px + page padding (iPhone SE in the focused shell) the
-                checkbox would sit partially off-screen and be untappable —
-                let the strip scroll instead. */}
-            <div ref={containerRef} className="overflow-x-auto" />
+            {/* Compact widget fits 320px viewports; the scroll container stays
+                as a backstop for older fixed-width renders. */}
+            <div ref={containerRef} className="min-h-[65px] overflow-x-auto" />
             <input type="hidden" name="cf-turnstile-response" value={token} />
         </div>
     );

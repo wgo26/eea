@@ -17,11 +17,16 @@ export function MfaSection({ copy, initial }: { copy: SecurityCopy; initial: Mfa
   const [factors, setFactors] = useState(initial);
   const [enrolling, setEnrolling] = useState<{ factorId: string; qrCode: string; secret: string } | null>(null);
   const [code, setCode] = useState('');
+  const [disablingFactorId, setDisablingFactorId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function refresh() {
-    setFactors(await getMfaFactors());
+    try {
+      setFactors(await getMfaFactors());
+    } catch {
+      setError(copy.mfaLoadError);
+    }
   }
 
   async function startEnroll() {
@@ -30,7 +35,7 @@ export function MfaSection({ copy, initial }: { copy: SecurityCopy; initial: Mfa
     const result = await enrollMfa();
     setBusy(false);
     if (!result.ok) {
-      setError(result.error);
+      setError(copy.mfaManageError);
       return;
     }
     setEnrolling({ factorId: result.factorId, qrCode: result.qrCode, secret: result.secret });
@@ -51,15 +56,17 @@ export function MfaSection({ copy, initial }: { copy: SecurityCopy; initial: Mfa
     await refresh();
   }
 
-  async function disable(factorId: string) {
+  async function disable(factorId: string, factorCode = '') {
     setBusy(true);
-    const result = await unenrollMfa(factorId);
+    const result = await unenrollMfa(factorId, factorCode);
     setBusy(false);
     if (result.ok) {
       setEnrolling(null);
+      setDisablingFactorId(null);
+      setCode('');
       await refresh();
     } else {
-      setError(result.error);
+      setError(copy.mfaManageError);
     }
   }
 
@@ -71,7 +78,11 @@ export function MfaSection({ copy, initial }: { copy: SecurityCopy; initial: Mfa
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">{copy.mfaBody}</p>
       <p className="mt-2 text-xs font-medium text-muted-foreground">
-        {factors.length > 0 ? copy.mfaEnabled : copy.mfaDisabled}
+        {factors.some((factor) => factor.status === 'verified')
+          ? copy.mfaEnabled
+          : factors.length > 0
+            ? copy.mfaPending
+            : copy.mfaDisabled}
       </p>
 
       {enrolling ? (
@@ -123,17 +134,55 @@ export function MfaSection({ copy, initial }: { copy: SecurityCopy; initial: Mfa
           </button>
         ) : null}
         {factors.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            onClick={() => disable(f.id)}
-            disabled={busy}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-destructive disabled:opacity-50"
-          >
-            <ShieldOff className="h-4 w-4" aria-hidden />
-            {copy.mfaDisable}
-          </button>
-        ))}
+            <div key={f.id} className="flex flex-wrap items-center gap-2">
+              {disablingFactorId === f.id && f.status === 'verified' ? (
+                <>
+                  <input
+                    type="text"
+                    value={code}
+                    onChange={(event) => setCode(event.target.value)}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    placeholder="123456"
+                    aria-label={copy.mfaCodeLabel}
+                    className="h-10 w-40 rounded-md border border-border bg-background px-3 text-center text-lg tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => disable(f.id, code)}
+                    disabled={busy || code.replace(/\D/g, '').length !== 6}
+                    className="inline-flex h-10 items-center rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground disabled:opacity-50"
+                  >
+                    {copy.mfaConfirmDisable}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setDisablingFactorId(null); setCode(''); }}
+                    disabled={busy}
+                    className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-medium disabled:opacity-50"
+                  >
+                    {copy.mfaCancel}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setCode('');
+                    if (f.status === 'verified') setDisablingFactorId(f.id);
+                    else void disable(f.id);
+                  }}
+                  disabled={busy}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-destructive disabled:opacity-50"
+                >
+                  <ShieldOff className="h-4 w-4" aria-hidden />
+                  {copy.mfaDisable}
+                </button>
+              )}
+            </div>
+          ))}
       </div>
     </section>
   );

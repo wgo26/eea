@@ -13,10 +13,7 @@ export type ContentCardProps = {
     meta?: string;
 };
 
-/**
- * Shared card used by every index page and homepage rail.
- * One Community Board: same card shape across all content verticals.
- */
+/** Shared card used by content indexes and homepage rails. */
 export function ContentCard({
     href,
     title,

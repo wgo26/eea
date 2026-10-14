@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { revealSellerContact } from './actions'
+import { revealSellerContact } from './contact-actions'
 
 describe('revealSellerContact server action', () => {
     it('rejects invalid or empty listing IDs', async () => {

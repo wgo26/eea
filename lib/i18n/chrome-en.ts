@@ -34,7 +34,7 @@ export const chromeEn = {
   },
   header: {
     searchPlaceholder: 'Search stories, notices, listings…',
-    tagline: 'Seen by the community. Verified by Eagle Eye.',
+    tagline: 'Local stories. Sources and changes in view.',
     menu: 'Menu',
     close: 'Close',
   },
@@ -60,7 +60,7 @@ export const chromeEn = {
 footer: {
     aboutTitle: 'Eagle Eye Africa',
     aboutText:
-      'A community-first African media platform combining local journalism, visual storytelling, community information, classifieds and culture — a digital record of what is happening around people.',
+      'A durable, place-based record of African community life, built from local reporting, photographs, notices and culture. Classifieds are a separate local service; sources, verification states and accepted corrections keep the editorial record accountable.',
     sections: 'Sections',
     community: 'Community',
     legal: 'Legal',

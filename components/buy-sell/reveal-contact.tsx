@@ -5,7 +5,7 @@ import { Eye, EyeOff, Loader2, Mail, MessageCircle, Phone, ShieldAlert } from "l
 
 import { Button } from "@/components/ui/button";
 import { whatsappHref } from "@/lib/format";
-import { revealSellerContact } from "@/lib/public/actions";
+import { revealSellerContact } from "@/lib/public/contact-actions";
 
 type RevealContactProps = {
     listingId: string;

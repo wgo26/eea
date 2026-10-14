@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser } from '@/lib/auth/guards'
 import { getAdminRoles, getUserRoles, hasAdminRole, isAdminRoles, isStaffRoles } from '@/lib/auth/roles'
 import { type Capability } from '@/lib/auth/capabilities'
+import { isMfaChallengeRequired } from '@/lib/auth/assurance'
 import {
   ADMIN_ROLE_LABELS,
   effectiveCapabilities,
@@ -38,6 +39,9 @@ export async function assertStaff(): Promise<AdminContext> {
   if (!ctx.user) throw new Error('Authentication required. Please sign in.')
   const roles = await getUserRoles(ctx.supabase, ctx.user.id)
   if (!isStaffRoles(roles)) throw new Error('Staff access required.')
+  if (await isMfaChallengeRequired(ctx.supabase)) {
+    throw new Error('Two-factor verification required. Complete the authenticator challenge and retry.')
+  }
   return { supabase: ctx.supabase, user: ctx.user, roles }
 }
 
@@ -46,6 +50,9 @@ export async function assertAdmin(): Promise<AdminContext> {
   if (!ctx.user) throw new Error('Authentication required. Please sign in.')
   const roles = await getUserRoles(ctx.supabase, ctx.user.id)
   if (!isAdminRoles(roles)) throw new Error('Administrator access required.')
+  if (await isMfaChallengeRequired(ctx.supabase)) {
+    throw new Error('Two-factor verification required. Complete the authenticator challenge and retry.')
+  }
   return { supabase: ctx.supabase, user: ctx.user, roles }
 }
 
@@ -170,12 +177,7 @@ export async function assertTwoFactorIfEnrolled(existing?: AdminContext): Promis
   // here would wrongly lock out a fine-grained-only administrator.
   const ctx = existing ?? (await assertAdmin())
   const supabase = await createClient()
-  const { data: factors, error } = await supabase.auth.mfa.listFactors()
-  if (error) throw new Error('Could not verify two-factor status. Please try again.')
-  const enrolled = (factors?.totp ?? []).some((f) => f.status === 'verified')
-  if (!enrolled) return ctx
-  const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-  if (data?.currentLevel !== 'aal2') {
+  if (await isMfaChallengeRequired(supabase)) {
     throw new Error(
       'Two-factor verification required: confirm your authenticator code, then try again.',
     )

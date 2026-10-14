@@ -277,6 +277,7 @@ const SITE_SETTING_KEYS = [
   'social_youtube_url',
   'contact_email',
   'contact_whatsapp',
+  'contact_sms',
   'site_logo_url',
   'site_name',
   'site_tagline',
@@ -306,6 +307,9 @@ const CONTACT_EMAIL_KEYS = ['contact_email'] as const
 
 /** Public WhatsApp number: international format — rendered as a wa.me link. */
 const CONTACT_WHATSAPP_KEYS = ['contact_whatsapp'] as const
+
+/** Public SMS intake number: international format — rendered as an sms: link. */
+const CONTACT_SMS_KEYS = ['contact_sms'] as const
 
 function validateContactEmail(value: string): string | null {
   if (value.length > 160) return null
@@ -396,6 +400,9 @@ export async function saveSiteSetting(input: {
       } else if ((CONTACT_WHATSAPP_KEYS as readonly string[]).includes(input.key)) {
         valid = validateWhatsappNumber(value)
         if (!valid) return { ok: false, error: 'Enter the WhatsApp number in international format, e.g. +XXX XXX XXX XXX.' }
+      } else if ((CONTACT_SMS_KEYS as readonly string[]).includes(input.key)) {
+        valid = validateWhatsappNumber(value)
+        if (!valid) return { ok: false, error: 'Enter the SMS number in international format, e.g. +XXX XXX XXX XXX.' }
       } else if (input.key === 'site_logo_url') {
         valid = validateImageUrl(value)
         if (!valid) return { ok: false, error: 'Enter a full https:// URL or a site path starting with /.' }

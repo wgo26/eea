@@ -15,6 +15,7 @@ export const SITE_SETTING_KEYS = [
   'social_youtube_url',
   'contact_email',
   'contact_whatsapp',
+  'contact_sms',
   'site_logo_url',
   'site_name',
   'site_tagline',
@@ -41,6 +42,9 @@ export type SiteSettings = {
   contactEmail: string | null
   /** Public WhatsApp number in international format — wa.me link, only when set. */
   contactWhatsapp: string | null
+  /** Public SMS intake number in international format — sms: link for
+   * feature-phone / zero-data reporters, only when set. */
+  contactSms: string | null
   logoUrl: string | null
   siteName: string | null
   siteTagline: string | null
@@ -63,6 +67,7 @@ const EMPTY_SITE_SETTINGS: SiteSettings = {
   youtubeUrl: null,
   contactEmail: null,
   contactWhatsapp: null,
+  contactSms: null,
   logoUrl: null,
   siteName: null,
   siteTagline: null,
@@ -87,6 +92,7 @@ function toSiteSettings(rows: { key: string; value: string | null }[]): SiteSett
     if (row.key === 'social_youtube_url') map.youtubeUrl = row.value?.trim() || null
     if (row.key === 'contact_email') map.contactEmail = row.value?.trim() || null
     if (row.key === 'contact_whatsapp') map.contactWhatsapp = row.value?.trim() || null
+    if (row.key === 'contact_sms') map.contactSms = row.value?.trim() || null
     if (row.key === 'site_logo_url') map.logoUrl = row.value?.trim() || null
     if (row.key === 'site_name') map.siteName = row.value?.trim() || null
     if (row.key === 'site_tagline') map.siteTagline = row.value?.trim() || null
@@ -119,6 +125,7 @@ export async function getSiteSettingsAdmin(): Promise<
     social_youtube_url: null,
     contact_email: null,
     contact_whatsapp: null,
+    contact_sms: null,
     site_logo_url: null,
     site_name: null,
     site_tagline: null,
@@ -138,6 +145,12 @@ export async function getSiteSettingsAdmin(): Promise<
   for (const row of rows) {
     if (row.key === 'social_facebook_url') result.social_facebook_url = row.value
     if (row.key === 'social_youtube_url') result.social_youtube_url = row.value
+    // Contact channels were fetched but never mapped — the admin form
+    // rendered empty inputs with "not set" badges for numbers that WERE
+    // configured (public side read them fine via toSiteSettings).
+    if (row.key === 'contact_email') result.contact_email = row.value
+    if (row.key === 'contact_whatsapp') result.contact_whatsapp = row.value
+    if (row.key === 'contact_sms') result.contact_sms = row.value
     if (row.key === 'site_logo_url') result.site_logo_url = row.value
     if (row.key === 'site_name') result.site_name = row.value
     if (row.key === 'site_tagline') result.site_tagline = row.value

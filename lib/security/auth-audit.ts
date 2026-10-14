@@ -30,6 +30,9 @@ export const AUTH_AUDIT_ACTIONS = {
   /** Password step passed but a TOTP challenge is still outstanding. */
   mfaChallenge: 'auth.mfa.challenge',
   logout: 'auth.logout',
+  passwordResetRequested: 'auth.password_reset.requested',
+  passwordResetFailed: 'auth.password_reset.failed',
+  passwordResetBlocked: 'auth.password_reset.blocked',
 } as const
 export type AuthAuditAction = (typeof AUTH_AUDIT_ACTIONS)[keyof typeof AUTH_AUDIT_ACTIONS]
 

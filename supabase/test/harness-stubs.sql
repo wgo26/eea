@@ -48,6 +48,11 @@ create table if not exists auth.users (
     email              text unique,
     raw_user_meta_data jsonb not null default '{}'::jsonb
 );
+create table if not exists auth.mfa_factors (
+    user_id     uuid not null,
+    factor_type text not null,
+    status      text not null
+);
 
 create or replace function auth.uid() returns uuid
 language sql stable as $$

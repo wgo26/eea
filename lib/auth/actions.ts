@@ -10,6 +10,7 @@ import { AUTH_AUDIT_ACTIONS, recordAuthEvent } from '@/lib/security/auth-audit'
 import { verifyTurnstileToken } from '@/lib/security/turnstile'
 import { SITE } from '@/lib/constants'
 import { enabledOAuthProviders, type OAuthProvider } from '@/lib/auth/oauth'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
  * Signs the user out and lands them on the localized homepage.
@@ -167,7 +168,21 @@ export async function signInWithPassword(
   }
 
   const userId = auth.user?.id ?? null
-  const { data: profile } = await supabase.from('profiles').select('is_suspended, is_banned').eq('id', userId ?? '').single()
+  const { data: profile, error: profileError } = await createAdminClient()
+    .from('profiles')
+    .select('is_suspended, is_banned')
+    .eq('id', userId ?? '')
+    .single()
+  if (profileError || !profile) {
+    await supabase.auth.signOut()
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.loginBlocked,
+      actorId: userId,
+      identifier: email,
+      detail: { reason: 'account_status_unavailable' },
+    })
+    return { ok: false, error: 'provider_error' }
+  }
   if (profile?.is_suspended || profile?.is_banned) {
     await supabase.auth.signOut()
     await recordAuthEvent({
@@ -181,7 +196,17 @@ export async function signInWithPassword(
 
   // Step-up: accounts with TOTP enrolled land on the code challenge instead
   // of straight into the app (the aal1 session can verify, nothing else).
-  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (aalError || !aal) {
+    await supabase.auth.signOut()
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.loginBlocked,
+      actorId: userId,
+      identifier: email,
+      detail: { reason: 'mfa_status_unavailable' },
+    })
+    return { ok: false, error: 'provider_error' }
+  }
   if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
     // The password step succeeded; the second factor is still outstanding.
     await recordAuthEvent({
@@ -277,6 +302,77 @@ export async function signUpWithPassword(
   }
 
   redirect(await landingFor(str(formData.get('next')) || null))
+}
+
+export type PasswordResetState = {
+  ok: boolean
+  error?: 'invalid' | 'rate_limited' | 'captcha' | 'provider_error'
+}
+
+/**
+ * Request a recovery email through the server so the flow shares the same
+ * fail-closed abuse controls as login and signup. The response deliberately
+ * does not reveal whether the address belongs to an account.
+ */
+export async function requestPasswordReset(
+  _prev: PasswordResetState,
+  formData: FormData,
+): Promise<PasswordResetState> {
+  const email = normalizeEmail(str(formData.get('email')))
+  if (!isValidEmail(email)) return { ok: false, error: 'invalid' }
+
+  if (await isCurrentRequestIpBlocked()) {
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.passwordResetBlocked,
+      identifier: email,
+      detail: { reason: 'ip_blocked' },
+    })
+    return { ok: false, error: 'invalid' }
+  }
+
+  const limited = await checkRateLimit('auth:password-reset', {
+    max: 5,
+    windowMs: 60 * 60_000,
+    policy: 'fail-closed',
+  })
+  if (!limited.ok) {
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.passwordResetBlocked,
+      identifier: email,
+      detail: { reason: 'rate_limited' },
+    })
+    return { ok: false, error: 'rate_limited' }
+  }
+
+  const turnstileToken = formData.get('cf-turnstile-response')
+  if (!(await verifyTurnstileToken(typeof turnstileToken === 'string' ? turnstileToken : null))) {
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.passwordResetBlocked,
+      identifier: email,
+      detail: { reason: 'captcha' },
+    })
+    return { ok: false, error: 'captcha' }
+  }
+
+  const locale = await getRequestLocale()
+  const updatePath = localePath(locale, '/account/reset-password/update')
+  const redirectTo = `${SITE.url.replace(/\/+$/, '')}/auth/callback?next=${encodeURIComponent(updatePath)}`
+  const supabase = await createClient()
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+  if (error) {
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.passwordResetFailed,
+      identifier: email,
+      detail: { reason: 'provider_error' },
+    })
+    return { ok: false, error: 'provider_error' }
+  }
+
+  await recordAuthEvent({
+    action: AUTH_AUDIT_ACTIONS.passwordResetRequested,
+    identifier: email,
+  })
+  return { ok: true }
 }
 
 /* ------------------------------------------------------------------ */

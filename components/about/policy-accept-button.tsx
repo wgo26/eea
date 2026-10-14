@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { recordPolicyAcceptance } from "@/lib/public/actions";
+import { recordPolicyAcceptance } from "@/lib/public/report-actions";
 import type { Locale } from "@/lib/i18n";
 import { getDictionary } from "@/lib/i18n";
 

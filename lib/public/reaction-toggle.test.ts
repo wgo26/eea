@@ -44,7 +44,7 @@ vi.mock('@/lib/security/rate-limit', () => ({
   checkRateLimit: vi.fn(async () => (mocks.rateLimited.value ? { ok: false } : { ok: true })),
 }))
 
-import { getContentReactionState, toggleContentReaction } from './actions'
+import { getContentReactionState, toggleContentReaction } from './engagement-actions'
 
 const ID = '11111111-1111-1111-1111-111111111111'
 const TOKEN = 'reader-token-123'

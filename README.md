@@ -3,15 +3,15 @@
 [![CI](https://github.com/wgo26/eea/actions/workflows/ci.yml/badge.svg)](https://github.com/wgo26/eea/actions/workflows/ci.yml)
 ![Node](https://img.shields.io/badge/node-%E2%89%A522%20%3C23-green)
 
-Community-first African media platform: local news, photo stories, community notices, buy & sell, culture and events — one community board for every place, fully bilingual (English / French).
+Eagle Eye Africa is building a durable, place-based public record of what happens in African communities. People closest to events can contribute reporting, photographs, notices and cultural stories; editors review submissions, and visible sources, verification states and a public correction trail help readers judge what is known and what changed. Local classifieds are a separate practical service alongside that editorial record, not a form of verified reporting. Available in English and French.
 
 Next.js 16 App Router · React 19 · TypeScript · Tailwind CSS 4 · Supabase (Postgres, Auth, Storage, RLS) · Cloudflare R2 · Backblaze B2 · Vitest.
 
 ## What's inside
 
-**Public site** (`/{locale}/…`, EN + FR): homepage with admin-curated slots, news (featured / live & developing / most viewed), photo stories, community notices, buy & sell marketplace with a PII-safe contact-reveal flow, culture & events, locations, contributor profiles, full-text search, advertise page, and legal pages with a signed acceptance trail.
+**Public site** (`/{locale}/…`, EN + FR): place-based discovery and search across community news, photo stories, notices, culture and events, with contributor profiles, story timelines and a public correction register. Buy & Sell provides a distinct local marketplace with a PII-safe contact-reveal flow; clearly labeled advertising supports the service without becoming editorial content.
 
-**Participation loop:** guest or authenticated submissions → moderation queue → verification → publish (immediately or scheduled, with expiry sweeps) → article corrections, polls and fundraisers on the reader side.
+**Editorial loop:** eyewitness or community submission → editorial review and verification → attributed publication with a visible status → reader corrections → a public record of accepted changes. Notices and listings have their own review and lifecycle rules; approval for publication is not presented as proof that every claim or offer is true.
 
 **Admin command center** (`/{locale}/admin/…`, capability-driven menu): dashboard, moderation queue with approve-with-content drawer, trust & safety queues, content manager with homepage slots, listings lifecycle, taxonomy (categories + locations), polls, fundraisers, legal pages + About/Advertise copy overrides + legal inbox, **site content** (advertise copy + footer social links), users & roles, ads, storage backup, and an audit log.
 
@@ -163,6 +163,7 @@ Shipped hardening: PII-free public listings with a rate-limited contact-reveal a
 | [`docs/observability.md`](docs/observability.md) | Logging, Sentry, uptime monitor, nightly ops-digest setup |
 | [`docs/hosting-architecture.md`](docs/hosting-architecture.md) | Hosting baseline |
 | [`docs/auth-emails.md`](docs/auth-emails.md) | Auth email templates + Supabase dashboard setup |
+| [`docs/supabase-auth-setup.md`](docs/supabase-auth-setup.md) | Local, staging, production Supabase Auth setup and verification runbook |
 | [`docs/whatsapp-template.md`](docs/whatsapp-template.md) | WhatsApp utility-template bodies (EN+FR) + Meta submission pack |
 | [`deploy/`](deploy/) | Hostinger + VPS deployment guides, nginx/systemd configs |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Workflow and PR checklist |
@@ -170,5 +171,3 @@ Shipped hardening: PII-free public listings with a rate-limited contact-reveal a
 ## License
 
 Proprietary — all rights reserved. See [LICENSE](LICENSE).
-
-

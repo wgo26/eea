@@ -8,6 +8,13 @@ import type { AppRole } from './types'
  * "member" is an authenticated user with NO rows in user_roles (the implicit
  * model, now documented): members have zero admin capabilities and never see
  * app chrome beyond their account dashboard.
+ *
+ * Fresh signups are NOT members: `handle_new_user()` inserts a `contributor`
+ * row for every new account. Contributor also carries zero capabilities, so
+ * the power is identical — the difference is product identity (contributor
+ * badge/credit/contributions view vs the plain member label in
+ * `lib/account/identity.ts`). See the recorded decision in
+ * architecture-checklist.md item 5.
  */
 export type Capability =
   | 'viewDashboard'

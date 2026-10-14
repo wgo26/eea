@@ -5,9 +5,9 @@ import { chromeFr } from './chrome-fr'
 
 export const fr: typeof en = {
   meta: {
-    title: 'Eagle Eye Africa | Actualités panafricaines & regards communautaires',
+    title: 'Eagle Eye Africa | Récits des communautés africaines et mémoire locale',
     description:
-      'Une plateforme médiatique panafricaine : journalisme, reportages photo, avis communautaires, petites annonces et culture à travers le continent — rapporté par des Africains, vérifié sur le terrain.',
+      'Un registre local de la vie des communautés africaines : reportages, récits photo, avis et culture, avec sources, niveaux de vérification et corrections visibles.',
   },
   // A2: see en.ts — chrome strings are owned by chrome-fr.ts.
   nav: chromeFr.nav,
@@ -678,6 +678,15 @@ badges: {
       'Votre brouillon est enregistré sur cet appareil et sera restauré à votre retour. Reconnectez-vous, puis touchez Envoyer — les soumissions nécessitent une connexion (la protection antispam ne fonctionne pas hors ligne).',
     fallbackWhatsapp:
       'Pas d’internet du tout ? Envoyez votre signalement par WhatsApp au {number} et nos rédacteurs le publieront pour vous.',
+    fallbackSms:
+      'Par SMS ? Envoyez votre signalement par SMS au {number} et nos rédacteurs le publieront pour vous.',
+    // File d’attente hors ligne : voir les commentaires en.ts (mêmes clés).
+    queuedTitle: 'Enregistré sur cet appareil — envoi à la reconnexion',
+    queuedBody:
+      'Votre signalement est en file d’attente. Reconnectez-vous, puis touchez « Envoyer le signalement » — il suivra la vérification normale.',
+    queuedNote: 'Textes et liens enregistrés. Les photos choisies sur l’appareil doivent être rajoutées.',
+    queuedSend: 'Envoyer le signalement',
+    queuedDiscard: 'Supprimer le signalement',
     types: {
       photoStory: {
         title: 'Reportage photo',
@@ -873,12 +882,12 @@ badges: {
   },
 about: {
     title: 'À propos d\'Eagle Eye Africa',
-    tagline: 'De Bamenda au Continent — Raconter les histoires africaines par des Africains.',
+    tagline: 'De Bamenda au continent : un registre public raconté par celles et ceux qui le vivent.',
     intro:
-      'Eagle Eye Africa est une plateforme médiatique panafricaine. Nous combinons journalisme, narration visuelle, information communautaire, petites annonces et culture en un seul tableau continental digne de confiance — rapporté par des Africains, vérifié sur le terrain.',
+      'Eagle Eye Africa construit un registre public durable et ancré dans les lieux de ce qui se passe dans les communautés africaines. Les personnes proches des événements peuvent contribuer des reportages et des photos ; la rédaction examine les éléments et le contexte ; les lecteurs peuvent voir qui a rapporté une histoire, ce qui a été vérifié et ce qui a changé. Les avis et la culture documentent la vie locale. Les petites annonces restent un service distinct, et non du journalisme vérifié.',
     missionTitle: 'Notre mission',
     missionBody:
-      'De Bamenda au Continent — Raconter les histoires africaines par des Africains. Nous existons pour donner à chaque communauté africaine une vision claire et vérifiée de ce qui se passe autour d\'elle, et pour placer les personnes qui y vivent au centre de l\'histoire.',
+      'Les événements observés par les habitants sont parfois difficiles à retrouver, vérifier, attribuer et consulter après le cycle de l’actualité. Nous rendons ces témoignages accessibles et vérifiables : les personnes qui connaissent les faits peuvent contribuer, la rédaction contrôle ce qu’elle peut et les lecteurs peuvent suivre les sources, les incertitudes et les corrections.',
     policiesTitle: 'Politiques & légal',
     languageNote: 'Vous lisez la version {lang}. Le contenu peut être disponible dans d\'autres langues.',
     comingSoon: 'Cette section est en cours de finalisation — revenez bientôt.',
@@ -934,33 +943,33 @@ about: {
     contactTitle: 'Contactez-nous',
     back: 'Retour à À propos',
     heroKicker: 'De Bamenda au Continent',
-    heroTitle: 'Un enregistrement panafricain de ce qui se passe à travers l\'Afrique.',
+    heroTitle: 'Ce qui se passe dans les communautés africaines ne doit pas disparaître du fil.',
     heroBody:
-      'Eagle Eye Africa transforme les témoignages en histoires : reportages photo, actualités communautaires, avis officiels, petites annonces et culture — soumis par ceux qui les vivent, vérifiés sur le terrain à travers le continent.',
+      'Eagle Eye Africa construit un registre durable, ancré dans les lieux, à partir de reportages locaux, de photos, d’avis et de récits culturels. Les témoins peuvent contribuer ; la rédaction examine les éléments et le contexte ; les lecteurs voient ce qui est établi, ce qui reste incertain et ce qui a changé. Les petites annonces facilitent les échanges locaux, sans être présentées comme du journalisme.',
     ctaSubmit: 'Proposer une story',
     ctaExplore: 'Explorer les rubriques',
     ctaSearch: 'Rechercher dans le dossier',
     statsTitle: "L'enregistrement à ce jour",
     statsHint: 'En direct de la plateforme — mis à jour au fil de la croissance de la communauté.',
-    statStories: 'Histoires publiées',
+    statItems: 'Contenus publiés',
     statContributors: 'Contributeurs',
-    statLocations: 'Lieux couverts',
+    statLocations: 'Lieux avec des contenus publiés',
     statRaised: 'Collecté pour les communautés',
     pipelineTitle: 'Du témoignage à l\'histoire vérifiée',
     pipelineHint: 'Chaque soumission passe par le même pipeline éditorial avant de rejoindre l\'enregistrement continental.',
     pipeSubmitted: 'Soumis',
-    pipeSubmittedBody: 'N\'importe qui peut soumettre — sans compte. Photos, actualités, avis, annonces et culture de toute l\'Afrique.',
-    pipeReview: 'En examen',
-    pipeReviewBody: 'Les éditeurs vérifient les faits, le contexte et les droits avant toute approbation.',
+    pipeSubmittedBody: 'Tout le monde peut contribuer — sans compte. Envoyez des témoignages directs, des photos, des avis, des annonces ou des récits culturels de votre communauté.',
+    pipeReview: 'Examen éditorial',
+    pipeReviewBody: 'La rédaction examine les éléments, le contexte et les droits, avec des contrôles adaptés à chaque type de contribution.',
     pipeVerified: 'Vérifié sur le terrain',
     pipeVerifiedBody: 'Les avis officiels et les signalements confirmés portent la marque de vérification — rapportés de première main par des correspondants locaux.',
     pipePublished: 'Publié',
-    pipePublishedBody: 'L\'histoire rejoint l\'enregistrement continental — créditée à son contributeur, partageable partout avec #EagleEyeAfrica.',
+    pipePublishedBody: 'Les récits éditoriaux rejoignent le registre communautaire avec le crédit du contributeur et un statut visible. Les annonces restent clairement identifiées comme des offres, et non comme des reportages vérifiés.',
     valuesTitle: 'Nos valeurs',
-    vCommunityTitle: 'L\'Afrique d\'abord',
+    vCommunityTitle: 'Partir des personnes qui étaient là',
     vCommunityBody: 'Ceux qui vivent l\'histoire racontent l\'histoire — de Bamenda à Cape Town, Eagle Eye est leur objectif, pas un gardien.',
     vVerifiedTitle: 'La vérification avant la portée',
-    vVerifiedBody: 'Rien n\'est publié sans examen. Les histoires sont vérifiées sur le terrain par des correspondants locaux ; les rumeurs ne sont pas amplifiées.',
+    vVerifiedBody: 'L’examen éditorial ne garantit pas que chaque détail soit certain. Nous indiquons ce qui a été vérifié et ce qui évolue encore ; les rumeurs ne sont pas présentées comme des faits.',
     vCreditTitle: 'Le crédit revient à qui de droit',
     vCreditBody: 'Chaque photographie et chaque reportage porte le nom de son contributeur — la visibilité à travers le continent est la récompense.',
     vOpenTitle: 'Un enregistrement ouvert',
@@ -1061,9 +1070,9 @@ about: {
     guideMetaDesc: 'Comment lire, contribuer, rester en sécurité et annoncer sur Eagle Eye Africa — le guide communautaire.',
     guideTitle: 'Guide communautaire',
     guideIntro:
-      'Eagle Eye Africa est une plateforme médiatique africaine centrée sur la communauté : journalisme local, narration visuelle, avis communautaires, petites annonces et culture — rapporté par des Africains, vérifié sur le terrain. Ce guide montre comment la lire, y contribuer et l’utiliser en sécurité.',
+      'Eagle Eye Africa construit un registre durable de la vie des communautés africaines grâce aux reportages locaux, aux photos, aux avis et à la culture. Chaque récit indique sa source et son statut de vérification ; les corrections acceptées restent publiques. Acheter & vendre est un service local distinct. Ce guide explique comment lire, contribuer et utiliser chaque rubrique en sécurité.',
     guideBrowseTitle: 'Trouvez votre rubrique',
-    guideNews: 'Reportages locaux vérifiés, filtrables par catégorie et par lieu.',
+    guideNews: 'Reportages locaux, recherchables par catégorie et par lieu, avec le statut de la source indiqué.',
     guidePhotos: 'Récits visuels de photographes communautaires.',
     guideCulture: 'Arts, événements et culture — y compris près de chez vous.',
     guideNotices: 'Objets trouvés, alertes, avis scolaires et officiels.',

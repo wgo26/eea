@@ -64,6 +64,7 @@ export default {
                 // operator fills them at Admin → Site content.
                 { key: "contact_email", value: "info@eagleeyeafrica.org", why: "local placeholder" },
                 { key: "contact_whatsapp", value: "+237 670 040 473", why: "local placeholder" },
+                { key: "contact_sms", value: "+237 670 040 473", why: "local placeholder (same intake line as WhatsApp)" },
                 {
                     key: "announcement_text_en",
                     value: "Demo announcement — edit or clear this in Admin → Site content",

@@ -2,7 +2,7 @@ export const SITE = {
   name: "Eagle Eye Africa",
   shortName: "EEA",
   description:
-    "A community-powered platform for photo stories, community news, notices, buy & sell, and culture — one community board for every place.",
+    "A durable, place-based record of African community life: local reporting, photographs, notices and culture, with visible sources and accepted corrections. Buy & Sell is a separate local service.",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
   locales: ["en", "fr"] as const,
   defaultLocale: "en" as const,

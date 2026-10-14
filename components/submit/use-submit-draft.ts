@@ -6,10 +6,10 @@ export function draftKeyFor(type: string): string {
     return `eea-submit-draft-${type}`;
 }
 
-type DraftData = Record<string, string | boolean>;
+export type DraftData = Record<string, string | boolean>;
 
-/** Serializes named text-ish fields (files + the type marker skipped). */
-function snapshot(form: HTMLFormElement): DraftData {
+/** Serializes named text-ish fields (files + the type marker skipped). Exported for the offline outbox (use-submit-queue), which snapshots the same way. */
+export function snapshot(form: HTMLFormElement): DraftData {
     const out: DraftData = {};
     for (const el of Array.from(form.elements)) {
         if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement)) {
@@ -29,7 +29,8 @@ function snapshot(form: HTMLFormElement): DraftData {
     return out;
 }
 
-function applySnapshot(form: HTMLFormElement, data: DraftData): number {
+/** Applies a snapshot (draft restore or offline-queue resubmit). Returns fields changed. */
+export function applySnapshot(form: HTMLFormElement, data: DraftData): number {
     let applied = 0;
     for (const [name, value] of Object.entries(data)) {
         const el = form.elements.namedItem(name);

@@ -113,7 +113,7 @@ export default async function Page({
                   <td className="px-3 py-2">
                     <span className="flex max-w-48 flex-wrap gap-1">
                       {claim.skills.slice(0, 6).map((s) => (
-                        <span key={s} className="rounded-full bg-muted px-2 py-0.5 text-[11px]">
+                        <span key={s} className="rounded-full bg-muted px-2 py-0.5 text-xs">
                           {s}
                         </span>
                       ))}

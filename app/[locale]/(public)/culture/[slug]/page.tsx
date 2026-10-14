@@ -341,6 +341,7 @@ export default async function CultureDetailPage({ params }: Props) {
                             title={article.title}
                             locale={locale}
                             contentId={article.id}
+                            contentType="culture"
                             labels={{
                                 share: dict.common.share,
                                 whatsapp: dict.common.whatsapp,

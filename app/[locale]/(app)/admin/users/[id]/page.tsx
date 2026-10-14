@@ -16,12 +16,10 @@ import { DangerZone, CurationControls, RoleManager, StatusControls } from './use
 import { ProfileEditor } from './profile-editor'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<{ title: string }> {
-  const { id } = await params
+  await params
   const locale = await getRequestLocale()
   const dict = getDictionary(locale)
-  const detail = await getUserDetail(id).catch(() => null)
-  const name = detail?.user.displayName ?? detail?.user.fullName ?? detail?.user.email ?? dict.admin.users.title
-  return { title: name }
+  return { title: dict.admin.users.title }
 }
 
 /**

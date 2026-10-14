@@ -30,16 +30,11 @@ const SCANNED_DIRS = ["lib/admin", "components/admin", "app/[locale]/(app)/admin
 /**
  * Files allowed to exceed the cap — each with the ceiling it may not grow past.
  * Lower the ceiling to the file's current size every time the split lands.
+ * (W17 split landed: lib/admin/actions.ts is gone. W20 split landed
+ * 2026-10-14: content-form.tsx 1773 → 418 lines across form/section-* +
+ * form/use-* modules, under the cap — its entry retired.)
  */
 const ALLOWLIST = {
-    // W17 split landed: lib/admin/actions.ts is gone (per-domain modules in
-    // lib/admin/actions/, each under the cap).
-    //
-    // W20: the content form is being split into per-section modules
-    // (form/fields, form/details, form/media, form/classify, form/seo,
-    // form/publish). Its ceiling is pinned at the size it was when the
-    // cap was extended, so the file may only shrink from here.
-    "app/[locale]/(app)/admin/content/content-form.tsx": 1773,
 };
 
 function walk(dir, out = []) {

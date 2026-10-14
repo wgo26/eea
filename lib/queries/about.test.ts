@@ -40,7 +40,7 @@ describe("about.ts honest stats run on one RPC", () => {
             corrections_30d: 3,
             raised_by_currency: { XAF: 1250000, EUR: 3200.5 },
         });
-        expect(stats.storiesPublished).toBe(41);
+        expect(stats.itemsPublished).toBe(41);
         expect(stats.contributors).toBe(12);
         expect(stats.locationsCovered).toBe(5);
         expect(stats.correctionsPublished30d).toBe(3);
@@ -49,30 +49,24 @@ describe("about.ts honest stats run on one RPC", () => {
             { currency: "XAF", total: 1250000 },
             { currency: "EUR", total: 3200.5 },
         ]);
-        // Headline is the largest bucket, named with its own currency.
-        expect(stats.raisedHeadlineCurrency).toBe("XAF");
-        expect(stats.raisedHeadlineTotal).toBe(1250000);
     });
 
     it("mapRecordStats degrades garbage/empty payloads to safe zeros", () => {
         expect(mapRecordStats(null)).toEqual({
-            storiesPublished: 0,
+            itemsPublished: 0,
             contributors: 0,
             locationsCovered: 0,
             correctionsPublished30d: 0,
             raisedByCurrency: [],
-            raisedHeadlineCurrency: null,
-            raisedHeadlineTotal: 0,
         });
         const stats = mapRecordStats({
             stories_published: -4,
             contributors: "nope",
             raised_by_currency: { XAF: "junk", "  ": 10, EUR: 0 },
         });
-        expect(stats.storiesPublished).toBe(0);
+        expect(stats.itemsPublished).toBe(0);
         expect(stats.contributors).toBe(0);
         expect(stats.raisedByCurrency).toEqual([]);
-        expect(stats.raisedHeadlineCurrency).toBeNull();
     });
 
     it("getCommunityStats calls the RPC once and maps the result", async () => {
@@ -89,14 +83,14 @@ describe("about.ts honest stats run on one RPC", () => {
         const stats = await getCommunityStats();
         expect(mocks.rpc).toHaveBeenCalledWith("community_record_stats");
         expect(mocks.from).not.toHaveBeenCalled();
-        expect(stats.storiesPublished).toBe(7);
+        expect(stats.itemsPublished).toBe(7);
         expect(stats.correctionsPublished30d).toBe(1);
     });
 
     it("getCommunityStats degrades to zeros when the RPC errors", async () => {
         mocks.rpc.mockResolvedValue({ data: null, error: { message: "db down" } });
         const stats = await getCommunityStats();
-        expect(stats.storiesPublished).toBe(0);
-        expect(stats.raisedHeadlineCurrency).toBeNull();
+        expect(stats.itemsPublished).toBe(0);
+        expect(stats.raisedByCurrency).toEqual([]);
     });
 });

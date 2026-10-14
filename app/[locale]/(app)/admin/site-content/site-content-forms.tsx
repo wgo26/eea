@@ -607,19 +607,20 @@ export function SiteLinksForm({
 }
 
 /**
- * Public contact channels: the email + WhatsApp the guide and help surfaces
- * show when set (mailto: / wa.me links). Empty = hidden everywhere — the
- * newsroom publishes no contact it has not configured.
+ * Public contact channels: the email + WhatsApp + SMS the guide and help
+ * surfaces show when set (mailto: / wa.me / sms: links). Empty = hidden
+ * everywhere — the newsroom publishes no contact it has not configured.
  */export function ContactChannelsForm({
   copy,
   settings,
 }: {
   copy: Copy
-  settings: { contact_email: string | null; contact_whatsapp: string | null }
+  settings: { contact_email: string | null; contact_whatsapp: string | null; contact_sms: string | null }
 }) {
   const { addToast } = useToast()
   const [email, setEmail] = useState(settings.contact_email ?? '')
   const [whatsapp, setWhatsapp] = useState(settings.contact_whatsapp ?? '')
+  const [sms, setSms] = useState(settings.contact_sms ?? '')
   const [loading, setLoading] = useState(false)
 
   async function handleSave() {
@@ -627,6 +628,7 @@ export function SiteLinksForm({
     for (const [key, val] of [
       ['contact_email', email || null],
       ['contact_whatsapp', whatsapp || null],
+      ['contact_sms', sms || null],
     ] as const) {
       const result = await saveSiteSetting({ key, value: val })
       if (!result.ok) {
@@ -683,6 +685,25 @@ export function SiteLinksForm({
             className={input}
           />
           <span className="text-xs">{copy.contactWhatsappHint}</span>
+        </label>
+
+        <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+          <span className="flex items-center justify-between">
+            {copy.contactSmsLabel}
+            {settings.contact_sms ? null : (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                {copy.notSet}
+              </span>
+            )}
+          </span>
+          <input
+            type="tel"
+            value={sms}
+            onChange={(e) => setSms(e.target.value)}
+            placeholder={copy.contactSmsPlaceholder}
+            className={input}
+          />
+          <span className="text-xs">{copy.contactSmsHint}</span>
         </label>
       </div>
 

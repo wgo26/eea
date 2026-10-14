@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Flag, Loader2 } from "lucide-react";
-import { submitContentReport } from "@/lib/public/actions";
+import { submitContentReport } from "@/lib/public/report-actions";
 import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import {
     Dialog,

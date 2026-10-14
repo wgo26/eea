@@ -4,6 +4,7 @@ import { getRequestLocale } from '@/lib/i18n/server'
 import { localePath, safeNextPath } from '@/lib/i18n/urls'
 import { getUserRoles, getAdminRoles, isStaffRoles, isAdminRoles } from './roles'
 import { effectiveCapabilities, resolveAdminRoles } from './admin-roles'
+import { isMfaChallengeRequired } from './assurance'
 import { type Capability } from './capabilities'
 import type { AppRole } from './types'
 
@@ -62,6 +63,11 @@ export async function requireStaff(nextPath = '/admin/dashboard') {
   const { supabase, user } = await requireUser(nextPath)
   const roles = await getUserRoles(supabase, user.id)
   if (!isStaffRoles(roles)) await denyAccess(nextPath)
+  if (await isMfaChallengeRequired(supabase)) {
+    const locale = await getRequestLocale()
+    const target = safeNextPath(nextPath, locale) ?? localePath(locale, '/admin/dashboard')
+    redirect(localePath(locale, `/account/mfa-challenge?next=${encodeURIComponent(target)}`))
+  }
   return { supabase, user, roles }
 }
 
@@ -69,6 +75,11 @@ export async function requireAdmin(nextPath = '/admin/users') {
   const { supabase, user } = await requireUser(nextPath)
   const roles = await getUserRoles(supabase, user.id)
   if (!isAdminRoles(roles)) await denyAccess(nextPath)
+  if (await isMfaChallengeRequired(supabase)) {
+    const locale = await getRequestLocale()
+    const target = safeNextPath(nextPath, locale) ?? localePath(locale, '/admin/users')
+    redirect(localePath(locale, `/account/mfa-challenge?next=${encodeURIComponent(target)}`))
+  }
   return { supabase, user, roles }
 }
 

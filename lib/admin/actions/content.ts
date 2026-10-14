@@ -1,7 +1,7 @@
 'use server'
 
 import { assertStaff, assertAdmin, assertAnyCapability, assertCapability } from '@/lib/admin/auth'
-import { getContentItemEditData as fetchContentEditData, queryContentForSlotAssign, searchAuthorProfiles, getContentHistory, getContentItems, getUsers } from '@/lib/admin/queries'
+import { getContentItemEditData as fetchContentEditData, queryContentForSlotAssign, searchAuthorProfiles, getContentHistory, getContentItems } from '@/lib/admin/queries'
 import { validateContentDraft, type ContentDraftInput } from '../content-validation'
 import { syncContentTags } from '@/lib/admin/tags'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -348,7 +348,11 @@ export async function adminGlobalSearch(query: string): Promise<AdminSearchResul
   const like = `%${q.replace(/[%_,]/g, '')}%`
   const [content, users, locations, media, auditEvents] = await Promise.all([
     getContentItems({ search: q, limit: 6, offset: 0 }),
-    getUsers({ search: q, limit: 6, page: 1 }),
+    supabase
+      .from('profiles')
+      .select('id, display_name')
+      .ilike('display_name', like)
+      .limit(6),
     supabase.from('locations').select('id, name, slug').ilike('name', like).limit(6),
     supabase
       .from('media_assets')
@@ -364,7 +368,7 @@ export async function adminGlobalSearch(query: string): Promise<AdminSearchResul
   ])
   return {
     content: content.rows.map((r) => ({ id: r.id, title: r.title ?? 'Untitled', type: r.type, status: r.status })),
-    users: users.rows.map((u) => ({ id: u.id, name: u.displayName ?? u.fullName ?? u.email ?? 'User', email: u.email ?? '' })),
+    users: (users.data ?? []).map((user) => ({ id: user.id, name: user.display_name ?? 'User', email: '' })),
     locations: ((locations.data ?? []) as { id: string; name: string; slug: string }[]).map((l) => ({
       id: l.id,
       name: l.name,

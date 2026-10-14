@@ -20,7 +20,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
     const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
     const meta = dict.submit.types.news;
-    const { contactWhatsapp } = await getPublicSiteSettings().catch(() => ({ contactWhatsapp: null as string | null }));
+    const { contactWhatsapp, contactSms } = await getPublicSiteSettings().catch(() => ({ contactWhatsapp: null as string | null, contactSms: null as string | null }));
     return (
         <div className="mx-auto w-full max-w-2xl px-4 py-8 md:px-6 lg:px-8">
             <Link
@@ -37,9 +37,11 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
             <div className="mt-6">
                 <SubmitOfflineNotice
                     whatsapp={contactWhatsapp}
+                    sms={contactSms}
                     title={dict.submit.offlineTitle}
                     body={dict.submit.offlineBody}
                     fallback={dict.submit.fallbackWhatsapp}
+                    fallbackSms={dict.submit.fallbackSms}
                 />
                 <SubmitFormGated type="news" dict={dict} />
             </div>

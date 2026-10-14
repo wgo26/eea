@@ -71,14 +71,15 @@ export async function setUserStatus(
       const { count } = await supabase.from('user_roles').select('user_id', { count: 'exact', head: true }).eq('role', 'admin')
       if ((count ?? 0) <= 1) return { ok: false, error: 'The last administrator cannot be disabled.' }
     }
-    const { error } = await supabase.from('profiles').update({ is_suspended: status === 'suspended', is_banned: status === 'banned' }).eq('id', userId)
+    const admin = createAdminClient()
+    const { error } = await admin.from('profiles').update({ is_suspended: status === 'suspended', is_banned: status === 'banned' }).eq('id', userId)
     if (error) return { ok: false, error: error.message }
     // Mirror the status into Supabase Auth (Phase 5: session/token revocation):
     // banning revokes all of the user's refresh tokens, so a banned user's
     // live session dies when their short-lived access token expires instead of
     // surviving indefinitely. Restoring lifts any auth-level ban. Suspension
     // stays a soft profile flag by design (blocks the next login only).
-    const { error: authError } = await createAdminClient().auth.admin.updateUserById(userId, {
+    const { error: authError } = await admin.auth.admin.updateUserById(userId, {
       ban_duration: status === 'banned' ? '876000h' : 'none',
     })
     if (authError) return { ok: false, error: authError.message }
@@ -101,7 +102,7 @@ export async function deleteUser(userId: string, confirmPassword?: string): Prom
       if ((count ?? 0) <= 1) return { ok: false, error: 'The last administrator cannot be deleted.' }
     }
     await supabase.from('content_items').update({ author_id: null, submitted_by: null }).eq('author_id', userId)
-    const { error: profileError } = await supabase.from('profiles').delete().eq('id', userId)
+    const { error: profileError } = await createAdminClient().from('profiles').delete().eq('id', userId)
     if (profileError) return { ok: false, error: profileError.message }
     const { error } = await createAdminClient().auth.admin.deleteUser(userId)
     if (error) return { ok: false, error: error.message }
@@ -115,7 +116,7 @@ export async function deleteUser(userId: string, confirmPassword?: string): Prom
 export async function updateContributorCuration(userId: string, input: { featured: boolean; bioOverride?: string | null }): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertAdmin()
-    const { error } = await supabase.from('profiles').update({ contributor_featured: input.featured, contributor_bio_override: input.bioOverride?.trim() || null }).eq('id', userId)
+    const { error } = await createAdminClient().from('profiles').update({ contributor_featured: input.featured, contributor_bio_override: input.bioOverride?.trim() || null }).eq('id', userId)
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: 'user:contributor:update', entityType: 'profile', entityId: userId })
     revalidateLocalized('/admin/users')
@@ -132,7 +133,6 @@ export type UserProfilePatch = {
   avatarUrl?: string | null
   locationId?: string | null
   isPublic?: boolean
-  isVerified?: boolean
   preferredLocale?: string | null
   preferredVoice?: string | null
   contributorHandle?: string | null
@@ -181,7 +181,6 @@ function buildProfilePatch(input: UserProfilePatch): { patch: Record<string, str
   if (input.avatarUrl !== undefined) patch.avatar_url = input.avatarUrl?.trim() || null
   if (input.locationId !== undefined) patch.location_id = input.locationId?.trim() || null
   if (input.isPublic !== undefined) patch.is_public = input.isPublic
-  if (input.isVerified !== undefined) patch.is_verified = input.isVerified
   if (input.preferredLocale !== undefined) patch.preferred_locale = input.preferredLocale?.trim() || 'en'
   if (input.preferredVoice !== undefined) patch.preferred_voice = input.preferredVoice?.trim() || 'formal'
   if (input.contributorHandle !== undefined) patch.contributor_handle = input.contributorHandle?.trim() || null
@@ -194,7 +193,7 @@ export async function updateUserProfile(userId: string, input: UserProfilePatch)
     const { patch, error } = buildProfilePatch(input)
     if (error) return { ok: false, error }
     if (Object.keys(patch).length === 0) return { ok: false, error: 'Nothing to update.' }
-    const { error: updateError } = await supabase.from('profiles').update(patch as UpdateOf<'profiles'>).eq('id', userId)
+    const { error: updateError } = await createAdminClient().from('profiles').update(patch as UpdateOf<'profiles'>).eq('id', userId)
     if (updateError) return { ok: false, error: updateError.message }
     await audit(supabase, user.id, { action: 'user:profile:update', entityType: 'profile', entityId: userId })
     revalidateLocalized('/admin/users')
@@ -207,7 +206,7 @@ export async function updateUserProfile(userId: string, input: UserProfilePatch)
 export async function setUserVerified(userId: string, verified: boolean): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertCapability('manageUsers')
-    const { error } = await supabase.from('profiles').update({ is_verified: verified }).eq('id', userId)
+    const { error } = await createAdminClient().from('profiles').update({ is_verified: verified }).eq('id', userId)
     if (error) return { ok: false, error: error.message }
     await audit(supabase, user.id, { action: verified ? 'user:verify' : 'user:unverify', entityType: 'profile', entityId: userId })
     revalidateLocalized('/admin/users')
@@ -229,10 +228,11 @@ export async function uploadUserAvatar(userId: string, formData: FormData): Prom
     const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
     const path = `${userId}/${Date.now()}.${ext}`
     const bytes = Buffer.from(await file.arrayBuffer())
-    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, bytes, { contentType: file.type, upsert: true })
+    const admin = createAdminClient()
+    const { error: uploadError } = await admin.storage.from('avatars').upload(path, bytes, { contentType: file.type, upsert: true })
     if (uploadError) return { ok: false, error: uploadError.message }
     const { data } = supabase.storage.from('avatars').getPublicUrl(path)
-    const { error: updateError } = await supabase.from('profiles').update({ avatar_url: data.publicUrl }).eq('id', userId)
+    const { error: updateError } = await admin.from('profiles').update({ avatar_url: data.publicUrl }).eq('id', userId)
     if (updateError) return { ok: false, error: updateError.message }
     await audit(supabase, user.id, { action: 'user:profile:update', entityType: 'profile', entityId: userId, notes: 'avatar upload' })
     revalidateLocalized('/admin/users')

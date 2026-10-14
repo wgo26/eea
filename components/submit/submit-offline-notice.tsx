@@ -1,31 +1,38 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { MessageCircle, WifiOff } from 'lucide-react'
+import { MessageCircle, Smartphone, WifiOff } from 'lucide-react'
 
 /**
  * Offline + no-internet fallback notice for the public submit flow (audit:
  * Lost/Found must work on a failed network).
  *
- * Honest behavior — this is NOT an offline queue: Turnstile + rate limits
- * cannot run offline, so submissions need a connection. What this does:
+ * Honest behavior — text-field sends are queued by the form outbox
+ * (use-submit-queue) and completed on reconnect, but Turnstile + rate limits
+ * cannot run offline, so nothing leaves the device until then. What this does:
  * - when offline: a visible banner (draft autosave in the form keeps the
  *   content; the banner says so and tells the user to reconnect + Send);
  * - when `whatsapp` is set (site settings `contact_whatsapp`): a quiet
  *   fallback line — feature-phone / zero-data users can WhatsApp the report
- *   and editors post it for them.
+ *   and editors post it for them;
+ * - when `sms` is set (site settings `contact_sms`): an sms: deep link for
+ *   reporters whose phones have no data at all.
  * Renders nothing when online and no fallback number is configured.
  */
 export function SubmitOfflineNotice({
   whatsapp,
+  sms,
   title,
   body,
   fallback,
+  fallbackSms,
 }: {
   whatsapp: string | null
+  sms?: string | null
   title: string
   body: string
   fallback: string
+  fallbackSms?: string
 }) {
   const [online, setOnline] = useState<boolean>(() =>
     typeof navigator === 'undefined' ? true : navigator.onLine,
@@ -44,7 +51,9 @@ export function SubmitOfflineNotice({
 
   const digits = (whatsapp ?? '').replace(/[^\d]/g, '')
   const showFallback = digits.length >= 7
-  if (online && !showFallback) return null
+  const smsDigits = (sms ?? '').replace(/[^\d]/g, '')
+  const showSms = smsDigits.length >= 7 && !!fallbackSms
+  if (online && !showFallback && !showSms) return null
 
   return (
     <div className="mb-6 space-y-3" role="status">
@@ -71,6 +80,19 @@ export function SubmitOfflineNotice({
           </span>
           <span className="min-w-0 text-sm text-muted-foreground">
             {fallback.replace('{number}', whatsapp as string)}
+          </span>
+        </a>
+      ) : null}
+      {showSms ? (
+        <a
+          href={`sms:${smsDigits}`}
+          className="flex items-center gap-3 rounded-2xl border bg-card p-4 transition-shadow hover:shadow-md"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Smartphone className="h-4 w-4" aria-hidden />
+          </span>
+          <span className="min-w-0 text-sm text-muted-foreground">
+            {(fallbackSms as string).replace('{number}', sms as string)}
           </span>
         </a>
       ) : null}

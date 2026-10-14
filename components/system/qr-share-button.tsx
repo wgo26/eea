@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { QrCode } from "lucide-react";
-import QRCode from "qrcode";
+// NOTE: `qrcode` is dynamically imported inside the handlers (not at module
+// top) so its ~30 KB never joins the public first-load bundle — the dialog
+// is opened rarely, and generation is already async.
 import {
     Dialog,
     DialogContent,
@@ -26,6 +28,7 @@ export function QrShareButton({ url, copy }: { url: string; copy: QrCopy }) {
         setOpen(true);
         if (!svg) {
             try {
+                const { default: QRCode } = await import("qrcode");
                 const rendered = await QRCode.toString(url, {
                     type: "svg",
                     margin: 1,
@@ -40,14 +43,16 @@ export function QrShareButton({ url, copy }: { url: string; copy: QrCopy }) {
     }
 
     function downloadPng() {
-        QRCode.toDataURL(url, { margin: 1, width: 512 }).then((href) => {
-            const link = document.createElement("a");
-            link.href = href;
-            link.download = "share-qr.png";
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }).catch(() => undefined);
+        import("qrcode").then(({ default: QRCode }) =>
+            QRCode.toDataURL(url, { margin: 1, width: 512 }).then((href) => {
+                const link = document.createElement("a");
+                link.href = href;
+                link.download = "share-qr.png";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }).catch(() => undefined),
+        ).catch(() => undefined);
     }
 
     return (

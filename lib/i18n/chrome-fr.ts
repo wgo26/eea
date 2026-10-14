@@ -27,7 +27,7 @@ export const chromeFr = {
   },
   header: {
     searchPlaceholder: 'Rechercher histoires, avis, annonces…',
-    tagline: 'Vu par la communauté. Vérifié par Eagle Eye.',
+    tagline: 'Récits locaux. Sources et corrections visibles.',
     menu: 'Menu',
     close: 'Fermer',
   },
@@ -50,7 +50,7 @@ export const chromeFr = {
 footer: {
     aboutTitle: 'Eagle Eye Africa',
     aboutText:
-      'Une plateforme médiatique africaine centrée sur la communauté, combinant journalisme local, narration visuelle, information communautaire, petites annonces et culture — un enregistrement numérique de ce qui se passe autour des gens.',
+      'Un registre durable de la vie des communautés africaines, ancré dans les lieux et nourri par les reportages, les photos, les avis et la culture. Les petites annonces restent un service local distinct ; les sources, les niveaux de vérification et les corrections acceptées rendent le registre éditorial responsable.',
     sections: 'Rubriques',
     community: 'Communauté',
     legal: 'Légal',

@@ -43,7 +43,7 @@ export const resolveAccountIdentity = cache(
     const [{ data: profile }, roles, unreadNotifications] = await Promise.all([
       supabase
         .from('profiles')
-        .select('display_name, full_name, avatar_url, is_public, is_verified, created_at, location:locations(name)')
+        .select('display_name, avatar_url, is_public, is_verified, created_at, location:locations(name)')
         .eq('id', userId)
         .maybeSingle(),
       getUserRoles(supabase, userId),
@@ -52,7 +52,6 @@ export const resolveAccountIdentity = cache(
 
     const p = (profile ?? null) as {
       display_name?: string | null
-      full_name?: string | null
       avatar_url?: string | null
       is_public?: boolean | null
       is_verified?: boolean | null
@@ -62,7 +61,6 @@ export const resolveAccountIdentity = cache(
 
     const displayName =
       p?.display_name ||
-      p?.full_name ||
       (email ? email.split('@')[0] : '') ||
       d.member
 

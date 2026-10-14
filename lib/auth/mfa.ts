@@ -2,10 +2,16 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { isMfaChallengeRequired } from '@/lib/auth/assurance'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { localePath, safeNextPath } from '@/lib/i18n/urls'
 
-export type MfaFactor = { id: string; friendlyName: string | null; createdAt: string }
+export type MfaFactor = {
+  id: string
+  friendlyName: string | null
+  createdAt: string
+  status: 'verified' | 'unverified'
+}
 
 /**
  * Two-factor authentication (TOTP) on Supabase Auth MFA.
@@ -17,13 +23,14 @@ export type MfaFactor = { id: string; friendlyName: string | null; createdAt: st
 export async function getMfaFactors(): Promise<MfaFactor[]> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
+  if (!user) throw new Error('Authentication required.')
   const { data, error } = await supabase.auth.mfa.listFactors()
-  if (error) return []
+  if (error) throw new Error('Could not load two-factor settings.')
   return (data.totp ?? []).map((f) => ({
     id: f.id,
     friendlyName: f.friendly_name ?? null,
     createdAt: f.created_at,
+    status: f.status,
   }))
 }
 
@@ -52,10 +59,29 @@ export async function verifyMfaEnrollment(factorId: string, code: string): Promi
   return { ok: true }
 }
 
-export async function unenrollMfa(factorId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function unenrollMfa(
+  factorId: string,
+  code: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'Not authenticated.' }
+  const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
+  if (factorsError) return { ok: false, error: 'Could not verify the authenticator factor.' }
+  const factor = (factors.totp ?? []).find((item) => item.id === factorId)
+  if (!factor) return { ok: false, error: 'Authenticator factor not found.' }
+  if (factor.status === 'verified') {
+    const clean = code.replace(/\D/g, '')
+    if (clean.length !== 6) return { ok: false, error: 'Enter the current 6-digit authenticator code.' }
+    const challenge = await supabase.auth.mfa.challenge({ factorId })
+    if (challenge.error) return { ok: false, error: 'Could not verify the authenticator code.' }
+    const { error: verifyError } = await supabase.auth.mfa.verify({
+      factorId,
+      challengeId: challenge.data.id,
+      code: clean,
+    })
+    if (verifyError) return { ok: false, error: 'The authenticator code did not work.' }
+  }
   const { error } = await supabase.auth.mfa.unenroll({ factorId })
   if (error) return { ok: false, error: error.message }
   return { ok: true }
@@ -64,9 +90,7 @@ export async function unenrollMfa(factorId: string): Promise<{ ok: true } | { ok
 /** Assurance level after password sign-in — 'aal2' means "go verify a code". */
 export async function needsMfaChallenge(): Promise<boolean> {
   const supabase = await createClient()
-  const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-  if (error || !data) return false
-  return data.nextLevel === 'aal2' && data.currentLevel !== 'aal2'
+  return isMfaChallengeRequired(supabase)
 }
 
 export async function verifyMfaChallenge(
@@ -79,8 +103,9 @@ export async function verifyMfaChallenge(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'session' }
-  const { data: factors } = await supabase.auth.mfa.listFactors()
-  const factor = (factors?.totp ?? []).find((f) => f.status === 'verified') ?? (factors?.totp ?? [])[0]
+  const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
+  if (factorsError) return { ok: false, error: 'generic' }
+  const factor = (factors?.totp ?? []).find((f) => f.status === 'verified')
   if (!factor) return { ok: false, error: 'none' }
   const challenge = await supabase.auth.mfa.challenge({ factorId: factor.id })
   if (challenge.error) return { ok: false, error: 'generic' }

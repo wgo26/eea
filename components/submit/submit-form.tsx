@@ -1,95 +1,28 @@
 "use client";
 
-import * as React from "react";
-import { useActionState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { AlertCircle, Check, Info, Loader2 } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { submitStory, saveStoryDraft } from "@/lib/public/actions";
-import { LocationField } from "@/components/submit/location-field";
-import { MediaField } from "@/components/submit/media-field";
-import { VoiceInputButton } from "@/components/submit/voice-input-button";
-import { useSubmitDraft } from "@/components/submit/use-submit-draft";
-import { TurnstileWidget } from "@/components/security/turnstile-widget";
-import type { SubmitState } from "@/lib/public/types";
-import { localePath } from "@/lib/i18n/urls";
-import { useLocaleFromPath } from "@/components/site-header";
-import { NOTICE_TYPE_META } from "@/lib/notice-types";
 import type { Dictionary } from "@/lib/i18n";
+import { TYPE_TO_DB } from "./submit-types";
+import type { SubmitInitial, SubmitType } from "./submit-types";
+import { useSubmitSteps } from "./use-submit-steps";
+import { SubmitContactCard } from "./submit-contact-card";
+import { SubmitEssentials } from "./submit-essentials";
+import { SubmitDetailsStep } from "./submit-details-step";
+import { SubmitReviewStep } from "./submit-review-step";
 
-export type SubmitType =
-    | "photo-story"
-    | "news"
-    | "culture"
-    | "notice"
-    | "buy-sell";
+// Re-exported: submit-form-gated and submit-form-with-progress import the
+// funnel vocabulary from this module. The definitions live in
+// ./submit-types; this barrel keeps those import paths stable.
+export type { SubmitType, SubmitInitial } from "./submit-types";
+export { TYPE_TO_DB } from "./submit-types";
 
-export type SubmitInitial = {
-    name?: string | null;
-    email?: string | null;
-    phone?: string | null;
-    locationId?: string | null;
-    locationText?: string | null;
-};
-
-export const TYPE_TO_DB: Record<SubmitType, string> = {
-    "photo-story": "photo_story",
-    news: "news",
-    culture: "culture",
-    notice: "notice",
-    "buy-sell": "buy_sell",
-};
-
-const CURRENCIES = ["XAF", "XOF", "CDF", "USD", "EUR", "NGN", "GHS"];
-
-const NOTICE_TYPES = Object.keys(NOTICE_TYPE_META);
-
-function Field({
-    label,
-    htmlFor,
-    children,
-    hint,
-    help,
-}: {
-    label: string;
-    htmlFor: string;
-    children: React.ReactNode;
-    hint?: string;
-    help?: string;
-}) {
-    return (
-        <div className="space-y-1.5">
-            <span className="flex items-center gap-1.5">
-                <Label htmlFor={htmlFor}>{label}</Label>
-                {help ? (
-                    <Popover>
-                        <PopoverTrigger
-                            type="button"
-                            aria-label={`${label} help`}
-                            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
-                        >
-                            <Info className="h-3.5 w-3.5" aria-hidden />
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64 text-xs leading-relaxed">
-                            {help}
-                        </PopoverContent>
-                    </Popover>
-                ) : null}
-            </span>
-            {children}
-            {hint ? (
-                <p className="text-xs text-muted-foreground">{hint}</p>
-            ) : null}
-        </div>
-    );
-}
-
+/**
+ * Public submit funnel shell: 3 steps (essentials → details → media/review)
+ * plus the always-visible contact card. Field groups live in
+ * submit-essentials / submit-details-step / submit-review-step, transitions
+ * and validation in use-submit-steps. Nothing here may grow a new field —
+ * it belongs in the step that owns it.
+ */
 export function SubmitForm({
     type,
     dict,
@@ -113,174 +46,45 @@ export function SubmitForm({
     step?: number;
     onStepChange?: (step: number) => void;
 }) {
-    const router = useRouter();
-    const locale = useLocaleFromPath();
-    const [state, formAction, pending] = useActionState<SubmitState, FormData>(
-        submitStory,
-        { ok: false },
-    );
-    const [draftState, draftAction, draftPending] = useActionState<SubmitState, FormData>(
-        saveStoryDraft,
-        { ok: false },
-    );
+    const steps = useSubmitSteps({
+        type,
+        initial,
+        initialDraft,
+        initialNoticeType,
+        controlledStep,
+        onStepChange,
+    });
+    const {
+        locale, state, formAction, pending, draftAction, draftPending,
+        submitAttempt, setSubmitAttempt, showContact, setShowContact,
+        selectedNoticeType, setSelectedNoticeType, mediaOpen, setMediaOpen,
+        reviewOpen, setReviewOpen, reviewValues, formRef, stepRef, step,
+        contactError, checkBuySellContact, goStep, restored, clearDraft,
+        captureReviewValues, queued, queueOnline, queueCurrent, sendQueued,
+        discardQueued,
+    } = steps;
     // Turnstile tokens are single-use — remount the challenge after a failed
     // submit so a spent token is never replayed.
-    const [submitAttempt, setSubmitAttempt] = React.useState(0);
     const turnstileKey = state.error ? `${state.error}#${submitAttempt}` : "fresh";
     const f = dict.submit.fields;
     const s = dict.submit.steps;
-    // Signed-in contributors with a known name start with contact collapsed.
-    const [showContact, setShowContact] = React.useState(!initial?.name);
-    const [selectedNoticeType, setSelectedNoticeType] = React.useState(
-        initialDraft?.noticeType || initialNoticeType || "",
-    );
-    const [mediaOpen, setMediaOpen] = React.useState(false);
-    const [reviewOpen, setReviewOpen] = React.useState(false);
-    const [reviewValues, setReviewValues] = React.useState<Record<string, string>>({});
-    const formRef = React.useRef<HTMLFormElement>(null);
-    const stepRef = React.useRef<HTMLDivElement>(null);
-    const [internalStep, setInternalStep] = React.useState(0)
-    const step = controlledStep ?? internalStep;
-    // Marketplace policy (confirmed): a buy-sell listing without a seller
-    // contact is unreviewable, so email-or-phone is required for the type
-    // even though both fields stay optional for every other type.
-    const [contactError, setContactError] = React.useState(false);
 
-    /** Effective contact values, whether the card is expanded or collapsed
-     * into hidden inputs for signed-in contributors. */
-    const contactValues = () => {
-        const form = formRef.current;
-        const read = (name: string) => {
-            const el = form?.elements.namedItem(name);
-            return el instanceof HTMLInputElement ? el.value.trim() : "";
-        };
-        return { email: read("email"), phone: read("phone") };
-    };
-
-    /** Enforce the buy-sell contact rule; returns true when satisfied. */
-    const checkBuySellContact = () => {
-        if (type !== "buy-sell") return true;
-        const { email, phone } = contactValues();
-        if (email || phone) {
-            setContactError(false);
-            return true;
-        }
-        setContactError(true);
-        setShowContact(true);
-        // The card may just have expanded — focus after paint.
-        requestAnimationFrame(() => {
-            (document.getElementById("phone") as HTMLInputElement | null)?.focus({ preventScroll: false });
-        });
-        return false;
-    };
-
-    const goStep = (next: number) => {
-        if (next > step) {
-            // Validate the always-visible contact card plus the visible step
-            // before advancing. (Hidden steps are display:none — browsers bar
-            // them from constraint validation — so each step is checked on
-            // the way through, and the contact card is checked every time.)
-            const root = stepRef.current;
-            if (root) {
-                const form = formRef.current;
-                const contactRequired = form
-                    ? Array.from(form.querySelectorAll<HTMLElement>("#submit-contact [required]"))
-                    : [];
-                const required = [
-                    ...contactRequired,
-                    ...Array.from(
-                        root.querySelectorAll<HTMLElement>("[data-step-active='true'] [required]"),
-                    ),
-                ];
-                for (const el of required) {
-                    const input = el as HTMLInputElement;
-                    if (!input.checkValidity()) {
-                        input.reportValidity();
-                        return;
-                    }
-                }
-            }
-            if (!checkBuySellContact()) return;
-        }
-        if (controlledStep === undefined) setInternalStep(next)
-        onStepChange?.(next)
-        stepRef.current?.scrollIntoView({ block: "start", behavior: "smooth" })
-    }
-
-    // Phase 3 — draft autosave: restore unsent fields after a dropped
-    // connection, clear on success.
-    const { restored, clearDraft } = useSubmitDraft(type, formRef);
-    React.useEffect(() => {
-        if (initialDraft && formRef.current) {
-            // Apply the server draft values to the form inputs if present
-            for (const [key, val] of Object.entries(initialDraft)) {
-                const el = formRef.current.elements.namedItem(key);
-                if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
-                    if (el instanceof HTMLInputElement && el.type === "checkbox") {
-                        el.checked = Boolean(val);
-                    } else if (val && typeof val === "string") {
-                        el.value = val;
-                    }
-                }
-            }
-        }
-    }, [initialDraft]);
-    
-    React.useEffect(() => {
-        if (state.ok) {
-            clearDraft();
-            router.push(localePath(locale, "/submit/confirmation"));
-        }
-    }, [state.ok, router, locale, clearDraft]);
-
-    React.useEffect(() => {
-        if (draftState.ok) {
-            // Optional: show a toast or message
-            clearDraft(); // clear local draft since server took over
-        }
-    }, [draftState.ok, clearDraft]);
-
-    /** Capture live form values into state when the review summary opens, so
-     * refs are read inside an event handler (not during render). */
-    function captureReviewValues() {
-        const form = formRef.current;
-        if (!form) return;
-        const next: Record<string, string> = {};
-        for (const name of ["contributorName", "email", "phone", "location_text", "date"]) {
-            const el = form.elements.namedItem(name);
-            if (
-                el instanceof HTMLInputElement ||
-                el instanceof HTMLTextAreaElement ||
-                el instanceof HTMLSelectElement
-            ) {
-                if (el instanceof HTMLInputElement && (el.type === "checkbox" || el.type === "radio")) {
-                    next[name] = el.checked ? el.value : "";
-                } else {
-                    next[name] = el.value.trim();
-                }
-            }
-        }
-        setReviewValues(next);
-    }
-
-    // Success navigates to /submit/confirmation via the effect above — no
+    // Success navigates to /submit/confirmation via the hook effect — no
     // inline success card here (it used to flash before the redirect).
 
-    const isPhoto = type === "photo-story";
-    const isNews = type === "news";
-    const isCulture = type === "culture";
-    const isNotice = type === "notice";
-    const isBuySell = type === "buy-sell";
-
-    const uploadCopy = {
-        retryFailed: dict.submit.retryUpload,
-        failedCount: dict.submit.uploadFailedCount,
-    };
     return (
         <form
             ref={formRef}
             action={formAction}
             onSubmit={(e) => {
+                // Offline outbox: spam checks cannot run offline, so the Send
+                // tap snapshots text fields into the outbox instead of
+                // failing. The reporter completes the send on reconnect.
+                if (typeof navigator !== "undefined" && !navigator.onLine) {
+                    e.preventDefault();
+                    queueCurrent();
+                    return;
+                }
                 setSubmitAttempt((a) => a + 1);
                 // Native validation runs first; this covers the cross-field
                 // marketplace rule (email OR phone) that `required` cannot
@@ -305,462 +109,94 @@ export function SubmitForm({
                 </div>
             ) : null}
 
+            {/* Offline outbox receipt: queued while offline, one tap sends on reconnect. */}
+            {queued ? (
+                <div role="status" className="space-y-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">
+                    <p className="text-sm font-bold">{dict.submit.queuedTitle}</p>
+                    <p className="text-sm text-muted-foreground">{dict.submit.queuedBody}</p>
+                    <p className="text-xs text-muted-foreground">{dict.submit.queuedNote}</p>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                        <button
+                            type="button"
+                            disabled={!queueOnline}
+                            onClick={() => {
+                                sendQueued();
+                            }}
+                            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                        >
+                            {dict.submit.queuedSend}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={discardQueued}
+                            className="rounded-md px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                        >
+                            {dict.submit.queuedDiscard}
+                        </button>
+                    </div>
+                </div>
+            ) : null}
+
             {/* Step progress lives in the shell (FocusedStepProgress, driven by
                 FormStepContext) — the single stepper. A second inline copy
                 used to render here and showed double step numbers. */}
 
-            {/* Contact card — collapsed for signed-in contributors */}
-            <div id="submit-contact" className="rounded-2xl border bg-muted/30 p-4">
-            {initial?.name && !showContact ? (
-                <div className="flex items-center justify-between gap-3 text-sm">
-                    <p className="inline-flex items-center gap-2">
-                        {initial.email ? (
-                            <Check className="h-4 w-4 text-emerald-500" aria-hidden />
-                        ) : (
-                            <AlertCircle className="h-4 w-4 text-amber-500" aria-hidden />
-                        )}
-                        <span>
-                            {s.submittingAs}{" "}
-                            <strong>{initial.name}</strong>
-                            {initial.email ? ` · ${initial.email}` : ""}
-                        </span>
-                    </p>
-                    <button
-                        type="button"
-                        onClick={() => setShowContact(true)}
-                        className="shrink-0 font-medium text-primary hover:underline"
-                    >
-                        {s.change}
-                    </button>
-                </div>
-            ) : (
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-bold">{s.contact}</p>
-                            {initial?.name ? (
-                                <button
-                                    type="button"
-                                    onClick={() => setShowContact(false)}
-                                    className="text-xs font-medium text-primary hover:underline"
-                                >
-                                    {s.useProfile}
-                                </button>
-                            ) : null}
-                        </div>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <Field label={f.contributorName} htmlFor="contributorName">
-                                <Input
-                                    id="contributorName"
-                                    name="contributorName"
-                                    defaultValue={initial?.name ?? ""}
-                                    required={!initial?.name}
-                                    placeholder={f.contributorNamePlaceholder}
-                                />
-                            </Field>
-                            <Field label={f.email} htmlFor="email">
-                                <Input
-                                    id="email"
-                                    name="email"
-                                    type="email"
-                                    defaultValue={initial?.email ?? ""}
-                                    placeholder={f.emailPlaceholder}
-                                />
-                            </Field>
-                        </div>
-                        <Field label={f.phone} htmlFor="phone" hint={isBuySell ? f.buySellContactHint : undefined}>
-                            <Input
-                                id="phone"
-                                name="phone"
-                                defaultValue={initial?.phone ?? ""}
-                                placeholder={f.phonePlaceholder}
-                            />
-                        </Field>
-                        {contactError ? (
-                            <p role="alert" className="text-sm text-destructive">
-                                {dict.submit.errorRequired}
-                            </p>
-                        ) : null}
-                    </div>
-                )}
-                {initial?.name && !showContact ? (
-                    <>
-                        <input type="hidden" name="contributorName" value={initial.name} />
-                        <input type="hidden" name="email" value={initial.email ?? ""} />
-                        <input type="hidden" name="phone" value={initial.phone ?? ""} />
-                    </>
-                ) : null}
-            </div>
+            <SubmitContactCard
+                initial={initial}
+                showContact={showContact}
+                setShowContact={setShowContact}
+                contactError={contactError}
+                isBuySell={type === "buy-sell"}
+                f={f}
+                s={s}
+                errorRequired={dict.submit.errorRequired}
+            />
 
             <div ref={stepRef}>
                 {/* STEP 1 — essentials */}
-                <div data-step-active={step === 0} hidden={step !== 0} className="space-y-5">
-                    {isPhoto ? (
-                        <>
-                            <Field label={f.what} htmlFor="what" help={s.whatHelp}>
-                                <Textarea
-                                    id="what"
-                                    name="what"
-                                    required
-                                    placeholder={f.whatPlaceholder}
-                                />
-                                <span className="flex justify-end">
-                                    <VoiceInputButton targetId="what" locale={locale} />
-                                </span>
-                            </Field>
-                            <Field label={f.description} htmlFor="description">
-                                <Textarea id="description" name="description" placeholder={f.descriptionPlaceholder} />
-                                <span className="flex justify-end">
-                                    <VoiceInputButton targetId="description" locale={locale} />
-                                </span>
-                            </Field>
-                        </>
-                    ) : null}
-
-                    {isNews || isCulture ? (
-                        <>
-                            <Field label={f.headline} htmlFor="headline">
-                                <Input id="headline" name="headline" required placeholder={f.headlinePlaceholder} />
-                            </Field>
-                            <Field label={f.description} htmlFor="description">
-                                <Textarea
-                                    id="description"
-                                    name="description"
-                                    required
-                                    placeholder={f.descriptionPlaceholder}
-                                />
-                                <span className="flex justify-end">
-                                    <VoiceInputButton targetId="description" locale={locale} />
-                                </span>
-                            </Field>
-                        </>
-                    ) : null}
-
-                    {isNotice ? (
-                        <>
-                            {selectedNoticeType === "lost_found" ? (
-                                <Field label={f.noticeDirection} htmlFor="noticeDirection">
-                                    <select
-                                        id="noticeDirection"
-                                        name="noticeDirection"
-                                        required
-                                        defaultValue={
-                                            initialDraft?.noticeDirection ||
-                                            initialNoticeDirection ||
-                                            ""
-                                        }
-                                        className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-base shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 md:text-sm"
-                                    >
-                                        <option value="" disabled>
-                                            {f.noticeDirectionPlaceholder}
-                                        </option>
-                                        <option value="lost">{f.noticeDirectionLost}</option>
-                                        <option value="found">{f.noticeDirectionFound}</option>
-                                    </select>
-                                </Field>
-                            ) : null}
-                            <Field label={f.noticeType} htmlFor="noticeType">
-                                <select
-                                    id="noticeType"
-                                    name="noticeType"
-                                    required
-                                    value={selectedNoticeType}
-                                    onChange={(event) => setSelectedNoticeType(event.target.value)}
-                                    className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-base shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 md:text-sm"
-                                >
-                                    <option value="" disabled>
-                                        {f.noticeTypePlaceholder}
-                                    </option>
-                                    {NOTICE_TYPES.map((t) => (
-                                        <option key={t} value={t}>
-                                            {(dict.admin.content.noticeTypes as Record<string, string>)[t] ?? t}
-                                        </option>
-                                    ))}
-                                </select>
-                            </Field>
-                            <Field label={f.item} htmlFor="item">
-                                <Input id="item" name="item" required placeholder={f.itemPlaceholder} />
-                            </Field>
-                            <Field label={f.message} htmlFor="message" help={s.messageHelp}>
-                                <Textarea id="message" name="message" required placeholder={f.messagePlaceholder} />
-                                <span className="flex justify-end">
-                                    <VoiceInputButton targetId="message" locale={locale} />
-                                </span>
-                            </Field>
-                        </>
-                    ) : null}
-
-                    {isBuySell ? (
-                        <>
-                            <Field label={f.item} htmlFor="item">
-                                <Input id="item" name="item" required placeholder={f.itemPlaceholder} />
-                            </Field>
-                            <div className="grid gap-4 sm:grid-cols-3">
-                                <Field label={f.category} htmlFor="category">
-                                    <select
-                                        id="category"
-                                        name="category"
-                                        required
-                                        defaultValue=""
-                                        className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-base shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 md:text-sm"
-                                    >
-                                        <option value="" disabled>
-                                            {f.categoryPlaceholder}
-                                        </option>
-                                        {["phones", "vehicles", "property", "furniture", "fashion", "jobs", "agriculture", "household", "business", "other"].map((c) => (
-                                            <option key={c} value={c}>
-                                                {(dict.buySell as Record<string, string>)[`category${c.charAt(0).toUpperCase()}${c.slice(1)}`] ?? c}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </Field>
-                                <Field label={f.price} htmlFor="price">
-                                    <Input id="price" name="price" type="number" min="0" step="any" placeholder={f.pricePlaceholder} />
-                                </Field>
-                                <Field label={f.currency} htmlFor="currency">
-                                    <select
-                                        id="currency"
-                                        name="currency"
-                                        defaultValue="XAF"
-                                        className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-base shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 md:text-sm"
-                                    >
-                                        {CURRENCIES.map((c) => (
-                                            <option key={c} value={c}>
-                                                {c}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </Field>
-                            </div>
-                            <Field label={f.description} htmlFor="description">
-                                <Textarea
-                                    id="description"
-                                    name="description"
-                                    required
-                                    placeholder={f.descriptionPlaceholder}
-                                />
-                                <span className="flex justify-end">
-                                    <VoiceInputButton targetId="description" locale={locale} />
-                                </span>
-                            </Field>
-                        </>
-                    ) : null}
-                </div>
+                <SubmitEssentials
+                    type={type}
+                    active={step === 0}
+                    f={f}
+                    s={s}
+                    dict={dict}
+                    locale={locale}
+                    selectedNoticeType={selectedNoticeType}
+                    setSelectedNoticeType={setSelectedNoticeType}
+                    initialDraft={initialDraft}
+                    initialNoticeDirection={initialNoticeDirection}
+                />
 
                 {/* STEP 2 — details (location + dates) */}
-                <div data-step-active={step === 1} hidden={step !== 1} className="space-y-5">
-                    <LocationField
-                        label={f.location}
-                        placeholder={f.locationPlaceholder}
-                        detectLabel={s.detect}
-                        detectedLabel={s.detected}
-                        resolvingLabel={s.resolving}
-                        resolveFailedLabel={s.resolveFailed}
-                        keepAsSuggestionLabel={s.keepSuggestion}
-                        initialText={initial?.locationText}
-                        initialId={initial?.locationId}
-                    />
-                    {isPhoto || isNews ? (
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <Field label={f.date} htmlFor="date">
-                                <Input id="date" name="date" type="date" />
-                            </Field>
-                            <p className="self-end text-xs text-muted-foreground">{s.detailsHint}</p>
-                        </div>
-                    ) : null}
-                    {isNotice ? (
-                        <>
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <Field label={f.expiry} htmlFor="expiry" help={s.expiryHelp}>
-                                    <Input id="expiry" name="expiry" type="date" />
-                                </Field>
-                                <Field label={f.organization} htmlFor="organization">
-                                    <Input id="organization" name="organization" placeholder={f.organizationPlaceholder} />
-                                </Field>
-                            </div>
-                            <Field label={f.doc} htmlFor="doc">
-                                <Input id="doc" name="doc" placeholder={f.docPlaceholder} />
-                            </Field>
-                        </>
-                    ) : null}
-                    {isPhoto || isNews || isCulture || isBuySell ? (
-                        <p className="text-xs text-muted-foreground">{s.detailsHint}</p>
-                    ) : null}
-                </div>
+                <SubmitDetailsStep
+                    type={type}
+                    active={step === 1}
+                    f={f}
+                    s={s}
+                    initial={initial}
+                />
 
                 {/* STEP 3 — media + consent + review */}
-                <div data-step-active={step === 2} hidden={step !== 2} className="space-y-5">
-                    <div className="rounded-2xl border">
-                        <button
-                            type="button"
-                            onClick={() => setMediaOpen((v) => !v)}
-                            aria-expanded={mediaOpen}
-                            className="flex w-full items-center justify-between gap-2 p-4 text-left text-sm font-bold"
-                        >
-                            {s.media} <span className="text-xs font-medium text-muted-foreground">{s.optional}</span>
-                        </button>
-                        <div hidden={!mediaOpen} className="space-y-5 border-t p-4">
-                            {!canUpload ? (
-                                <p className="rounded-xl border border-border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
-                                    {dict.submit.signInToUpload}{" "}
-                                    <Link href={localePath(locale, "/account/login")} className="font-medium text-primary underline">
-                                        {dict.auth.login.submit}
-                                    </Link>
-                                </p>
-                            ) : null}
-                            <Field label={f.photos} htmlFor="photos" hint={f.photosHint}>
-                                <MediaField kind="image" name="photos" placeholder={f.photosPlaceholder} canUpload={canUpload} uploadCopy={uploadCopy} />
-                            </Field>
-                            <Field label={f.videos} htmlFor="videos" hint={f.videosHint}>
-                                <MediaField kind="video" name="videos" placeholder={f.videosPlaceholder} canUpload={canUpload} uploadCopy={uploadCopy} />
-                            </Field>
-                            <Field label={f.audios} htmlFor="audios" hint={f.audiosHint}>
-                                <MediaField kind="audio" name="audios" placeholder={f.audiosPlaceholder} canUpload={canUpload} uploadCopy={uploadCopy} />
-                            </Field>
-                            <Field label={f.documents} htmlFor="documents" hint={f.documentsHint}>
-                                <MediaField kind="document" name="documents" placeholder={f.documentsPlaceholder} canUpload={canUpload} uploadCopy={uploadCopy} />
-                            </Field>
-                        </div>
-                    </div>
-
-                    <div className="space-y-2 rounded-2xl border bg-muted/30 p-4 text-sm">
-                        <label className="flex items-start gap-2">
-                            <input type="checkbox" name="rights" required className="mt-1" />
-                            <span>{dict.submit.consent}</span>
-                        </label>
-                        <label className="flex items-start gap-2">
-                            <input type="checkbox" name="consent" required className="mt-1" />
-                            <span>
-                                {dict.submit.consentLink}{" "}
-                                <Link href={localePath(locale, "/about/guidelines")} className="underline">
-                                    {dict.footer.guidelines}
-                                </Link>{" "}
-                                &{" "}
-                                <Link href={localePath(locale, "/about/terms")} className="underline">
-                                    {dict.footer.terms}
-                                </Link>
-                                .
-                            </span>
-                        </label>
-                    </div>
-
-                    {state.error ? (
-                        <p className="text-sm text-destructive" role="alert">
-                            {state.error === "rate_limited"
-                                ? dict.submit.errorRateLimited
-                                : state.error === "captcha"
-                                  ? dict.submit.errorCaptcha
-                                  : state.error === "missing_name" ||
-                                      state.error === "missing_contact" ||
-                                      state.error === "missing_consent" ||
-                                      state.error === "missing_content"
-                                    ? dict.submit.errorRequired
-                                    : state.error === "duplicate"
-                                      ? dict.submit.errorDuplicate
-                                      : dict.submit.errorGeneric}
-                        </p>
-                    ) : null}
-
-                    <input
-                        type="text"
-                        name="website"
-                        tabIndex={-1}
-                        autoComplete="off"
-                        aria-hidden="true"
-                        className="hidden"
-                    />
-                    <TurnstileWidget key={turnstileKey} />
-
-                    {reviewOpen ? (
-                        <section aria-label={s.review} className="rounded-2xl border bg-muted/30 p-4">
-                            <h3 className="mb-3 text-sm font-bold">{s.review}</h3>
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <div>
-                                    <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                                        {s.contact}
-                                    </p>
-                                    <ul className="space-y-1 text-sm">
-                                        <li>
-                                            <span className="text-muted-foreground">{f.contributorName}:</span>{" "}
-                                            {reviewValues.contributorName || "—"}
-                                        </li>
-                                        <li>
-                                            <span className="text-muted-foreground">{f.email}:</span>{" "}
-                                            {reviewValues.email || "—"}
-                                        </li>
-                                        <li>
-                                            <span className="text-muted-foreground">{f.phone}:</span>{" "}
-                                            {reviewValues.phone || "—"}
-                                        </li>
-                                    </ul>
-                                    <button
-                                        type="button"
-                                        className="mt-2 text-xs font-medium text-primary hover:underline"
-                                        onClick={() => {
-                                            setShowContact(true);
-                                            setReviewOpen(false);
-                                        }}
-                                    >
-                                        {s.change}
-                                    </button>
-                                </div>
-                                <div>
-                                    <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                                        {s.two}
-                                    </p>
-                                    <ul className="space-y-1 text-sm">
-                                        <li>
-                                            <span className="text-muted-foreground">{f.location}:</span>{" "}
-                                            {reviewValues.location_text || "—"}
-                                        </li>
-                                        <li>
-                                            <span className="text-muted-foreground">{f.date}:</span>{" "}
-                                            {reviewValues.date || "—"}
-                                        </li>
-                                    </ul>
-                                    <button
-                                        type="button"
-                                        className="mt-2 text-xs font-medium text-primary hover:underline"
-                                        onClick={() => {
-                                            setReviewOpen(false);
-                                            goStep(1);
-                                        }}
-                                    >
-                                        {s.change}
-                                    </button>
-                                </div>
-                            </div>
-                        </section>
-                    ) : null}
-                    <div className="flex flex-col gap-3">
-                        <Button type="submit" disabled={pending || draftPending} className="w-full">
-                            {pending ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                                    {dict.submit.submitting}
-                                </>
-                            ) : (
-                                dict.submit.submit
-                            )}
-                        </Button>
-                        {canUpload ? (
-                            <button
-                                type="submit"
-                                formAction={draftAction}
-                                disabled={pending || draftPending}
-                                className="text-sm font-medium text-primary underline underline-offset-2 hover:no-underline disabled:opacity-50"
-                            >
-                                {draftPending ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                                        {dict.submit.submitting}
-                                    </>
-                                ) : (
-                                    dict.submit.saveDraft
-                                )}
-                            </button>
-                        ) : null}
-                    </div>
-                </div>
+                <SubmitReviewStep
+                    active={step === 2}
+                    f={f}
+                    s={s}
+                    dict={dict}
+                    locale={locale}
+                    canUpload={canUpload}
+                    mediaOpen={mediaOpen}
+                    setMediaOpen={setMediaOpen}
+                    state={state}
+                    pending={pending}
+                    draftPending={draftPending}
+                    draftAction={draftAction}
+                    turnstileKey={turnstileKey}
+                    reviewOpen={reviewOpen}
+                    setReviewOpen={setReviewOpen}
+                    reviewValues={reviewValues}
+                    setShowContact={setShowContact}
+                    goStep={goStep}
+                />
             </div>
 
             {/* Step nav */}
@@ -784,7 +220,7 @@ export function SubmitForm({
                         aria-expanded={reviewOpen}
                         onClick={() => {
                             if (!reviewOpen) captureReviewValues();
-                            setReviewOpen((v) => !v);
+                            setReviewOpen(!reviewOpen);
                         }}
                     >
                         {s.review}

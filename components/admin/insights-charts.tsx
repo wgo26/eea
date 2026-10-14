@@ -372,7 +372,7 @@ export function FunnelChart({
           <div key={stage.label} className="space-y-1">
             <div className="flex items-baseline justify-between gap-2 text-sm">
               <span className="flex min-w-0 items-center gap-2 font-medium">
-                <span aria-hidden className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: stage.color }}>
+                <span aria-hidden className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: stage.color }}>
                   {i + 1}
                 </span>
                 <span className="truncate">{stage.label}</span>
@@ -384,7 +384,7 @@ export function FunnelChart({
                 className="absolute inset-y-0 rounded-lg transition-all duration-500"
                 style={{ left: `${offsetPct}%`, width: `${widthPct}%`, backgroundColor: stage.color, opacity: 0.88, minWidth: '24px' }}
               >
-                <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white drop-shadow">
+                <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white drop-shadow">
                   {stage.value > 0 ? formatCompact(stage.value) : '—'}
                 </span>
               </div>

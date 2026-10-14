@@ -1,11 +1,27 @@
 EAGLE EYE AFRICA — MASTER FEATURE SET
-Product positioning
-Eagle Eye Africa is a community-first African media platform combining local journalism, visual storytelling, community information, classifieds, culture, and citizen participation in one place.
-The core loop is:
-Discover → Read → Participate → Submit → Verify → Publish → Share → Return
-The important distinction is that Eagle Eye Africa shouldn't feel like just another news website. It should feel like a digital community record of what is happening around people.
+## Product focus
 
-What "record" commits us to (the test every feature should pass): for a place someone cares about, a reader can answer — in a few taps, with sources — **what happened today**, **what happened here before**, **who saw it and how verified is it**, and **is this still true / was it ever wrong**. Feeds are cheap and forgettable; a record is durable, attributable and accountable.
+Eagle Eye Africa is building a durable, place-based public record of what happens in African communities. Its central struggle is that events witnessed by local people can be hard to find, verify, attribute and revisit once the immediate news cycle has passed. People close to an event can contribute; editors review evidence and context; readers can see who reported a story, what is known or still developing, and what changed when a correction is accepted.
+
+The product loop is:
+**Witness → Submit → Review → Verify what can be verified → Publish with provenance → Correct in public → Preserve and revisit**
+
+News, photo stories, notices and culture are different ways to document community life. Locations, search, timelines, contributor profiles, sharing and digests help people find, understand and return to that record. Buy & Sell is an adjacent local utility, not journalism: listings must remain visibly distinct from editorial stories, and marketplace review must not imply that an offer is fact-checked. Advertising can support the service but must remain labeled and separate from editorial decisions.
+
+### The test every feature must pass
+
+For a place someone cares about, can a reader answer — with sources and in a few taps — **what happened here today and before, when it happened, who saw or reported it and what was checked, and whether it remains true or the record has changed?** If a feature cannot answer one of those questions, help people contribute or discover the record, or provide a clearly separated practical service to that same community, it is not core and should not displace the record in the product.
+
+### What each person should understand differently
+
+- **Readers:** an editorial story's source and verification state matter; community-submitted, official-source and developing items are not interchangeable, and accepted corrections stay visible.
+- **Contributors:** firsthand knowledge can become credited, reviewable community history; submission is an invitation to report, not a promise of publication or a substitute for editorial checks.
+- **Editors:** publishing means preserving provenance, making uncertainty legible, and correcting the public record—not simply moving items through a queue.
+- **Local organizations:** notices can reach the people affected, with the issuing source and verification state clear.
+- **Buyers and sellers:** the marketplace is a useful local exchange, but a listing is an offer by its poster, not an Eagle Eye news report or guarantee.
+- **Advertisers:** paid placements reach a community but do not buy editorial coverage or verification.
+
+Feeds are cheap and forgettable; a record is durable, attributable and accountable.
 
 The last of those four is the one that separates the two, and it is now shipped: **the correction register** (`/about/corrections`). A feed deletes its mistakes; a record prints them. Every correction an editor accepts is published — what a reader reported, what changed, and when — stamped on the story it fixed, so "Corrections are public policy" is a URL rather than an adjective. Corrections an editor declines stay private: a corrections trail that doubles as a disputes log stops recording what was wrong. The same principle drives durability (expired notices and sold listings keep their URLs with their final state shown, instead of vanishing) and the honest proof band on /about, which counts authors of live content, places that actually hold published content, and corrections — never registered accounts.
 
@@ -102,7 +118,7 @@ Draft → Pending Review → Approved → Scheduled → Published → Archived
 This connects directly to moderation workflow.
 
 4. BUY & SELL
-This is where Eagle Eye Africa becomes more than a newspaper.
+This is an adjacent local utility: it serves the same places and people as the editorial record, but listings are offers from their posters, not verified reporting. Keep marketplace trust and lifecycle signals distinct from editorial verification.
 Listings Index
 Filters:
 Category
@@ -507,7 +523,7 @@ These are not simply features that every news website should have.
 These are the things that could make Eagle Eye Africa Eagle Eye Africa.
 
 DIFFERENTIATOR #1 — THE COMMUNITY EYE
-"Seen by the community. Verified by Eagle Eye."
+"Witnessed locally. Checked transparently."
 Anyone can witness something.
 Instead of requiring professional journalists for everything, Eagle Eye creates a structured way for ordinary people to contribute.
 A contributor submits:
@@ -516,7 +532,7 @@ Where?
 When?
 What did you see?
 Can we contact you?
-Then Eagle Eye verifies and publishes.
+Then editors review the evidence and context, verify what they can, and publish with a clear status.
 Result
 The platform becomes a distributed network of community observers.
 That's much more defensible than simply publishing articles.
@@ -559,33 +575,32 @@ Bamenda
 → Community stories
 This makes Eagle Eye highly relevant to local communities.
 
-DIFFERENTIATOR #4 — ONE COMMUNITY BOARD
-Bring together things people normally find in completely different places:
-NEWS + PHOTOS + NOTICES + MARKETPLACE + CULTURE
+DIFFERENTIATOR #4 — A PLACE-FIRST COMMUNITY RECORD, WITH DISTINCT LOCAL SERVICES
+Connect news, photos, notices and culture through the places and events they share. Make local listings available alongside that record, but never blur a marketplace offer into verified editorial content.
 Someone comes to see what's happening.
 They can discover:
 Road closure
 ↓
 Community photo
 ↓
-Local business
+Local cultural story
 ↓
 Event tonight
 ↓
 Item for sale
-The platform becomes a digital town square.
+The editorial record remains the spine; adjacent services help people act on local context without changing the standard of evidence for a story.
 
 DIFFERENTIATOR #5 — VERIFIED COMMUNITY INFORMATION
 Introduce a visible trust layer.
 For example:
 VERIFIED
-Officially confirmed by Eagle Eye Africa.
+Core claims checked against primary sources by an editor.
 COMMUNITY SUBMISSION
-Submitted by a community member.
+Submitted by a community member; not the same as full editorial verification.
 OFFICIAL SOURCE
-Published by an identified organization.
+Published from an identified organization's statement or document.
 DEVELOPING
-Information still being verified.
+The story is still unfolding; updates may change what is known.
 This creates transparency instead of pretending every piece of information has the same certainty.
 
 DIFFERENTIATOR #6 — THE EAGLE EYE TIMELINE
@@ -648,7 +663,7 @@ TODAY'S EAGLE EYE
 That becomes a habit.
 
 DIFFERENTIATOR #10 — COMMUNITY MEMORY
-This could eventually become Eagle Eye's strongest differentiator.
+Community memory is the long-term purpose of the record. The current product should make published work searchable by place and preserve its provenance and corrections; deeper year-by-year archives are an expansion of that promise, not a different mission.
 Allow people to explore:
 What happened here before?
 A location page could eventually show:
@@ -765,7 +780,7 @@ Consider a distinct entry point or the daily digest (Section 24) framed for them
 Small additions that fit naturally alongside the existing differentiators.
 Community fundraising
 Tied to Notices — e.g. road repair, medical emergencies
-Natural extension of "digital town square" positioning
+Useful adjacent community support, provided campaign claims and verification are clear and it does not displace reporting.
 Location pages
 Weather widget alongside the Community Memory location view
 Distribution

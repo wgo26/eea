@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
-import { ArrowRight, Camera, Megaphone, Newspaper, Tag, Music } from "lucide-react";
+import { ArrowRight, Camera, Megaphone, Newspaper, PackageCheck, PackageSearch, Tag, Music, UserSearch } from "lucide-react";
 
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { SUBMIT_TYPES } from "@/lib/constants";
@@ -54,6 +54,30 @@ export default async function SubmitPage({ params }: { params: Promise<{ locale:
                 </p>
             </header>
 
+            {/* Lost & Found fast-track: the highest-trust flow skips the
+                5-type choice entirely (3 taps: card → 1 screen → Send).
+                Labels reuse dict.notices.* so no new dictionary keys. */}
+            <nav aria-label={dict.notices.browseActions} className="mb-8 grid gap-3 sm:grid-cols-3">
+                {[
+                    { icon: PackageSearch, title: dict.notices.lostAction, href: "/submit/notice?type=lost_found&direction=lost" },
+                    { icon: PackageCheck, title: dict.notices.foundAction, href: "/submit/notice?type=lost_found&direction=found" },
+                    { icon: UserSearch, title: dict.notices.missingPersonAction, href: "/submit/notice?type=missing_person" },
+                ].map((fast) => (
+                    <Link
+                        key={fast.href}
+                        href={localePath(locale, fast.href)}
+                        className="group flex min-h-[64px] items-center gap-3 rounded-2xl border-2 border-primary/30 bg-primary/5 p-4 transition-shadow hover:shadow-md"
+                    >
+                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+                            <fast.icon className="h-5 w-5" aria-hidden />
+                        </span>
+                        <span className="min-w-0 flex-1 font-bold group-hover:underline">
+                            {fast.title}
+                        </span>
+                        <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
+                    </Link>
+                ))}
+            </nav>
             <h2 className="mb-4 text-lg font-extrabold">{dict.submit.choose}</h2>
             <div className="grid gap-4 sm:grid-cols-2">
                 {SUBMIT_TYPES.map((entry) => {
