@@ -33,7 +33,7 @@
     "@base-ui/react": "^1.8.0",
     "@sentry/nextjs": "^10.75.1",
     "@supabase/ssr": "^0.12.5",
-    "@supabase/supabase-js": "^2.112.4",
+    "@supabase/supabase-js": "^2.117.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
