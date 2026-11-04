@@ -251,13 +251,13 @@ export function prefillFromSubmission(input: PrefillInput): SubmissionPrefill {
 
   // --- media ------------------------------------------------------------------
   const photos = parseMediaLines(take('photos'))
-  const videos = take('videos')
-  const audios = take('audios')
+  // Every submitted supporting link collapses into the one media-links field;
+  // its kind is inferred from the URL (video/audio/document) on save.
   const doc = take('doc')
-  const documents = [take('documents'), doc].filter(Boolean).join('\n')
-  if (videos) values.videos = videos
-  if (audios) values.audios = audios
-  if (documents) values.documents = documents
+  const mediaLinks = [take('videos'), take('audios'), take('documents'), doc]
+    .filter(Boolean)
+    .join('\n')
+  if (mediaLinks) values.mediaLinks = mediaLinks
 
   // --- attribution -------------------------------------------------------------
   // A named contributor becomes the byline AND the default photo credit: an

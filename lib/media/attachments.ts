@@ -123,6 +123,16 @@ export function parseMediaList(value: string | null | undefined): MediaAttachmen
   return out;
 }
 
+/**
+ * True when the intake media list carries at least one video (YouTube/Vimeo or
+ * a hosted file). A video link is enough for a public cover/preview — the
+ * detail pages derive one via {@link previewImageUrl} — so publish readiness
+ * must accept it in place of an uploaded cover photograph.
+ */
+export function hasVideoMedia(value: string | null | undefined): boolean {
+  return parseMediaList(value).some((a) => a.kind === 'video')
+}
+
 /** Serialize attachments back to the intake textarea format. */
 export function serializeMediaList(items: MediaAttachment[]): string {
   return items

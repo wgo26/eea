@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDuration, inferKindFromUrl, mapAttachments, parseMediaList, previewImageUrl, resolveDisplayImage, supportingMedia, videoThumbnailUrl, youtubeIdFromUrl } from './attachments';
+import { formatDuration, hasVideoMedia, inferKindFromUrl, mapAttachments, parseMediaList, previewImageUrl, resolveDisplayImage, supportingMedia, videoThumbnailUrl, youtubeIdFromUrl } from './attachments';
 
 describe('media attachments', () => {
   it('infers video/audio from extensions', () => {
@@ -64,6 +64,19 @@ describe('media attachments', () => {
     // Audio/docs never become the preview image.
     expect(previewImageUrl(null, [{ url: 'https://x/a.mp3', kind: 'audio' as const }])).toBeNull();
     expect(previewImageUrl(null, null)).toBeNull();
+  });
+
+  it('treats a video link as publishable media (no cover photo required)', () => {
+    // A YouTube/Vimeo link in the intake list yields a cover via
+    // previewImageUrl, so publish readiness must accept it.
+    expect(hasVideoMedia('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe(true);
+    expect(hasVideoMedia('https://youtu.be/dQw4w9WgXcQ - A clip')).toBe(true);
+    expect(hasVideoMedia('https://x/clip.mp4')).toBe(true);
+    // Audio/docs/images are never a video source.
+    expect(hasVideoMedia('https://x/a.mp3')).toBe(false);
+    expect(hasVideoMedia('https://x/photo.jpg')).toBe(false);
+    expect(hasVideoMedia('')).toBe(false);
+    expect(hasVideoMedia(null)).toBe(false);
   });
 
   it('resolves display images with the site-logo fallback chain', () => {

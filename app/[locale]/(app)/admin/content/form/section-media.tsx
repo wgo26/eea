@@ -67,35 +67,22 @@ export function MediaSection(props: {
           className={inputCls}
         />
       </Field>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Field label={copy.videoUrls} hint={copy.videoUrlsHint}>
-          <textarea
-            value={v.videos}
-            onChange={(e) => patch({ videos: e.target.value })}
-            rows={2}
-            className={inputCls}
-            placeholder="https://…"
-          />
-        </Field>
-        <Field label={copy.audioUrls} hint={copy.audioUrlsHint}>
-          <textarea
-            value={v.audios}
-            onChange={(e) => patch({ audios: e.target.value })}
-            rows={2}
-            className={inputCls}
-            placeholder="https://…"
-          />
-        </Field>
-        <Field label={copy.documentUrls} hint={copy.documentUrlsHint}>
-          <textarea
-            value={v.documents}
-            onChange={(e) => patch({ documents: e.target.value })}
-            rows={2}
-            className={inputCls}
-            placeholder="https://…"
-          />
-        </Field>
-      </div>
+      {/*
+        One field for every supporting link. The three per-kind textareas made
+        an editor classify a URL the app already classifies by host/extension
+        (lib/media/attachments inferKindFromUrl), and only the video box counted
+        toward the publish checklist — so the boxes disagreed with what the
+        public page did with the same link.
+      */}
+      <Field label={copy.mediaLinks} hint={copy.mediaLinksHint}>
+        <textarea
+          value={v.mediaLinks}
+          onChange={(e) => patch({ mediaLinks: e.target.value })}
+          rows={3}
+          className={inputCls}
+          placeholder={"https://www.youtube.com/watch?v=…\nhttps://…/clip.mp3 - Intro\nhttps://…/notice.pdf"}
+        />
+      </Field>
     </Section>
   );
 }

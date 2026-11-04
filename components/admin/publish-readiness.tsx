@@ -61,7 +61,13 @@ export function buildReadinessChecks(
     frTitle: string,
     locationId: string,
     categoryId: string,
-    hasCoverPhoto: boolean,
+    /**
+     * A publishable cover source: an uploaded photograph OR a media link that
+     * yields one (a YouTube/Vimeo video — see lib/media/attachments
+     * `previewImageUrl`). The public detail pages already accept the link, so
+     * the checklist must not demand a photograph the server never requires.
+     */
+    hasCoverMedia: boolean,
     excerpt: string,
     copy: Copy,
     opts?: {
@@ -100,7 +106,7 @@ export function buildReadinessChecks(
         {
             key: 'photo',
             label: copy.readinessNeedsPhoto,
-            passed: hasCoverPhoto,
+            passed: hasCoverMedia,
         },
         {
             key: 'excerpt',
@@ -168,7 +174,7 @@ export function buildReadinessChecks(
 
     // Accessibility: an image story must not publish with blank alt text.
     // Only evaluated when photos exist; the assist layer drafts them in one tap.
-    if (typeof opts?.missingAltCount === 'number' && hasCoverPhoto) {
+    if (typeof opts?.missingAltCount === 'number' && hasCoverMedia) {
         checks.push({
             key: 'alt',
             label: (copy.readinessNeedsAlt ?? 'Alt text on every photo ({n} missing)').replace(

@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/components/admin/toast'
 import { MediaPicker } from '@/components/admin/media-picker'
 import { uploadResumable } from '@/lib/uploads/resumable'
+import { inferKindFromUrl } from '@/lib/media/attachments'
 import { downscaleImageIfNeeded } from '@/lib/media/downscale-image'
 import type { StorageDestination } from '@/lib/storage/types'
 
@@ -87,12 +88,9 @@ type MediaUploaderProps = {
   copy?: {
     label?: string
     hint?: string
-    drop?: string
-    browse?: string
     browseFiles?: string
     dropHere?: string
     or?: string
-    pasteUrl?: string
     urlPlaceholder?: string
     addUrl?: string
     existing?: string
@@ -100,9 +98,7 @@ type MediaUploaderProps = {
     captionLabel?: string
     creditLabel?: string
     cover?: string
-    removeCover?: string
     setCover?: string
-    dragReorder?: string
     uploading?: string
     uploadError?: string
     tooLarge?: string
@@ -110,6 +106,10 @@ type MediaUploaderProps = {
     empty?: string
     retryFailed?: string
     failedCount?: string
+    /** Accessible label for the per-tile remove control (localized). */
+    remove?: string
+    /** Shown when a pasted URL is not a full https:// link. */
+    urlInvalid?: string
   }
 }
 
@@ -300,12 +300,9 @@ async function uploadFiles(
 
 const DEFAULT_COPY: Required<NonNullable<MediaUploaderProps['copy']>> = {  label: 'Media',
   hint: 'Upload images or videos (audio also supported) or paste URLs. The first item is the cover.',
-  drop: 'Drop files here',
-  browse: 'Browse files',
   browseFiles: 'Browse files',
   dropHere: 'Drop images or videos here',
   or: 'or',
-  pasteUrl: 'Paste URL',
   urlPlaceholder: 'https://…',
   addUrl: 'Add',
   existing: 'Existing media',
@@ -313,9 +310,9 @@ const DEFAULT_COPY: Required<NonNullable<MediaUploaderProps['copy']>> = {  label
   captionLabel: 'Caption',
   creditLabel: 'Credit',
   cover: 'Cover',
-  removeCover: 'Remove cover',
+  remove: 'Remove',
   setCover: 'Set as cover',
-  dragReorder: 'Drag to reorder',
+  urlInvalid: 'Enter a full https:// URL',
   uploading: 'Uploading…',
   uploadError: 'Upload failed',
   // Phase 3 — per-file retry: flaky connections fail single files, and the
@@ -471,13 +468,15 @@ export const MediaUploader = memo(function MediaUploader({
     const url = urlInput.trim()
     if (!url) return
     if (!/^https?:\/\/.+/i.test(url)) {
-      setUrlError('Enter a full https:// URL')
+      setUrlError(c.urlInvalid)
       return
     }
     setUrlError(null)
-    updateNewPhotos([...newPhotos, { url }])
+    // Classify by host/extension: a pasted video link must not default to an
+    // image (which used to make it the cover and render a broken <img>).
+    updateNewPhotos([...newPhotos, { url, kind: inferKindFromUrl(url) }])
     setUrlInput('')
-  }, [urlInput, newPhotos, updateNewPhotos])
+  }, [urlInput, newPhotos, updateNewPhotos, c.urlInvalid])
 
   const removeExisting = (id: string) => updateKeepIds(keepIds.filter((k) => k !== id))
   const removeNew = (idx: number) => updateNewPhotos(newPhotos.filter((_, i) => i !== idx))
@@ -539,7 +538,7 @@ export const MediaUploader = memo(function MediaUploader({
           {uploading ? c.uploading : (
             <>
               <span className="font-medium text-foreground">{c.browseFiles}</span>
-              <span className="ml-1">{(c.dropHere ?? c.drop).toLowerCase()}</span>
+              <span className="ml-1">{c.dropHere.toLowerCase()}</span>
             </>
           )}
         </p>
@@ -689,24 +688,28 @@ export const MediaUploader = memo(function MediaUploader({
                       className="h-28 w-full object-cover"
                     />
                   )}
-                  <div className="absolute inset-0 flex flex-col justify-between bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100">
-                    <div className="flex justify-end p-1.5">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (isExisting) removeExisting((photo as ExistingPhoto).id)
-                          else removeNew(idx - keepIds.length)
-                        }}
-                        className="rounded-md bg-black/60 p-1 text-white hover:bg-black/80"
-                        aria-label="Remove photo"
-                      >
-                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-1 p-1.5">
+                  {/* Visible on touch (a phone has no hover — the old hover-only
+                      overlay left uploads with no way to remove them); hover- and
+                      focus-revealed from md up; works from the keyboard too. */}
+                  <div className="absolute inset-x-0 top-0 flex justify-end p-1.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (isExisting) removeExisting((photo as ExistingPhoto).id)
+                        else removeNew(idx - keepIds.length)
+                      }}
+                      className="grid h-8 w-8 place-items-center rounded-md bg-black/70 text-white hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-label={c.remove}
+                      title={c.remove}
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="absolute inset-x-0 bottom-0">
+                    <div className="flex items-center gap-1 bg-gradient-to-t from-black/70 to-transparent p-1.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                       {cover ? (
                         <span className="rounded bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
                           {c.cover}
@@ -719,7 +722,7 @@ export const MediaUploader = memo(function MediaUploader({
                             if (isExisting) setCoverExisting((photo as ExistingPhoto).id)
                             else setCoverNew(idx - keepIds.length)
                           }}
-                          className="rounded bg-black/60 px-1.5 py-0.5 text-xs font-medium text-white hover:bg-black/80"
+                          className="min-h-7 rounded bg-black/70 px-2 text-xs font-medium text-white hover:bg-black/85"
                         >
                           {c.setCover}
                         </button>

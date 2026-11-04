@@ -56,9 +56,12 @@ function fullValues(type: FormValues["type"]): FormValues {
     verification: "verified",
     locationId: "loc-douala",
     categoryId: "cat-news",
-    videos: "https://example.com/v.mp4",
-    audios: "https://example.com/a.mp3",
-    documents: "https://example.com/d.pdf",
+    // One field for every supporting link; the kind is inferred from the URL.
+    mediaLinks: [
+      "https://example.com/v.mp4",
+      "https://example.com/a.mp3",
+      "https://example.com/d.pdf",
+    ].join("\n"),
     newPhotos: [
       {
         url: "https://example.com/p.jpg",
@@ -224,7 +227,7 @@ describe("approve surface parity", () => {
     // content-create.ts CONTENT_TYPES is the source; mirrored here so this
     // suite never imports a server-only module into the unit gate.
     const BUILDER_TYPES = ["photo_story", "news", "listing", "notice", "culture", "micro_story"];
-    for (const [sub, content] of Object.entries(SUBMISSION_TO_CONTENT)) {
+    for (const content of Object.values(SUBMISSION_TO_CONTENT)) {
       expect(BUILDER_TYPES).toContain(content);
     }
     expect(SUBMISSION_TO_CONTENT).toMatchObject({

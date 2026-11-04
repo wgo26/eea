@@ -1,7 +1,8 @@
 "use client";
 
 import { ui, Field } from "@/lib/admin/ui-constants";
-import type { Dictionary } from "@/lib/i18n";
+import { localePath } from "@/lib/i18n/urls";
+import type { Dictionary, Locale } from "@/lib/i18n";
 import { BilingualSeo } from "../bilingual-fields";
 import type { FormValues } from "./values";
 import { Section } from "./shell";
@@ -25,13 +26,21 @@ export function SeoSection(props: {
   markTouched: (field: string) => void;
   copy: Copy;
   isEdit: boolean;
+  locale: Locale;
+  /**
+   * The resolved public path for this item (section + slug). The permalink
+   * input holds only the slug, so this is the one place the editor can see
+   * that a "story" slug lives under /photo-stories, not /news — the mismatch
+   * that reads as a 404 on a correct-looking permalink.
+   */
+  publicPath: string | null;
   aiEnabled: boolean;
   repurpose: ReturnType<typeof useContentAssist>["repurpose"];
   repurposeWorking: boolean;
   handleRepurpose: ReturnType<typeof useContentAssist>["handleRepurpose"];
   addToast: AddToast;
 }) {
-  const { values: v, patch, markTouched, copy, isEdit, aiEnabled, repurpose, repurposeWorking, handleRepurpose, addToast } = props;
+  const { values: v, patch, markTouched, copy, isEdit, locale, publicPath, aiEnabled, repurpose, repurposeWorking, handleRepurpose, addToast } = props;
 
   return (
     <>
@@ -49,6 +58,12 @@ export function SeoSection(props: {
             className={inputCls}
             placeholder={isEdit ? undefined : "my-story-slug"}
           />
+          {publicPath ? (
+            <p className="mt-1 break-all text-xs text-muted-foreground">
+              {copy.publicUrlLabel}:{" "}
+              <span className="font-mono text-foreground/80">{localePath(locale, publicPath)}</span>
+            </p>
+          ) : null}
         </Field>
         <BilingualSeo
           copy={copy}

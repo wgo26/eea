@@ -11,7 +11,7 @@ import { localizeContent, draftShareText, isShareVoice } from '@/lib/translate/l
 import { llmLocalizeFields, llmDraftShareLine } from '@/lib/translate/prompts'
 import { llmReadyAsync } from '@/lib/translate/llm'
 import { lookupSegment } from '@/lib/translate/tm'
-import { type ActionResult, audit, fail, revalidateLocalized, revalidatePublicContentCache, uniqueSlug, syncPhotos, applyStoryCredit, deleteStoredMedia, upsertTranslations } from './_shared'
+import { type ActionResult, audit, fail, revalidateLocalized, revalidatePublicContentCache, revalidateContentPublicPath, uniqueSlug, syncPhotos, applyStoryCredit, deleteStoredMedia, upsertTranslations } from './_shared'
 import { createContentRow, revalidateCreatedContent } from './content-create'
 
 export type { ContentDraftInput } from '../content-validation'
@@ -185,6 +185,16 @@ export async function saveContentItem(
     })
 
     revalidatePublicContentCache()
+    // The permalink is editable here: clear the route the item just vacated
+    // (so it stops resolving immediately) and the one it now occupies.
+    if (changed.includes('slug')) {
+      revalidateContentPublicPath({ type: item.type, id: contentItemId, slug: item.slug })
+    }
+    revalidateContentPublicPath({
+      type: item.type,
+      id: contentItemId,
+      slug: (patch.slug as string | undefined) ?? item.slug,
+    })
     revalidateLocalized('/admin/content')
     revalidateLocalized('/admin/moderation/[id]')
     return { ok: true }
@@ -240,6 +250,10 @@ export async function createContentItem(input: {
     })
 
     revalidateCreatedContent(input.publish)
+    // Clear any 404 cached at the item's route while it didn't exist yet.
+    if (input.publish !== 'draft') {
+      revalidateContentPublicPath({ type, id: created.id, slug })
+    }
     return { ok: true }
   } catch (e) {
     return fail(e)
@@ -513,17 +527,22 @@ export async function updateContentStatus(contentId: string, status: string, sch
   try {
     const { supabase, user } = await assertStaff()
     const patch: Record<string, unknown> = { status }
-    // Publish stamps published_at only when the row doesn't already carry one
-    // (imported posts keep their original source date; native drafts have
-    // published_at null, so they get "now" exactly as before).
+    // Fetch the row once: the publish guard needs published_at/location_id, and
+    // every transition needs type/slug to clear the item's own public route.
+    const { data: current } = await supabase
+      .from('content_items')
+      .select('published_at, location_id, type, slug')
+      .eq('id', contentId)
+      .limit(1)
+    const existing = (current ?? [])[0] as {
+      published_at: string | null
+      location_id: string | null
+      type: string
+      slug: string | null
+    } | undefined
+    if (!existing) return { ok: false, error: 'Content item not found.' }
+
     if (status === 'published' || status === 'scheduled') {
-      const { data: current } = await supabase
-        .from('content_items')
-        .select('published_at, location_id')
-        .eq('id', contentId)
-        .limit(1)
-      const existing = (current ?? [])[0] as { published_at: string | null; location_id: string | null } | undefined
-      if (!existing) return { ok: false, error: 'Content item not found.' }
       // The place taxonomy is what makes location facets, place hubs and the
       // Near You rail honest — an item without one must not reach the public
       // site through the status control either (the same rule the create/edit
@@ -534,6 +553,9 @@ export async function updateContentStatus(contentId: string, status: string, sch
         return { ok: false, error: 'Add a location before publishing — place pages and filters depend on it.' }
       }
       if (status === 'published') {
+        // Stamp the date only when the row doesn't already carry one: imported
+        // posts keep their original source date; native drafts have
+        // published_at null, so they get "now" exactly as before.
         patch.published_at = existing.published_at ?? new Date().toISOString()
       }
     }
@@ -558,6 +580,11 @@ export async function updateContentStatus(contentId: string, status: string, sch
     })
 
     revalidatePublicContentCache()
+    // The tag invalidation above refreshes cached *data*, but a route that
+    // rendered notFound() while the item was a draft stays cached as a 404 for
+    // the ISR window. Clearing the concrete path is what makes a just-published
+    // item reachable on the first visit (the "same slug, still 404" report).
+    revalidateContentPublicPath({ type: existing.type, id: contentId, slug: existing.slug })
     revalidateLocalized('/admin/content')
     revalidateLocalized('/admin/dashboard')
     return { ok: true }

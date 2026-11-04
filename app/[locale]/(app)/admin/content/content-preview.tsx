@@ -9,7 +9,6 @@ import { ArticleBodyView } from '@/components/content/article-body-view'
 import { SupportingMedia } from '@/components/media/supporting-media'
 import { blocksFromBody, stripStoryBlocksFromBody } from '@/lib/content/blocks'
 import { parseMediaList, type MediaAttachment } from '@/lib/media/attachments'
-import { inferKindFromUrl } from '@/lib/media/attachments'
 
 type CommonCopy = Dictionary['admin']['common']
 type Copy = Dictionary['admin']['content']
@@ -72,14 +71,10 @@ export function ContentPreview({
   const coverCredit = coverPhoto?.credit?.trim() || v.credit.trim()
   const coverCaption = coverPhoto?.caption?.trim() || ''
 
-  // Build supporting media attachments from form values (videos, audios, documents from URL fields
-  // plus newPhotos that are video/audio/document kind)
+  // Supporting media: the single media-links field (kind inferred from each
+  // URL) plus any uploaded non-image file in the uploader.
   const attachments = useMemo((): MediaAttachment[] => {
-    const result: MediaAttachment[] = []
-    // From URL textareas
-    result.push(...parseMediaList(v.videos))
-    result.push(...parseMediaList(v.audios))
-    result.push(...parseMediaList(v.documents))
+    const result: MediaAttachment[] = parseMediaList(v.mediaLinks)
     // From uploaded newPhotos (video/audio/document kind)
     for (const p of v.newPhotos) {
       if (p.kind && p.kind !== 'image') {
@@ -94,23 +89,8 @@ export function ContentPreview({
         })
       }
     }
-    // From kept existing photos (video/audio/document kind)
-    if (v.keepIds.length > 0) {
-      for (const kept of dataPhotos.filter((p) => v.keepIds.includes(p.id))) {
-        const kind = inferKindFromUrl(kept.url)
-        if (kind !== 'image') {
-          result.push({
-            url: kept.url,
-            kind,
-            caption: kept.caption ?? undefined,
-            credit: kept.credit ?? undefined,
-            alt: kept.alt ?? undefined,
-          })
-        }
-      }
-    }
     return result
-  }, [v.videos, v.audios, v.documents, v.newPhotos, v.keepIds, dataPhotos])
+  }, [v.mediaLinks, v.newPhotos])
 
   const isEmpty = !title.trim() && !prose.trim() && blocks.length === 0
 

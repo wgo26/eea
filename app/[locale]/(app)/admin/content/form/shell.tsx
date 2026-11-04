@@ -156,6 +156,8 @@ export function mediaUploaderCopy(common: CommonCopy, copy: Copy) {
       tooLarge: common.photoTooLarge,
       wrongType: common.photoWrongType,
       empty: common.noPhotos,
+      remove: common.photoRemove,
+      urlInvalid: common.photoUrlInvalid,
     },
   };
 }

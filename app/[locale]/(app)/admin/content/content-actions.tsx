@@ -8,6 +8,7 @@ import { useToast } from '@/components/admin/toast'
 import { ActionMenu, ActionMenuTrigger } from '@/components/admin/action-menu'
 import type { ActionMenuEntry } from '@/components/admin/action-menu'
 import { localePath } from '@/lib/i18n/urls'
+import { contentPublicPath } from '@/lib/content/public-path'
 import type { Dictionary, Locale } from '@/lib/i18n'
 import type { ContentRow } from '@/lib/admin/queries'
 
@@ -28,27 +29,13 @@ const DURATION_OPTIONS: DurationOption[] = [
 ]
 
 /**
- * Public URL for a content row (view-live target). Listings and notices use
- * id routes; stories/news/culture use slug routes; micro stories live on the
+ * Public URL for a content row (view-live target). The type→section mapping
+ * lives in lib/content/public-path so the permalink preview, this link and the
+ * publish-time revalidation can never disagree; micro stories live on the
  * street rail. Returns null when the row cannot be addressed publicly.
  */
 export function contentLivePath(content: ContentRow): string | null {
-  switch (content.type) {
-    case 'photo_story':
-      return content.slug ? `/photo-stories/${content.slug}` : null
-    case 'news':
-      return content.slug ? `/news/${content.slug}` : null
-    case 'listing':
-      return `/buy-sell/${content.slug ?? content.id}`
-    case 'notice':
-      return `/notices/${content.id}`
-    case 'culture':
-      return content.slug ? `/culture/${content.slug}` : null
-    case 'micro_story':
-      return '/street'
-    default:
-      return null
-  }
+  return contentPublicPath({ type: content.type, id: content.id, slug: content.slug })
 }
 
 /**

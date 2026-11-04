@@ -15,6 +15,8 @@ import {
 } from "./form/values";
 import { useDraftAutosave } from "./form/shell";
 import { draftKey } from "@/lib/content/draft-autosave";
+import { contentPublicPath } from "@/lib/content/public-path";
+import { hasVideoMedia } from "@/lib/media/attachments";
 import { useContentTranslator } from "@/components/admin/translate-buttons";
 import { buildReadinessChecks } from "@/components/admin/publish-readiness";
 import { useContentAssist } from "./form/assist";
@@ -205,7 +207,12 @@ export function ContentForm({
         v.frTitle,
         v.locationId,
         v.categoryId,
-        Boolean(v.newPhotos.length > 0),
+        // A video link (YouTube/Vimeo) already yields the public cover via
+        // previewImageUrl, so it satisfies the checklist exactly as an uploaded
+        // photograph does. Requiring a photo that the server never asked for is
+        // what blocked "create & publish" for link-only posts while "save
+        // draft" — which skips the checklist — sailed through.
+        v.newPhotos.length > 0 || hasVideoMedia(v.mediaLinks),
         v.frExcerpt ?? "",
         copy,
         {
@@ -215,6 +222,15 @@ export function ContentForm({
         },
       );
   const needsReadiness = !isEdit && v.publish !== "draft";
+
+  // The permalink field shows only the slug; the section is decided by the
+  // content type. Surfacing the resolved path is what stops a correct-looking
+  // slug being hand-assembled under the wrong section (and 404ing).
+  const publicPath = contentPublicPath({
+    type,
+    id: data?.id,
+    slug: v.slug.trim() || data?.slug || null,
+  });
 
   // The intelligence layer lives in ./form/assist so the moderation approve
   // form gets the identical drafting help (and identical provenance honesty).
@@ -251,14 +267,18 @@ export function ContentForm({
   const mediaExistingPhotos = useMemo(
     () =>
       isEdit && data
-        ? data.photos.map((p) => ({
-            id: p.id,
-            url: p.url,
-            alt: p.alt,
-            caption: p.caption,
-            credit: p.credit,
-            isCover: p.is_cover ?? false,
-          }))
+        ? data.photos
+            // Photographs only: the non-image rows are link attachments and are
+            // edited in the media-links field, not as uploader tiles.
+            .filter((p) => (p.kind ?? "image") === "image")
+            .map((p) => ({
+              id: p.id,
+              url: p.url,
+              alt: p.alt,
+              caption: p.caption,
+              credit: p.credit,
+              isCover: p.is_cover ?? false,
+            }))
         : undefined,
     [isEdit, data],
   );
@@ -380,6 +400,8 @@ export function ContentForm({
         markTouched={markTouched}
         copy={copy}
         isEdit={isEdit}
+        locale={locale}
+        publicPath={publicPath}
         aiEnabled={assist.aiEnabled}
         repurpose={assist.repurpose}
         repurposeWorking={assist.repurposeWorking}

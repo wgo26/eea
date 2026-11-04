@@ -12,6 +12,7 @@ import { useCallback, useState } from 'react'
 import type { Dictionary } from '@/lib/i18n'
 import type { ContentEditData } from '@/lib/admin/queries'
 import type { UploadedPhoto } from '@/components/admin/media-uploader'
+import { attachmentsFromMediaLinks, serializeMediaLinks } from '@/lib/content/media-links'
 import { type saveContentItem, type createContentItem } from '@/lib/admin/actions/content'
 
 type Copy = Dictionary['admin']['content']
@@ -39,18 +40,6 @@ export const TYPE_DICT_KEYS: Record<ContentType, keyof TypeFilters> = {
   culture: "culture",
   micro_story: "microStory",
 };
-
-/** One attachment URL per line, optional " - caption" suffix. */
-function attachmentList(raw: string, kind: "video" | "audio" | "document") {
-  return raw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [url, ...rest] = line.split(/\s+-\s+/);
-      return { url, kind, caption: rest.join(" - ") || undefined };
-    });
-}
 
 /** Listing extension row shared by create + save payloads. */
 function typeListing(v: FormValues) {
@@ -120,9 +109,8 @@ export type FormValues = {
   verification: string;
   locationId: string;
   categoryId: string;
-  videos: string;
-  audios: string;
-  documents: string;
+  /** Supporting media pasted as links, one URL per line (" - caption" optional). */
+  mediaLinks: string;
   newPhotos: UploadedPhoto[];
   /** Edit only: ids of existing photos kept on save. */
   keepIds: string[];
@@ -183,11 +171,16 @@ export function formFromRow(
     verification: data?.verification ?? "community_submission",
     locationId: data?.locationId ?? "",
     categoryId: data?.categoryId ?? "",
-    videos: "",
-    audios: "",
-    documents: "",
+    // The stored supporting media come back as text so the single field shows
+    // what is already attached; before this they rendered as blank boxes and
+    // the link rows surfaced as broken image tiles in the uploader grid.
+    mediaLinks: serializeMediaLinks(data?.attachments),
     newPhotos: [],
-    keepIds: data ? data.photos.map((p) => p.id) : [],
+    // Only photographs belong to the uploader's keep-set; link rows are kept
+    // alive by the URL match in attachmentsFromLinks instead.
+    keepIds: data
+      ? data.photos.filter((p) => (p.kind ?? "image") === "image").map((p) => p.id)
+      : [],
     authorId: data?.authorId ?? null,
     authorName: data?.authorName ?? "",
     noticeType: data?.notice?.noticeType ?? "other",
@@ -377,11 +370,10 @@ export function payloadFromForm(
         posterUrl: p.posterUrl,
       })),
       keepPhotoIds: v.keepIds,
-      attachments: [
-        ...attachmentList(v.videos, "video"),
-        ...attachmentList(v.audios, "audio"),
-        ...attachmentList(v.documents, "document"),
-      ],
+      attachments: attachmentsFromMediaLinks(
+        v.mediaLinks,
+        data.attachments.map((a) => ({ id: a.id, url: a.url })),
+      ),
     };
     if (isListing) draft.listing = typeListing(v);
     if (isNotice) draft.notice = typeNotice(v, false);
@@ -445,11 +437,7 @@ export function payloadFromForm(
       durationSeconds: p.durationSeconds,
       posterUrl: p.posterUrl,
     })),
-    attachments: [
-      ...attachmentList(v.videos, "video"),
-      ...attachmentList(v.audios, "audio"),
-      ...attachmentList(v.documents, "document"),
-    ],
+    attachments: attachmentsFromMediaLinks(v.mediaLinks),
   };
   if (type === "listing") draft.listing = typeListing(v);
   if (type === "notice") draft.notice = typeNotice(v, true);

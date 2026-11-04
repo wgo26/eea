@@ -3,6 +3,7 @@ import 'server-only'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { type AdminContext, assertStaff } from '@/lib/admin/auth'
 import { CACHE_TAGS } from '@/lib/cache/tags'
+import { contentPublicPath } from '@/lib/content/public-path'
 import { deleteFromR2 } from '@/lib/storage/providers/r2'
 import { storageConfig } from '@/lib/storage/config'
 import { type InsertOf, type UpdateOf, createAdminClient } from '@/lib/supabase/admin'
@@ -24,6 +25,24 @@ export const LOCALES = ['en', 'fr'] as const;
 /** Revalidate a locale-free path in both locales (routes live under /[locale]). */
 export function revalidateLocalized(path: string) {
     for (const locale of LOCALES) revalidatePath('/'+locale+path);
+}
+
+/**
+ * Revalidate a content item's own public detail route, in both locales.
+ *
+ * `revalidatePublicContentCache()` invalidates the cached *data* (tagged) but
+ * not the item's route entry. A detail route whose `notFound()` ran while the
+ * item was still a draft is cached as a 404 for the ISR window (300 s) and kept
+ * being served after the row was published — the "same slug, still 404" report.
+ * Revalidating the concrete path clears that stale route output immediately.
+ *
+ * `/street` is a rail, not a per-item page, so micro stories have nothing to
+ * clear here.
+ */
+export function revalidateContentPublicPath(input: { type: string; id?: string | null; slug?: string | null }) {
+    const path = contentPublicPath(input)
+    if (!path || path === '/street') return
+    revalidateLocalized(path)
 }
 
 /**
@@ -304,7 +323,10 @@ export async function syncPhotos(
       content_item_id: contentItemId,
       public_url: photo.url.trim(),
       sort_order: sortIndex,
-      is_cover: sortIndex === 0,
+      // Only a photograph can be the cover. Marking a video/audio row as cover
+      // made the public hero and og:image point at a raw media URL (a broken
+      // <img>), which is exactly what a link-only post used to do.
+      is_cover: (photo.kind ?? 'image') === 'image' && sortIndex === 0,
     }
     if ('caption' in photo && photo.caption !== undefined) {
       patch.caption = photo.caption?.trim() || null
@@ -338,7 +360,8 @@ export async function syncPhotos(
       alt_text: (photo.alt?.trim() || photo.caption?.trim()) || null,
       photographer_credit: photo.credit?.trim() || credit,
       sort_order: sortIndex + index,
-      is_cover: sortIndex + index === 0,
+      // Images only — see the linked-row note above.
+      is_cover: (photo.kind ?? 'image') === 'image' && sortIndex + index === 0,
       poster_url: photo.posterUrl ?? null,
     })),
     ...newAttachments.filter((a) => !a.assetId).map((att, index) => ({

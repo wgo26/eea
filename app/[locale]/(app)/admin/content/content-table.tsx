@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { ExternalLink } from 'lucide-react'
 import { DataTable } from '@/components/admin/data-table'
 import type { Column } from '@/components/admin/data-table'
 import { BulkActionsBar } from '@/components/admin/bulk-actions'
@@ -13,7 +14,8 @@ import { TypeBadge } from '@/components/admin/status-badge'
 import { StatusToggleCell } from '@/components/admin/status-toggle-cell'
 import { localizeType } from '@/lib/admin/labels'
 import { formatDate, formatRelative } from '@/lib/admin/format'
-import { ContentActions } from './content-actions'
+import { localePath } from '@/lib/i18n/urls'
+import { ContentActions, contentLivePath } from './content-actions'
 import { ContentEditTrigger } from './content-dialogs'
 import type { Dictionary, Locale } from '@/lib/i18n'
 
@@ -157,7 +159,36 @@ export function ContentTable({
       ),
     },
     { key: 'type', header: copy.colType, render: (r) => <TypeBadge type={r.type} label={localizeType(r.type, common)} />, className: 'whitespace-nowrap' },
-    { key: 'status', header: copy.colStatus, render: (r) => <StatusToggleCell row={r} copy={copy} common={common} />, className: 'whitespace-nowrap' },
+    {
+      key: 'status',
+      header: copy.colStatus,
+      className: 'whitespace-nowrap',
+      // Status + a one-tap link to the item's own public URL. The section a
+      // permalink resolves under is decided by the content type, so an editor
+      // hand-building "…/news/<slug>" for a photo story otherwise lands on a
+      // 404 with a permalink that looked correct. Published items only — the
+      // link for a draft would itself 404.
+      render: (r) => {
+        const livePath = r.status === 'published' ? contentLivePath(r) : null
+        return (
+          <div className="inline-flex items-center gap-1.5">
+            <StatusToggleCell row={r} copy={copy} common={common} />
+            {livePath ? (
+              <Link
+                href={localePath(locale, livePath)}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={copy.viewLive}
+                title={copy.viewLive}
+                className="rounded p-1 text-muted-foreground opacity-70 transition-opacity hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+              </Link>
+            ) : null}
+          </div>
+        )
+      },
+    },
     { key: 'published', header: copy.colPublished, render: (r) => <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(r.publishedAt, locale)}</span>, headerClassName: 'hidden lg:table-cell', className: 'hidden lg:table-cell whitespace-nowrap' },
     { key: 'author', header: copy.colAuthor, render: (r) => <span className="text-xs text-muted-foreground truncate block max-w-[140px]">{r.authorName ?? '—'}</span>, headerClassName: 'hidden xl:table-cell', className: 'hidden xl:table-cell' },
     { key: 'updated', header: copy.colUpdated, render: (r) => <time className="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(r.updatedAt ?? r.createdAt)}</time>, headerClassName: 'hidden md:table-cell', className: 'hidden md:table-cell whitespace-nowrap' },

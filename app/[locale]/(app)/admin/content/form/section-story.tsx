@@ -39,10 +39,19 @@ export function StorySection(props: {
   const blocksCopy = storyBlocksCopy(copy);
   const toolbarCopy = useMemo(() => proEditorToolbarCopy(copy), [copy]);
   const panelCopy = useMemo(() => aiPanelCopy(copy), [copy]);
-  const photoUrlsForEditor = useMemo(() => {
-    const existing = isEdit && data ? data.photos.map((p) => p.url) : [];
-    return [...existing, ...v.newPhotos.map((p) => p.url)].filter(Boolean);
-  }, [isEdit, data, v.newPhotos]);
+  // Only photographs are offered to the block editor's image picker — the
+  // non-image media rows are link attachments (video/audio/document).
+  const pictureUrls = useMemo(
+    () =>
+      isEdit && data
+        ? data.photos.filter((p) => (p.kind ?? "image") === "image").map((p) => p.url)
+        : [],
+    [isEdit, data],
+  );
+  const photoUrlsForEditor = useMemo(
+    () => [...pictureUrls, ...v.newPhotos.filter((p) => (p.kind ?? "image") === "image").map((p) => p.url)].filter(Boolean),
+    [pictureUrls, v.newPhotos],
+  );
 
   return (
     <Section title={copy.sectionStory}>
@@ -61,14 +70,7 @@ export function StorySection(props: {
       <StoryBlocksEditor
         copy={blocksCopy}
         initialBody={v.enBody}
-        photoUrls={
-          isEdit && data
-            ? [
-                ...data.photos.map((p) => p.url),
-                ...v.newPhotos.map((p) => p.url),
-              ].filter(Boolean)
-            : v.newPhotos.map((p) => p.url).filter(Boolean)
-        }
+        photoUrls={photoUrlsForEditor}
         onInsert={(html) =>
           // Idempotent: re-inserting replaces the previously inserted
           // sections instead of appending a second copy of every picture.
