@@ -7,7 +7,7 @@ import { channelStatus } from '@/lib/notify/channels'
 import {
   deliverDigest,
   markPersistedDigestSlots,
-  retryFailedDigestBatches,
+  retryPendingDigestBatches,
   sendWeeklyDigest,
 } from '@/lib/digest/deliver'
 import { parseDigestFreeze } from '@/lib/digest/freeze'
@@ -210,7 +210,7 @@ export async function sendTestDigest(
 }
 
 /* ------------------------------------------------------------------ */
-/* Manual trigger (run tonight's ops-digest / weekly-digest now)      */
+/* Manual trigger for the daily or weekly Digest                      */
 /* ------------------------------------------------------------------ */
 
 export async function runOpsDigestNow(): Promise<SlotResult> {
@@ -221,7 +221,7 @@ export async function runOpsDigestNow(): Promise<SlotResult> {
     const db = createAdminClient()
     const issueDate = new Date().toISOString().slice(0, 10)
     await markPersistedDigestSlots('daily', issueDate)
-    const retries = await retryFailedDigestBatches('daily')
+    const retries = await retryPendingDigestBatches('daily')
     const { data: frozen, error: freezeError } = await db.rpc('digest_freeze', { p_issue_date: issueDate })
     if (freezeError) throw new Error(`Digest freeze failed: ${freezeError.message}`)
     const storiesByLocale = parseDigestFreeze(frozen)
@@ -247,7 +247,7 @@ export async function runOpsDigestNow(): Promise<SlotResult> {
     if (deliveryFailures > 0) return { ok: false, error: 'Some confirmed delivery failures remain and will be retried on the next run.' }
     return { ok: true }
   } catch (e) {
-    logger.error('admin/digest', 'manual ops-digest failed', { error: e instanceof Error ? e.message : String(e) })
+    logger.error('admin/digest', 'manual daily digest failed', { error: e instanceof Error ? e.message : String(e) })
     return { ok: false, error: e instanceof Error ? e.message : 'Manual run failed' }
   }
 }
@@ -271,6 +271,8 @@ export async function retryDigestDeliveryAfterReview(id: string): Promise<SlotRe
   try {
     if (!/^[0-9a-f-]{36}$/i.test(id)) return { ok: false, error: 'Invalid delivery identifier.' }
     const { supabase, user } = await assertCapability('manageContent')
+    const fanoutGate = await isPublicFanoutPaused()
+    if (fanoutGate.paused) return { ok: false, error: 'Digest delivery is paused by the current system state.' }
     const db = createAdminClient()
     const staleBefore = new Date(Date.now() - 2 * 60_000).toISOString()
     const update = (status: 'unknown' | 'sending') => {
@@ -300,7 +302,7 @@ export async function retryDigestDeliveryAfterReview(id: string): Promise<SlotRe
     if (batch.cadence !== 'daily' && batch.cadence !== 'weekly') {
       return { ok: false, error: 'Delivery requeued but its issue cadence is invalid.' }
     }
-    const retry = await retryFailedDigestBatches(batch.cadence)
+    const retry = await retryPendingDigestBatches(batch.cadence)
     revalidateLocalized('/admin/digest')
     if (retry.failed > 0) return { ok: false, error: 'Some confirmed delivery failures remain.' }
     if (retry.uncertain > 0) return { ok: false, error: 'The provider outcome is still uncertain; review it again before retrying.' }

@@ -118,24 +118,25 @@ Copy `.env.example` → `.env.local` and fill in the values. Never commit real s
 | `WHATSAPP_TEMPLATE_FR` / `WHATSAPP_TEMPLATE_FR_LANG` | notifications | Optional French twin (falls back to the base template when unset) |
 | `TURNSTILE_SECRET_KEY` | — | Enables Cloudflare Turnstile verification when set (feature switch) |
 | `SENTRY_DSN` | — | Error tracking (see [`docs/observability.md`](docs/observability.md); inert until the SDK is installed) |
-| `DIGEST_WEBHOOK_URL` | — | Discord/Slack-compatible webhook for the nightly `/api/cron/ops-digest` summary |
+| `DIGEST_WEBHOOK_URL` | — | Optional Discord/Slack-compatible webhook for critical incident paging (not a digest cron) |
 | `CLOUDINARY_CLOUD_NAME` | — | Optional image transform layer (adds a remote pattern) |
 | `SUPABASE_DB_URL` | CI secret | Enables the optional `supabase db lint` CI step (not an app env) |
 
 ## Scheduled jobs
 
-**Five** `CRON_SECRET`-guarded endpoints are declared in `vercel.json`:
+**Six** `CRON_SECRET`-guarded endpoints are declared in `vercel.json`:
 
 | Endpoint | Schedule (UTC) | Purpose |
 |---|---|---|
 | `/api/cron/storage-backup?batch=100` | 02:00 daily | Delta-sync R2 + Supabase Storage → Backblaze B2, checksum-verified |
 | `/api/cron/db-maintenance` | 02:30 daily | Purge stale rate-limit buckets, report DB telemetry, verify schema integrity (500 = alert) |
-| `/api/cron/ops-digest` | 06:00 daily | Post a queue summary (moderation/legal-inbox/ads/storage) to the configured webhook — the moderation-loop watchdog |
 | `/api/cron/notify` | every 15 min | Drain the notification outbox → in-app / email / WhatsApp |
-| `/api/cron/reminders` | hourly | Deliver due event "remind me" rows through the outbox |
+| `/api/cron/daily-digest` | 06:00 daily | Deliver the opt-in daily reader Digest with durable per-recipient retries |
+| `/api/cron/weekly-digest` | Mondays 07:00 | Deliver the weekly reader recap |
+| `/api/cron/publish-plans` | minutes 15 and 45 hourly | Run due editorial publish plans |
 
 **Hosting note:** `vercel.json` crons only fire on Vercel. On the Hostinger/VPS
-deployment, **all five** endpoints are invoked by
+deployment, **all six** endpoints are invoked by
 [`.github/workflows/scheduled-jobs.yml`](.github/workflows/scheduled-jobs.yml)
 (needs the `CRON_SECRET` repo secret), which also runs an hourly watchdog that
 fails when no scheduled run has succeeded in 3 hours — a stalled `notify`
@@ -160,7 +161,7 @@ Shipped hardening: PII-free public listings with a rate-limited contact-reveal a
 | [`audit.md`](audit.md) | Production-readiness audit + phased remediation plan (all phases shipped) |
 | [`docs/known-issues.md`](docs/known-issues.md) | **Current** debt list (regenerated against the code; the old `m.md`/`implementation_plan.md`/`scaffold_plan.md` live under `docs/history/`) |
 | [`docs/admin-manual.md`](docs/admin-manual.md) | Client-facing admin guide (per-section workflows) |
-| [`docs/observability.md`](docs/observability.md) | Logging, Sentry, uptime monitor, nightly ops-digest setup |
+| [`docs/observability.md`](docs/observability.md) | Logging, Sentry, uptime monitor, critical incident paging |
 | [`docs/hosting-architecture.md`](docs/hosting-architecture.md) | Hosting baseline |
 | [`docs/auth-emails.md`](docs/auth-emails.md) | Auth email templates + Supabase dashboard setup |
 | [`docs/supabase-auth-setup.md`](docs/supabase-auth-setup.md) | Local, staging, production Supabase Auth setup and verification runbook |

@@ -222,7 +222,7 @@ grant execute on function public.digest_freeze(date) to service_role;
 grant execute on function public.digest_mark_sent(date) to service_role;
 
 comment on function public.digest_freeze(date) is
-  'Ranked unsent digest slot snapshots per locale as JSONB ({en:[{title,type,path,shareText}],fr:[...]}). Service-role only; called by the 06:00 ops-digest cron before delivery.';
+  'Ranked unsent digest slot snapshots per locale as JSONB ({en:[{title,type,path,shareText}],fr:[...]}). Service-role only; called by the 06:00 daily-digest cron before delivery.';
 comment on function public.digest_mark_sent(date) is
   'Stamps sent_at on the day''s unsent open slots after a successful fan-out so a re-run never re-sends. Returns marked row count. Service-role only.';
 

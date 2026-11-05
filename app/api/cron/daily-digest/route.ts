@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireCronSecret } from '@/lib/security/cron-auth'
 import { stampHeartbeat } from '@/lib/automation/heartbeat'
 import { generateCorrelationId, logger } from '@/lib/observability/logger'
-import { deliverDigest, markPersistedDigestSlots, retryFailedDigestBatches } from '@/lib/digest/deliver'
+import { deliverDigest, markPersistedDigestSlots, retryPendingDigestBatches } from '@/lib/digest/deliver'
 import { hasFrozenStories, parseDigestFreeze } from '@/lib/digest/freeze'
 import { compileTemplatesForCadence } from '@/lib/content/templates-run'
 import { isPublicFanoutPaused } from '@/lib/platform/fanout'
@@ -40,7 +40,7 @@ async function run(request: Request) {
     }
     if (!fanoutGate.paused) {
       await markPersistedDigestSlots('daily', issueDate)
-      retries = await retryFailedDigestBatches('daily')
+      retries = await retryPendingDigestBatches('daily')
     }
     const { data, error } = await db.rpc('digest_freeze', { p_issue_date: issueDate })
     if (error) throw new Error(`Digest freeze failed: ${error.message}`)

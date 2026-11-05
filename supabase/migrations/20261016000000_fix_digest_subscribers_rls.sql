@@ -4,7 +4,7 @@
 -- anonymous PostgREST caller could SELECT/UPDATE/DELETE every subscriber email.
 -- Public subscribe/unsubscribe flows use the service-role client
 -- (lib/notify/actions.ts subscribeDigest/unsubscribeDigest) and the nightly
--- fan-out runs service-role (app/api/cron/ops-digest), so RLS can deny
+-- fan-out runs service-role (app/api/cron/daily-digest), so RLS can deny
 -- anonymous/authenticated access entirely. Staff manage via their session
 -- client (lib/notify/actions.ts toggleDigestSubscriber behind
 -- manageNotifications), which needs an explicit staff policy.

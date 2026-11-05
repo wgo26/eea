@@ -1591,12 +1591,10 @@ below.*
     Verified: no `fixed inset-0` overlay divs remain in admin components.
   - **Skip-to-content link** on the public shell (`#main-content`, localized
     via `dict.common.skipToContent` in both dictionaries).
-  - **Nightly ops digest**: `/api/cron/ops-digest` (CRON_SECRET-guarded)
-    posts a queue summary (moderation pending, legal inbox open, ad campaigns
-    pending, storage pending backup/verification, staff count) to a
-    Discord/Slack webhook when `DIGEST_WEBHOOK_URL` is set; no-op otherwise.
-    Wired into `vercel.json` + `scheduled-jobs.yml` (06:00 UTC); doubles as a
-    watchdog since it posts even on an empty queue.
+  - **Daily and weekly Digest delivery**: `/api/cron/daily-digest` and
+    `/api/cron/weekly-digest` (CRON_SECRET-guarded) send subscriber issues and
+    persist per-subscriber/channel delivery attempts. Uncertain provider
+    outcomes require staff review before requeue; see `docs/notifications.md`.
   - **Docs & hygiene**: scratch notes (`m.md`, `implementation_plan.md`,
     `scaffold_plan.md`, `Phase 1 … bli.txt`) archived to `docs/history/`;
     regenerated debt list as [`docs/known-issues.md`](../../docs/known-issues.md)
@@ -1617,11 +1615,11 @@ below.*
     advertise/contact/takedown/data/correction), best-effort, never failing
     the action; explicit one-off-only anti-spam policy in
     `docs/notifications.md` (no lists, no follow-ups).
-  - **B digest signup + fan-out** — public opt-in at `/digest`
+  - **B digest signup + fan-out (original implementation)** — public opt-in at `/digest`
     (`app/[locale]/(public)/digest`, `subscribeDigest`/`unsubscribeDigest`
     with honeypot + Turnstile + rate limit + email dedupe, dictionary copy
-    en+fr); `/api/cron/ops-digest` fans the 5 latest published stories out
-    to active `digest_subscribers` even when the ops webhook is unset.
+    en+fr); the original fan-out was later replaced by the daily/weekly
+    delivery routes and durable delivery ledger.
   - **C self-service contacts** — phone + alert language editable in
     `/account/profile` (`ProfileForm`, tabbed Public identity / Contact &
     place / Preferences) and `/account/notifications`
@@ -1732,7 +1730,6 @@ below.*
   - **Tests** — `lib/storage/validate.test.ts` pins the re-encode contract
     with real sharp buffers (WebP output + 2560 cap + no upscale + PNG
     lossless + executable rejection).
-
 
 
 

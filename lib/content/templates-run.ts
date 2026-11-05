@@ -27,7 +27,7 @@ import {
  *  - one-shot — every compile creates a fresh draft (dated suffix).
  *
  * Nothing here publishes: the output always waits in the drafts queue for a
- * human ("suggest, never assert"). Called by the ops-digest (daily cadence)
+ * human ("suggest, never assert"). Called by the daily-digest (daily cadence)
  * and weekly-digest (weekly cadence) crons, and manually from the admin
  * templates page.
  */

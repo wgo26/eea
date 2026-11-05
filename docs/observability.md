@@ -1,7 +1,7 @@
 # Observability runbook
 
-How errors, logs, uptime, and the nightly ops digest work — and what an operator
-must configure for production.
+How errors, logs, uptime, and critical incident paging work — and what an
+operator must configure for production.
 
 ## 1. Structured logging
 
@@ -10,8 +10,8 @@ uploads pipeline, storage, security guards, and all public query layers). Each
 line is a single JSON object:
 
 ```json
-{ "ts": "2026-09-09T06:00:00.000Z", "level": "error", "scope": "cron/ops-digest",
-  "message": "webhook POST failed", "correlationId": "…", "durationMs": 42 }
+{ "ts": "2026-09-09T06:00:00.000Z", "level": "error", "scope": "cron/daily-digest",
+  "message": "Digest delivery failed", "correlationId": "…", "durationMs": 42 }
 ```
 
 Fields: `ts` (ISO), `level` (info/warn/error), `scope`, `message`, plus
@@ -65,22 +65,14 @@ scheduled run succeeded in 3 h — covers the */15 notify worker). The
 `db-maintenance` cron returns 500 when schema verification finds missing
 objects — wire that 500 to the same alert channel.
 
-## 4. Nightly ops digest (webhook)
+## 4. Critical incident paging (webhook)
 
-`/api/cron/ops-digest` (06:00 UTC on Vercel via `vercel.json`, or via the
-GitHub Actions schedule — see README → Scheduled jobs) posts a queue summary to
-a Discord/Slack-compatible webhook when **`DIGEST_WEBHOOK_URL`** is set:
-
-- moderation queue (pending / in_review / needs_clarification submissions)
-- legal inbox (open `reports`: takedowns + data requests)
-- ad inquiries (`ad_campaigns` pending)
-- storage (assets pending backup / pending verification)
-- staff account count
-
-The endpoint is a **watchdog**: it posts even when every queue is zero, so a
-failed nightly run (workflow failure or webhook 5xx) is itself the alert.
-Skipped cleanly when the webhook URL is unset (endpoint returns
-`200 {"skipped":true}`).
+`DIGEST_WEBHOOK_URL` is an optional Discord/Slack-compatible paging destination
+used by critical-mode incident actions (`lib/notify/webhook.ts`). It is not a
+cron endpoint or a reader-digest delivery channel. When unset or unavailable,
+the incident action still completes and logs the paging failure; the in-app
+`security.critical` alert remains available. Point the URL at a restricted
+channel with mobile push and rotate it like any other credential.
 
 ### 5. Database restore drill
 
@@ -109,6 +101,6 @@ Secrets required: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
 | Restore not rehearsed | `scripts/restore-drill.mjs` (§5) / `.github/workflows/restore-drill.yml` |
 | DB maintenance | `/api/cron/db-maintenance` response (purged rows, missing objects) |
 | Upload failing | `logger` `uploads` scope: ownership/rate-limit/validation errors |
-| Nothing delivered | Confirm `CRON_SECRET` + `DIGEST_WEBHOOK_URL` are set on the host |
+| No critical webhook page | Confirm `DIGEST_WEBHOOK_URL` is set and the destination accepts posts |
 
 Maintain this document when adding metrics or channels.

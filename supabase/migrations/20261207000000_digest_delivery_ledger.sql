@@ -10,6 +10,7 @@ create table if not exists public.digest_delivery_batches (
     subject text not null,
     intro text,
     stories jsonb not null,
+    archived_at timestamptz,
     created_at timestamptz not null default now(),
     unique (sent_on, cadence, locale)
 );
@@ -44,8 +45,7 @@ create or replace function public.digest_create_delivery_batch(
     p_date_label text,
     p_subject text,
     p_intro text,
-    p_stories jsonb,
-    p_deliveries jsonb
+    p_stories jsonb
 )
 returns uuid
 language plpgsql
@@ -72,10 +72,17 @@ begin
     end if;
 
     insert into public.digest_delivery_attempts (batch_id, subscriber_id, channel, status, attempts)
-    select v_batch_id, d.subscriber_id, d.channel, 'pending', 0
-      from jsonb_to_recordset(coalesce(p_deliveries, '[]'::jsonb))
-           as d(subscriber_id uuid, channel text)
-     where d.channel in ('email', 'whatsapp')
+    select v_batch_id, s.id, c.channel, 'pending', 0
+      from public.digest_subscribers s
+      cross join lateral (
+          values
+              ('email'::text, s.email),
+              ('whatsapp'::text, coalesce(s.whatsapp, s.phone))
+      ) as c(channel, destination)
+     where s.is_active
+       and case when s.locale ilike 'fr%' then 'fr' else 'en' end = p_locale
+       and nullif(btrim(c.destination), '') is not null
+       and c.channel in ('email', 'whatsapp')
     on conflict (batch_id, subscriber_id, channel) do nothing;
 
     return v_batch_id;
@@ -108,6 +115,12 @@ begin
        and subscriber_id = p_subscriber_id
        and channel = p_channel
        and status in ('pending', 'failed')
+       and exists (
+           select 1
+             from public.digest_subscribers s
+            where s.id = p_subscriber_id
+              and s.is_active
+       )
     returning id into v_claimed;
 
     return v_claimed is not null;
@@ -148,11 +161,11 @@ $$;
 
 revoke all on function public.digest_claim_delivery(uuid, uuid, text)
     from public, anon, authenticated;
-revoke all on function public.digest_create_delivery_batch(date, text, text, text, text, text, jsonb, jsonb)
+revoke all on function public.digest_create_delivery_batch(date, text, text, text, text, text, jsonb)
     from public, anon, authenticated;
 revoke all on function public.digest_finish_delivery(uuid, uuid, text, text, text)
     from public, anon, authenticated;
-grant execute on function public.digest_create_delivery_batch(date, text, text, text, text, text, jsonb, jsonb)
+grant execute on function public.digest_create_delivery_batch(date, text, text, text, text, text, jsonb)
     to service_role;
 grant execute on function public.digest_claim_delivery(uuid, uuid, text) to service_role;
 grant execute on function public.digest_finish_delivery(uuid, uuid, text, text, text) to service_role;
@@ -161,8 +174,8 @@ comment on table public.digest_delivery_batches is
     'Immutable digest content snapshots retained so failed subscriber deliveries can be retried without resending to successful subscribers.';
 comment on table public.digest_delivery_attempts is
     'Per-subscriber/channel delivery ledger. Failed attempts may be retried; unknown attempts require operator review before retry.';
-comment on function public.digest_create_delivery_batch(date, text, text, text, text, text, jsonb, jsonb) is
-    'Atomically persists an immutable digest snapshot and its subscriber/channel queue; retries reuse the original recipient cohort.';
+comment on function public.digest_create_delivery_batch(date, text, text, text, text, text, jsonb) is
+    'Atomically persists an immutable digest snapshot and active subscriber/channel queue; retries reuse the original recipient cohort.';
 comment on function public.digest_claim_delivery(uuid, uuid, text) is
     'Atomically claims a pending or confirmed-failed digest delivery; sent, sending, and unknown attempts are never automatically resent.';
 comment on function public.digest_finish_delivery(uuid, uuid, text, text, text) is

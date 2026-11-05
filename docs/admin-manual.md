@@ -129,7 +129,7 @@ Who did what, when — the compliance record. Filter by action/entity/date and
 ## Notifications `/admin/notifications`
 
 - **Channels** shows what is live: email (SMTP), WhatsApp (Cloud API), the
-  out-of-window utility template, and the ops-digest webhook. Anything
+  out-of-window utility template, and critical-incident webhook paging. Anything
   unconfigured is skipped honestly — in-app delivery always works.
 - **Queue**: every submission, inquiry and decision lands here. Failed or
   skipped rows get a per-row **Retry**; rows to a direct recipient offer a

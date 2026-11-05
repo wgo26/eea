@@ -70,7 +70,7 @@ silent.
 
 **Check:**
 1. GitHub Actions → scheduled-jobs.yml → check last successful run.
-2. Confirm the ops-digest watchdog is green (6 endpoints, 7 jobs).
+2. Confirm the scheduled workflow is green (six endpoints plus its watchdog); check the daily and weekly reader Digest runs separately.
 3. Check outbox lag: query 
 otification_outbox for pending rows older than 15 min.
 

@@ -7,7 +7,7 @@ export type DigestIssue = {
     locale: string;
     subject: string;
     cadence: 'daily' | 'weekly';
-    /** Story snapshots stored by the ops-digest cron ({title, section path}). */
+    /** Immutable story snapshots stored with each delivered Digest issue. */
     stories: { title: string; path: string }[];
     emailed: number;
     whatsapped: number;
@@ -15,8 +15,8 @@ export type DigestIssue = {
 
 /**
  * Public digest archive (features.md §newsletter): one row per sent digest,
- * written by the ops-digest (daily) and weekly-digest (recap) crons into
- * digest_issues (public select RLS). Read through the service-role client
+ * written by the daily and weekly Digest delivery crons into digest_issues
+ * (public select RLS). Read through the service-role client
  * like every lib/queries read. Never throws — a DB hiccup renders the
  * archive empty state instead of a broken page, matching the safe()
  * convention in this layer.

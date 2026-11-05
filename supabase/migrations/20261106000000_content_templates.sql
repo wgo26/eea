@@ -8,7 +8,7 @@
 --       - section/source_type: which brief section + content type to pull
 --         (source_type null = everything publishing into the section).
 --       - window_days: how far back the source query looks.
---       - cadence 'daily' compiles inside the 06:00 ops-digest run,
+--       - cadence 'daily' compiles inside the 06:00 daily-digest run,
 --         'weekly' inside the Monday weekly-digest run (before delivery).
 --       - living: the template keeps ONE draft (content_items.template_id)
 --         and re-compiles append-only — editor-deleted blocks are never

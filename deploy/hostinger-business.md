@@ -92,8 +92,9 @@ In that mode the two Turnstile values become launch blockers again
 (`verifyTurnstileToken` is fail-closed in production), and the CSP re-allows the
 Cloudflare origins automatically.
 
-Optional: `DIGEST_WEBHOOK_URL`, `SMTP_*`, `WHATSAPP_*` (graceful skips with
-honest worker statuses — safe to omit at launch).
+Optional: `DIGEST_WEBHOOK_URL` (critical incident paging), `SMTP_*`,
+`WHATSAPP_*` (graceful skips with honest worker statuses — safe to omit at
+launch).
 
 ## Domain and HTTPS
 
@@ -177,10 +178,10 @@ externally:
 |---|---|---|
 | `POST/GET https://eagleeyeafrica.org/api/cron/storage-backup?batch=100` | 02:00 daily | R2 + Supabase Storage → Backblaze B2 delta backup |
 | `POST/GET https://eagleeyeafrica.org/api/cron/db-maintenance` | 02:30 daily | Rate-limit purge, DB telemetry, schema integrity verification (500 = alert) |
-| `POST/GET https://eagleeyeafrica.org/api/cron/db-dump` | 02:45 daily | `pg_dump` → B2 compressed dump + `db_dumps` row (needs `SUPABASE_DB_URL`) |
-| `POST/GET https://eagleeyeafrica.org/api/cron/ops-digest` | 06:00 daily | Post a queue summary (moderation/legal-inbox/ads/storage) to `DIGEST_WEBHOOK_URL`; 200 `{skipped:true}` when unset |
 | `POST/GET https://eagleeyeafrica.org/api/cron/notify` | `*/15 * * * *` | Drain the notification outbox → in-app / email / WhatsApp |
-| `POST/GET https://eagleeyeafrica.org/api/cron/reminders` | `0 * * * *` hourly | Deliver due event "remind me" rows via the outbox |
+| `POST/GET https://eagleeyeafrica.org/api/cron/daily-digest` | 06:00 daily | Opt-in reader Digest; durable recipient/channel retries |
+| `POST/GET https://eagleeyeafrica.org/api/cron/weekly-digest` | Mondays 07:00 | Opt-in weekly reader recap |
+| `POST/GET https://eagleeyeafrica.org/api/cron/publish-plans` | minutes 15 and 45 hourly | Run due editorial publish plans |
 
 Authentication: send `Authorization: Bearer <CRON_SECRET>` (the value from
 hPanel's env vars). Missing/wrong secret → 401; the endpoints fail closed in
@@ -205,17 +206,17 @@ Options, in order of preference:
 ### Ownership and known scheduler limits
 
 - **Owner:** the release engineer on call owns the schedule. A failed run in
-  the Actions tab is a production incident for `notify` and `reminders`
-  (users stop receiving mail/WhatsApp) and a data-safety incident for
-  `storage-backup`.
+  the Actions tab is a production incident for `notify` (users stop receiving
+  alerts) and a data-safety incident for `storage-backup`. Digest failures are
+  retried from the durable delivery ledger on the next daily/weekly run.
 - GitHub Actions schedules can be delayed ~15–30+ minutes under load, and
   **GitHub auto-disables scheduled workflows after 60 days without repository
   activity** — which also silences the watchdog. To close that hole, pair the
   watchdog with an external uptime monitor pointed at `/api/ready` (see
   `docs/observability.md`) and keep at least one commit per quarter.
-- `ops-digest` is the moderation-loop watchdog: if it stops, unmoderated queue
-  depth grows unnoticed. Keep `DIGEST_WEBHOOK_URL` set in production so the
-  digest is never a silent no-op.
+- Provider-acceptance-uncertain Digest sends are not automatically repeated.
+  Review them in `/admin/digest` against the provider dashboard before using
+  the explicit requeue action; a manually approved retry can create a duplicate.
 
 ## Supabase migrations
 

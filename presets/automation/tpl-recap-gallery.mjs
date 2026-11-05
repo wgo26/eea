@@ -9,8 +9,8 @@
  * engine actually supports, so /admin/templates demonstrates what is possible
  * rather than only what was first written:
  *
- *   cadence         daily recaps compile inside the 06:00 ops-digest run, weekly
- *                   inside the Monday weekly-digest run.
+ *   cadence         daily recaps compile inside the 06:00 daily-digest run,
+ *                   weekly inside the Monday weekly-digest run.
  *   source_filters  location_slug / tag_slug — the only two keys toConfig reads,
  *                   resolved by SLUG at compile time, so the values must exist in
  *                   locations/tags. Hence `deps`: this pack runs after both.

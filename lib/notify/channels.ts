@@ -247,13 +247,14 @@ export async function sendWhatsAppProactive(to: string, text: string, locale?: s
   if (isWhatsAppTemplateConfigured()) {
     const t = await sendWhatsAppTemplate(to, text, locale);
     if (t.delivered) return { ...t, via: 'template' };
+    if (t.uncertain) return { ...t, via: 'template' };
     // Template misconfigured but free text might still work in-window.
     const f = await sendWhatsApp(to, text);
     if (f.delivered) return { ...f, via: 'text' };
     return {
       ...f,
       error: f.error ?? t.error,
-      uncertain: t.uncertain === true || f.uncertain === true,
+      uncertain: f.uncertain === true,
     };
   }
   const f = await sendWhatsApp(to, text);

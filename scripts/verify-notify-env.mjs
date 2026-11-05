@@ -101,7 +101,7 @@ if (!get("CRON_SECRET")) {
 }
 const webhook = get("DIGEST_WEBHOOK_URL");
 if (!webhook) {
-    warnings.push("DIGEST_WEBHOOK_URL unset — ops-digest webhook skipped (public subscriber fan-out still runs).");
+    warnings.push("DIGEST_WEBHOOK_URL unset — critical incident webhook paging is disabled.");
 } else if (!/^https:\/\//.test(webhook)) {
     errors.push("DIGEST_WEBHOOK_URL invalid — expected an https:// URL.");
 }

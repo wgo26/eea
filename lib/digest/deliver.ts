@@ -5,10 +5,11 @@ import { logger } from '@/lib/observability/logger'
 import { sendEmail, sendWhatsAppProactive } from '@/lib/notify/channels'
 import { SITE } from '@/lib/constants'
 import { buildDailyBrief, groupBriefStories, type BriefStory } from './brief'
+import { classifyDeliveryOutcome } from './delivery-state'
 
 /**
  * Shared digest delivery (Stream A). One place renders + sends a brief
- * (daily ops-digest, weekly recap, personalized follow briefs) and archives
+ * (daily digest, weekly recap, personalized follow briefs) and archives
  * the issue, so subject lines, diaspora framing, locale fallback, and the
  * digest_issues upsert (sent_on + locale + cadence) can never drift between
  * the three senders.
@@ -68,6 +69,7 @@ type DigestDeliveryBatch = {
   subject: string
   intro: string | null
   stories: BriefStory[]
+  archived_at: string | null
 }
 
 async function activeSubscribers(): Promise<PersonalRecipient[]> {
@@ -176,13 +178,12 @@ async function getOrCreateBatch(
   locale: 'en' | 'fr',
   stories: BriefStory[],
   intro: { intro: string | null; subject: string | null },
-  recipients: PersonalRecipient[],
 ): Promise<DigestDeliveryBatch> {
   const db = createAdminClient()
   if (options.batchId) {
     const { data, error } = await db
       .from('digest_delivery_batches')
-      .select('id, sent_on, cadence, locale, date_label, subject, intro, stories')
+      .select('id, sent_on, cadence, locale, date_label, subject, intro, stories, archived_at')
       .eq('id', options.batchId)
       .single()
     if (error || !data) throw new Error(`Could not load digest delivery batch: ${error?.message ?? 'not found'}`)
@@ -207,23 +208,56 @@ async function getOrCreateBatch(
       locationId: story.locationId ?? null,
       categoryId: story.categoryId ?? null,
     })),
-    p_deliveries: recipients.flatMap((recipient) => recipient.id ? [
-      ...(recipient.email ? [{ subscriber_id: recipient.id, channel: 'email' }] : []),
-      ...(recipient.whatsapp || recipient.phone ? [{ subscriber_id: recipient.id, channel: 'whatsapp' }] : []),
-    ] : []),
   })
   if (createError || !batchId) {
     throw new Error(`Could not persist digest delivery batch: ${createError?.message ?? 'no batch id returned'}`)
   }
   const { data, error } = await db
     .from('digest_delivery_batches')
-    .select('id, sent_on, cadence, locale, date_label, subject, intro, stories')
+    .select('id, sent_on, cadence, locale, date_label, subject, intro, stories, archived_at')
     .eq('id', batchId)
     .single()
   if (error || !data) throw new Error(`Could not load persisted digest batch: ${error?.message ?? 'not found'}`)
   if (data.cadence !== 'daily' && data.cadence !== 'weekly') throw new Error(`Unsupported digest batch cadence: ${data.cadence}`)
   if (data.locale !== 'en' && data.locale !== 'fr') throw new Error(`Unsupported digest batch locale: ${data.locale}`)
   return { ...data, cadence: data.cadence, locale: data.locale, stories: parseBatchStories(data.stories) }
+}
+
+async function archiveDigestBatch(batch: DigestDeliveryBatch): Promise<boolean> {
+  const db = createAdminClient()
+  const [emailCount, whatsappCount] = await Promise.all([
+    db.from('digest_delivery_attempts').select('id', { count: 'exact', head: true })
+      .eq('batch_id', batch.id).eq('channel', 'email').eq('status', 'sent'),
+    db.from('digest_delivery_attempts').select('id', { count: 'exact', head: true })
+      .eq('batch_id', batch.id).eq('channel', 'whatsapp').eq('status', 'sent'),
+  ])
+  if (emailCount.error || whatsappCount.error) {
+    throw new Error(`Could not count digest deliveries: ${emailCount.error?.message ?? whatsappCount.error?.message}`)
+  }
+  const emailed = emailCount.count ?? 0
+  const whatsapped = whatsappCount.count ?? 0
+  const hasDelivered = emailed + whatsapped > 0
+  if (hasDelivered) {
+    const { error: archiveError } = await db.from('digest_issues').upsert(
+      {
+        sent_on: batch.sent_on,
+        locale: batch.locale,
+        cadence: batch.cadence,
+        subject: batch.subject,
+        stories: batch.stories.map((story) => ({ title: story.title, path: story.path })),
+        emailed,
+        whatsapped,
+      },
+      { onConflict: 'sent_on,locale,cadence' },
+    )
+    if (archiveError) throw new Error(`Digest archive upsert failed: ${archiveError.message}`)
+  }
+  const { error: markArchivedError } = await db.from('digest_delivery_batches')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', batch.id)
+    .is('archived_at', null)
+  if (markArchivedError) throw new Error(`Could not mark digest batch archived: ${markArchivedError.message}`)
+  return hasDelivered
 }
 
 /** Render and send one immutable issue, tracking each subscriber/channel separately. */
@@ -267,8 +301,9 @@ export async function deliverDigest(options: DigestDeliverOptions): Promise<Dige
           subject: ai.subject ?? options.subject[locale],
           intro: ai.intro,
           stories: storiesFor(locale),
+          archived_at: null,
         }
-      : await getOrCreateBatch(options, locale, storiesFor(locale), ai, subsByLocale[locale])
+      : await getOrCreateBatch(options, locale, storiesFor(locale), ai)
     out.durableByLocale[locale] = options.archive !== false
   }
 
@@ -294,7 +329,7 @@ export async function deliverDigest(options: DigestDeliverOptions): Promise<Dige
 
     out.queuedByLocale[locale] = (out.queuedByLocale[locale] ?? 0) + 1
     const result = await operation()
-    const status = result.delivered ? 'sent' : result.uncertain ? 'unknown' : 'failed'
+    const status = classifyDeliveryOutcome(result)
     const { error: finishError } = await db.rpc('digest_finish_delivery', {
       p_batch_id: batchId,
       p_subscriber_id: recipientId,
@@ -380,63 +415,52 @@ export async function deliverDigest(options: DigestDeliverOptions): Promise<Dige
   for (const locale of ['en', 'fr'] as const) {
     const batch = batches[locale]
     if (!batch) continue
-    const [emailCount, whatsappCount] = await Promise.all([
-      db.from('digest_delivery_attempts').select('id', { count: 'exact', head: true })
-        .eq('batch_id', batch.id).eq('channel', 'email').eq('status', 'sent'),
-      db.from('digest_delivery_attempts').select('id', { count: 'exact', head: true })
-        .eq('batch_id', batch.id).eq('channel', 'whatsapp').eq('status', 'sent'),
-    ])
-    if (emailCount.error || whatsappCount.error) {
-      throw new Error(`Could not count digest deliveries: ${emailCount.error?.message ?? whatsappCount.error?.message}`)
-    }
-    const emailed = emailCount.count ?? 0
-    const whatsapped = whatsappCount.count ?? 0
-    if (emailed + whatsapped === 0) continue
-    const { error: archiveError } = await db.from('digest_issues').upsert(
-      {
-        sent_on: batch.sent_on,
-        locale,
-        cadence: batch.cadence,
-        subject: batch.subject,
-        stories: batch.stories.map((story) => ({ title: story.title, path: story.path })),
-        emailed,
-        whatsapped,
-      },
-      { onConflict: 'sent_on,locale,cadence' },
-    )
-    if (archiveError) throw new Error(`Digest archive upsert failed: ${archiveError.message}`)
+    await archiveDigestBatch(batch)
   }
   return out
 }
 
-/** Retry confirmed failures from immutable batches; `unknown` is left for review. */
-export async function retryFailedDigestBatches(cadence: 'daily' | 'weekly'): Promise<DigestDelivery> {
+/** Drain queued and confirmed-failed immutable batches; `unknown` is left for review. */
+export async function retryPendingDigestBatches(cadence: 'daily' | 'weekly'): Promise<DigestDelivery> {
   const out = empty()
   const db = createAdminClient()
-  const failedRows: { batch_id: string; subscriber_id: string; channel: string }[] = []
+  const retryRows: { batch_id: string; subscriber_id: string; channel: string }[] = []
   for (let offset = 0; ; offset += 500) {
     const { data, error } = await db
       .from('digest_delivery_attempts')
       .select('batch_id, subscriber_id, channel')
-      .eq('status', 'failed')
+      .in('status', ['pending', 'failed'])
       .order('id', { ascending: true })
       .range(offset, offset + 499)
     if (error) throw new Error(`Could not load failed digest deliveries: ${error.message}`)
     const page = (data ?? []).filter((row) => row.channel === 'email' || row.channel === 'whatsapp')
-    failedRows.push(...page)
+    retryRows.push(...page)
     if (page.length < 500) break
   }
-  if (failedRows.length === 0) return out
-
-  const batchIds = [...new Set(failedRows.map((row) => row.batch_id))]
-  const batchRows: DigestDeliveryBatch[] = []
-  for (let offset = 0; offset < batchIds.length; offset += 100) {
-    const ids = batchIds.slice(offset, offset + 100)
+  const batchIds = new Set(retryRows.map((row) => row.batch_id))
+  for (let offset = 0; ; offset += 500) {
     const { data, error } = await db
       .from('digest_delivery_batches')
-      .select('id, sent_on, cadence, locale, date_label, subject, intro, stories')
+      .select('id')
       .eq('cadence', cadence)
-      .in('id', ids)
+      .is('archived_at', null)
+      .order('sent_on', { ascending: true })
+      .range(offset, offset + 499)
+    if (error) throw new Error(`Could not load unarchived digest batches: ${error.message}`)
+    for (const row of data ?? []) batchIds.add(row.id)
+    if (!data || data.length < 500) break
+  }
+  if (batchIds.size === 0) return out
+
+  const batchRows: DigestDeliveryBatch[] = []
+  const ids = [...batchIds]
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    const batch = ids.slice(offset, offset + 100)
+    const { data, error } = await db
+      .from('digest_delivery_batches')
+      .select('id, sent_on, cadence, locale, date_label, subject, intro, stories, archived_at')
+      .eq('cadence', cadence)
+      .in('id', batch)
     if (error) throw new Error(`Could not load retryable digest batches: ${error.message}`)
     for (const row of data ?? []) {
       if (row.cadence !== 'daily' && row.cadence !== 'weekly') {
@@ -452,24 +476,30 @@ export async function retryFailedDigestBatches(cadence: 'daily' | 'weekly'): Pro
   const activeById = new Map(subscribers.flatMap((subscriber) => subscriber.id ? [[subscriber.id, subscriber] as const] : []))
 
   for (const row of batchRows) {
-    const attempts = failedRows.filter((item) => item.batch_id === row.id)
-    const retryOnly = attempts.map((item) => ({
-      subscriberId: item.subscriber_id,
-      channel: item.channel as 'email' | 'whatsapp',
-    }))
-    const recipientIds = new Set(retryOnly.map((item) => item.subscriberId))
-    const recipients = [...recipientIds].flatMap((id) => {
-      const subscriber = activeById.get(id)
-      return subscriber ? [subscriber] : []
-    })
-    for (const id of recipientIds) {
-      if (activeById.has(id)) continue
-      const { error } = await db.from('digest_delivery_attempts')
-        .update({ status: 'cancelled', last_error: 'Subscriber is no longer active.', updated_at: new Date().toISOString() })
-        .eq('batch_id', row.id).eq('subscriber_id', id).eq('status', 'failed')
-      if (error) throw new Error(`Could not cancel inactive digest delivery: ${error.message}`)
+    await archiveDigestBatch(row)
+    const attempts = retryRows.filter((item) => item.batch_id === row.id)
+    if (attempts.length === 0) continue
+    const retryOnly: { subscriberId: string; channel: 'email' | 'whatsapp' }[] = []
+    const recipients = new Map<string, PersonalRecipient>()
+    for (const attempt of attempts) {
+      const subscriber = activeById.get(attempt.subscriber_id)
+      const hasDestination = subscriber && (
+        attempt.channel === 'email' ? Boolean(subscriber.email) :
+          attempt.channel === 'whatsapp' ? Boolean(subscriber.whatsapp ?? subscriber.phone) : false
+      )
+      if (!subscriber || !hasDestination) {
+        const { error } = await db.from('digest_delivery_attempts')
+          .update({ status: 'cancelled', last_error: 'Subscriber is inactive or no longer has this channel.', updated_at: new Date().toISOString() })
+          .eq('batch_id', row.id).eq('subscriber_id', attempt.subscriber_id)
+          .eq('channel', attempt.channel).in('status', ['pending', 'failed'])
+        if (error) throw new Error(`Could not cancel inactive digest delivery: ${error.message}`)
+        continue
+      }
+      if (attempt.channel !== 'email' && attempt.channel !== 'whatsapp') continue
+      retryOnly.push({ subscriberId: attempt.subscriber_id, channel: attempt.channel })
+      recipients.set(attempt.subscriber_id, subscriber)
     }
-    if (recipients.length === 0) continue
+    if (retryOnly.length === 0) continue
 
     const result = await deliverDigest({
       storiesByLocale: { [row.locale]: row.stories },
@@ -477,7 +507,7 @@ export async function retryFailedDigestBatches(cadence: 'daily' | 'weekly'): Pro
       sentOn: row.sent_on,
       cadence: row.cadence,
       subject: { en: row.subject, fr: row.subject },
-      recipients,
+      recipients: [...recipients.values()],
       batchId: row.id,
       retryOnly,
     })
@@ -501,22 +531,27 @@ export async function markPersistedDigestSlots(
 ): Promise<void> {
   if (cadence !== 'daily') return
   const db = createAdminClient()
-  const { data, error } = await db
-    .from('digest_delivery_batches')
-    .select('sent_on, locale')
-    .eq('cadence', cadence)
-    .lte('sent_on', throughDate)
-  if (error) throw new Error(`Could not load persisted digest batches: ${error.message}`)
   const seen = new Set<string>()
-  for (const batch of data ?? []) {
-    const key = `${batch.sent_on}:${batch.locale}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    const { error: markError } = await db.rpc('digest_mark_locale_sent', {
-      p_issue_date: batch.sent_on,
-      p_locale: batch.locale,
-    })
-    if (markError) throw new Error(`Could not mark persisted ${batch.locale} digest slots: ${markError.message}`)
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await db
+      .from('digest_delivery_batches')
+      .select('sent_on, locale')
+      .eq('cadence', cadence)
+      .lte('sent_on', throughDate)
+      .order('sent_on', { ascending: true })
+      .range(offset, offset + 499)
+    if (error) throw new Error(`Could not load persisted digest batches: ${error.message}`)
+    for (const batch of data ?? []) {
+      const key = `${batch.sent_on}:${batch.locale}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      const { error: markError } = await db.rpc('digest_mark_locale_sent', {
+        p_issue_date: batch.sent_on,
+        p_locale: batch.locale,
+      })
+      if (markError) throw new Error(`Could not mark persisted ${batch.locale} digest slots: ${markError.message}`)
+    }
+    if (!data || data.length < 500) break
   }
 }
 
@@ -607,7 +642,7 @@ export async function sendPersonalBriefs(
  * digest_slots with sent_at set — an edit can never re-enter as "this week".
  */
 export async function sendWeeklyDigest(windowDays = 7): Promise<DigestDelivery & { stories: number }> {
-  const retried = await retryFailedDigestBatches('weekly')
+  const retried = await retryPendingDigestBatches('weekly')
   const db = createAdminClient()
   const since = new Date(Date.now() - windowDays * 86_400_000).toISOString()
   // ids already delivered via the daily slots must not re-send in weekly
@@ -629,7 +664,7 @@ export async function sendWeeklyDigest(windowDays = 7): Promise<DigestDelivery &
     .limit(120)
   if (error || !data) {
     logger.error('digest/weekly', 'source fetch failed', { error: error?.message ?? 'no data' })
-    return { ...empty(), stories: 0 }
+    return { ...retried, stories: 0 }
   }
   const rows = (data as unknown as {
     id: string

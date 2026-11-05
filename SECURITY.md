@@ -89,8 +89,8 @@ values at the same time.
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | Cloudflare dashboard → R2 → API tokens | upload pipeline, media proxy, storage backup | Object read/write on the public media bucket. |
 | `B2_KEY_ID` / `B2_APPLICATION_KEY` | Backblaze B2 → Application Keys | `storage-backup` cron (off-site copies) | Read/write on the backup bucket. |
 | `SMTP_USER` / `SMTP_PASS` | Mail provider (same host as Supabase custom SMTP) | notification emails (`lib/notify/`) | Send-as-the-domain abuse, deliverability damage. |
-| `DIGEST_WEBHOOK_URL` | Discord/Slack incoming webhook | `ops-digest` cron | Anyone with the URL can post into the ops channel. |
-| `CRON_SECRET` | Self-generated (`openssl rand -hex 32`) | all five `/api/cron/*` handlers + GitHub Actions secret | Unauthenticated cron triggers (backups, maintenance, mail blasts). |
+| `DIGEST_WEBHOOK_URL` | Discord/Slack incoming webhook | critical-mode incident paging | Anyone with the URL can post into the configured ops channel. |
+| `CRON_SECRET` | Self-generated (`openssl rand -hex 32`) | scheduled `/api/cron/*` handlers + GitHub Actions secret | Unauthenticated cron triggers (backups, maintenance, mail blasts). |
 | `POW_HMAC_KEY` | Self-generated (`openssl rand -hex 32`) | proof-of-work challenge signing/verification (`lib/security/pow.ts`) | Anyone who has it can mint unlimited pre-solved challenges. Unset = derived from `SUPABASE_SERVICE_ROLE_KEY`, so rotating that secret already rotates this one. |
 | `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile | challenge verification **only** when `NEXT_PUBLIC_HUMAN_MODE=turnstile` | Captcha bypass on the abuse-sensitive forms — but only in turnstile mode; the default proof-of-work gate does not consult it. |
 

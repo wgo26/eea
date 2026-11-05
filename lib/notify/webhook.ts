@@ -7,10 +7,10 @@ import { logger } from '@/lib/observability/logger'
  * Security hardening).
  *
  * The notification centre is in-app: a chief who is asleep never sees it.
- * `DIGEST_WEBHOOK_URL` (Discord/Slack-compatible, already used by the ops
- * digest) doubles as the paging channel — point it at a channel with mobile
- * push and critical-mode activations wake a human. Unset = logged warning,
- * in-app alert still fires; paging must never break the action it reports.
+ * `DIGEST_WEBHOOK_URL` is a Discord/Slack-compatible paging channel — point
+ * it at a channel with mobile push so critical-mode activations wake a human.
+ * Unset = logged warning, in-app alert still fires; paging must never break
+ * the action it reports.
  */
 export async function postOpsWebhook(text: string): Promise<boolean> {
   const webhook = process.env.DIGEST_WEBHOOK_URL

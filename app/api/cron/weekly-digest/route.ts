@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic'
  * active subscriber, and compiles weekly-cadence recap templates (Stream B)
  * into drafts for the editorial review queue.
  *
- * Auth: CRON_SECRET bearer — same fail-closed pattern as ops-digest.
+ * Auth: CRON_SECRET bearer — same fail-closed pattern as daily-digest.
  */
 async function run(request: Request) {
   const correlationId = generateCorrelationId()

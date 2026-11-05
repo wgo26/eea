@@ -2432,6 +2432,7 @@ export type Database = {
             subject: string;
             intro: string | null;
             stories: Json;
+            archived_at: string | null;
             created_at: string;
             };
             Insert: {
@@ -2443,6 +2444,7 @@ export type Database = {
             subject: string;
             intro?: string | null;
             stories: Json;
+            archived_at?: string | null;
             created_at?: string;
             };
             Update: {
@@ -2454,6 +2456,7 @@ export type Database = {
             subject?: string | null;
             intro?: string | null;
             stories?: Json | null;
+            archived_at?: string | null;
             created_at?: string | null;
             };
             Relationships: [];
@@ -5874,6 +5877,18 @@ export type Database = {
                 p_channel: string;
             };
             Returns: boolean;
+        }
+        digest_create_delivery_batch: {
+            Args: {
+                p_sent_on: string;
+                p_cadence: string;
+                p_locale: string;
+                p_date_label: string;
+                p_subject: string;
+                p_intro: string | null;
+                p_stories: Json;
+            };
+            Returns: string;
         }
         digest_finish_delivery: {
             Args: {

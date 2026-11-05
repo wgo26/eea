@@ -1,8 +1,8 @@
 # Notifications — the per-event loop
 
-Staff used to learn about work by opening admin pages or waiting for the
-nightly ops-digest webhook. Now every intake and every decision enqueues an
-alert, and a worker delivers it across three channels per recipient prefs.
+Staff used to learn about work by opening admin pages. Now every intake and
+every decision enqueues an alert, and a worker delivers it across three
+channels per recipient preferences.
 The separate reader Digest remains opt-in and is delivered by the daily and
 weekly digest jobs documented below.
 
@@ -103,9 +103,13 @@ best-effort, never fails the submission):
 - unconfigured/invalid SMTP = logged skip, intake still succeeds.
 
 The public daily digest is strictly opt-in at `/digest` (email and/or
-WhatsApp). `/api/cron/daily-digest` freezes the open story slots, sends to
-active `digest_subscribers`, and marks only successfully delivered locales as
-sent. `/api/cron/weekly-digest` delivers the weekly recap separately.
+WhatsApp). `/api/cron/daily-digest` atomically snapshots each locale's issue
+and recipient/channel queue before sending. Confirmed failures and queued
+attempts are retried from that immutable snapshot by the next run; successful
+channels are never resent. Provider timeouts are recorded as uncertain and
+must be reviewed in `/admin/digest` before an operator explicitly requeues
+them, since the provider may already have accepted the message. The weekly
+recap uses the same durable delivery ledger.
 
 ## Production checklist (pre-launch)
 
@@ -127,7 +131,8 @@ malformed values), then work this list:
   scheduled-jobs.yml); uptime monitor against `/api/ready`
   (docs/observability.md §3).
 - **Migrations**: `supabase db push` — includes `20260929000000_notifications`
-  (outbox + prefs) and `20260930000000_notification_quiet_hours`.
+  (outbox + prefs), `20260930000000_notification_quiet_hours`, and
+  `20261207000000_digest_delivery_ledger`.
 - **Link previews**: open a story link in WhatsApp on a real handset and
   confirm the OG card renders (canonical/hreflang/OG ship per page).
 

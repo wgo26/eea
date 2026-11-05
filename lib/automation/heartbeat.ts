@@ -11,7 +11,7 @@ import { logger } from '@/lib/observability/logger'
  * visible WITHOUT depending on the failed scheduler to report on itself.
  *
  * Staleness uses per-job grace windows: the 15-minute notify worker goes stale
- * in an hour, the nightly ops digest only in 36.
+ * in an hour, the daily digest in 36 hours, and the weekly recap in eight days.
  */
 
 export type HeartbeatRow = {
@@ -28,7 +28,6 @@ export const CRON_GRACE_HOURS: Record<string, number> = {
   reminders: 2,
   'state-schedules': 36,
   'state-watchdog': 1,
-  'ops-digest': 36,
   'daily-digest': 36,
   'weekly-digest': 8 * 24,
   'publish-plans': 1,

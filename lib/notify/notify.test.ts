@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { defaultStaffPath, renderEvent, type NotifyEvent } from './events';
-import { isWindowError, normalizePhone, waMeLink, whatsappTemplateFor } from './channels';
+import { isWindowError, normalizePhone, sendWhatsAppProactive, waMeLink, whatsappTemplateFor } from './channels';
 import { isReceiptEmail } from './guest-receipts';
 import { doualaHour, isQuietHour } from './worker';
 
@@ -122,6 +122,29 @@ describe('whatsapp window errors', () => {
     expect(isWindowError('WhatsApp API 400: {"error":{"code":131047}}')).toBe(true);
     expect(isWindowError('WhatsApp API 400: bad request')).toBe(false);
     expect(isWindowError('')).toBe(false);
+  });
+});
+
+describe('proactive WhatsApp delivery', () => {
+  it('does not fallback to a second send after an uncertain template response', async () => {
+    const names = ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_TEMPLATE'];
+    const saved = new Map(names.map((name) => [name, process.env[name]]));
+    process.env.WHATSAPP_TOKEN = 'test-token';
+    process.env.WHATSAPP_PHONE_NUMBER_ID = '12345';
+    process.env.WHATSAPP_TEMPLATE = 'digest_test';
+    const fetchMock = vi.fn().mockResolvedValue(new Response('provider timeout', { status: 503 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const result = await sendWhatsAppProactive('+237612345678', 'Digest message', 'en');
+      expect(result).toMatchObject({ delivered: false, uncertain: true, via: 'template' });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      for (const [name, value] of saved) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
   });
 });
 
