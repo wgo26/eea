@@ -193,6 +193,44 @@ export async function proxy(request: NextRequest) {
         : NextResponse.next({ request });
     response.headers.set("x-locale", locale);
 
+    // Content Protection Headers — defense in depth
+    // Prevent framing (clickjacking)
+    response.headers.set("X-Frame-Options", "DENY");
+    // Prevent MIME sniffing
+    response.headers.set("X-Content-Type-Options", "nosniff");
+    // Referrer policy
+    response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    // Permissions Policy — disable features not needed
+    response.headers.set(
+        "Permissions-Policy",
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
+    );
+    // Cross-Origin policies
+    response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
+    response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
+
+    // Cache control for sensitive content — prevent caching
+    if (pathname.startsWith("/en/") || pathname.startsWith("/fr/")) {
+        // Only apply to localized routes (user-facing content)
+        const isSensitiveRoute =
+            pathname.includes("/admin") ||
+            pathname.includes("/account") ||
+            pathname.includes("/submit") ||
+            pathname.includes("/photo-stories") ||
+            pathname.includes("/culture/events") ||
+            pathname.includes("/notices") ||
+            pathname.includes("/buy-sell");
+
+        if (isSensitiveRoute) {
+            response.headers.set(
+                "Cache-Control",
+                "private, no-store, no-cache, must-revalidate, max-age=0"
+            );
+            response.headers.set("Pragma", "no-cache");
+            response.headers.set("Expires", "0");
+        }
+    }
+
     return response;
 }
 

@@ -200,6 +200,58 @@
   }
 }
 
+/* Content Protection Layer — deterrence against casual copying.
+   These are NOT security boundaries; determined users can bypass via dev tools,
+   OS-level tools, or screen capture. They raise the effort for casual users. */
+.protect-content {
+  /* Disable text selection */
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+
+  /* Disable drag (images, links) */
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+
+  /* Disable touch callout (iOS long-press menu) */
+  -webkit-touch-callout: none;
+}
+
+.protect-content img,
+.protect-content video,
+.protect-content audio,
+.protect-content canvas {
+  pointer-events: none;
+}
+
+/* Allow selection in specific editable/form areas even under .protect-content */
+.protect-content input,
+.protect-content textarea,
+.protect-content [contenteditable="true"],
+.protect-content .allow-select {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  pointer-events: auto !important;
+}
+
+/* Print protection — hide protected content when printing */
+@media print {
+  .protect-content {
+    visibility: hidden;
+    position: absolute;
+    left: -9999px;
+  }
+  .protect-content .print-only {
+    visibility: visible;
+    position: static;
+    left: auto;
+  }
+}
+
 /* Editorial article body â€” agency-grade reading surface.
    Blogger bodies arrive as raw HTML (sanitized by lib/security/html.ts);
    native drafts arrive as paragraph lists. This class gives both the same

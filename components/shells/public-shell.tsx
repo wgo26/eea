@@ -9,6 +9,7 @@ import { getPublicSiteSettings } from '@/lib/admin/queries'
 import { loadBrandIdentity } from '@/lib/branding/identity'
 import { getDictionary, type Locale } from '@/lib/i18n'
 import { getChromeStrings } from '@/lib/i18n/chrome'
+import { SensitiveRouteProtection } from '@/components/content-protection/sensitive-route-protection'
 
 /**
  * PublicShell (checklist item 2) — the browsing chrome: global header +
@@ -76,7 +77,9 @@ export async function PublicShell({ children, locale }: { children: ReactNode; l
         branding={{ logoUrl: identity.logoUrl, siteName: identity.siteName, siteTagline: identity.tagline, siteNameFr: identity.siteNameFr, siteTaglineFr: identity.taglineFr }}
         chrome={getChromeStrings(locale)}
       />
-      <main id="main-content" tabIndex={-1} className="flex-1">{children}</main>
+      <main id="main-content" tabIndex={-1} className="flex-1">
+        <SensitiveRouteProtection locale={locale}>{children}</SensitiveRouteProtection>
+      </main>
       {/*
        * Mobile Post action: the single dominant CTA is hidden behind the
        * hamburger below `lg`, so small screens had no persistent way to start
