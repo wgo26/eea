@@ -589,7 +589,7 @@ export const en = {
       videosPlaceholder: 'https://video.url - Optional caption',
       audios: 'Supporting audio',
       audiosHint:
-        'Optional. Voice notes or clips (max 25 MB upload) or audio links, one per line. A story can carry audio without video.',
+        'Optional. Upload an audio file up to 25 MB (a voice note recorded on your phone works well) or paste audio links, one per line.',
       audiosPlaceholder: 'https://audio.url - Optional caption',
       documents: 'Supporting documents',
       documentsHint:

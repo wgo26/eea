@@ -737,7 +737,7 @@ badges: {
       videosPlaceholder: 'https://video.url - Légende facultative',
       audios: 'Audio d’appui',
       audiosHint:
-        'Facultatif. Notes vocales ou extraits (max 25 Mo) ou liens audio, un par ligne. Une histoire peut contenir de l’audio sans vidéo.',
+        'Facultatif. Envoyez un fichier audio jusqu’à 25 Mo (une note vocale enregistrée sur votre téléphone convient) ou collez des liens audio, un par ligne.',
       audiosPlaceholder: 'https://audio.url - Légende facultative',
       documents: 'Documents d’appui',
       documentsHint:

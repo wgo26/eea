@@ -75,7 +75,7 @@ export function MediaField({
                     kind === 'video'
                       ? 'Upload short clips (max 50 MB) or paste YouTube/Vimeo/file links below.'
                       : kind === 'audio'
-                        ? 'Upload voice notes or clips (max 25 MB) or paste audio links below.'
+                        ? 'Upload an audio file up to 25 MB (a voice note from your phone works) or paste audio links below.'
                         : 'Upload a PDF (max 10 MB) or paste document links below.',
                   empty: kind === 'video' ? 'No videos yet.' : kind === 'audio' ? 'No audio yet.' : 'No documents yet.',
                 }),

@@ -2,9 +2,8 @@
 
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { Dictionary, Locale } from "@/lib/i18n";
+import type { Dictionary } from "@/lib/i18n";
 import { Field } from "./submit-field";
-import { VoiceInputButton } from "./voice-input-button";
 import { BUY_SELL_CATEGORIES, CURRENCIES, NOTICE_TYPES, type SubmitType } from "./submit-types";
 
 type Fields = Dictionary["submit"]["fields"];
@@ -21,13 +20,12 @@ export function SubmitEssentials(props: {
     f: Fields;
     s: Steps;
     dict: Dictionary;
-    locale: Locale;
     selectedNoticeType: string;
     setSelectedNoticeType: (t: string) => void;
     initialDraft?: Record<string, string>;
     initialNoticeDirection?: "lost" | "found";
 }) {
-    const { type, active, f, s, dict, locale, selectedNoticeType, setSelectedNoticeType, initialDraft, initialNoticeDirection } = props;
+    const { type, active, f, s, dict, selectedNoticeType, setSelectedNoticeType, initialDraft, initialNoticeDirection } = props;
     const isPhoto = type === "photo-story";
     const isNews = type === "news";
     const isCulture = type === "culture";
@@ -45,15 +43,9 @@ export function SubmitEssentials(props: {
                             required
                             placeholder={f.whatPlaceholder}
                         />
-                        <span className="flex justify-end">
-                            <VoiceInputButton targetId="what" locale={locale} />
-                        </span>
                     </Field>
                     <Field label={f.description} htmlFor="description">
                         <Textarea id="description" name="description" placeholder={f.descriptionPlaceholder} />
-                        <span className="flex justify-end">
-                            <VoiceInputButton targetId="description" locale={locale} />
-                        </span>
                     </Field>
                 </>
             ) : null}
@@ -70,9 +62,6 @@ export function SubmitEssentials(props: {
                             required
                             placeholder={f.descriptionPlaceholder}
                         />
-                        <span className="flex justify-end">
-                            <VoiceInputButton targetId="description" locale={locale} />
-                        </span>
                     </Field>
                 </>
             ) : null}
@@ -124,9 +113,6 @@ export function SubmitEssentials(props: {
                     </Field>
                     <Field label={f.message} htmlFor="message" help={s.messageHelp}>
                         <Textarea id="message" name="message" required placeholder={f.messagePlaceholder} />
-                        <span className="flex justify-end">
-                            <VoiceInputButton targetId="message" locale={locale} />
-                        </span>
                     </Field>
                 </>
             ) : null}
@@ -180,9 +166,6 @@ export function SubmitEssentials(props: {
                             required
                             placeholder={f.descriptionPlaceholder}
                         />
-                        <span className="flex justify-end">
-                            <VoiceInputButton targetId="description" locale={locale} />
-                        </span>
                     </Field>
                 </>
             ) : null}

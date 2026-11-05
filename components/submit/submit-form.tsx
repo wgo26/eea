@@ -160,7 +160,6 @@ export function SubmitForm({
                     f={f}
                     s={s}
                     dict={dict}
-                    locale={locale}
                     selectedNoticeType={selectedNoticeType}
                     setSelectedNoticeType={setSelectedNoticeType}
                     initialDraft={initialDraft}
