@@ -2,6 +2,7 @@
 
 import { Eye } from 'lucide-react'
 import { resolveSiteIconUrl } from '@/lib/site-icon'
+import { SmartImage } from '@/components/media/smart-image'
 import { cn } from '@/lib/utils'
 
 type SiteMarkProps = {
@@ -36,8 +37,15 @@ export function SiteMark({
   const src = resolveSiteIconUrl(logoUrl)
   if (src) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt={alt} className={cn('shrink-0', imgClassName, className)} />
+      <SmartImage
+        src={src}
+        alt={alt}
+        fill={false}
+        width={144}
+        height={96}
+        sizes="144px"
+        className={cn('shrink-0', imgClassName, className)}
+      />
     )
   }
   return (

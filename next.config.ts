@@ -79,6 +79,9 @@ const nextConfig: NextConfig = {
     // WebP as the negotiated fallback for AVIF-less clients — the WebP-only
     // default leaves the low-bandwidth audience's biggest win on the table.
     formats: ["image/avif", "image/webp"],
+    // Uploaded image keys are unique and never overwritten, so optimized
+    // variants can stay cached without making changed assets stale.
+    minimumCacheTTL: 60 * 60 * 24 * 30,
     remotePatterns: [
       {
         protocol: "https",
