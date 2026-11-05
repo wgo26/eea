@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDuration, hasVideoMedia, inferKindFromUrl, mapAttachments, parseMediaList, previewImageUrl, resolveDisplayImage, supportingMedia, videoThumbnailUrl, youtubeIdFromUrl } from './attachments';
+import { coverRow, formatDuration, hasVideoMedia, inferKindFromUrl, mapAttachments, parseMediaList, previewImageUrl, resolveDisplayImage, supportingMedia, videoThumbnailUrl, youtubeIdFromUrl } from './attachments';
 
 describe('media attachments', () => {
   it('infers video/audio from extensions', () => {
@@ -84,5 +84,31 @@ describe('media attachments', () => {
     expect(resolveDisplayImage(null, 'https://x/logo.jpg')).toBe('https://x/logo.jpg');
     expect(resolveDisplayImage('  ', 'https://x/logo.jpg')).toBe('https://x/logo.jpg');
     expect(resolveDisplayImage(null, null)).toBe('/images/default-display.jpg');
+  });
+
+  it('accepts is_cover only on a photograph', () => {
+    // The row the public hero will actually use.
+    expect(coverRow([{ public_url: 'https://x/a.jpg', is_cover: true, kind: 'image' }])?.public_url).toBe(
+      'https://x/a.jpg',
+    );
+    // No kind = a legacy photograph row, still a valid cover.
+    expect(coverRow([{ public_url: 'https://x/old.jpg', is_cover: true, kind: null }])?.public_url).toBe(
+      'https://x/old.jpg',
+    );
+    // A video/audio/document row flagged is_cover is ignored — trusting it put
+    // a raw media URL in the hero <img> and the share card (the "cover is
+    // broken but the video is fine" report).
+    expect(coverRow([{ public_url: 'https://youtu.be/x', is_cover: true, kind: 'video' }])).toBeUndefined();
+    expect(coverRow([{ public_url: 'https://x/a.mp3', is_cover: true, kind: 'audio' }])).toBeUndefined();
+    // A video cover must not shadow a real photograph behind it.
+    const mixed = [
+      { public_url: 'https://youtu.be/x', is_cover: true, kind: 'video' },
+      { public_url: 'https://x/a.jpg', is_cover: false, kind: 'image' },
+    ];
+    expect(coverRow(mixed)).toBeUndefined();
+    // Unflagged and empty inputs stay undefined.
+    expect(coverRow([{ public_url: 'https://x/a.jpg', is_cover: false, kind: 'image' }])).toBeUndefined();
+    expect(coverRow(null)).toBeUndefined();
+    expect(coverRow([])).toBeUndefined();
   });
 });

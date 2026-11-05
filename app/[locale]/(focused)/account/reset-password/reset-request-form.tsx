@@ -3,21 +3,23 @@
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { requestPasswordReset, type PasswordResetState } from "@/lib/auth/actions";
-import { TurnstileWidget } from "@/components/security/turnstile-widget";
+import { HumanChallenge, type HumanGateCopy } from "@/components/security/human-challenge";
 import type { Dictionary } from "@/lib/i18n";
 
 type Props = {
     copy: Dictionary["auth"]["reset"];
+    /** Localized gate copy (`dict.common.human`). */
+    humanCopy: HumanGateCopy;
     loginHref: string;
 };
 
-export function ResetRequestForm({ copy, loginHref }: Props) {
+export function ResetRequestForm({ copy, humanCopy, loginHref }: Props) {
     const [state, formAction, pending] = useActionState<PasswordResetState, FormData>(
         requestPasswordReset,
         { ok: false },
     );
     const [attempt, setAttempt] = useState(0);
-    const turnstileKey = state.error ? `${state.error}#${attempt}` : "fresh";
+    const gateKey = state.error ? `${state.error}#${attempt}` : "fresh";
 
     const errorMessage = state.error
         ? ({
@@ -64,7 +66,7 @@ export function ResetRequestForm({ copy, loginHref }: Props) {
                         />
                     </div>
 
-                    <TurnstileWidget key={turnstileKey} />
+                    <HumanChallenge key={gateKey} copy={humanCopy} />
 
                     <button
                         type="submit"

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Flag, Loader2 } from "lucide-react";
 import { submitContentReport } from "@/lib/public/report-actions";
-import { TurnstileWidget } from "@/components/security/turnstile-widget";
+import { HumanChallenge, type HumanGateCopy } from "@/components/security/human-challenge";
+import { POW_FIELD, TURNSTILE_FIELD } from "@/lib/security/human-fields";
 import {
     Dialog,
     DialogContent,
@@ -18,7 +19,7 @@ const REPORT_TYPES = ["spam", "abuse", "misinformation", "other"] as const;
 type ReportCopy = Dictionary["report"];
 
 /**
- * In-app content report: reason + optional details, Turnstile-gated,
+ * In-app content report: reason + optional details, human-gate protected,
  * rate-limited server-side. Writes to `reports` (the trust & safety triage
  * queue) — anonymous unless the reporter is signed in. Mounts next to the
  * share row on every content detail page.
@@ -26,9 +27,12 @@ type ReportCopy = Dictionary["report"];
 export function ReportButton({
     contentItemId,
     copy,
+    humanCopy,
 }: {
     contentItemId: string;
     copy: ReportCopy;
+    /** Localized gate copy (`dict.common.human`). */
+    humanCopy: HumanGateCopy;
 }) {
     const [open, setOpen] = useState(false);
     const [reason, setReason] = useState<(typeof REPORT_TYPES)[number]>("spam");
@@ -57,12 +61,18 @@ export function ReportButton({
         setLoading(true);
         setError(null);
         const formData = new FormData(e.currentTarget);
-        const token = formData.get("cf-turnstile-response");
+        // Mode-aware: the gate injects whichever field the active mode uses
+        // (pow-response by default, cf-turnstile-response in turnstile mode).
+        const field = (name: string) => {
+            const value = formData.get(name);
+            return typeof value === "string" && value ? value : null;
+        };
+        const token = field(POW_FIELD) ?? field(TURNSTILE_FIELD);
         const result = await submitContentReport({
             contentItemId,
             reportType: reason,
             details: details.trim() || undefined,
-            turnstileToken: typeof token === "string" ? token : null,
+            humanToken: token,
         });
         setLoading(false);
         if (result.ok) {
@@ -135,7 +145,7 @@ export function ReportButton({
                                     className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                                 />
                             </label>
-                            <TurnstileWidget />
+                            <HumanChallenge copy={humanCopy} />
                             {error ? <p className="text-sm text-destructive">{error}</p> : null}
                             <DialogFooter>
                                 <button

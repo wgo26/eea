@@ -209,6 +209,13 @@ token_verifications = 30
 web3 = 30
 
 # Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
+# DELIBERATELY DISABLED — do not enable without reading this first.
+# Supabase's hosted captcha cannot express our proof-of-work gate, and the
+# auth surfaces (signup / login / password reset) run through the app's own
+# server actions, which already enforce the same human-verification facade as
+# every other public form (lib/security/human-gate.ts). Enabling a provider
+# here would add a second, redundant challenge with a *different* failure
+# posture (and a hard dependency on the provider's CDN at the auth boundary).
 # [auth.captcha]
 # enabled = true
 # provider = "hcaptcha"

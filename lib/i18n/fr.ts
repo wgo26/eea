@@ -1228,6 +1228,16 @@ about: {
     undo: 'Annuler',
     supportingMedia: 'Médias d’appui',
     supportingMediaBody: 'Vidéos, audios et documents se lisent à la demande pour économiser les données.',
+    /** Portillon de vérification humaine — voir `common.human` dans en.ts. */
+    human: {
+      preparing: 'Préparation du défi de vérification...',
+      verifying: 'Vérification que vous êtes humain — un contrôle bref et économe en batterie...',
+      verified: 'Vérifié — vous pouvez envoyer.',
+      failed:
+        "La vérification automatique n'a pas abouti. Vérifiez la date et l'heure de cet appareil, puis réessayez.",
+      retry: 'Réessayer',
+      progress: '{percent} % terminé',
+    },
   },
   command: chromeFr.command,
   report: {

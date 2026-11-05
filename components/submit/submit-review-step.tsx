@@ -7,7 +7,7 @@ import type { Dictionary, Locale } from "@/lib/i18n";
 import { localePath } from "@/lib/i18n/urls";
 import { Field } from "./submit-field";
 import { MediaField } from "./media-field";
-import { TurnstileWidget } from "@/components/security/turnstile-widget";
+import { HumanChallenge } from "@/components/security/human-challenge";
 import type { SubmitState } from "@/lib/public/types";
 
 type Fields = Dictionary["submit"]["fields"];
@@ -15,7 +15,7 @@ type Steps = Dictionary["submit"]["steps"];
 
 /**
  * STEP 3 — media + consent + review: optional media bundle (collapsible),
- * rights/consent checkboxes, server-error mapping, honeypot + Turnstile,
+ * rights/consent checkboxes, server-error mapping, honeypot + human gate,
  * contact/location review summary, and the submit / save-draft actions.
  */
 export function SubmitReviewStep(props: {
@@ -31,14 +31,14 @@ export function SubmitReviewStep(props: {
     pending: boolean;
     draftPending: boolean;
     draftAction: (formData: FormData) => void;
-    turnstileKey: string;
+    gateKey: string;
     reviewOpen: boolean;
     setReviewOpen: (open: boolean) => void;
     reviewValues: Record<string, string>;
     setShowContact: (show: boolean) => void;
     goStep: (next: number) => void;
 }) {
-    const { active, f, s, dict, locale, canUpload, mediaOpen, setMediaOpen, state, pending, draftPending, draftAction, turnstileKey, reviewOpen, setReviewOpen, reviewValues, setShowContact, goStep } = props;
+    const { active, f, s, dict, locale, canUpload, mediaOpen, setMediaOpen, state, pending, draftPending, draftAction, gateKey, reviewOpen, setReviewOpen, reviewValues, setShowContact, goStep } = props;
     const uploadCopy = {
         retryFailed: dict.submit.retryUpload,
         failedCount: dict.submit.uploadFailedCount,
@@ -125,7 +125,7 @@ export function SubmitReviewStep(props: {
                 aria-hidden="true"
                 className="hidden"
             />
-            <TurnstileWidget key={turnstileKey} />
+            <HumanChallenge key={gateKey} copy={dict.common.human} />
 
             {reviewOpen ? (
                 <section aria-label={s.review} className="rounded-2xl border bg-muted/30 p-4">

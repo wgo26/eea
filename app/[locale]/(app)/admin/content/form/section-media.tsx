@@ -6,6 +6,8 @@ import {
   CONTENT_MEDIA_ACCEPTS,
 } from "@/components/admin/media-uploader";
 import type { UploadedPhoto } from "@/components/admin/media-uploader";
+import { MediaAttachmentView } from "@/components/media/media-attachment";
+import { parseMediaList } from "@/lib/media/attachments";
 import { ui, Field } from "@/lib/admin/ui-constants";
 import type { Dictionary } from "@/lib/i18n";
 import type { FormValues } from "./values";
@@ -15,6 +17,15 @@ type Copy = Dictionary["admin"]["content"];
 type CommonCopy = Dictionary["admin"]["common"];
 
 const inputCls = ui.input;
+
+/**
+ * A URL the editor has finished typing. Mid-typing values stay out of the
+ * player list so a half-written link cannot mount an iframe pointing at
+ * nothing while the editor is still typing.
+ */
+function looksComplete(url: string): boolean {
+  return /^https?:\/\/[^\s/]+\.[a-z]{2,}/i.test(url);
+}
 
 /**
  * Section 3 — Media: uploads/picks, credit, supporting links. The memo
@@ -34,6 +45,24 @@ export function MediaSection(props: {
 }) {
   const { values: v, patch, copy, common, existingPhotos, mediaItemId } = props;
   const mediaCopy = useMemo(() => mediaUploaderCopy(common, copy), [common, copy]);
+
+  /*
+    Playable preview of the media-links field.
+    The field is the only place a stored video/audio/document row lives in this
+    form (non-image rows are deliberately not uploader tiles), so without this
+    an existing YouTube clip showed up as a bare URL and could no longer be
+    played from the editor at all — it used to render as a video tile in the
+    uploader grid. Same component the public page renders, so the editor sees
+    exactly what a visitor will; image-inferred lines are skipped because a
+    stray link is not a photograph and must not render as one.
+  */
+  const linkedMedia = useMemo(
+    () =>
+      parseMediaList(v.mediaLinks).filter(
+        (attachment) => attachment.kind !== "image" && looksComplete(attachment.url),
+      ),
+    [v.mediaLinks],
+  );
 
   // Stable identities for the media subtree's props. `MediaUploader` renders one
   // DOM node per photo, and the form re-renders on every keystroke of an
@@ -83,6 +112,18 @@ export function MediaSection(props: {
           placeholder={"https://www.youtube.com/watch?v=…\nhttps://…/clip.mp3 - Intro\nhttps://…/notice.pdf"}
         />
       </Field>
+      {/* What the links above will actually render — the player a visitor gets. */}
+      {linkedMedia.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {linkedMedia.map((attachment) => (
+            <MediaAttachmentView
+              key={attachment.url}
+              attachment={attachment}
+              title={attachment.caption || copy.mediaLinks}
+            />
+          ))}
+        </div>
+      ) : null}
     </Section>
   );
 }

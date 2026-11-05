@@ -8,7 +8,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/security/rate-limit';
 import { isCurrentRequestIpBlocked } from '@/lib/security/ip-blocklist';
 import { honeypotTripped } from '@/lib/security/honeypot';
-import { verifyTurnstileToken } from '@/lib/security/turnstile';
+import { verifyHumanGate } from '@/lib/security/human-gate';
 import type { Database } from '@/lib/supabase/database.types';
 import { enqueueNotification } from './queue';
 import { processOutbox } from './worker';
@@ -259,7 +259,7 @@ function cleanLocale(v: unknown): 'en' | 'fr' {
  * Public opt-in to the daily digest (`/digest`). At least one contact
  * (valid email and/or WhatsApp number) is required. Dedupe is by email
  * when an email is given (reactivate + update), otherwise a new row.
- * Rate-limited + honeypot + Turnstile-guarded like other public forms.
+ * Rate-limited + honeypot + human-gate guarded like other public forms.
  */
 export async function subscribeDigest(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   try {
@@ -270,8 +270,7 @@ export async function subscribeDigest(_prev: ActionResult, formData: FormData): 
     if (await isCurrentRequestIpBlocked()) return { ok: false, error: 'rate_limited' };
     const limited = await checkRateLimit('public:digest', { max: 5, windowMs: 10 * 60_000, policy: 'fail-closed' });
     if (!limited.ok) return { ok: false, error: 'rate_limited' };
-    const token = formData.get('cf-turnstile-response');
-    if (!(await verifyTurnstileToken(typeof token === 'string' ? token : null))) {
+    if (!(await verifyHumanGate(formData))) {
       return { ok: false, error: 'captcha' };
     }
     const email = cleanEmail(formData.get('email'));

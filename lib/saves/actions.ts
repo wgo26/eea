@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getSessionUser } from '@/lib/auth/guards'
-import { mapAttachments, previewImageUrl } from '@/lib/media/attachments'
+import { coverRow, mapAttachments, previewImageUrl } from '@/lib/media/attachments'
 import type { Locale } from '@/lib/i18n'
 
 export type SaveToggleResult = { ok: true; saved: boolean } | { ok: false; error: string }
@@ -116,7 +116,7 @@ export async function getSavedItems(locale: Locale = 'en'): Promise<SavedItem[]>
       mime_type: string | null
     }[]
     const images = media.filter((m) => (m.kind ?? 'image') === 'image')
-    const rawCover = (media.find((m) => m.is_cover) ?? null)?.public_url ?? images[0]?.public_url ?? null
+    const rawCover = coverRow(media)?.public_url ?? images[0]?.public_url ?? null
     return {
       contentItemId: row.content_item_id as string,
       type: (content?.type ?? 'news') as string,

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { submitAdvertiseInquiry } from "@/lib/public/contact-actions";
-import { TurnstileWidget } from "@/components/security/turnstile-widget";
+import { HumanChallenge } from "@/components/security/human-challenge";
 import type { SubmitState } from "@/lib/public/types";
 import type { Dictionary } from "@/lib/i18n";
 
@@ -135,7 +135,7 @@ export function AdvertiseForm({ dict }: { dict: Dictionary }) {
                 aria-hidden="true"
                 className="hidden"
             />
-            <TurnstileWidget />
+            <HumanChallenge copy={dict.common.human} />
 
             <Button type="submit" disabled={pending} className="w-full">
                 {pending ? (

@@ -302,13 +302,22 @@ export async function deleteContentItem(contentItemId: string): Promise<ActionRe
       p_actor_id: user.id,
       p_note: `${row.type}/${row.slug}`,
     }
-    // Session client first: carries auth.uid() for the legacy is_admin() RPC.
-    const first = await supabase.rpc('admin_delete_content_item', args)
-    if (!first.error) {
+    // Both branches below must clear exactly the same caches (see
+    // revalidateContentPublicPath): tagging alone refreshes the cached *data*,
+    // but the item's own route keeps serving its old render — profile 'max' is
+    // stale-while-revalidate — so a hard-deleted story would stay reachable for
+    // one request. Defined once so the retry path cannot drift from the first.
+    const clearRoutes = () => {
       revalidatePublicContentCache()
+      revalidateContentPublicPath({ type: row.type, id: row.id, slug: row.slug })
       revalidateLocalized('/admin/content')
       revalidateLocalized('/admin/dashboard')
       revalidateLocalized('/admin/listings')
+    }
+    // Session client first: carries auth.uid() for the legacy is_admin() RPC.
+    const first = await supabase.rpc('admin_delete_content_item', args)
+    if (!first.error) {
+      clearRoutes()
       return { ok: true }
     }
     if (first.error.message !== 'Admin permission required') {
@@ -318,10 +327,7 @@ export async function deleteContentItem(contentItemId: string): Promise<ActionRe
     const { error } = await admin.rpc('admin_delete_content_item', args)
     if (error) return { ok: false, error: error.message }
 
-    revalidatePublicContentCache()
-    revalidateLocalized('/admin/content')
-    revalidateLocalized('/admin/dashboard')
-    revalidateLocalized('/admin/listings')
+    clearRoutes()
     return { ok: true }
   } catch (e) {
     return fail(e)
@@ -608,7 +614,7 @@ export async function setContentFeatured(contentId: string, isFeatured: boolean,
 
     const { data: item, error: itemError } = await supabase
       .from('content_items')
-      .select('id, status')
+      .select('id, status, type, slug')
       .eq('id', contentId)
       .single()
     if (itemError || !item) return { ok: false, error: 'Content item not found.' }
@@ -679,6 +685,9 @@ export async function setContentFeatured(contentId: string, isFeatured: boolean,
       notes: isFeatured ? `until=${endsAt ?? 'indefinite'}` : null,
     })
     revalidatePublicContentCache()
+    // The item's own page shows the featured treatment, so its route is cleared
+    // too (the same asymmetry publish/status already avoids).
+    revalidateContentPublicPath({ type: item.type, id: contentId, slug: item.slug })
     revalidateLocalized('/admin/content')
     return { ok: true }
   } catch (e) {
@@ -689,10 +698,21 @@ export async function setContentFeatured(contentId: string, isFeatured: boolean,
 export async function archiveContent(contentId: string): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertStaff()
-    const { error } = await supabase.from('content_items').update({ is_archived: true, is_featured: false }).eq('id', contentId)
+    // type/slug come back with the update so the item's own public route can be
+    // cleared: taking a story down is a moderation action, and tag invalidation
+    // alone still serves the old page once (profile 'max' = stale-while-
+    // revalidate). Without this, an archived story stayed readable until the
+    // next request regenerated it.
+    const { data: updated, error } = await supabase
+      .from('content_items')
+      .update({ is_archived: true, is_featured: false })
+      .eq('id', contentId)
+      .select('type, slug')
     if (error) return { ok: false, error: error.message }
+    const row = (updated ?? [])[0] as { type: string; slug: string | null } | undefined
     await audit(supabase, user.id, { action: 'content:archive', contentItemId: contentId })
     revalidatePublicContentCache()
+    if (row) revalidateContentPublicPath({ type: row.type, id: contentId, slug: row.slug })
     revalidateLocalized('/admin/content')
     return { ok: true }
   } catch (e) {
@@ -709,10 +729,19 @@ export async function archiveContent(contentId: string): Promise<ActionResult> {
 export async function unarchiveContent(contentId: string): Promise<ActionResult> {
   try {
     const { supabase, user } = await assertStaff()
-    const { error } = await supabase.from('content_items').update({ is_archived: false }).eq('id', contentId)
+    // Same read-back as archiveContent: restoring an item has to clear the
+    // route, because the page can be cached as notFound() from while the item
+    // was archived (that render carries no tag dependency to invalidate).
+    const { data: updated, error } = await supabase
+      .from('content_items')
+      .update({ is_archived: false })
+      .eq('id', contentId)
+      .select('type, slug')
     if (error) return { ok: false, error: error.message }
+    const row = (updated ?? [])[0] as { type: string; slug: string | null } | undefined
     await audit(supabase, user.id, { action: 'content:unarchive', contentItemId: contentId })
     revalidatePublicContentCache()
+    if (row) revalidateContentPublicPath({ type: row.type, id: contentId, slug: row.slug })
     revalidateLocalized('/admin/content')
     revalidateLocalized('/admin/dashboard')
     return { ok: true }

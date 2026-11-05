@@ -7,7 +7,7 @@ import { localePath, safeNextPath } from '@/lib/i18n/urls'
 import { checkRateLimit } from '@/lib/security/rate-limit'
 import { isCurrentRequestIpBlocked } from '@/lib/security/ip-blocklist'
 import { AUTH_AUDIT_ACTIONS, recordAuthEvent } from '@/lib/security/auth-audit'
-import { verifyTurnstileToken } from '@/lib/security/turnstile'
+import { verifyHumanGate } from '@/lib/security/human-gate'
 import { SITE } from '@/lib/constants'
 import { enabledOAuthProviders, type OAuthProvider } from '@/lib/auth/oauth'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -120,7 +120,8 @@ export async function signInWithPassword(
     return { ok: false, error: 'invalid' }
   }
 
-  // Abuse gate (durable per-IP limiter + Turnstile when configured) — brute
+  // Abuse gate (durable per-IP limiter + human verification — signed
+  // proof-of-work by default, Turnstile in turnstile mode) — brute
   // force is also throttled by Supabase's own auth rate limits.
   // fail-closed: credential surface — an outage must not become an unlimited
   // password-guessing window.
@@ -144,8 +145,7 @@ export async function signInWithPassword(
     })
     return { ok: false, error: 'rate_limited' }
   }
-  const turnstileToken = formData.get('cf-turnstile-response')
-  if (!(await verifyTurnstileToken(typeof turnstileToken === 'string' ? turnstileToken : null))) {
+  if (!(await verifyHumanGate(formData))) {
     await recordAuthEvent({
       action: AUTH_AUDIT_ACTIONS.loginBlocked,
       identifier: email,
@@ -259,7 +259,7 @@ export async function signUpWithPassword(
     return { ok: false, error: 'password_mismatch' }
   }
 
-  // Abuse gate: durable per-IP limiter + Turnstile when configured. Signup
+  // Abuse gate: durable per-IP limiter + human verification. Signup
   // floods also burn Supabase SMTP quota, so this gate runs before signUp().
   // fail-closed: signup writes an account and sends confirmation mail.
   // Chief-managed network block first: reads as throttling so a blocked
@@ -267,8 +267,7 @@ export async function signUpWithPassword(
   if (await isCurrentRequestIpBlocked()) return { ok: false, error: 'rate_limited' }
   const limited = await checkRateLimit('auth:signup', { max: 5, windowMs: 60 * 60_000, policy: 'fail-closed' })
   if (!limited.ok) return { ok: false, error: 'rate_limited' }
-  const turnstileToken = formData.get('cf-turnstile-response')
-  if (!(await verifyTurnstileToken(typeof turnstileToken === 'string' ? turnstileToken : null))) {
+  if (!(await verifyHumanGate(formData))) {
     return { ok: false, error: 'captcha' }
   }
 
@@ -344,8 +343,7 @@ export async function requestPasswordReset(
     return { ok: false, error: 'rate_limited' }
   }
 
-  const turnstileToken = formData.get('cf-turnstile-response')
-  if (!(await verifyTurnstileToken(typeof turnstileToken === 'string' ? turnstileToken : null))) {
+  if (!(await verifyHumanGate(formData))) {
     await recordAuthEvent({
       action: AUTH_AUDIT_ACTIONS.passwordResetBlocked,
       identifier: email,

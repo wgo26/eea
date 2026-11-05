@@ -102,7 +102,7 @@ export function ThreadClient({
                         )}
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                        <ReportButton contentItemId={thread.contentItemId} copy={dict.report} />
+                        <ReportButton contentItemId={thread.contentItemId} copy={dict.report} humanCopy={dict.common.human} />
                         {blocked ? (
                             <button
                                 type="button"

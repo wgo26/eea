@@ -8,7 +8,7 @@ import { enqueueStaffAlert } from "@/lib/notify/queue";
 import { sendGuestReceipt } from "@/lib/notify/guest-receipts";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { isCurrentRequestIpBlocked } from "@/lib/security/ip-blocklist";
-import { verifyTurnstileToken } from "@/lib/security/turnstile";
+import { verifyHumanGateToken } from "@/lib/security/human-gate";
 import { RATE_LIMITS, REPORT_TYPES, guardPublicSubmission, isEmail, str } from "./abuse";
 
 /**
@@ -185,14 +185,16 @@ export async function submitArticleCorrection(
  * Public content report (news / photo stories / culture / notices /
  * listings). Anyone may file one — the `reports` table has an
  * insert-for-all policy and the trust & safety queue is the triage UI, so
- * no staff alert is needed. Rate-limited + Turnstile-gated like the other
- * public intakes; signed-in reporters are linked, guests stay anonymous.
+ * no staff alert is needed. Rate-limited + human-gate protected like the
+ * other public intakes; signed-in reporters are linked, guests stay
+ * anonymous.
  */
 export async function submitContentReport(input: {
     contentItemId: string;
     reportType: string;
     details?: string;
-    turnstileToken?: string | null;
+    /** Solved gate token from the dialog's HumanChallenge field (mode-aware). */
+    humanToken?: string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
     if (!REPORT_TYPES.includes(input.reportType as (typeof REPORT_TYPES)[number])) {
         return { ok: false, error: "Unknown report reason." };
@@ -206,7 +208,7 @@ export async function submitContentReport(input: {
         policy: "fail-closed",
     });
     if (!limited.ok) return { ok: false, error: "Too many reports. Please try again later." };
-    if (!(await verifyTurnstileToken(input.turnstileToken ?? null))) {
+    if (!(await verifyHumanGateToken(input.humanToken ?? null))) {
         return { ok: false, error: "Please complete the human-verification step." };
     }
     try {

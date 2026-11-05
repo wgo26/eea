@@ -23,6 +23,13 @@
  *    Turbopack/React refresh).
  *
  * Revisit nonces when the public content routes move to dynamic rendering.
+ *
+ * ## Third-party challenge origins
+ * Cloudflare Turnstile's origins are only emitted when the caller passes
+ * `turnstileEnabled` (`NEXT_PUBLIC_HUMAN_MODE=turnstile`). The default
+ * human-verification mode is a same-origin proof-of-work challenge
+ * (`lib/security/human-gate.ts`), which needs no CDN entry at all — so the
+ * policy stays as tight as the active mode allows.
  */
 
 export type CspOptions = {
@@ -37,6 +44,14 @@ export type CspOptions = {
   extraImageHosts?: string;
   /** Comma/space separated extra connect (fetch/XHR/WebSocket) hosts. */
   extraConnectHosts?: string;
+  /**
+   * Adds the Cloudflare Turnstile origins (script, frame, connect) to the
+   * policy. Only true when the deployment resolves to `turnstile` mode
+   * (`NEXT_PUBLIC_HUMAN_MODE=turnstile`): the default proof-of-work gate is
+   * same-origin, so the CDN origins are not needed and keeping them out of
+   * the policy is the tighter posture.
+   */
+  turnstileEnabled?: boolean;
   /**
    * Escape hatch: restore the old blanket `https:` image source. Documented as
    * a security downgrade — it re-opens image-beacon exfiltration for any
@@ -132,9 +147,13 @@ export function buildCsp(options: CspOptions): string {
     cloudinaryCloudName,
     extraImageHosts,
     extraConnectHosts,
+    turnstileEnabled = false,
     allowAnyImageHost = false,
     reportUri,
   } = options;
+
+  /** Turnstile is a third-party origin — allowlisted only in turnstile mode. */
+  const turnstile = turnstileEnabled ? TURNSTILE : null;
 
   // Supabase storage serves public media from the project origin, which the
   // REST/auth endpoints share. Realtime surfaces upgrade to WebSocket, so both
@@ -166,7 +185,7 @@ export function buildCsp(options: CspOptions): string {
     "'self'",
     ...supabaseWildcard,
     ...supabaseConnect,
-    TURNSTILE,
+    turnstile,
     ...parseHostList(extraConnectHosts),
   ]);
 
@@ -174,7 +193,7 @@ export function buildCsp(options: CspOptions): string {
     "'self'",
     "'unsafe-inline'",
     isProduction ? null : "'unsafe-eval'",
-    TURNSTILE,
+    turnstile,
   ]);
 
   const directives = [
@@ -193,7 +212,7 @@ export function buildCsp(options: CspOptions): string {
     `img-src ${imgSrc.join(" ")}`,
     `media-src ${unique(["'self'", "blob:", ...mediaHosts]).join(" ")}`,
     `connect-src ${connectSrc.join(" ")}`,
-    `frame-src ${unique(["'self'", TURNSTILE, ...MEDIA_FRAMES, ...LIVE_FRAMES]).join(" ")}`,
+    `frame-src ${unique(["'self'", turnstile, ...MEDIA_FRAMES, ...LIVE_FRAMES]).join(" ")}`,
     ...(isProduction ? ["upgrade-insecure-requests"] : []),
     ...(reportUri ? [`report-uri ${reportUri}`, `report-to ${reportUri}`] : []),
   ];
@@ -210,6 +229,7 @@ export function cspFromEnv(env: NodeJS.ProcessEnv = process.env): string {
     cloudinaryCloudName: env.CLOUDINARY_CLOUD_NAME,
     extraImageHosts: env.CSP_EXTRA_IMAGE_HOSTS,
     extraConnectHosts: env.CSP_EXTRA_CONNECT_HOSTS,
+    turnstileEnabled: env.NEXT_PUBLIC_HUMAN_MODE === "turnstile",
     allowAnyImageHost: env.CSP_ALLOW_ANY_IMAGE_HOST === "1",
     reportUri: env.CSP_REPORT_URI,
   });

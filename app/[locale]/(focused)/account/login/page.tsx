@@ -40,6 +40,7 @@ export default async function LoginPage({ params, searchParams }: Props) {
         <div className="w-full max-w-md">
             <LoginForm
                 copy={dict.auth.login}
+                humanCopy={dict.common.human}
                 nextPath={nextPath}
                 resetHref={localePath(locale, "/account/reset-password")}
                 signupHref={localePath(locale, "/account/signup")}

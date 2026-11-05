@@ -48,8 +48,14 @@ Out of scope:
   public HTML; contact reveal is a rate-limited authenticated action.
 - **Upload hardening:** per-IP rate limiting, size caps, MIME allowlist +
   magic-byte checks via `sharp`.
-- **Abuse controls:** Postgres-backed rate limiting, optional Cloudflare
-  Turnstile (enabled by setting `TURNSTILE_SECRET_KEY`), honeypots.
+- **Abuse controls:** Postgres-backed rate limiting, honeypots, and a
+  human-verification gate on every anonymous write surface
+  (`lib/security/human-gate.ts`). The default mode is a **same-origin signed
+  proof-of-work challenge** (`lib/security/pow.ts`): no third-party request,
+  so a content blocker or a slow link cannot block a submission. Cloudflare
+  Turnstile remains available as a rollback lever via
+  `NEXT_PUBLIC_HUMAN_MODE=turnstile` (its origins are only added to the CSP in
+  that mode).
 - **Transport & headers:** `X-Content-Type-Options`, `X-Frame-Options: DENY`,
   `Referrer-Policy`, `Permissions-Policy` set in `next.config.ts`.
 - **Fail-closed cron:** `/api/cron/*` reject unauthenticated calls when
@@ -85,7 +91,8 @@ values at the same time.
 | `SMTP_USER` / `SMTP_PASS` | Mail provider (same host as Supabase custom SMTP) | notification emails (`lib/notify/`) | Send-as-the-domain abuse, deliverability damage. |
 | `DIGEST_WEBHOOK_URL` | Discord/Slack incoming webhook | `ops-digest` cron | Anyone with the URL can post into the ops channel. |
 | `CRON_SECRET` | Self-generated (`openssl rand -hex 32`) | all five `/api/cron/*` handlers + GitHub Actions secret | Unauthenticated cron triggers (backups, maintenance, mail blasts). |
-| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile | signup/login/submission challenge verification | Captcha bypass on the abuse-sensitive forms. |
+| `POW_HMAC_KEY` | Self-generated (`openssl rand -hex 32`) | proof-of-work challenge signing/verification (`lib/security/pow.ts`) | Anyone who has it can mint unlimited pre-solved challenges. Unset = derived from `SUPABASE_SERVICE_ROLE_KEY`, so rotating that secret already rotates this one. |
+| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile | challenge verification **only** when `NEXT_PUBLIC_HUMAN_MODE=turnstile` | Captcha bypass on the abuse-sensitive forms — but only in turnstile mode; the default proof-of-work gate does not consult it. |
 
 **Procedure**
 

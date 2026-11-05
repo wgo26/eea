@@ -2,7 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/observability/logger";
-import { mapAttachments, previewImageUrl } from "@/lib/media/attachments";
+import { coverRow, mapAttachments, previewImageUrl } from "@/lib/media/attachments";
 import type { Locale } from "@/lib/i18n";
 
 export type ContributorProfile = {
@@ -161,7 +161,7 @@ function mapContent(row: RawContentRow, locale: Locale): ContributorContent | nu
     // Cover stays image-first; fall back to a video thumbnail (e.g. YouTube)
     // so video-only posts still get a picture preview on contributor cards.
     const images = media.filter((m) => (m.kind ?? "image") === "image");
-    const rawCover = (media.find((m) => m.is_cover) ?? null)?.public_url ?? images[0]?.public_url ?? null;
+    const rawCover = coverRow(media)?.public_url ?? images[0]?.public_url ?? null;
 
     return {
         id: row.id,

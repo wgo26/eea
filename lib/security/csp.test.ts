@@ -150,11 +150,19 @@ describe("buildCsp — host allowlisting", () => {
     expect(img).toContain("https://tile.openstreetmap.org");
   });
 
-  it("keeps Cloudflare Turnstile reachable in script, frame and connect", () => {
-    const csp = buildCsp(prod);
-    expect(directive(csp, "script-src")).toContain("https://challenges.cloudflare.com");
-    expect(directive(csp, "frame-src")).toContain("https://challenges.cloudflare.com");
-    expect(directive(csp, "connect-src")).toContain("https://challenges.cloudflare.com");
+  it("keeps Cloudflare Turnstile reachable only in turnstile mode", () => {
+    // Default (proof-of-work) mode is same-origin: no third-party CDN origins
+    // belong in the policy at all.
+    const pow = buildCsp(prod);
+    expect(directive(pow, "script-src")).not.toContain("https://challenges.cloudflare.com");
+    expect(directive(pow, "frame-src")).not.toContain("https://challenges.cloudflare.com");
+    expect(directive(pow, "connect-src")).not.toContain("https://challenges.cloudflare.com");
+
+    // Rollback lever: the origins come back when the deployment runs the widget.
+    const turnstile = buildCsp({ ...prod, turnstileEnabled: true });
+    expect(directive(turnstile, "script-src")).toContain("https://challenges.cloudflare.com");
+    expect(directive(turnstile, "frame-src")).toContain("https://challenges.cloudflare.com");
+    expect(directive(turnstile, "connect-src")).toContain("https://challenges.cloudflare.com");
   });
 
   it("allowlists the video embed frames", () => {
@@ -253,6 +261,19 @@ describe("cspFromEnv", () => {
       NEXT_PUBLIC_R2_PUBLIC_BASE_URL: "https://fallback.example.com",
     } as unknown as NodeJS.ProcessEnv);
     expect(directive(csp, "img-src")).toContain("https://fallback.example.com");
+  });
+
+  it("adds the Cloudflare origins only when the deployment is in turnstile mode", () => {
+    const pow = cspFromEnv({ NODE_ENV: "production" } as unknown as NodeJS.ProcessEnv);
+    expect(pow).not.toContain("https://challenges.cloudflare.com");
+
+    const turnstile = cspFromEnv({
+      NODE_ENV: "production",
+      NEXT_PUBLIC_HUMAN_MODE: "turnstile",
+    } as unknown as NodeJS.ProcessEnv);
+    expect(directive(turnstile, "connect-src")).toContain("https://challenges.cloudflare.com");
+    expect(directive(turnstile, "frame-src")).toContain("https://challenges.cloudflare.com");
+    expect(directive(turnstile, "script-src")).toContain("https://challenges.cloudflare.com");
   });
 
   it("omits the blanket image source unless explicitly opted in", () => {

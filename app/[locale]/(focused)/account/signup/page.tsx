@@ -34,6 +34,7 @@ export default async function SignupPage({ params, searchParams }: Props) {
         <div className="w-full max-w-md">
             <SignupForm
                 copy={dict.auth.signup}
+                humanCopy={dict.common.human}
                 nextPath={nextPath}
                 loginHref={localePath(locale, "/account/login")}
                 providers={enabledOAuthProviders()}

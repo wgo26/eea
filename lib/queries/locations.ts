@@ -12,7 +12,7 @@ import {
 } from "./shared";
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import { logger } from "@/lib/observability/logger";
-import { mapAttachments, previewImageUrl } from "@/lib/media/attachments";
+import { coverRow, mapAttachments, previewImageUrl } from "@/lib/media/attachments";
 import type { Locale } from "@/lib/i18n";
 
 export type LocationData = {
@@ -114,7 +114,7 @@ function mapContent(row: RawContentRow, locale: Locale): LocationContent | null 
     const category = asOne(row.category);
     const media = row.media ?? [];
     const images = media.filter((m) => (m.kind ?? 'image') === 'image');
-    const rawCover = (media.find((m) => m.is_cover) ?? null)?.public_url ?? images[0]?.public_url ?? null;
+    const rawCover = coverRow(media)?.public_url ?? images[0]?.public_url ?? null;
 
     return {
         id: row.id,

@@ -172,6 +172,25 @@ export function videoThumbnailUrl(url: string): string | null {
 }
 
 /**
+ * The media row flagged `is_cover` **only when it is a photograph**.
+ *
+ * A video/audio/document link row can carry a stale `is_cover = true` from
+ * before covers were restricted to images (`syncPhotos` in
+ * lib/admin/actions/_shared.ts used to flag whatever sat at sort index 0).
+ * Trusting that flag put a raw media URL into the hero `<img>` and the shared
+ * og:image, i.e. a broken picture on the card and in every share. Rows with no
+ * `kind` are legacy photographs, so they still qualify; a post whose only
+ * "cover" was a video row now falls through to
+ * {@link previewImageUrl}'s video thumbnail instead.
+ */
+export function coverRow<T>(rows: readonly T[] | null | undefined): T | undefined {
+  return (rows ?? []).find((row) => {
+    const candidate = row as { is_cover?: boolean | null; kind?: string | null };
+    return !!candidate.is_cover && (candidate.kind ?? 'image') === 'image';
+  });
+}
+
+/**
  * First usable share-preview image for a post: the cover when present,
  * otherwise the first video attachment's thumbnail (e.g. YouTube) or its
  * uploaded poster frame. Used by detail-page metadata so video-only

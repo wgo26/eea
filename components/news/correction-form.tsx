@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { submitArticleCorrection } from "@/lib/public/report-actions";
-import { TurnstileWidget } from "@/components/security/turnstile-widget";
+import { HumanChallenge } from "@/components/security/human-challenge";
 import type { SubmitState } from "@/lib/public/types";
 import { localePath } from "@/lib/i18n/urls";
 import type { Dictionary, Locale } from "@/lib/i18n";
@@ -112,7 +112,7 @@ export function CorrectionForm({ slug, dict, locale, returnHref }: CorrectionFor
                 />
             </div>
 
-            <TurnstileWidget />
+            <HumanChallenge copy={dict.common.human} />
 
             <Button type="submit" disabled={pending} className="w-full">
                 {pending ? (

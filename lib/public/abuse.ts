@@ -1,7 +1,7 @@
 import type { SubmitState } from "@/lib/public/types";
 import { checkRateLimit, type RateLimitOptions } from "@/lib/security/rate-limit";
 import { isCurrentRequestIpBlocked } from "@/lib/security/ip-blocklist";
-import { verifyTurnstileToken } from "@/lib/security/turnstile";
+import { verifyHumanGate } from "@/lib/security/human-gate";
 import { honeypotTripped } from "@/lib/security/honeypot";
 
 /**
@@ -191,8 +191,9 @@ export function isEmail(value: string): boolean {
  * Shared abuse gate for anonymous public forms, checked before any write:
  *   1. honeypot — bots get a fake success (nothing is written);
  *   2. durable per-IP fixed-window rate limit (migration 20260918000000);
- *   3. Turnstile verification — enforced only when TURNSTILE_SECRET_KEY is
- *      set (features.md: "CAPTCHA or equivalent at submission").
+ *   3. Human verification through the mode facade (lib/security/human-gate.ts)
+ *      — signed proof-of-work by default (zero third-party requests),
+ *      Cloudflare Turnstile when the deployment runs in turnstile mode.
  * Returns the SubmitState to return when blocked, or null to continue.
  */
 export async function guardPublicSubmission(
@@ -208,8 +209,7 @@ export async function guardPublicSubmission(
     if (await isCurrentRequestIpBlocked()) return { ok: false, error: "rate_limited" };
     const limited = await checkRateLimit(scope, { ...limits, policy: "fail-closed" });
     if (!limited.ok) return { ok: false, error: "rate_limited" };
-    const tokenValue = formData.get("cf-turnstile-response");
-    if (!(await verifyTurnstileToken(typeof tokenValue === "string" ? tokenValue : null))) {
+    if (!(await verifyHumanGate(formData))) {
         return { ok: false, error: "captcha" };
     }
     return null;

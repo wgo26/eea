@@ -380,7 +380,7 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
                                         signIn: dict.common.signInToSave,
                                     }}
                                 />
-                                <ReportButton contentItemId={story.id} copy={dict.report} />
+                                <ReportButton contentItemId={story.id} copy={dict.report} humanCopy={dict.common.human} />
                                 <TextSizeControl copy={dict.textSize} />
                             </div>
                         </CardContent>

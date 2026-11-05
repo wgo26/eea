@@ -63,9 +63,9 @@ export function SubmitForm({
         captureReviewValues, queued, queueOnline, queueCurrent, sendQueued,
         discardQueued,
     } = steps;
-    // Turnstile tokens are single-use — remount the challenge after a failed
+    // Gate tokens are single-use — remount the challenge after a failed
     // submit so a spent token is never replayed.
-    const turnstileKey = state.error ? `${state.error}#${submitAttempt}` : "fresh";
+    const gateKey = state.error ? `${state.error}#${submitAttempt}` : "fresh";
     const f = dict.submit.fields;
     const s = dict.submit.steps;
 
@@ -190,7 +190,7 @@ export function SubmitForm({
                     pending={pending}
                     draftPending={draftPending}
                     draftAction={draftAction}
-                    turnstileKey={turnstileKey}
+                    gateKey={gateKey}
                     reviewOpen={reviewOpen}
                     setReviewOpen={setReviewOpen}
                     reviewValues={reviewValues}

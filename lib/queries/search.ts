@@ -8,7 +8,7 @@ import {
     safe,
     sanitizePhraseStrict,
 } from "./shared";
-import { mapAttachments, previewImageUrl } from "@/lib/media/attachments";
+import { coverRow, mapAttachments, previewImageUrl } from "@/lib/media/attachments";
 import type { Locale } from "@/lib/i18n";
 
 export type SearchResultItem = {
@@ -213,7 +213,7 @@ export async function getSearchResults(options: {
         const location = asOne(row.location);
         const media = row.media ?? [];
         const images = media.filter((m) => (m.kind ?? 'image') === 'image');
-        const rawCover = (media.find((m) => m.is_cover) ?? null)?.public_url ?? images[0]?.public_url ?? null;
+        const rawCover = coverRow(media)?.public_url ?? images[0]?.public_url ?? null;
         const imageUrl = previewImageUrl(rawCover, mapAttachments(media));
         return [
             {

@@ -7,7 +7,7 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { TurnstileWidget } from "@/components/security/turnstile-widget";
+import { HumanChallenge } from "@/components/security/human-challenge";
 import { subscribeDigest, unsubscribeDigest } from "@/lib/notify/actions";
 import { useExperiment } from "@/lib/experiments";
 import type { Dictionary, Locale } from "@/lib/i18n";
@@ -95,7 +95,7 @@ export function DigestForm({ dict, locale, promotedPitch = null }: { dict: Dicti
         </label>
         {errorText ? <p className="text-sm text-destructive">{errorText}</p> : null}
         <input type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
-        <TurnstileWidget />
+        <HumanChallenge copy={dict.common.human} />
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? (
             <>

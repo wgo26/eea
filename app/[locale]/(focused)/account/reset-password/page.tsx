@@ -28,6 +28,7 @@ export default async function ResetPasswordPage({ params }: { params: Promise<{ 
         <div className="w-full max-w-md">
             <ResetRequestForm
                 copy={dict.auth.reset}
+                humanCopy={dict.common.human}
                 loginHref={localePath(locale, "/account/login")}
             />
         </div>

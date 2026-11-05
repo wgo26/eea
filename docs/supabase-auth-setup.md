@@ -56,6 +56,7 @@ In **Authentication → Providers / Email**:
 - Keep secure password change enabled and email-change confirmation enabled for both old and new addresses.
 - Keep anonymous sign-in and phone/SMS signup disabled unless the product explicitly adopts and tests those flows.
 - Configure Supabase's Auth rate limits for the expected workload. App-level login, signup, and password-reset protection is additional defense, not a replacement.
+- Leave **Authentication → Attack Protection / CAPTCHA** (the hosted `[auth.captcha]` provider) **disabled**. It only supports hCaptcha/Turnstile-class providers, and the app's signup, login, and password-reset surfaces run through its own server actions — which already enforce the same human-verification gate as every other public form (`lib/security/human-gate.ts`: signed same-origin proof-of-work by default, Turnstile when `NEXT_PUBLIC_HUMAN_MODE=turnstile`). Enabling a provider here would stack a second, redundant challenge with a different failure posture and re-introduce a hard CDN dependency at the auth boundary. Verify after any dashboard change that this section is still off.
 
 ### 3. Email templates, sender, and deliverability
 

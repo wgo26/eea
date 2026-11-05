@@ -79,7 +79,7 @@ export function ArticleActionRow({
                     {save}
                 </>
             )}
-            <ReportButton contentItemId={contentItemId} copy={dict.report} />
+            <ReportButton contentItemId={contentItemId} copy={dict.report} humanCopy={dict.common.human} />
             {showListen && listenText ? (
                 <ListenButton title={title} text={listenText} locale={locale} copy={dict.listen} />
             ) : null}

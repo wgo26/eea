@@ -1084,6 +1084,21 @@ valuesTitle: 'What we stand for',
     undo: 'Undo',
     supportingMedia: 'Supporting media',
     supportingMediaBody: 'Video, audio and documents play on demand to save data.',
+    /**
+     * Human-verification gate (components/security/human-challenge.tsx).
+     * Shared by the public intake forms and the auth screens, so it lives in
+     * `common` rather than in any one area's copy. `{percent}` in `progress`
+     * is replaced with the solve progress (0–100).
+     */
+    human: {
+      preparing: 'Preparing the verification challenge…',
+      verifying: "Verifying you're human — a brief, battery-friendly check…",
+      verified: "Verified — you're good to submit.",
+      failed:
+        "Automatic verification didn't finish. Check that this device's date and time are correct, then try again.",
+      retry: 'Try again',
+      progress: '{percent}% complete',
+    },
   },
   command: chromeEn.command,
   report: {

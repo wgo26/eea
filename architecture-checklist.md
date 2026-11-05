@@ -602,6 +602,118 @@ below.*
 
 ## Changelog
 
+- 2026-11-05 — **Content editor: linked media is playable again, and a stale
+  video `is_cover` can no longer break the hero.**
+  - *Reported:* after 8f249dc ("unified media links") an item whose only media
+    was a YouTube link kept its cover (the YouTube thumbnail, derived by
+    `previewImageUrl`) but the clip could no longer be played from the editor —
+    the row had moved from a playable uploader tile into a bare URL line in the
+    media-links textarea. Non-image rows are deliberately not uploader tiles
+    (`keepIds`/`mediaExistingPhotos` are photographs-only), so the only way to
+    see or play them was gone.
+  - *Fix:* `form/section-media.tsx` now renders every non-image line of the
+    media-links field through the **same `MediaAttachmentView` the public page
+    uses** (YouTube/Vimeo iframe, native video/audio, document link), live as
+    the editor types, skipping image-inferred and half-typed URLs. The editor
+    shows exactly what a visitor gets, without reintroducing the second
+    source of truth the unified field removed.
+  - *Found while verifying (with a read-only probe of `media_assets`):* a video
+    row can still carry `is_cover = true` from before that commit (exactly one
+    row does), and every cover lookup trusted the flag — `previewImageUrl`
+    prefers it, so the hero `<img>` and og:image pointed at the raw video URL
+    and rendered broken. New `coverRow()` guard in
+    `lib/media/attachments.ts` accepts `is_cover` **only on a photograph**
+    (rows with no `kind` are legacy photographs and still count), wired into
+    all eight resolution sites: `news`, `notices`, `culture`, `home`,
+    `locations`, `search`, `contributors`, `saves`. `buy-sell` and
+    `photo-stories` already filtered to images. A post whose only "cover" was a
+    video row now falls through to the YouTube thumbnail as intended.
+  - *Also checked:* the Blogger importer's `is_cover: index === 0` is safe (it
+    only inserts `kind: 'image'` rows), and `syncPhotos` already restricts new
+    covers to photographs — so no new violations can be created.
+  - *Same-class gap closed (found by auditing the rest of that commit):*
+    `updateContentStatus` cleared the item's own route, but
+    `deleteContentItem`, `archiveContent`, `unarchiveContent` and
+    `setContentFeatured` only called `revalidatePublicContentCache()` — whose
+    `revalidateTag(tag, 'max')` is documented as stale-while-revalidate. So
+    archiving/deleting a story still served its old page for one request, and a
+    route cached as `notFound()` while the item was archived carried no tag
+    dependency to invalidate at all. All four now also call
+    `revalidateContentPublicPath` (delete through one shared `clearRoutes()`
+    so its session-then-service-role retry branches cannot drift; archive /
+    unarchive read `type, slug` back from the update; feature adds them to its
+    existing select). `home.ts`'s card credit also stopped reading the raw
+    `is_cover` flag. New `actions-content.test.ts` cases pin the helper's
+    contract (both locale variants, id-addressed notices, `/street` and
+    unaddressable items skipped) — it previously had none.
+  - *Validation:* `tsc` + `eslint` clean, `npm run check` exit 0, full vitest
+    green (new `coverRow` cases in `attachments.test.ts`), production build OK.
+  - *Optional operator cleanup (not run):* the one stale row is harmless behind
+    the guard, but can be normalised with
+    `update media_assets set is_cover = false where kind <> 'image' and is_cover;`
+
+
+- 2026-11-05 — **Human verification moved off the third-party CDN: signed
+  proof-of-work gate with Cloudflare Turnstile kept as a one-env rollback.**
+  - *Why:* the Turnstile challenge cost two extra cross-origin hops
+    (~30–50KB script + iframe + managed round-trips) before every submit —
+    5–15s of dead time on a 300ms-RTT link — and a blocked CDN made the
+    fail-closed server refuse *every* submission, with single-use tokens
+    turning any hiccup into a full re-challenge.
+  - *New default (`lib/security/pow.ts`, `lib/security/pow-solve.ts`):* a
+    server action issues an HMAC-SHA256-signed challenge
+    (`base64url{pow,v,salt,bits,exp}.sig`); the browser solves
+    `sha256(salt+n)` for `bits` leading zero bits with local WebCrypto
+    (default 16 bits ≈ 65k digests, ~0.5–2s on a mid phone) and submits
+    `${challenge}.${nonce}`. Zero third-party requests, nothing to block,
+    honest trade-off (no IP reputation — the honeypot + durable per-IP limits
+    + Chief-managed IP blocklist still wrap every call site). Verify is
+    constant-time on the HMAC, re-checks `exp`, re-checks the digest with the
+    same shared predicate, and consumes the signature **once** through
+    `check_rate_limit` so a solution can never be replayed. Fail-closed
+    posture unchanged: no key material in production (or `POW_REQUIRE=1`)
+    rejects; the key is `POW_HMAC_KEY` or derived from the server-only
+    service-role key, so no new secret is required for the gate to be live.
+  - *Mode facade (`lib/security/human-gate.ts`, new):* `pow` (default) |
+    `turnstile` | `off` via `NEXT_PUBLIC_HUMAN_MODE`. `off` is ignored in
+    production — the gate always resolves to a verifying mode there. Field
+    names live in `lib/security/human-fields.ts` (client-safe, no `node:`)
+    so the client gate, the server facade and the static no-JS digest form
+    cannot drift.
+  - *All nine public surfaces routed through the facade:* submit, reports,
+    corrections, digest, contact, data-request, takedown, advertise, and
+    signup/login/reset (`lib/public/abuse.ts`, `lib/public/report-actions.ts`
+    — its dialog now passes a raw `humanToken` through the new
+    `verifyHumanGateToken`, `lib/notify/actions.ts`, `lib/auth/actions.ts`);
+    the eleven `TurnstileWidget` mounts now render
+    `components/security/human-challenge.tsx` (deferred IntersectionObserver
+    start, in-place retry and progress kept from the widget it replaces).
+  - *CSP (`lib/security/csp.ts`):* the Cloudflare origins are emitted only
+    when `turnstileEnabled` (`NEXT_PUBLIC_HUMAN_MODE=turnstile`), so the
+    default mode ships a strictly tighter policy. `supabase/config.toml`
+    documents why hosted `[auth.captcha]` stays off (the auth surfaces run
+    through the app's own server actions, which already enforce the facade).
+  - *Gate copy is localized, not hardcoded:* new `common.human` keys
+    (`preparing`/`verifying`/`verified`/`failed`/`retry`/`progress`) in en+fr,
+    threaded from all eleven mounts (the three auth screens and `ReportButton`
+    gain a `humanCopy` prop; the rest already hold the full `dict`). English
+    literals survive only as the component's documented fallback. A new test in
+    `human-gate.test.ts` pins the `{percent}` placeholder both locales use.
+  - *Digest page now actually submits:* the inline `method="POST"` forms
+    targeted `/digest`'s own path, where no POST handler exists — they could
+    never complete, and the copy had drifted from `components/digest/digest-form.tsx`
+    (exported but never mounted). The page renders that shared component now
+    (real Server Actions, so it works with and without JS), `getPromotedPitch()`
+    is wired so the nightly experiment winner reaches readers, and the
+    "Browse past digests" footer text became a real `/digest/archive` link.
+    The page-local `HumanGateField` is gone — the gate renders its own
+    mode-correct field.
+  - *Validation:* `tsc --noEmit` + `eslint` clean on every touched file,
+    `lib/security/pow.test.ts` (22) + `human-gate.test.ts` (12) new and
+    green, `csp.test.ts` updated to assert the origins appear only in
+    turnstile mode, full vitest suite green.
+
+
 - 2026-11-05 — **Insights page repaired + professionalised; content editor gets
   quality meters and an unsaved-changes guard.**
   - *P0 (build was broken):* `app/[locale]/(app)/admin/insights/page.tsx` had
@@ -1062,7 +1174,8 @@ below.*
     above), plus `object-src 'none'` / `frame-ancestors 'none'` / `form-action 'self'` /
     `base-uri 'self'`. Blanket `img-src https:` and `connect-src … https:` are replaced by a
     **named-host allowlist** derived from env (Supabase origin + `wss`, R2, Cloudinary,
-    OSM tiles, Blogger images, Turnstile, YouTube/Vimeo frames) and extensible via
+    OSM tiles, Blogger images, Turnstile **only in `turnstile` mode** — the default proof-of-work
+    gate is same-origin, YouTube/Vimeo frames) and extensible via
     `CSP_EXTRA_IMAGE_HOSTS`/`CSP_EXTRA_CONNECT_HOSTS`. `CSP_ALLOW_ANY_IMAGE_HOST=1` is a
     documented escape hatch. **Nonces deliberately not used:** the Next.js CSP guide
     ("you must use dynamic rendering to add nonces") means a nonce would opt every public

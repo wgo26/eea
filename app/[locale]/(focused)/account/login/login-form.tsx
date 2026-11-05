@@ -5,12 +5,14 @@ import Link from "next/link";
 import { signInWithPassword, type AuthState } from "@/lib/auth/actions";
 import type { OAuthProvider } from "@/lib/auth/oauth";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
-import { TurnstileWidget } from "@/components/security/turnstile-widget";
+import { HumanChallenge, type HumanGateCopy } from "@/components/security/human-challenge";
 import { PasswordInput } from "@/components/ui/password-input";
 import type { Dictionary } from "@/lib/i18n";
 
 type Props = {
     copy: Dictionary["auth"]["login"];
+    /** Localized gate copy (`dict.common.human`). */
+    humanCopy: HumanGateCopy;
     providers: OAuthProvider[];
     /** Validated, locale-prefixed destination carried through the flow. */
     nextPath: string;
@@ -37,16 +39,16 @@ function errorMessage(code: NonNullable<AuthState["error"]>, copy: Props["copy"]
     }
 }
 
-export function LoginForm({ copy, nextPath, resetHref, signupHref, providers }: Props) {
+export function LoginForm({ copy, humanCopy, nextPath, resetHref, signupHref, providers }: Props) {
     const [state, formAction, pending] = useActionState<AuthState, FormData>(
         signInWithPassword,
         { ok: false },
     );
-    // Turnstile tokens are single-use: remount the challenge after every
+    // Gate tokens are single-use: remount the challenge after every
     // failed attempt so a spent token is never replayed. The attempt counter
     // makes the key change even when the same error repeats.
     const [attempt, setAttempt] = useState(0);
-    const turnstileKey = state.error ? `${state.error}#${attempt}` : "fresh";
+    const gateKey = state.error ? `${state.error}#${attempt}` : "fresh";
 
     return (
         <div className="space-y-8">
@@ -104,7 +106,7 @@ export function LoginForm({ copy, nextPath, resetHref, signupHref, providers }: 
                     />
                 </div>
 
-                <TurnstileWidget key={turnstileKey} />
+                <HumanChallenge key={gateKey} copy={humanCopy} />
 
                 <button
                     type="submit"

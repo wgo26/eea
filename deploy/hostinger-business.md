@@ -47,8 +47,11 @@ NEXT_PUBLIC_SITE_URL=https://eagleeyeafrica.org
 NEXT_PUBLIC_SUPABASE_URL=<production Supabase URL>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<production publishable/anon key>
 SUPABASE_SERVICE_ROLE_KEY=<new server-only key>
-TURNSTILE_SECRET_KEY=<production Turnstile secret — bot protection is fail-closed without it>
-NEXT_PUBLIC_TURNSTILE_SITE_KEY=<production Turnstile site key>
+NEXT_PUBLIC_HUMAN_MODE=<unset = proof-of-work (default) | `turnstile` = Cloudflare rollback | `off` is ignored in production>
+POW_HMAC_KEY=<optional — unset derives the challenge key from SUPABASE_SERVICE_ROLE_KEY>
+POW_DIFFICULTY_BITS=<optional — default 16, clamped 8–24>
+TURNSTILE_SECRET_KEY=<only for NEXT_PUBLIC_HUMAN_MODE=turnstile>
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=<only for NEXT_PUBLIC_HUMAN_MODE=turnstile>
 R2_ACCOUNT_ID=<production value>
 R2_ACCESS_KEY_ID=<production value>
 R2_SECRET_ACCESS_KEY=<production value>
@@ -72,12 +75,22 @@ Production secrets checklist (all fail closed — see `lib/security/cron-auth.ts
 and `app/api/ready/route.ts`):
 
 Launch blockers (public intake silently breaks or opens to bots without them):
-`TURNSTILE_SECRET_KEY` + `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (bot protection is
-fail-closed in production — `verifyTurnstileToken` returns false when the
-secret is unset, so anonymous forms reject until both keys are set).
-`NEXT_PUBLIC_*` values are baked in at build time: if the site key was added
-or rotated after the last build, redeploy (rebuild) or the widget renders a
-"verification unavailable" notice and every submit fails the captcha gate.
+**none in the default configuration.** The human-verification gate
+(`lib/security/human-gate.ts`) runs as a **same-origin signed proof-of-work
+challenge** and derives its HMAC key from `SUPABASE_SERVICE_ROLE_KEY`, which is
+already required — so no extra secret must be provisioned and there is no
+third-party CDN in the submit path. Fail-closed behaviour is unchanged: without
+key material in production the gate rejects.
+
+`NEXT_PUBLIC_HUMAN_MODE` is client-visible and **baked in at build time**: after
+changing it (or the Turnstile keys below) you must **rebuild**, or the widget the
+browser renders and the mode the server verifies disagree.
+
+Turnstile stays available as a one-env rollback: set
+`NEXT_PUBLIC_HUMAN_MODE=turnstile` **and** both Turnstile keys, then rebuild.
+In that mode the two Turnstile values become launch blockers again
+(`verifyTurnstileToken` is fail-closed in production), and the CSP re-allows the
+Cloudflare origins automatically.
 
 Optional: `DIGEST_WEBHOOK_URL`, `SMTP_*`, `WHATSAPP_*` (graceful skips with
 honest worker statuses — safe to omit at launch).
@@ -147,7 +160,8 @@ repository alone:
 - [ ] SPF, DKIM, and DMARC pass for the sender domain.
 - [ ] Public signup decision is recorded; do not leave it enabled accidentally.
 - [ ] Auth rate limits are configured.
-- [ ] CAPTCHA decision is recorded for signup, login, reset, and anonymous submissions.
+- [ ] CAPTCHA / human-verification decision recorded: hosted **`[auth.captcha]` stays DISABLED** (it only supports hCaptcha/Turnstile-class providers). Signup, login and password reset run through the app's own server actions, which enforce the same gate as every other public form — enabling a hosted provider would stack a second, redundant challenge at the auth boundary. Re-check this after any dashboard change.
+- [ ] Password reset / confirmation redirects point at the production HTTPS domain.
 - [ ] R2 public URL returns a real HTTPS URL.
 - [ ] R2 production credentials work for an upload.
 - [ ] B2 endpoint includes the correct `https://` scheme and backup credentials work.
@@ -258,6 +272,8 @@ what you expect.
 - [ ] Password reset works.
 - [ ] Supabase Auth callback works.
 - [ ] Anonymous submission works.
+- [ ] Human-verification gate, default proof-of-work mode: on `/en/submit` (and `/en/account/signup`, `/en/account/login`) the gate leaves the "Preparing the verification challenge…" state for the green "Verified" pill within a second or two, the hidden `pow-response` input carries a token, and the form then submits successfully. No request to `challenges.cloudflare.com` appears in the network tab.
+- [ ] Human-verification gate, rollback rehearsal: with `NEXT_PUBLIC_HUMAN_MODE=turnstile` + both Turnstile keys, the Cloudflare widget renders instead and `cf-turnstile-response` carries the token (then revert/rebuild).
 - [ ] Authenticated upload works.
 - [ ] Admin authorization blocks non-staff users.
 - [ ] Public media loads from R2.

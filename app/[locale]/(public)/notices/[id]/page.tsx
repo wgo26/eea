@@ -381,7 +381,7 @@ export default async function NoticePage({ params }: NoticePageProps) {
                                         signIn: dict.common.signInToSave,
                                     }}
                                 />
-                                <ReportButton contentItemId={notice.id} copy={dict.report} />
+                                <ReportButton contentItemId={notice.id} copy={dict.report} humanCopy={dict.common.human} />
                                 <TextSizeControl copy={dict.textSize} />
                             </div>
                         </CardContent>

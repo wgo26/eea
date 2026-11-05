@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
@@ -10,6 +10,8 @@ vi.mock('next/cache', () => ({
 
 import { createContentItem, deleteContentItem } from './actions/content'
 import { updateHomepageSlotWindow } from './actions/slots'
+import { revalidateContentPublicPath } from './actions/_shared'
+import { revalidatePath } from 'next/cache'
 
 vi.mock('./auth', () => ({
   assertCapability: vi.fn().mockResolvedValue({
@@ -113,6 +115,44 @@ describe('Content Lifecycle Actions', () => {
       if (!res.ok) {
         expect(res.error).toBe('Content item not found.')
       }
+    })
+  })
+
+  describe('revalidateContentPublicPath (route clearing on visibility changes)', () => {
+    // Why this matters: tagged invalidation refreshes the cached *data*, but an
+    // item's own route keeps serving its previous render (profile 'max' is
+    // stale-while-revalidate), and a route cached as notFound() while the item
+    // was a draft/archived carries no tag dependency to invalidate at all. Every
+    // visibility transition (publish, unpublish, archive, unarchive, delete,
+    // feature) therefore has to clear the concrete path — which is what this
+    // helper exists to do, so it needs its own contract pinned.
+    beforeEach(() => {
+      vi.mocked(revalidatePath).mockClear()
+    })
+
+    it('clears both locale variants of a slug-addressed item route', () => {
+      revalidateContentPublicPath({ type: 'news', id: 'id-1', slug: 'market-closed' })
+      const paths = vi.mocked(revalidatePath).mock.calls.map((call) => call[0])
+      expect(paths).toContain('/en/news/market-closed')
+      expect(paths).toContain('/fr/news/market-closed')
+    })
+
+    it('uses the id for id-addressed notices and the slug for photo stories', () => {
+      revalidateContentPublicPath({ type: 'notice', id: 'notice-9', slug: null })
+      revalidateContentPublicPath({ type: 'photo_story', id: 'ps-1', slug: 'mankon-dawn' })
+      const paths = vi.mocked(revalidatePath).mock.calls.map((call) => call[0])
+      expect(paths).toContain('/en/notices/notice-9')
+      expect(paths).toContain('/fr/notices/notice-9')
+      expect(paths).toContain('/en/photo-stories/mankon-dawn')
+    })
+
+    it('does nothing for the /street rail and for unaddressable items', () => {
+      // /street is a rail, not a per-item page, so there is nothing to clear.
+      revalidateContentPublicPath({ type: 'micro_story', id: 'm-1', slug: 'spotted' })
+      revalidateContentPublicPath({ type: 'fundraiser', id: 'f-1', slug: 'x' })
+      // No slug and no fallback id on a slug-addressed type: nothing to clear.
+      revalidateContentPublicPath({ type: 'news', id: 'n-1', slug: null })
+      expect(vi.mocked(revalidatePath)).not.toHaveBeenCalled()
     })
   })
 

@@ -4,7 +4,7 @@ import { logger } from "@/lib/observability/logger";
 import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags";
 import type { Locale } from "@/lib/i18n";
 import type { MediaAttachment } from "@/lib/media/attachments";
-import { mapAttachments, previewImageUrl, supportingMedia } from "@/lib/media/attachments";
+import { coverRow, mapAttachments, previewImageUrl, supportingMedia } from "@/lib/media/attachments";
 import { getAdsForSlots, type AdCreative } from "@/lib/queries/ads";
 import { rankForHero } from "@/lib/content/hero-rank";
 
@@ -137,7 +137,7 @@ function mapItem(item: RawItem, locale: Locale): StoryCardData | null {
     // a picture preview just like image posts. Raw video file URLs never go
     // into imageUrl — an <img> cannot render them.
     const images = media.filter((m) => (m.kind ?? 'image') === 'image');
-    const rawCover = (media.find((m) => m.is_cover) ?? null)?.public_url ?? images[0]?.public_url ?? null;
+    const rawCover = coverRow(media)?.public_url ?? images[0]?.public_url ?? null;
     const attachments = mapAttachments(media);
     const imageUrl = previewImageUrl(rawCover, attachments);
     const notice = item.notices?.[0] ?? null;
@@ -154,7 +154,7 @@ function mapItem(item: RawItem, locale: Locale): StoryCardData | null {
         category: category
             ? (pickLocalized(category.category_translations, locale)?.name ?? null)
             : null,
-        credit: media.find((m) => m.is_cover)?.photographer_credit ?? images[0]?.photographer_credit ?? null,
+        credit: coverRow(media)?.photographer_credit ?? images[0]?.photographer_credit ?? null,
         verification: item.verification ?? null,
         isFeatured: item.is_featured ?? false,
         viewCount: Number(item.view_count ?? 0),

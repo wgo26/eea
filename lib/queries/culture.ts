@@ -13,7 +13,7 @@ import { CACHE_TAGS, PUBLIC_CONTENT_REVALIDATE_SECONDS } from "@/lib/cache/tags"
 import type { Locale } from "@/lib/i18n";
 import type { StoryCardData } from "@/lib/queries/home";
 import type { PhotoStoryPhoto } from "@/lib/queries/photo-stories";
-import { mapAttachments, previewImageUrl, supportingMedia } from "@/lib/media/attachments";
+import { coverRow, mapAttachments, previewImageUrl, supportingMedia } from "@/lib/media/attachments";
 
 /**
  * Data access for the Culture vertical (spec §3.3).
@@ -166,7 +166,7 @@ function toCard(row: RawCultureRow, locale: Locale): CultureArticle | null {
     const category = asOne(row.category);
     const allMedia = mapAttachments(row.media ?? []);
     const images = allMedia.filter((m) => m.kind === 'image');
-    const cover = (row.media ?? []).find((m) => m.is_cover) ?? null;
+    const cover = coverRow(row.media) ?? null;
     const rawCoverUrl = cover?.public_url ?? images[0]?.url ?? null;
     const coverUrl = previewImageUrl(rawCoverUrl, allMedia);
     // Non-cover photographs in editorial order (same contract as news).
