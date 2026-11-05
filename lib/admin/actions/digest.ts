@@ -4,12 +4,17 @@ import { assertCapability, type AdminContext } from '@/lib/admin/auth'
 import { audit, revalidateLocalized } from './_shared'
 import { compileTemplate } from '@/lib/content/templates-run'
 import { channelStatus } from '@/lib/notify/channels'
-import { deliverDigest, sendPersonalBriefs } from '@/lib/digest/deliver'
-import { sendWeeklyDigest } from '@/lib/digest/deliver'
+import {
+  deliverDigest,
+  markPersistedDigestSlots,
+  retryFailedDigestBatches,
+  sendWeeklyDigest,
+} from '@/lib/digest/deliver'
 import { parseDigestFreeze } from '@/lib/digest/freeze'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/observability/logger'
 import { getAppFlag, setAppFlag } from '@/lib/automation/flags'
+import { isPublicFanoutPaused } from '@/lib/platform/fanout'
 
 /* ------------------------------------------------------------------ */
 /* Digest slots (Stream A) — editor pin / drop for the open issue      */
@@ -119,13 +124,17 @@ export async function sendTestDigest(
 ): Promise<SlotResult & { detail?: { emailed: number; whatsapped: number } }> {
   try {
     const { supabase, user } = await assertCapability('manageContent')
+    if ((locale !== 'en' && locale !== 'fr') || (cadence !== 'daily' && cadence !== 'weekly')) {
+      return { ok: false, error: 'Choose a supported locale and digest cadence.' }
+    }
     // Get admin's contact info
-    const { data: profile } = await createAdminClient()
+    const { data: profile, error: profileError } = await createAdminClient()
       .from('profiles')
       .select('email, phone')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
+    if (profileError) return { ok: false, error: 'Could not load your test-send contact details.' }
     if (!profile?.email && !profile?.phone) {
       return { ok: false, error: 'Admin profile has no email or phone to send test to.' }
     }
@@ -135,12 +144,12 @@ export async function sendTestDigest(
     let storiesByLocale: { en?: DigestStorySeed[]; fr?: DigestStorySeed[] }
 
     if (cadence === 'daily') {
-      const { data } = await supabase.rpc('digest_freeze', { p_issue_date: issueDate })
-      const frozen = parseDigestFreeze(data)
-      storiesByLocale = frozen ?? { en: [] }
+      const { data, error } = await supabase.rpc('digest_freeze', { p_issue_date: issueDate })
+      if (error) return { ok: false, error: 'Could not load the current daily digest.' }
+      storiesByLocale = parseDigestFreeze(data)
     } else {
       const since = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10)
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('content_items')
         .select('id, type, slug, translations:content_translations(locale, title, share_text)')
         .eq('status', 'published')
@@ -148,16 +157,32 @@ export async function sendTestDigest(
         .gte('published_at', since)
         .order('published_at', { ascending: false })
         .limit(20)
-      type TranslationRow = { locale: string; title: string | null }
+      if (error) return { ok: false, error: 'Could not load the current weekly digest.' }
+      type TranslationRow = { locale: string; title: string | null; share_text?: string | null }
       type ContentRow = { id: string; type: string | null; slug: string | null; translations: TranslationRow[] | TranslationRow | null }
       const rows = (data ?? []) as ContentRow[]
-      storiesByLocale = { en: rows.flatMap(r => {
+      const sectionPath: Record<string, string> = {
+        photo_story: 'photo-stories',
+        notice: 'notices',
+        listing: 'buy-sell',
+        culture: 'culture',
+        news: 'news',
+        micro_story: 'news',
+      }
+      storiesByLocale = { en: [], fr: [] }
+      for (const r of rows) {
         const list = Array.isArray(r.translations) ? r.translations : r.translations ? [r.translations] : []
-        const preferred = list.find((t) => t.locale === 'en' && t.title) ?? list.find((t) => t.title)
-        const title = preferred?.title ?? r.type ?? 'Story'
-        if (!title) return []
-        return [{ title: title.slice(0, 120), type: r.type ?? 'news', path: `/${r.type}/${r.slug ?? r.id}`, shareText: null }]
-      }) }
+        for (const locale of ['en', 'fr'] as const) {
+          const preferred = list.find((t) => t.locale === locale && t.title) ?? list.find((t) => t.title)
+          if (!preferred?.title) continue
+          storiesByLocale[locale]?.push({
+            title: preferred.title.slice(0, 120),
+            type: r.type ?? 'news',
+            path: `/${sectionPath[r.type ?? 'news'] ?? 'news'}/${r.slug ?? r.id}`,
+            shareText: preferred.share_text ?? null,
+          })
+        }
+      }
     }
 
     const result = await deliverDigest({
@@ -166,12 +191,15 @@ export async function sendTestDigest(
       sentOn: issueDate,
       cadence,
       subject: { en: 'TEST — Eagle Eye Africa daily digest', fr: 'TEST — Eagle Eye Africa résumé du jour' },
+      recipients: [{
+        email: profile.email,
+        phone: profile.phone,
+        whatsapp: profile.phone,
+        locale,
+        diasporaMode: false,
+      }],
+      archive: false,
     })
-
-    // Also send personal brief if available
-    if (profile.email) {
-      await sendPersonalBriefs(storiesByLocale, issueDate)
-    }
 
     await auditSlot(supabase, user.id, 'digest:test_send', `locale=${locale} cadence=${cadence}`)
     return { ok: true, detail: { emailed: result.emailed, whatsapped: result.whatsapped } }
@@ -188,19 +216,35 @@ export async function sendTestDigest(
 export async function runOpsDigestNow(): Promise<SlotResult> {
   try {
     await assertCapability('manageContent')
+    const fanoutGate = await isPublicFanoutPaused()
+    if (fanoutGate.paused) return { ok: false, error: 'Digest delivery is paused by the current system state.' }
     const db = createAdminClient()
-    const { data: frozen } = await db.rpc('digest_freeze', { p_issue_date: new Date().toISOString().slice(0, 10) })
+    const issueDate = new Date().toISOString().slice(0, 10)
+    await markPersistedDigestSlots('daily', issueDate)
+    const retries = await retryFailedDigestBatches('daily')
+    const { data: frozen, error: freezeError } = await db.rpc('digest_freeze', { p_issue_date: issueDate })
+    if (freezeError) throw new Error(`Digest freeze failed: ${freezeError.message}`)
     const storiesByLocale = parseDigestFreeze(frozen)
+    let deliveryFailures = retries.failed
     if (storiesByLocale && (storiesByLocale.en?.length || storiesByLocale.fr?.length)) {
-      await deliverDigest({
+      const delivery = await deliverDigest({
         storiesByLocale,
-        dateLabel: new Date().toISOString().slice(0, 10),
-        sentOn: new Date().toISOString().slice(0, 10),
+        dateLabel: issueDate,
+        sentOn: issueDate,
         cadence: 'daily',
         subject: { en: 'Eagle Eye Africa — daily digest', fr: 'Eagle Eye Africa — résumé du jour' },
       })
-      await db.rpc('digest_mark_sent', { p_issue_date: new Date().toISOString().slice(0, 10) })
+      deliveryFailures += delivery.failed
+      for (const locale of ['en', 'fr'] as const) {
+        if (!delivery.durableByLocale[locale]) continue
+        const { error } = await db.rpc('digest_mark_locale_sent', {
+          p_issue_date: issueDate,
+          p_locale: locale,
+        })
+        if (error) throw new Error(`Could not mark ${locale} digest slots sent: ${error.message}`)
+      }
     }
+    if (deliveryFailures > 0) return { ok: false, error: 'Some confirmed delivery failures remain and will be retried on the next run.' }
     return { ok: true }
   } catch (e) {
     logger.error('admin/digest', 'manual ops-digest failed', { error: e instanceof Error ? e.message : String(e) })
@@ -211,11 +255,59 @@ export async function runOpsDigestNow(): Promise<SlotResult> {
 export async function runWeeklyDigestNow(): Promise<SlotResult> {
   try {
     await assertCapability('manageContent')
-    const res = await sendWeeklyDigest(7)
+    const fanoutGate = await isPublicFanoutPaused()
+    if (fanoutGate.paused) return { ok: false, error: 'Digest delivery is paused by the current system state.' }
+    const delivery = await sendWeeklyDigest(7)
+    if (delivery.failed > 0) return { ok: false, error: 'Some confirmed delivery failures remain and will be retried on the next run.' }
     return { ok: true }
   } catch (e) {
     logger.error('admin/digest', 'manual weekly-digest failed', { error: e instanceof Error ? e.message : String(e) })
     return { ok: false, error: e instanceof Error ? e.message : 'Manual run failed' }
+  }
+}
+
+/** Requeue one uncertain delivery after staff have checked the provider dashboard. */
+export async function retryDigestDeliveryAfterReview(id: string): Promise<SlotResult> {
+  try {
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return { ok: false, error: 'Invalid delivery identifier.' }
+    const { supabase, user } = await assertCapability('manageContent')
+    const db = createAdminClient()
+    const staleBefore = new Date(Date.now() - 2 * 60_000).toISOString()
+    const update = (status: 'unknown' | 'sending') => {
+      let query = db.from('digest_delivery_attempts')
+        .update({ status: 'failed', last_error: 'Manually requeued after provider review.', updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('status', status)
+      if (status === 'sending') query = query.lt('updated_at', staleBefore)
+      return query.select('batch_id, channel').maybeSingle()
+    }
+
+    let { data, error } = await update('unknown')
+    if (!data && !error) ({ data, error } = await update('sending'))
+    if (error) return { ok: false, error: error.message }
+    if (!data) return { ok: false, error: 'Delivery is no longer reviewable or is still in progress.' }
+
+    await audit(supabase, user.id, {
+      action: 'digest:delivery_requeued_after_review',
+      notes: `batch=${data.batch_id} channel=${data.channel}`,
+    })
+    const { data: batch, error: batchError } = await db
+      .from('digest_delivery_batches')
+      .select('cadence')
+      .eq('id', data.batch_id)
+      .single()
+    if (batchError) return { ok: false, error: `Delivery requeued but its issue could not be loaded: ${batchError.message}` }
+    if (batch.cadence !== 'daily' && batch.cadence !== 'weekly') {
+      return { ok: false, error: 'Delivery requeued but its issue cadence is invalid.' }
+    }
+    const retry = await retryFailedDigestBatches(batch.cadence)
+    revalidateLocalized('/admin/digest')
+    if (retry.failed > 0) return { ok: false, error: 'Some confirmed delivery failures remain.' }
+    if (retry.uncertain > 0) return { ok: false, error: 'The provider outcome is still uncertain; review it again before retrying.' }
+    return { ok: true }
+  } catch (e) {
+    logger.error('admin/digest', 'uncertain delivery requeue failed', { error: e instanceof Error ? e.message : String(e) })
+    return { ok: false, error: e instanceof Error ? e.message : 'Could not requeue delivery.' }
   }
 }
 

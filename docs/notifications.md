@@ -3,6 +3,8 @@
 Staff used to learn about work by opening admin pages or waiting for the
 nightly ops-digest webhook. Now every intake and every decision enqueues an
 alert, and a worker delivers it across three channels per recipient prefs.
+The separate reader Digest remains opt-in and is delivered by the daily and
+weekly digest jobs documented below.
 
 ## How it flows
 
@@ -34,7 +36,8 @@ while setup finishes. Channel status is visible in `/admin/notifications`.
 ## Schedules
 
 - `*/15 * * * *` → `/api/cron/notify` (vercel.json + scheduled-jobs.yml).
-- `0 6 * * *` → `/api/cron/ops-digest` (nightly watchdog summary — kept).
+- `0 6 * * *` → `/api/cron/daily-digest` (opt-in subscriber delivery).
+- `0 7 * * 1` → `/api/cron/weekly-digest` (weekly recap delivery).
 - Manual: "Run worker now" and "Send test to me" in `/admin/notifications`.
 - Retention: each worker run prunes terminal outbox rows (`sent` /
   `failed` / `skipped`) older than 90 days (`OUTBOX_RETENTION_DAYS` in
@@ -99,9 +102,10 @@ best-effort, never fails the submission):
   email tells them exactly how to track.
 - unconfigured/invalid SMTP = logged skip, intake still succeeds.
 
-The public daily digest is strictly opt-in at `/digest` (double purpose:
-email and/or WhatsApp). The nightly `/api/cron/ops-digest` fans out the
-day's published stories to `digest_subscribers` where `is_active`.
+The public daily digest is strictly opt-in at `/digest` (email and/or
+WhatsApp). `/api/cron/daily-digest` freezes the open story slots, sends to
+active `digest_subscribers`, and marks only successfully delivered locales as
+sent. `/api/cron/weekly-digest` delivers the weekly recap separately.
 
 ## Production checklist (pre-launch)
 
@@ -118,7 +122,8 @@ malformed values), then work this list:
   handset — reply to it to open the 24h window, then confirm a second
   alert arrives as free text.
 - **Cron**: `CRON_SECRET` (16+ chars) on the host; `/api/cron/notify`
-  every 15 min, `/api/cron/ops-digest` 06:00 UTC (vercel.json +
+  every 15 min, `/api/cron/daily-digest` 06:00 UTC and
+  `/api/cron/weekly-digest` Mondays 07:00 UTC (vercel.json +
   scheduled-jobs.yml); uptime monitor against `/api/ready`
   (docs/observability.md §3).
 - **Migrations**: `supabase db push` — includes `20260929000000_notifications`

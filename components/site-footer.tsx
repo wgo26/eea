@@ -7,6 +7,7 @@ import { SiteMark } from "@/components/site-mark";
 import { resolveSiteIconUrl } from "@/lib/site-icon";
 import type { ChromeStrings } from "@/lib/i18n/chrome";
 import { localeHref, useLocaleFromPath } from "@/components/site-header";
+import { clearConsent, readConsent } from "@/lib/consent";
 
 type SocialLinks = { facebook: string | null; youtube: string | null };
 
@@ -64,6 +65,14 @@ export function SiteFooter({ socialLinks, branding, chrome }: { socialLinks?: So
         { href: "/about/copyright", label: dict.footer.copyright },
         { href: "/about/contact", label: dict.footer.contact },
     ];
+
+    function reopenConsentSettings() {
+        const wasAccepted = readConsent() === "accepted";
+        clearConsent();
+        // A reload terminates any already-running third-party ad code after
+        // withdrawal; the next page load sees no consent and injects no tags.
+        if (wasAccepted) window.location.reload();
+    }
 
     return (
         <footer className="no-print border-t bg-muted/40">
@@ -129,7 +138,16 @@ export function SiteFooter({ socialLinks, branding, chrome }: { socialLinks?: So
                     <p>
                         © {new Date().getFullYear()} {siteName}. {dict.footer.rights}
                     </p>
-                    <p>{dict.footer.madeIn}</p>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={reopenConsentSettings}
+                            className="underline underline-offset-2 hover:text-foreground"
+                        >
+                            {dict.footer.cookieSettings}
+                        </button>
+                        <p>{dict.footer.madeIn}</p>
+                    </div>
                 </div>
             </div>
         </footer>

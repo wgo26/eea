@@ -124,8 +124,8 @@ const getCachedAds = unstable_cache(
         if (error) throw new Error(error.message);
         const now = Date.now();
         const assigned: Record<string, AdCreative> = {};
-        // Newest campaign first so a fresh booking wins the slot; an
-        // approved-creative campaign is preferred over a text fallback.
+        // Newest campaign first so the latest booking owns the slot. Its
+        // unapproved custom creative still degrades to its own safe text card.
         const rows = ((data ?? []) as unknown as RawAdRow[])
             .filter((r) => {
                 const slot = asOne(r.slot) as { slot_key: string; is_active: boolean } | null;
@@ -139,16 +139,6 @@ const getCachedAds = unstable_cache(
             const creative = toCreative(row);
             if (!creative) continue;
             if (!assigned[key]) assigned[key] = creative;
-        }
-        // Second pass: prefer approved custom creative over older text cards.
-        for (const row of rows) {
-            const slot = asOne(row.slot);
-            const key = slot?.slot_key;
-            if (!key) continue;
-            const current = assigned[key];
-            if (current && current.creativeType !== 'sponsored') continue;
-            const creative = toCreative(row);
-            if (creative && creative.creativeType !== 'sponsored') assigned[key] = creative;
         }
         return assigned;
     },

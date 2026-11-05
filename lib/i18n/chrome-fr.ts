@@ -62,6 +62,7 @@ footer: {
     copyright: 'Droit d\'auteur & retrait',
     contact: 'Contact',
     rights: 'Tous droits réservés.',
+    cookieSettings: 'Préférences des cookies',
     madeIn: 'Fait pour les communautés d\'Afrique.',
   },
   locations: {

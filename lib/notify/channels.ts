@@ -9,7 +9,7 @@ import { logger } from "@/lib/observability/logger";
  * records honest skips instead of crashing the run.
  */
 
-export type ChannelResult = { delivered: boolean; skipped?: string; error?: string };
+export type ChannelResult = { delivered: boolean; skipped?: string; error?: string; uncertain?: boolean };
 
 /* ------------------------------------------------------------------ */
 /* Email (SMTP — staff custom SMTP, same host as Supabase custom SMTP) */
@@ -46,6 +46,9 @@ function getTransporter(): Transporter | null {
       port: cfg.port,
       secure: cfg.port === 465,
       auth: { user: cfg.user, pass: cfg.pass },
+      connectionTimeout: 15_000,
+      greetingTimeout: 15_000,
+      socketTimeout: 30_000,
     });
   }
   return transporter;
@@ -83,7 +86,7 @@ export async function sendEmail(to: string, subject: string, title: string, body
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error('notify-email', 'send failed', { error: message, to: to.split('@')[1] ?? '?' });
-    return { delivered: false, error: message };
+    return { delivered: false, error: message, uncertain: true };
   }
 }
 
@@ -172,6 +175,7 @@ export async function sendWhatsApp(to: string, text: string): Promise<ChannelRes
         type: 'text',
         text: { body: text.slice(0, 4000), preview_url: false },
       }),
+      signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {
       const detail = (await res.text()).slice(0, 300);
@@ -179,13 +183,17 @@ export async function sendWhatsApp(to: string, text: string): Promise<ChannelRes
       // Keep the Meta error body in the result (truncated) so the worker can
       // detect the 24h-window error (code 131047) and fall back to the
       // approved utility template. No secrets ever appear in API errors.
-      return { delivered: false, error: `WhatsApp API ${res.status}: ${detail.slice(0, 160)}` };
+      return {
+        delivered: false,
+        error: `WhatsApp API ${res.status}: ${detail.slice(0, 160)}`,
+        uncertain: res.status >= 500,
+      };
     }
     return { delivered: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error('notify-whatsapp', 'exception', { error: message });
-    return { delivered: false, error: message };
+    return { delivered: false, error: message, uncertain: true };
   }
 }
 
@@ -216,17 +224,18 @@ export async function sendWhatsAppTemplate(to: string, text: string, locale?: st
           components: [{ type: 'body', parameters: [{ type: 'text', text: text.slice(0, 1000) }] }],
         },
       }),
+      signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {
       const detail = (await res.text()).slice(0, 300);
       logger.error('notify-whatsapp', 'template send failed', { status: res.status, detail });
-      return { delivered: false, error: `WhatsApp template API ${res.status}` };
+      return { delivered: false, error: `WhatsApp template API ${res.status}`, uncertain: res.status >= 500 };
     }
     return { delivered: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error('notify-whatsapp', 'template exception', { error: message });
-    return { delivered: false, error: message };
+    return { delivered: false, error: message, uncertain: true };
   }
 }
 
@@ -241,7 +250,11 @@ export async function sendWhatsAppProactive(to: string, text: string, locale?: s
     // Template misconfigured but free text might still work in-window.
     const f = await sendWhatsApp(to, text);
     if (f.delivered) return { ...f, via: 'text' };
-    return t.error ? t : f;
+    return {
+      ...f,
+      error: f.error ?? t.error,
+      uncertain: t.uncertain === true || f.uncertain === true,
+    };
   }
   const f = await sendWhatsApp(to, text);
   return f.delivered ? { ...f, via: 'text' } : f;

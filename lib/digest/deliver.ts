@@ -14,7 +14,16 @@ import { buildDailyBrief, groupBriefStories, type BriefStory } from './brief'
  * the three senders.
  */
 
-export type DigestDelivery = { emailed: number; whatsapped: number; skipped: number }
+export type DigestDelivery = {
+  emailed: number
+  whatsapped: number
+  skipped: number
+  failed: number
+  uncertain: number
+  durableByLocale: Record<'en' | 'fr', boolean>
+  queuedByLocale: Record<'en' | 'fr', number>
+  deliveredByLocale: Record<'en' | 'fr', { emailed: number; whatsapped: number }>
+}
 
 export type DigestDeliverOptions = {
   /** Per-locale story lists; a locale with an empty list borrows the other's. */
@@ -35,9 +44,14 @@ export type DigestDeliverOptions = {
   recipients?: PersonalRecipient[]
   /** Personalized variants default to false — only site-wide issues belong in the public archive. */
   archive?: boolean
+  /** Existing immutable delivery batch; used only when retrying failed attempts. */
+  batchId?: string
+  /** Retry only these already-failed recipient/channel pairs. */
+  retryOnly?: { subscriberId: string; channel: 'email' | 'whatsapp' }[]
 }
 
 export type PersonalRecipient = {
+  id?: string
   email: string | null
   phone: string | null
   whatsapp: string | null
@@ -45,33 +59,66 @@ export type PersonalRecipient = {
   diasporaMode: boolean | null
 }
 
-async function activeSubscribers(): Promise<PersonalRecipient[]> {
-  const db = createAdminClient()
-  const { data, error } = await db
-    .from('digest_subscribers')
-    .select('email, phone, whatsapp, locale, diaspora_mode')
-    .eq('is_active', true)
-    .limit(500)
-  if (error) {
-    logger.error('digest/deliver', 'subscriber fetch failed', { error: error.message })
-    return []
-  }
-  return ((data ?? []) as {
-    email: string | null
-    phone: string | null
-    whatsapp: string | null
-    locale: string | null
-    diaspora_mode: boolean | null
-  }[]).map((s) => ({
-    email: s.email,
-    phone: s.phone,
-    whatsapp: s.whatsapp,
-    locale: s.locale,
-    diasporaMode: s.diaspora_mode,
-  }))
+type DigestDeliveryBatch = {
+  id: string
+  sent_on: string
+  cadence: 'daily' | 'weekly'
+  locale: 'en' | 'fr'
+  date_label: string
+  subject: string
+  intro: string | null
+  stories: BriefStory[]
 }
 
-const empty = (): DigestDelivery => ({ emailed: 0, whatsapped: 0, skipped: 0 })
+async function activeSubscribers(): Promise<PersonalRecipient[]> {
+  const db = createAdminClient()
+  const subscribers: PersonalRecipient[] = []
+  const pageSize = 500
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await db
+      .from('digest_subscribers')
+      .select('id, email, phone, whatsapp, locale, diaspora_mode')
+      .eq('is_active', true)
+      .order('id', { ascending: true })
+      .range(offset, offset + pageSize - 1)
+    if (error) {
+      logger.error('digest/deliver', 'subscriber fetch failed', { error: error.message, offset })
+      throw new Error('Could not load active digest subscribers.')
+    }
+    const page = (data ?? []) as {
+      id: string
+      email: string | null
+      phone: string | null
+      whatsapp: string | null
+      locale: string | null
+      diaspora_mode: boolean | null
+    }[]
+    subscribers.push(...page.map((s) => ({
+      id: s.id,
+      email: s.email,
+      phone: s.phone,
+      whatsapp: s.whatsapp,
+      locale: s.locale,
+      diasporaMode: s.diaspora_mode,
+    })))
+    if (page.length < pageSize) break
+  }
+  return subscribers
+}
+
+const empty = (): DigestDelivery => ({
+  emailed: 0,
+  whatsapped: 0,
+  skipped: 0,
+  failed: 0,
+  uncertain: 0,
+  durableByLocale: { en: false, fr: false },
+  queuedByLocale: { en: 0, fr: 0 },
+  deliveredByLocale: {
+    en: { emailed: 0, whatsapped: 0 },
+    fr: { emailed: 0, whatsapped: 0 },
+  },
+})
 
 /**
  * P3 — best-effort AI intro per locale. Returns null when the layer is
@@ -106,107 +153,371 @@ async function resolveAiIntro(
   }
 }
 
-/** Render + send the brief to each recipient, then archive one issue per served locale. */
+function parseBatchStories(value: unknown): BriefStory[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return []
+    const row = item as Record<string, unknown>
+    if (typeof row.title !== 'string' || typeof row.type !== 'string' || typeof row.path !== 'string') return []
+    return [{
+      title: row.title,
+      type: row.type,
+      path: row.path,
+      shareText: typeof row.shareText === 'string' ? row.shareText : null,
+      contentItemId: typeof row.contentItemId === 'string' ? row.contentItemId : null,
+      locationId: typeof row.locationId === 'string' ? row.locationId : null,
+      categoryId: typeof row.categoryId === 'string' ? row.categoryId : null,
+    }]
+  })
+}
+
+async function getOrCreateBatch(
+  options: DigestDeliverOptions,
+  locale: 'en' | 'fr',
+  stories: BriefStory[],
+  intro: { intro: string | null; subject: string | null },
+  recipients: PersonalRecipient[],
+): Promise<DigestDeliveryBatch> {
+  const db = createAdminClient()
+  if (options.batchId) {
+    const { data, error } = await db
+      .from('digest_delivery_batches')
+      .select('id, sent_on, cadence, locale, date_label, subject, intro, stories')
+      .eq('id', options.batchId)
+      .single()
+    if (error || !data) throw new Error(`Could not load digest delivery batch: ${error?.message ?? 'not found'}`)
+    if (data.cadence !== 'daily' && data.cadence !== 'weekly') throw new Error(`Unsupported digest batch cadence: ${data.cadence}`)
+    if (data.locale !== 'en' && data.locale !== 'fr') throw new Error(`Unsupported digest batch locale: ${data.locale}`)
+    return { ...data, cadence: data.cadence, locale: data.locale, stories: parseBatchStories(data.stories) }
+  }
+
+  const { data: batchId, error: createError } = await db.rpc('digest_create_delivery_batch', {
+    p_sent_on: options.sentOn,
+    p_cadence: options.cadence,
+    p_locale: locale,
+    p_date_label: options.dateLabel,
+    p_subject: intro.subject ?? options.subject[locale],
+    p_intro: intro.intro,
+    p_stories: stories.map((story) => ({
+      title: story.title,
+      type: story.type,
+      path: story.path,
+      shareText: story.shareText ?? null,
+      contentItemId: story.contentItemId ?? null,
+      locationId: story.locationId ?? null,
+      categoryId: story.categoryId ?? null,
+    })),
+    p_deliveries: recipients.flatMap((recipient) => recipient.id ? [
+      ...(recipient.email ? [{ subscriber_id: recipient.id, channel: 'email' }] : []),
+      ...(recipient.whatsapp || recipient.phone ? [{ subscriber_id: recipient.id, channel: 'whatsapp' }] : []),
+    ] : []),
+  })
+  if (createError || !batchId) {
+    throw new Error(`Could not persist digest delivery batch: ${createError?.message ?? 'no batch id returned'}`)
+  }
+  const { data, error } = await db
+    .from('digest_delivery_batches')
+    .select('id, sent_on, cadence, locale, date_label, subject, intro, stories')
+    .eq('id', batchId)
+    .single()
+  if (error || !data) throw new Error(`Could not load persisted digest batch: ${error?.message ?? 'not found'}`)
+  if (data.cadence !== 'daily' && data.cadence !== 'weekly') throw new Error(`Unsupported digest batch cadence: ${data.cadence}`)
+  if (data.locale !== 'en' && data.locale !== 'fr') throw new Error(`Unsupported digest batch locale: ${data.locale}`)
+  return { ...data, cadence: data.cadence, locale: data.locale, stories: parseBatchStories(data.stories) }
+}
+
+/** Render and send one immutable issue, tracking each subscriber/channel separately. */
 export async function deliverDigest(options: DigestDeliverOptions): Promise<DigestDelivery> {
   const out = empty()
+  const db = createAdminClient()
   const subs = options.recipients ?? (await activeSubscribers())
   if (subs.length === 0) return out
 
   const enStories = options.storiesByLocale.en ?? []
   const frStories = options.storiesByLocale.fr ?? []
-  if (enStories.length === 0 && frStories.length === 0) {
+  if (!options.batchId && enStories.length === 0 && frStories.length === 0) {
     out.skipped = subs.length
     return out
   }
 
-  const storiesFor = (fr: boolean): BriefStory[] =>
-    (fr ? frStories : enStories).length > 0
-      ? (fr ? frStories : enStories)
-      : fr
-        ? enStories
-        : frStories
+  const storiesFor = (locale: 'en' | 'fr'): BriefStory[] =>
+    (locale === 'fr' ? frStories : enStories).length > 0
+      ? (locale === 'fr' ? frStories : enStories)
+      : locale === 'fr' ? enStories : frStories
 
-  const archiveStories: Record<'en' | 'fr', { title: string; path: string }[]> = { en: [], fr: [] }
-  const perLocaleDelivered: Record<'en' | 'fr', { emailed: number; whatsapped: number }> = {
-    en: { emailed: 0, whatsapped: 0 },
-    fr: { emailed: 0, whatsapped: 0 },
+  const subsByLocale: Record<'en' | 'fr', PersonalRecipient[]> = {
+    en: subs.filter((s) => !/^fr/i.test(s.locale ?? '')),
+    fr: subs.filter((s) => /^fr/i.test(s.locale ?? '')),
+  }
+  const batches: Partial<Record<'en' | 'fr', DigestDeliveryBatch>> = {}
+  const intros: Partial<Record<'en' | 'fr', { intro: string | null; subject: string | null }>> = {}
+  for (const locale of ['en', 'fr'] as const) {
+    if (subsByLocale[locale].length === 0) continue
+    const ai = options.batchId
+      ? { intro: null, subject: null }
+      : await resolveAiIntro(locale, options.dateLabel, storiesFor(locale), options.introOverride?.[locale])
+    intros[locale] = ai
+    batches[locale] = options.archive === false
+      ? {
+          id: '',
+          sent_on: options.sentOn,
+          cadence: options.cadence,
+          locale,
+          date_label: options.dateLabel,
+          subject: ai.subject ?? options.subject[locale],
+          intro: ai.intro,
+          stories: storiesFor(locale),
+        }
+      : await getOrCreateBatch(options, locale, storiesFor(locale), ai, subsByLocale[locale])
+    out.durableByLocale[locale] = options.archive !== false
   }
 
-  // P3 — resolve one AI intro per served locale (cached per delivery, not
-  // per recipient, so 500 subscribers cost 2 LLM calls, not 500).
-  const introCache = new Map<'en' | 'fr', { intro: string | null; subject: string | null }>()
-  const introFor = async (locale: 'en' | 'fr'): Promise<{ intro: string | null; subject: string | null }> => {
-    const hit = introCache.get(locale)
-    if (hit) return hit
-    const pool = locale === 'fr' ? frStories : enStories
-    const val = await resolveAiIntro(locale, options.dateLabel, pool.length > 0 ? pool : [...enStories, ...frStories].slice(0, 12), options.introOverride?.[locale])
-    introCache.set(locale, val)
-    return val
+  const retryKeys = options.retryOnly
+    ? new Set(options.retryOnly.map((attempt) => `${attempt.subscriberId}:${attempt.channel}`))
+    : null
+  const recordAttempt = async (
+    recipientId: string,
+    batchId: string,
+    locale: 'en' | 'fr',
+    channel: 'email' | 'whatsapp',
+    operation: () => ReturnType<typeof sendEmail> | ReturnType<typeof sendWhatsAppProactive>,
+  ) => {
+    const key = `${recipientId}:${channel}`
+    if (retryKeys && !retryKeys.has(key)) return
+    const { data: claimed, error: claimError } = await db.rpc('digest_claim_delivery', {
+      p_batch_id: batchId,
+      p_subscriber_id: recipientId,
+      p_channel: channel,
+    })
+    if (claimError) throw new Error(`Could not claim digest ${channel} delivery: ${claimError.message}`)
+    if (!claimed) return
+
+    out.queuedByLocale[locale] = (out.queuedByLocale[locale] ?? 0) + 1
+    const result = await operation()
+    const status = result.delivered ? 'sent' : result.uncertain ? 'unknown' : 'failed'
+    const { error: finishError } = await db.rpc('digest_finish_delivery', {
+      p_batch_id: batchId,
+      p_subscriber_id: recipientId,
+      p_channel: channel,
+      p_status: status,
+      p_error: result.error ?? result.skipped ?? null,
+    })
+    if (finishError) throw new Error(`Could not record digest ${channel} delivery: ${finishError.message}`)
+
+    if (!result.delivered) {
+      out.skipped += 1
+      if (status === 'unknown') out.uncertain += 1
+      else out.failed += 1
+      return
+    }
+    if (channel === 'email') {
+      out.emailed += 1
+      out.deliveredByLocale[locale].emailed += 1
+    } else {
+      out.whatsapped += 1
+      out.deliveredByLocale[locale].whatsapped += 1
+    }
   }
 
   for (const s of subs) {
-    const fr = /^fr/i.test(s.locale ?? '')
-    const locale: 'en' | 'fr' = fr ? 'fr' : 'en'
-    const stories = storiesFor(fr)
-    const ai = await introFor(locale)
-    // W18 — diaspora framing: same stories, "home, today" heading for
-    // readers following home from abroad.
-    const { title, body } = buildDailyBrief(groupBriefStories(stories), {
+    const locale: 'en' | 'fr' = /^fr/i.test(s.locale ?? '') ? 'fr' : 'en'
+    const batch = batches[locale]
+    if (!batch) continue
+    if (!s.id && options.archive !== false) {
+      throw new Error('Digest subscriber is missing the identifier required for delivery tracking.')
+    }
+    const recipientId = s.id
+    if (!recipientId || options.archive === false) {
+      const ai = intros[locale] ?? { intro: null, subject: null }
+      const { title, body } = buildDailyBrief(groupBriefStories(storiesFor(locale)), {
+        locale,
+        dateLabel: options.dateLabel,
+        siteUrl: SITE.url,
+        digestPath: `/${locale}/digest`,
+        framing: s.diasporaMode ? 'diaspora' : 'standard',
+        intro: ai.intro,
+        subject: ai.subject ?? options.subject[locale],
+      })
+      if (s.email && /^\S+@\S+\.\S+$/.test(s.email)) {
+        const result = await sendEmail(s.email, title, title, body, `${SITE.url}/${locale}/digest`)
+        if (result.delivered) {
+          out.emailed += 1
+          out.deliveredByLocale[locale].emailed += 1
+        } else out.skipped += 1
+      }
+      const phone = s.whatsapp ?? s.phone
+      if (phone) {
+        const result = await sendWhatsAppProactive(phone, `${title}\n${body}`, s.locale)
+        if (result.delivered) {
+          out.whatsapped += 1
+          out.deliveredByLocale[locale].whatsapped += 1
+        } else out.skipped += 1
+      }
+      continue
+    }
+
+    const { title, body } = buildDailyBrief(groupBriefStories(batch.stories), {
       locale,
-      dateLabel: options.dateLabel,
+      dateLabel: batch.date_label,
       siteUrl: SITE.url,
-      digestPath: fr ? '/fr/digest' : '/en/digest',
+      digestPath: `/${locale}/digest`,
       framing: s.diasporaMode ? 'diaspora' : 'standard',
-      intro: ai.intro,
-      subject: ai.subject ?? options.subject[locale],
+      intro: batch.intro,
+      subject: batch.subject,
     })
     const url = `${SITE.url}/${locale}/digest`
-    if (archiveStories[locale].length === 0) {
-      archiveStories[locale] = stories.map((story) => ({ title: story.title, path: story.path }))
-    }
-    if (s.email && /^\S+@\S+\.\S+$/.test(s.email)) {
-      const res = await sendEmail(s.email, title, title, body, url)
-      if (res.delivered) {
-        out.emailed += 1
-        perLocaleDelivered[locale].emailed += 1
-      } else out.skipped += 1
+    if (s.email) {
+      await recordAttempt(recipientId, batch.id, locale, 'email', () => sendEmail(s.email!, title, title, body, url))
     }
     const phone = s.whatsapp ?? s.phone
     if (phone) {
-      // Digest recipients are never in the 24h window: template first when
-      // WHATSAPP_TEMPLATE is configured (per-subscriber locale), else
-      // best-effort free text.
-      const res = await sendWhatsAppProactive(phone, `${title}\n${body}`, s.locale)
-      if (res.delivered) {
-        out.whatsapped += 1
-        perLocaleDelivered[locale].whatsapped += 1
-      }
+      await recordAttempt(recipientId, batch.id, locale, 'whatsapp', () =>
+        sendWhatsAppProactive(phone, `${title}\n${body}`, s.locale))
     }
   }
 
-  const db = createAdminClient()
   if (options.archive === false) return out
   for (const locale of ['en', 'fr'] as const) {
-    const counts = perLocaleDelivered[locale]
-    if (counts.emailed + counts.whatsapped === 0) continue
-    const archivedSubject = introCache.get(locale)?.subject?.trim() || options.subject[locale]
+    const batch = batches[locale]
+    if (!batch) continue
+    const [emailCount, whatsappCount] = await Promise.all([
+      db.from('digest_delivery_attempts').select('id', { count: 'exact', head: true })
+        .eq('batch_id', batch.id).eq('channel', 'email').eq('status', 'sent'),
+      db.from('digest_delivery_attempts').select('id', { count: 'exact', head: true })
+        .eq('batch_id', batch.id).eq('channel', 'whatsapp').eq('status', 'sent'),
+    ])
+    if (emailCount.error || whatsappCount.error) {
+      throw new Error(`Could not count digest deliveries: ${emailCount.error?.message ?? whatsappCount.error?.message}`)
+    }
+    const emailed = emailCount.count ?? 0
+    const whatsapped = whatsappCount.count ?? 0
+    if (emailed + whatsapped === 0) continue
     const { error: archiveError } = await db.from('digest_issues').upsert(
       {
-        sent_on: options.sentOn,
+        sent_on: batch.sent_on,
         locale,
-        cadence: options.cadence,
-        subject: archivedSubject,
-        stories: archiveStories[locale],
-        emailed: counts.emailed,
-        whatsapped: counts.whatsapped,
+        cadence: batch.cadence,
+        subject: batch.subject,
+        stories: batch.stories.map((story) => ({ title: story.title, path: story.path })),
+        emailed,
+        whatsapped,
       },
       { onConflict: 'sent_on,locale,cadence' },
     )
-    if (archiveError) {
-      logger.error('digest/deliver', 'archive upsert failed', { error: archiveError.message, locale, cadence: options.cadence })
-    }
+    if (archiveError) throw new Error(`Digest archive upsert failed: ${archiveError.message}`)
   }
   return out
+}
+
+/** Retry confirmed failures from immutable batches; `unknown` is left for review. */
+export async function retryFailedDigestBatches(cadence: 'daily' | 'weekly'): Promise<DigestDelivery> {
+  const out = empty()
+  const db = createAdminClient()
+  const failedRows: { batch_id: string; subscriber_id: string; channel: string }[] = []
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await db
+      .from('digest_delivery_attempts')
+      .select('batch_id, subscriber_id, channel')
+      .eq('status', 'failed')
+      .order('id', { ascending: true })
+      .range(offset, offset + 499)
+    if (error) throw new Error(`Could not load failed digest deliveries: ${error.message}`)
+    const page = (data ?? []).filter((row) => row.channel === 'email' || row.channel === 'whatsapp')
+    failedRows.push(...page)
+    if (page.length < 500) break
+  }
+  if (failedRows.length === 0) return out
+
+  const batchIds = [...new Set(failedRows.map((row) => row.batch_id))]
+  const batchRows: DigestDeliveryBatch[] = []
+  for (let offset = 0; offset < batchIds.length; offset += 100) {
+    const ids = batchIds.slice(offset, offset + 100)
+    const { data, error } = await db
+      .from('digest_delivery_batches')
+      .select('id, sent_on, cadence, locale, date_label, subject, intro, stories')
+      .eq('cadence', cadence)
+      .in('id', ids)
+    if (error) throw new Error(`Could not load retryable digest batches: ${error.message}`)
+    for (const row of data ?? []) {
+      if (row.cadence !== 'daily' && row.cadence !== 'weekly') {
+        throw new Error(`Unsupported digest batch cadence: ${row.cadence}`)
+      }
+      if (row.locale !== 'en' && row.locale !== 'fr') {
+        throw new Error(`Unsupported digest batch locale: ${row.locale}`)
+      }
+      batchRows.push({ ...row, cadence: row.cadence, locale: row.locale, stories: parseBatchStories(row.stories) })
+    }
+  }
+  const subscribers = await activeSubscribers()
+  const activeById = new Map(subscribers.flatMap((subscriber) => subscriber.id ? [[subscriber.id, subscriber] as const] : []))
+
+  for (const row of batchRows) {
+    const attempts = failedRows.filter((item) => item.batch_id === row.id)
+    const retryOnly = attempts.map((item) => ({
+      subscriberId: item.subscriber_id,
+      channel: item.channel as 'email' | 'whatsapp',
+    }))
+    const recipientIds = new Set(retryOnly.map((item) => item.subscriberId))
+    const recipients = [...recipientIds].flatMap((id) => {
+      const subscriber = activeById.get(id)
+      return subscriber ? [subscriber] : []
+    })
+    for (const id of recipientIds) {
+      if (activeById.has(id)) continue
+      const { error } = await db.from('digest_delivery_attempts')
+        .update({ status: 'cancelled', last_error: 'Subscriber is no longer active.', updated_at: new Date().toISOString() })
+        .eq('batch_id', row.id).eq('subscriber_id', id).eq('status', 'failed')
+      if (error) throw new Error(`Could not cancel inactive digest delivery: ${error.message}`)
+    }
+    if (recipients.length === 0) continue
+
+    const result = await deliverDigest({
+      storiesByLocale: { [row.locale]: row.stories },
+      dateLabel: row.date_label,
+      sentOn: row.sent_on,
+      cadence: row.cadence,
+      subject: { en: row.subject, fr: row.subject },
+      recipients,
+      batchId: row.id,
+      retryOnly,
+    })
+    out.emailed += result.emailed
+    out.whatsapped += result.whatsapped
+    out.skipped += result.skipped
+    out.failed += result.failed
+    out.uncertain += result.uncertain
+    out.queuedByLocale[row.locale] += result.queuedByLocale[row.locale]
+    out.deliveredByLocale[row.locale].emailed += result.deliveredByLocale[row.locale].emailed
+    out.deliveredByLocale[row.locale].whatsapped += result.deliveredByLocale[row.locale].whatsapped
+    out.durableByLocale[row.locale] = true
+  }
+  return out
+}
+
+/** Once a batch snapshot exists, keep its stories out of later daily issues. */
+export async function markPersistedDigestSlots(
+  cadence: 'daily' | 'weekly',
+  throughDate: string,
+): Promise<void> {
+  if (cadence !== 'daily') return
+  const db = createAdminClient()
+  const { data, error } = await db
+    .from('digest_delivery_batches')
+    .select('sent_on, locale')
+    .eq('cadence', cadence)
+    .lte('sent_on', throughDate)
+  if (error) throw new Error(`Could not load persisted digest batches: ${error.message}`)
+  const seen = new Set<string>()
+  for (const batch of data ?? []) {
+    const key = `${batch.sent_on}:${batch.locale}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    const { error: markError } = await db.rpc('digest_mark_locale_sent', {
+      p_issue_date: batch.sent_on,
+      p_locale: batch.locale,
+    })
+    if (markError) throw new Error(`Could not mark persisted ${batch.locale} digest slots: ${markError.message}`)
+  }
 }
 
 const WEEKLY_SUBJECT: Record<'en' | 'fr', string> = {
@@ -296,6 +607,7 @@ export async function sendPersonalBriefs(
  * digest_slots with sent_at set — an edit can never re-enter as "this week".
  */
 export async function sendWeeklyDigest(windowDays = 7): Promise<DigestDelivery & { stories: number }> {
+  const retried = await retryFailedDigestBatches('weekly')
   const db = createAdminClient()
   const since = new Date(Date.now() - windowDays * 86_400_000).toISOString()
   // ids already delivered via the daily slots must not re-send in weekly
@@ -372,5 +684,31 @@ export async function sendWeeklyDigest(windowDays = 7): Promise<DigestDelivery &
     cadence: 'weekly',
     subject: WEEKLY_SUBJECT,
   })
-  return { ...result, stories: byLocale.en.length + byLocale.fr.length }
+  return {
+    ...result,
+    emailed: retried.emailed + result.emailed,
+    whatsapped: retried.whatsapped + result.whatsapped,
+    skipped: retried.skipped + result.skipped,
+    failed: retried.failed + result.failed,
+    uncertain: retried.uncertain + result.uncertain,
+    queuedByLocale: {
+      en: retried.queuedByLocale.en + result.queuedByLocale.en,
+      fr: retried.queuedByLocale.fr + result.queuedByLocale.fr,
+    },
+    durableByLocale: {
+      en: retried.durableByLocale.en || result.durableByLocale.en,
+      fr: retried.durableByLocale.fr || result.durableByLocale.fr,
+    },
+    deliveredByLocale: {
+      en: {
+        emailed: retried.deliveredByLocale.en.emailed + result.deliveredByLocale.en.emailed,
+        whatsapped: retried.deliveredByLocale.en.whatsapped + result.deliveredByLocale.en.whatsapped,
+      },
+      fr: {
+        emailed: retried.deliveredByLocale.fr.emailed + result.deliveredByLocale.fr.emailed,
+        whatsapped: retried.deliveredByLocale.fr.whatsapped + result.deliveredByLocale.fr.whatsapped,
+      },
+    },
+    stories: byLocale.en.length + byLocale.fr.length,
+  }
 }

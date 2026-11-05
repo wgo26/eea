@@ -2,7 +2,7 @@ import { getRequestLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
 import { requireCapability } from '@/lib/auth/guards'
-import { getOpenDigestSlots, getContentTemplates } from '@/lib/admin/queries/digest'
+import { getOpenDigestSlots, getContentTemplates, getDigestDeliveryReview } from '@/lib/admin/queries/digest'
 import { getDigestSubscribers, getDigestPitchStats } from '@/lib/notify/queries'
 import { channelStatus } from '@/lib/notify/channels'
 import { PageHeader } from '@/components/admin/page-header'
@@ -18,6 +18,7 @@ import {
   sendTestDigest,
   runOpsDigestNow,
   runWeeklyDigestNow,
+  retryDigestDeliveryAfterReview,
   compileTemplateNow,
 } from '@/lib/admin/actions/digest'
 import { Button } from '@/components/ui/button'
@@ -37,13 +38,14 @@ export default async function Page() {
   const t = dict.admin.digest
   const notify = dict.admin.notifications
 
-  const [slotsResult, subscribers, pitchStats, templates, issues, channels] = await Promise.all([
+  const [slotsResult, subscribers, pitchStats, templates, issues, channels, deliveryReview] = await Promise.all([
     getOpenDigestSlots(),
     getDigestSubscribers(100),
     getDigestPitchStats(30),
     getContentTemplates(),
     getDigestArchive(locale, 10, 'all'),
     channelStatus(),
+    getDigestDeliveryReview(),
   ])
 
   const { slots, counts } = slotsResult
@@ -96,6 +98,41 @@ export default async function Page() {
           <StatusBadge status={channels.webhook ? 'active' : 'inactive'} label={channels.webhook ? 'Configured' : 'Not configured'} />
         </div>
         <p className="mt-2 text-xs text-muted-foreground">{notify.channelHints}</p>
+      </section>
+
+      {/* Provider outcomes that must not be retried automatically */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-sm font-medium">{t.deliveryReviewTitle}</h2>
+          <p className="text-xs text-muted-foreground">{t.deliveryReviewDescription}</p>
+        </div>
+        {deliveryReview.length === 0 ? (
+          <EmptyState message={t.deliveryReviewEmpty} />
+        ) : (
+          <ul className="space-y-2">
+            {deliveryReview.map((attempt) => (
+              <li key={attempt.id} className="rounded-lg border border-border bg-card p-3">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge status={attempt.status === 'unknown' ? 'pending' : 'scheduled'} label={attempt.status} />
+                      <span className="text-sm font-medium">{attempt.cadence} · {attempt.locale} · {attempt.channel}</span>
+                      <span className="text-sm text-muted-foreground">{attempt.recipient}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {formatDateTime(attempt.sentOn, locale)} · {attempt.attempts} attempt(s) · {formatRelative(attempt.updatedAt, locale)}
+                    </p>
+                    {attempt.lastError && <p className="mt-1 break-words text-xs text-muted-foreground">{attempt.lastError}</p>}
+                    <p className="mt-1 text-xs text-amber-700">{t.deliveryReviewWarning}</p>
+                  </div>
+                  <form action={async () => { await retryDigestDeliveryAfterReview(attempt.id) }}>
+                    <Button type="submit" variant="outline" size="sm">{t.deliveryReviewRetry}</Button>
+                  </form>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {/* Open digest slots (accumulating for tonight) */}

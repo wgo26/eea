@@ -71,6 +71,73 @@ export async function getOpenDigestSlots(): Promise<{ slots: DigestSlotRow[]; co
   return { slots, counts }
 }
 
+export type DigestDeliveryReviewRow = {
+  id: string
+  sentOn: string
+  cadence: 'daily' | 'weekly'
+  locale: 'en' | 'fr'
+  channel: 'email' | 'whatsapp'
+  status: 'unknown' | 'sending'
+  attempts: number
+  lastError: string | null
+  updatedAt: string
+  recipient: string
+}
+
+/** Uncertain provider outcomes and stale in-flight claims requiring staff review. */
+export async function getDigestDeliveryReview(): Promise<DigestDeliveryReviewRow[]> {
+  if (!hasDatabase()) return []
+  const staleBefore = new Date(Date.now() - 2 * 60_000).toISOString()
+  const base = () => db()
+    .from('digest_delivery_attempts')
+    .select('id, batch_id, subscriber_id, channel, status, attempts, last_error, updated_at')
+    .order('updated_at', { ascending: false })
+    .limit(100)
+  const [unknownRes, staleRes] = await Promise.all([
+    safe(base().eq('status', 'unknown')),
+    safe(base().eq('status', 'sending').lt('updated_at', staleBefore)),
+  ])
+  if (unknownRes.error) logger.error('admin', 'getDigestDeliveryReview unknown query failed', { error: unknownRes.error })
+  if (staleRes.error) logger.error('admin', 'getDigestDeliveryReview stale query failed', { error: staleRes.error })
+  const attempts = [...(unknownRes.data ?? []), ...(staleRes.data ?? [])] as Record<string, unknown>[]
+  if (attempts.length === 0) return []
+
+  const subscriberIds = [...new Set(attempts.map((row) => row.subscriber_id as string))]
+  const batchIds = [...new Set(attempts.map((row) => row.batch_id as string))]
+  const [subscribersRes, batchesRes] = await Promise.all([
+    safe(db().from('digest_subscribers').select('id, email, phone, whatsapp').in('id', subscriberIds)),
+    safe(db().from('digest_delivery_batches').select('id, sent_on, cadence, locale').in('id', batchIds)),
+  ])
+  if (subscribersRes.error) logger.error('admin', 'getDigestDeliveryReview contacts query failed', { error: subscribersRes.error })
+  if (batchesRes.error) logger.error('admin', 'getDigestDeliveryReview batches query failed', { error: batchesRes.error })
+  const subscribers = new Map(
+    ((subscribersRes.data ?? []) as Record<string, unknown>[]).map((row) => [
+      row.id as string,
+      (row.email as string | null) || (row.whatsapp as string | null) || (row.phone as string | null) || (row.id as string),
+    ]),
+  )
+  const batches = new Map(
+    ((batchesRes.data ?? []) as Record<string, unknown>[]).map((row) => [row.id as string, row]),
+  )
+  return attempts.flatMap((row) => {
+    const batch = batches.get(row.batch_id as string)
+    if (!batch || (row.channel !== 'email' && row.channel !== 'whatsapp')) return []
+    if (row.status !== 'unknown' && row.status !== 'sending') return []
+    return [{
+      id: row.id as string,
+      sentOn: batch.sent_on as string,
+      cadence: batch.cadence === 'weekly' ? 'weekly' as const : 'daily' as const,
+      locale: batch.locale === 'fr' ? 'fr' as const : 'en' as const,
+      channel: row.channel,
+      status: row.status,
+      attempts: (row.attempts as number) ?? 0,
+      lastError: (row.last_error as string | null) ?? null,
+      updatedAt: row.updated_at as string,
+      recipient: subscribers.get(row.subscriber_id as string) ?? (row.subscriber_id as string),
+    }]
+  })
+}
+
 /* ------------------------------------------------------------------ */
 /* Recap templates (Stream B)                                         */
 /* ------------------------------------------------------------------ */

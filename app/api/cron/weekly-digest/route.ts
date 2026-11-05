@@ -55,13 +55,30 @@ async function run(request: Request) {
   // editorial review window. Best-effort — reported, never thrown.
   const templates = await compileTemplatesForCadence('weekly')
 
+  const failed =
+    typeof weekly === 'object' && weekly !== null && 'failed' in weekly && typeof weekly.failed === 'number'
+      ? weekly.failed
+      : 0
+  const uncertain =
+    typeof weekly === 'object' && weekly !== null && 'uncertain' in weekly && typeof weekly.uncertain === 'number'
+      ? weekly.uncertain
+      : 0
+  if (uncertain > 0) {
+    logger.warn('cron/weekly-digest', 'provider acceptance uncertain; operator review required', {
+      correlationId,
+      uncertain,
+    })
+  }
   logger.info('cron/weekly-digest', 'weekly recap delivered', {
     correlationId,
     durationMs: Date.now() - startedAt,
     weekly,
     templates,
   })
-  return NextResponse.json({ ok: true, correlationId, weekly, templates })
+  return NextResponse.json(
+    { ok: failed === 0, correlationId, weekly, templates },
+    { status: failed > 0 ? 502 : 200 },
+  )
 }
 
 export async function POST(request: Request) {

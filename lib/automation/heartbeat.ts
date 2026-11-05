@@ -29,6 +29,7 @@ export const CRON_GRACE_HOURS: Record<string, number> = {
   'state-schedules': 36,
   'state-watchdog': 1,
   'ops-digest': 36,
+  'daily-digest': 36,
   'weekly-digest': 8 * 24,
   'publish-plans': 1,
   embeddings: 36,

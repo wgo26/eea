@@ -72,6 +72,7 @@ footer: {
     copyright: 'Copyright & Takedown',
     contact: 'Contact',
     rights: 'All rights reserved.',
+    cookieSettings: 'Cookie settings',
     madeIn: 'Made for Africa\'s communities.',
   },
   locations: {
