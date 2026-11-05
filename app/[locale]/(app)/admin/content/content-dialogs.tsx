@@ -1,7 +1,7 @@
 'use client'
 /* eslint-disable react-hooks/set-state-in-effect -- edit dialog fetches on open by design */
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
@@ -62,6 +62,10 @@ export function ContentCreateDialog({
   const [open, setOpen] = useState(autoOpen)
   const [maximized, setMaximized] = useState(false)
   const [tab, setTab] = useState<'editor' | 'preview'>('editor')
+  // Unsaved-changes guard: the shell learns dirty state from the form and asks
+  // before a backdrop/Esc/X close throws the draft away.
+  const [dirty, setDirty] = useState(false)
+  const [confirmClose, setConfirmClose] = useState(false)
 
   // Same deep-link mirror as ContentEditTrigger: picking "New content" in the
   // ⌘K palette while already on /admin/content pushes `?create=new`, which
@@ -72,15 +76,30 @@ export function ContentCreateDialog({
     setOpen(autoOpen)
   }, [autoOpen])
 
-  function handleOpenChange(next: boolean) {
-    setOpen(next)
-    if (!next) setTab('editor')
-    if (!next && autoOpen) {
+  const handleDirty = useCallback((next: boolean) => setDirty(next), [])
+
+  function closeAndCleanup() {
+    setOpen(false)
+    setTab('editor')
+    setDirty(false)
+    if (autoOpen) {
       // Strip only `create` — the list filters in the URL survive.
       const url = new URL(window.location.href)
       url.searchParams.delete('create')
       router.replace(`${url.pathname}${url.search}`)
     }
+  }
+
+  function handleOpenChange(next: boolean, force = false) {
+    if (next) {
+      setOpen(true)
+      return
+    }
+    if (dirty && !force) {
+      setConfirmClose(true)
+      return
+    }
+    closeAndCleanup()
   }
 
   return (
@@ -92,7 +111,7 @@ export function ContentCreateDialog({
       >
         {copy.newContent}
       </button>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
+      <Dialog open={open} onOpenChange={(next) => handleOpenChange(next)} disablePointerDismissal>
         <DialogContent
           maximized={maximized}
           showCloseButton={false}
@@ -134,11 +153,25 @@ export function ContentCreateDialog({
               locations={locations}
               categoriesByType={categoriesByType}
               tab={tab}
-              onDone={() => handleOpenChange(false)}
+              onDirtyChange={handleDirty}
+              onDone={() => handleOpenChange(false, true)}
             />
           )}
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={confirmClose}
+        onOpenChange={setConfirmClose}
+        title={common.closeUnsavedTitle}
+        description={common.closeUnsavedBody}
+        confirmLabel={common.discard}
+        cancelLabel={common.cancel}
+        tone="default"
+        onConfirm={() => {
+          setConfirmClose(false)
+          handleOpenChange(false, true)
+        }}
+      />
     </>
   )
 }
@@ -169,6 +202,9 @@ export function ContentEditTrigger({
   const [open, setOpen] = useState(autoOpen)
   const [maximized, setMaximized] = useState(false)
   const [tab, setTab] = useState<'editor' | 'preview'>('editor')
+  // Unsaved-changes guard, same as ContentCreateDialog.
+  const [dirty, setDirty] = useState(false)
+  const [confirmClose, setConfirmClose] = useState(false)
   const [data, setData] = useState<Awaited<
     ReturnType<typeof fetchEditData>
   > | null>(null)
@@ -185,17 +221,32 @@ export function ContentEditTrigger({
     setOpen(autoOpen)
   }, [autoOpen])
 
-  function handleOpenChange(next: boolean) {
-    setOpen(next)
-    if (!next) setTab('editor')
+  const handleDirty = useCallback((next: boolean) => setDirty(next), [])
+
+  function closeAndCleanup() {
+    setOpen(false)
+    setTab('editor')
+    setDirty(false)
     // Strip `?edit=` so autoOpen returns to false. Without this the mirror
     // above would snap the dialog straight back open, and the row could never
     // be edited again after closing. Only this row's own deep link is removed.
-    if (!next && autoOpen) {
+    if (autoOpen) {
       const url = new URL(window.location.href)
       url.searchParams.delete('edit')
       router.replace(`${url.pathname}${url.search}`)
     }
+  }
+
+  function handleOpenChange(next: boolean, force = false) {
+    if (next) {
+      setOpen(true)
+      return
+    }
+    if (dirty && !force) {
+      setConfirmClose(true)
+      return
+    }
+    closeAndCleanup()
   }
 
   // Data fetch on dialog open — mirrors moderation review pattern.
@@ -261,7 +312,7 @@ export function ContentEditTrigger({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => handleOpenChange(next)} disablePointerDismissal>
       <DialogContent
         maximized={maximized}
         showCloseButton={false}
@@ -337,7 +388,8 @@ export function ContentEditTrigger({
             categoriesByType={categoriesByType}
             data={data}
             tab={tab}
-            onDone={() => handleOpenChange(false)}
+            onDirtyChange={handleDirty}
+            onDone={() => handleOpenChange(false, true)}
           >
             <ContentHistory contentItemId={data.id} copy={copy} />
           </ContentForm>
@@ -345,6 +397,19 @@ export function ContentEditTrigger({
           <p className="text-sm text-muted-foreground">—</p>
         )}
       </DialogContent>
+      <ConfirmDialog
+        open={confirmClose}
+        onOpenChange={setConfirmClose}
+        title={common.closeUnsavedTitle}
+        description={common.closeUnsavedBody}
+        confirmLabel={common.discard}
+        cancelLabel={common.cancel}
+        tone="default"
+        onConfirm={() => {
+          setConfirmClose(false)
+          handleOpenChange(false, true)
+        }}
+      />
     </Dialog>
   )
 }

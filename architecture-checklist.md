@@ -602,6 +602,37 @@ below.*
 
 ## Changelog
 
+- 2026-11-05 — **Insights page repaired + professionalised; content editor gets
+  quality meters and an unsaved-changes guard.**
+  - *P0 (build was broken):* `app/[locale]/(app)/admin/insights/page.tsx` had
+    been left half-edited in the working tree — six orphan lines above the
+    imports, a malformed `StatCard`, a duplicated traffic/breakdown block and
+    an unterminated component. `tsc --noEmit` reported 10 errors, so every gate
+    (`check`, `build`) was red. The file is rebuilt from that intent.
+  - *Insights, finished and deepened:* four labelled sections with jump ids
+    (overview → traffic → conversion → content). Every KPI card now deep-links
+    (`href="#…"`) into the chart that explains it; the 14-day views card carries
+    a `MiniBars` sparkline; the 7-day views/shares cards carry the prior-period
+    trend chip; submit-conversion and publish-rate join the conversion section
+    with `MeterBar` footers; the `ContentLeaderboard` (one board, two metrics,
+    backed by the pure + unit-tested `lib/admin/content-ranking.ts`) replaces
+    the two near-identical tables; a header chip states the refresh time (UTC).
+  - *Content editor:* `Field` gained an optional `accessory` slot
+    (`lib/admin/ui-constants.tsx`) so titles (60), excerpts (200) and SEO
+    descriptions (155) show a live character counter that turns amber past the
+    soft target but never blocks; the publishing dock shows `Saved · <age>` for
+    edit rows; and closing a dirty create/edit/approve dialog (backdrop/Esc/X)
+    now asks before discarding — reported to each shell via the new
+    `onDirtyChange` prop, with a `beforeunload` guard for a hard refresh.
+    `disablePointerDismissal` stops an accidental backdrop tap ending a session.
+  - *i18n:* new keys in `admin.common` + `admin.content` mirrored EN/FR
+    (`closeUnsavedTitle`/`closeUnsavedBody`, `charCount`/`charCountLabel`,
+    `titleLengthHint`/`excerptLengthHint`/`seoLengthHint`) — `fr` stays typed
+    against `en`.
+  - *Validation:* `npm run check` exit 0, `tsc --noEmit` + `eslint` clean,
+    904/904 unit tests (new `content-ranking.test.ts` 9/9), size ratchet OK.
+
+
 - 2026-10-14 — **Command-center + homepage audit: emergency homed in FAB, dead
   quick-action code cut, palette touch target fixed, river OG verified.**
   - *Emergency's home, decided:* the floating FAB (`QUICK_ACTIONS` in

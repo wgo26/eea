@@ -8,7 +8,44 @@
  * mutation state.
  */
 import { Field } from '@/lib/admin/ui-constants'
+import { cn } from '@/lib/utils'
 import { ProEditor, type ProEditorToolbarCopy } from '@/components/admin/pro-editor'
+
+/** The character-counter copy shared by every metered field. */
+type MeterCopy = { charCount: string; charCountLabel: string }
+
+/**
+ * Small "<used>/<max>" counter rendered on a field's label row. Goes amber
+ * once the soft target is passed — guidance, never a hard block: the field
+ * still saves, the target is just what search results and cards will show.
+ */
+function CharCount({
+  value,
+  max,
+  hint,
+  copy,
+}: {
+  value: number
+  max: number
+  hint: string
+  copy: MeterCopy
+}) {
+  const fill = (template: string) =>
+    template.replace('{n}', String(value)).replace('{max}', String(max))
+  const over = value > max
+  return (
+    <span
+      className={cn(
+        'shrink-0 text-xs tabular-nums',
+        over ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-muted-foreground',
+      )}
+      title={hint}
+      aria-label={fill(copy.charCountLabel)}
+    >
+      {fill(copy.charCount)}
+    </span>
+  )
+}
 
 export function BilingualHeadings({
   copy,
@@ -22,6 +59,9 @@ export function BilingualHeadings({
     enTitle: string
     frTitle: string
     bilingualHint: string
+    charCount: string
+    charCountLabel: string
+    titleLengthHint: string
   }
   enTitle: string
   frTitle: string
@@ -31,7 +71,10 @@ export function BilingualHeadings({
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <Field label={copy.enTitle}>
+      <Field
+        label={copy.enTitle}
+        accessory={<CharCount value={enTitle.length} max={60} hint={copy.titleLengthHint} copy={copy} />}
+      >
         <input
           value={enTitle}
           onChange={(e) => onTitle('en', e.target.value)}
@@ -39,7 +82,11 @@ export function BilingualHeadings({
           required={required}
         />
       </Field>
-      <Field label={copy.frTitle} hint={showHint ? copy.bilingualHint : undefined}>
+      <Field
+        label={copy.frTitle}
+        hint={showHint ? copy.bilingualHint : undefined}
+        accessory={<CharCount value={frTitle.length} max={60} hint={copy.titleLengthHint} copy={copy} />}
+      >
         <input
           value={frTitle}
           onChange={(e) => onTitle('fr', e.target.value)}
@@ -56,14 +103,17 @@ export function BilingualExcerpts({
   frExcerpt,
   onExcerpt,
 }: {
-  copy: { enExcerpt: string; frExcerpt: string }
+  copy: { enExcerpt: string; frExcerpt: string; charCount: string; charCountLabel: string; excerptLengthHint: string }
   enExcerpt: string
   frExcerpt: string
   onExcerpt: (locale: 'en' | 'fr', v: string) => void
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <Field label={copy.enExcerpt}>
+      <Field
+        label={copy.enExcerpt}
+        accessory={<CharCount value={enExcerpt.length} max={200} hint={copy.excerptLengthHint} copy={copy} />}
+      >
         <textarea
           value={enExcerpt}
           onChange={(e) => onExcerpt('en', e.target.value)}
@@ -71,7 +121,10 @@ export function BilingualExcerpts({
           className="w-full rounded-md border border-border bg-background p-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
       </Field>
-      <Field label={copy.frExcerpt}>
+      <Field
+        label={copy.frExcerpt}
+        accessory={<CharCount value={frExcerpt.length} max={200} hint={copy.excerptLengthHint} copy={copy} />}
+      >
         <textarea
           value={frExcerpt}
           onChange={(e) => onExcerpt('fr', e.target.value)}
@@ -116,14 +169,18 @@ export function BilingualSeo({
   frSeo,
   onSeo,
 }: {
-  copy: { enSeoDescription: string; frSeoDescription: string; seoHint: string }
+  copy: { enSeoDescription: string; frSeoDescription: string; seoHint: string; charCount: string; charCountLabel: string; seoLengthHint: string }
   enSeo: string
   frSeo: string
   onSeo: (locale: 'en' | 'fr', v: string) => void
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <Field label={copy.enSeoDescription} hint={copy.seoHint}>
+      <Field
+        label={copy.enSeoDescription}
+        hint={copy.seoHint}
+        accessory={<CharCount value={enSeo.length} max={155} hint={copy.seoLengthHint} copy={copy} />}
+      >
         <textarea
           value={enSeo}
           onChange={(e) => onSeo('en', e.target.value)}
@@ -131,7 +188,10 @@ export function BilingualSeo({
           className="w-full rounded-md border border-border bg-background p-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
       </Field>
-      <Field label={copy.frSeoDescription}>
+      <Field
+        label={copy.frSeoDescription}
+        accessory={<CharCount value={frSeo.length} max={155} hint={copy.seoLengthHint} copy={copy} />}
+      >
         <textarea
           value={frSeo}
           onChange={(e) => onSeo('fr', e.target.value)}

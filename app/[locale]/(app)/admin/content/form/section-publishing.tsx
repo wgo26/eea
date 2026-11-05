@@ -7,7 +7,7 @@ import {
 import { DialogFooter } from "@/components/ui/dialog";
 import { ui, Field } from "@/lib/admin/ui-constants";
 import type { Dictionary } from "@/lib/i18n";
-import type { FormValues } from "./values";
+import { formatDraftAge, type FormValues } from "./values";
 import { Section } from "./shell";
 
 type Copy = Dictionary["admin"]["content"];
@@ -35,10 +35,12 @@ export function PublishingSection(props: {
   children?: React.ReactNode;
   loading: boolean;
   dirty: boolean;
+  /** Row's last-saved epoch ms (edit mode) — drives the "Saved · 3 min ago" hint. */
+  savedAtMs?: number;
   reset: () => void;
   onDone: () => void;
 }) {
-  const { isEdit, isApprove, values: v, patch, copy, common, needsReadiness, readinessChecks, children, loading, dirty, reset, onDone } = props;
+  const { isEdit, isApprove, values: v, patch, copy, common, needsReadiness, readinessChecks, children, loading, dirty, savedAtMs, reset, onDone } = props;
 
   return (
     <>
@@ -123,7 +125,10 @@ export function PublishingSection(props: {
                 <span className="text-xs text-muted-foreground">{common.dirty}</span>
               </>
             ) : isEdit ? (
-              <span className="text-xs text-muted-foreground">{common.dockSaved}</span>
+              <span className="text-xs text-muted-foreground">
+                {common.dockSaved}
+                {savedAtMs ? ` · ${formatDraftAge(savedAtMs, copy)}` : ''}
+              </span>
             ) : null}
           </span>
           <span className="flex items-center gap-2">

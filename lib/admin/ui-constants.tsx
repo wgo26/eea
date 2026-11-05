@@ -35,19 +35,28 @@ export const ui = {
 export function Field({
   label,
   hint,
+  accessory,
   children,
   className,
 }: {
   label?: string
   hint?: string
+  /** Right-aligned adornment on the label row (e.g. a character counter). */
+  accessory?: React.ReactNode
   children: React.ReactNode
   className?: string
 }) {
   return (
     <div className={`space-y-1.5 ${className ?? ''}`}>
-      {label && (
-        <label className="text-sm font-medium text-foreground">{label}</label>
-      )}
+      {label &&
+        (accessory ? (
+          <div className="flex items-baseline justify-between gap-2">
+            <label className="text-sm font-medium text-foreground">{label}</label>
+            {accessory}
+          </div>
+        ) : (
+          <label className="text-sm font-medium text-foreground">{label}</label>
+        ))}
       {children}
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>

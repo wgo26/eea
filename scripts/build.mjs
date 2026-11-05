@@ -48,6 +48,9 @@
  *   EEA_BUILD_BUNDLER=webpack  same as --webpack
  *   EEA_BUILD_STRICT=1         same as --no-retry (never change bundlers)
  *   EEA_BUILD_MAX_HEAP_MB=2048 set a --max-old-space-size for the build child
+ *   EEA_BUILD_CPUS=4          cap the static-generation worker pool
+ *                             (next.config.ts maps it to experimental.cpus;
+ *                             defaults to 4 on hosts with >8 CPUs)
  *   EEA_NEXT_BIN=<path>        override the next binary (used by stub tests)
  */
 import { spawn } from "node:child_process";
@@ -131,9 +134,37 @@ const HEAP_CAP_FLAG = (() => {
  * Child environment. Every default is skipped when the caller (hPanel, CI)
  * already set the variable, so this never overrides configured values.
  */
+/**
+ * Static-generation worker ceiling, passed via EEA_BUILD_CPUS and honored by
+ * next.config.ts as `experimental.cpus`.
+ *
+ * Next defaults the worker pool to the host's CPU count. On a big host running
+ * inside a tight cgroup (Hostinger's builder: 64 visible CPUs but a small
+ * process/thread limit) that spawns dozens of node workers whose combined
+ * threads exceed the limit:
+ *
+ *   - Turbopack phase: its PostCSS loader children die before the IPC
+ *     handshake ("node process exited before we could connect to it").
+ *   - Webpack phase: each worker process panics in tokio —
+ *     "OS can't spawn worker thread: Resource temporarily unavailable"
+ *     — and next reports "build worker exited with signal: SIGABRT".
+ *
+ * Capping to a small fixed count keeps every stage inside a normal ulimit.
+ * Chromium-free, and only threads/pages-per-worker trade: compile and
+ * TypeScript phases are unaffected. Skipped when the caller already set the
+ * variable, so the operator always wins.
+ */
+function defaultStaticWorkers() {
+    const cpus = os.cpus().length;
+    // Multiple containers on the same box are the very condition that starves
+    // the pid limit, so stay conservative when the host looks big.
+    return cpus > 8 ? 4 : Math.max(2, Math.ceil(cpus / 2));
+}
+
 function buildEnv() {
     const env = { ...process.env };
     env.NEXT_TELEMETRY_DISABLED ??= "1";
+    env.EEA_BUILD_CPUS ??= String(defaultStaticWorkers());
 
     if (HEAP_CAP_FLAG) {
         env.NODE_OPTIONS = env.NODE_OPTIONS

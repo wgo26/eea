@@ -61,6 +61,12 @@ export type ContentFormProps = {
   /** Editor vs live-preview pane. State lives in the dialog shell (its tabs
    *  render in the sticky header); the form stays mounted either way. */
   tab?: "editor" | "preview";
+  /**
+   * Reports the unsaved-changes state up to the dialog shell, which guards the
+   * close affordance (backdrop / Esc / X) behind a confirm instead of silently
+   * dropping an editor's work. Optional so the approve shell can opt in too.
+   */
+  onDirtyChange?: (dirty: boolean) => void;
   /** Called after a successful save (the dialog closes itself). */
   onDone: () => void;
   /**
@@ -108,6 +114,7 @@ export function ContentForm({
   data,
   children,
   tab = "editor",
+  onDirtyChange,
   onDone,
   approve,
 }: ContentFormProps) {
@@ -143,6 +150,22 @@ export function ContentForm({
     setValues,
   });
   const formRef = useRef<HTMLFormElement>(null);
+
+  // Mirror the unsaved-changes state to the dialog shell (so it can gate a
+  // backdrop/Esc/X close behind a confirm), and guard a hard refresh/tab close.
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
 
   // Ctrl/Cmd+S saves from anywhere in the dialog — the sticky dock advertises
   // the shortcut, so the handler must be real (Phase B action dock).
@@ -420,6 +443,7 @@ export function ContentForm({
         readinessChecks={readinessChecks}
         loading={loading}
         dirty={dirty}
+        savedAtMs={isEdit && data?.updatedAt ? Date.parse(data.updatedAt) : undefined}
         reset={reset}
         onDone={onDone}
       >

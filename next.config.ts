@@ -59,6 +59,14 @@ const nextConfig: NextConfig = {
     ];
   },
   experimental: {
+    // Cap for the static-generation worker pool ("collecting page data",
+    // prerendering). Next defaults it to the CPU count, which on a big host
+    // inside a tight process/thread limit (Hostinger's builder: 64 visible
+    // CPUs, small cgroup pids limit) spawns dozens of workers and kills the
+    // build. scripts/build.mjs exports EEA_BUILD_CPUS on wrapped builds (see
+    // buildEnv()); direct `next build` runs stay uncapped so large local
+    // machines keep their speed.
+    ...(process.env.EEA_BUILD_CPUS ? { cpus: Number(process.env.EEA_BUILD_CPUS) } : {}),
     // Only affects the webpack path, which scripts/build.mjs uses as the
     // fallback bundler. Reduces peak memory during that compile at a small
     // time cost — worthwhile because the fallback exists precisely for

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { X } from 'lucide-react'
 import {
   Dialog,
@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { DialogMaximizeToggle, DialogTabSwitcher } from '@/components/admin/dialog-maximize-toggle'
+import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { ContentForm, type FormValues } from '../../content/content-form'
 import { prefillFromSubmission } from '@/lib/content/submission-prefill'
 import { contentTypeForSubmission } from '@/lib/content/submission-types'
@@ -56,6 +57,30 @@ export function ApproveContentDialog({
   const [open, setOpen] = useState(false)
   const [maximized, setMaximized] = useState(false)
   const [tab, setTab] = useState<'editor' | 'preview'>('editor')
+  // Unsaved-changes guard: closing the approve form with edits asks first.
+  const [dirty, setDirty] = useState(false)
+  const [confirmClose, setConfirmClose] = useState(false)
+
+  const handleDirty = useCallback((next: boolean) => setDirty(next), [])
+
+  function closeDialog() {
+    setOpen(false)
+    setTab('editor')
+    setDirty(false)
+    onDone()
+  }
+
+  function handleOpenChange(next: boolean) {
+    if (next) {
+      setOpen(true)
+      return
+    }
+    if (dirty) {
+      setConfirmClose(true)
+      return
+    }
+    closeDialog()
+  }
 
   const contentType = contentTypeForSubmission(submission.submissionType) ?? 'news'
   // Computed on open only: prefill reads the payload and nothing else, so a
@@ -80,7 +105,7 @@ export function ApproveContentDialog({
         {copy.approveWithContent}
       </button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(next) => handleOpenChange(next)} disablePointerDismissal>
         <DialogContent
           maximized={maximized}
           showCloseButton={false}
@@ -130,14 +155,24 @@ export function ApproveContentDialog({
                 unmapped: prefill.unmapped,
                 submissionType: submission.submissionType,
               }}
-              onDone={() => {
-                setOpen(false)
-                setTab('editor')
-                onDone()
-              }}
+              onDirtyChange={handleDirty}
+              onDone={closeDialog}
             />
           ) : null}
         </DialogContent>
+        <ConfirmDialog
+          open={confirmClose}
+          onOpenChange={setConfirmClose}
+          title={common.closeUnsavedTitle}
+          description={common.closeUnsavedBody}
+          confirmLabel={common.discard}
+          cancelLabel={common.cancel}
+          tone="default"
+          onConfirm={() => {
+            setConfirmClose(false)
+            closeDialog()
+          }}
+        />
       </Dialog>
     </>
   )
