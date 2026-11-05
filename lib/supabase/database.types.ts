@@ -466,6 +466,33 @@ export type Database = {
                 },
             ];
         }
+        ad_network_settings: {
+            Row: {
+            id: boolean;
+            networks_enabled: boolean;
+            consent_required: boolean;
+            reserve_space: boolean;
+            house_ads_enabled: boolean;
+            updated_at: string;
+            };
+            Insert: {
+            id?: boolean;
+            networks_enabled?: boolean;
+            consent_required?: boolean;
+            reserve_space?: boolean;
+            house_ads_enabled?: boolean;
+            updated_at?: string;
+            };
+            Update: {
+            id?: boolean | null;
+            networks_enabled?: boolean | null;
+            consent_required?: boolean | null;
+            reserve_space?: boolean | null;
+            house_ads_enabled?: boolean | null;
+            updated_at?: string | null;
+            };
+            Relationships: [];
+        }
         ad_slots: {
             Row: {
             id: string;
@@ -482,6 +509,18 @@ export type Database = {
             allowed_formats: string[];
             max_duration_seconds: number | null;
             mobile_dimensions: string | null;
+            network: string | null;
+            network_format: string | null;
+            network_kind: string | null;
+            network_url: string | null;
+            network_width: number | null;
+            network_height: number | null;
+            network_attributes: Json;
+            network_active: boolean;
+            adsense_client: string | null;
+            adsense_slot: string | null;
+            adsense_format: string | null;
+            adsense_layout: string | null;
             };
             Insert: {
             id?: string;
@@ -498,6 +537,18 @@ export type Database = {
             allowed_formats?: string[];
             max_duration_seconds?: number | null;
             mobile_dimensions?: string | null;
+            network?: string | null;
+            network_format?: string | null;
+            network_kind?: string | null;
+            network_url?: string | null;
+            network_width?: number | null;
+            network_height?: number | null;
+            network_attributes?: Json;
+            network_active?: boolean;
+            adsense_client?: string | null;
+            adsense_slot?: string | null;
+            adsense_format?: string | null;
+            adsense_layout?: string | null;
             };
             Update: {
             id?: string | null;
@@ -514,6 +565,18 @@ export type Database = {
             allowed_formats?: string[] | null;
             max_duration_seconds?: number | null;
             mobile_dimensions?: string | null;
+            network?: string | null;
+            network_format?: string | null;
+            network_kind?: string | null;
+            network_url?: string | null;
+            network_width?: number | null;
+            network_height?: number | null;
+            network_attributes?: Json | null;
+            network_active?: boolean | null;
+            adsense_client?: string | null;
+            adsense_slot?: string | null;
+            adsense_format?: string | null;
+            adsense_layout?: string | null;
             };
             Relationships: [];
         }
@@ -2358,6 +2421,90 @@ export type Database = {
             cadence?: string | null;
             };
             Relationships: [];
+        }
+        digest_delivery_batches: {
+            Row: {
+            id: string;
+            sent_on: string;
+            cadence: string;
+            locale: string;
+            date_label: string;
+            subject: string;
+            intro: string | null;
+            stories: Json;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            sent_on: string;
+            cadence: string;
+            locale: string;
+            date_label: string;
+            subject: string;
+            intro?: string | null;
+            stories: Json;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            sent_on?: string | null;
+            cadence?: string | null;
+            locale?: string | null;
+            date_label?: string | null;
+            subject?: string | null;
+            intro?: string | null;
+            stories?: Json | null;
+            created_at?: string | null;
+            };
+            Relationships: [];
+        }
+        digest_delivery_attempts: {
+            Row: {
+            id: string;
+            batch_id: string;
+            subscriber_id: string;
+            channel: string;
+            status: string;
+            attempts: number;
+            last_error: string | null;
+            updated_at: string;
+            };
+            Insert: {
+            id?: string;
+            batch_id: string;
+            subscriber_id: string;
+            channel: string;
+            status: string;
+            attempts?: number;
+            last_error?: string | null;
+            updated_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            batch_id?: string | null;
+            subscriber_id?: string | null;
+            channel?: string | null;
+            status?: string | null;
+            attempts?: number | null;
+            last_error?: string | null;
+            updated_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "digest_delivery_attempts_batch_id_fkey";
+                    columns: ["batch_id"];
+                    isOneToOne: false;
+                    referencedRelation: "digest_delivery_batches";
+                    referencedColumns: ["id"];
+                },
+                {
+                    foreignKeyName: "digest_delivery_attempts_subscriber_id_fkey";
+                    columns: ["subscriber_id"];
+                    isOneToOne: false;
+                    referencedRelation: "digest_subscribers";
+                    referencedColumns: ["id"];
+                },
+            ];
         }
         digest_slots: {
             Row: {
@@ -5720,6 +5867,31 @@ export type Database = {
             };
             Returns: Json;
         }
+        digest_claim_delivery: {
+            Args: {
+                p_batch_id: string;
+                p_subscriber_id: string;
+                p_channel: string;
+            };
+            Returns: boolean;
+        }
+        digest_finish_delivery: {
+            Args: {
+                p_batch_id: string;
+                p_subscriber_id: string;
+                p_channel: string;
+                p_status: string;
+                p_error?: string | null;
+            };
+            Returns: undefined;
+        }
+        digest_mark_locale_sent: {
+            Args: {
+                p_issue_date: string;
+                p_locale: string;
+            };
+            Returns: number;
+        }
         digest_mark_sent: {
             Args: {
                 p_issue_date: string;
@@ -5812,6 +5984,10 @@ export type Database = {
                 headline_title: string;
                 headline_excerpt: string;
             }[];
+        }
+        session_mfa_ok: {
+            Args: Record<string, never>;
+            Returns: boolean;
         }
         similar_recent_submissions: {
             Args: {

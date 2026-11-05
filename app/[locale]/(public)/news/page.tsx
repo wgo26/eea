@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
+import { AD_PLACEMENTS } from "@/lib/ads/networks";
 import { StoryCard } from "@/components/home/story-card";
 import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { NewsSpotlight } from "@/components/news/news-spotlight";
@@ -483,6 +484,7 @@ export default async function NewsPage({
 
                     <AdSlot
                         ad={null}
+                        slotKey={AD_PLACEMENTS.newsIndexRail}
                         dict={dict}
                         variant="rail"
                         className="lg:sticky lg:top-24"

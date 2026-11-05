@@ -986,6 +986,16 @@ about: {
     closingCta: 'Commencer une soumission',
     termsMetaDesc: 'L’accord entre Eagle Eye Africa et tous ceux qui l’utilisent.',
     privacyMetaDesc: 'Ce que nous collectons, ce que nous ne faisons jamais, et comment vos données sont protégées.',
+    adDisclosureTitle: 'Publicité et cookies',
+    adDisclosureBody:
+      'Eagle Eye Africa est en partie financé par la publicité. Les emplacements payants sont signalés comme publicité, n’apparaissent jamais à l’intérieur d’un récit, et l’achat d’espace n’achète jamais une couverture éditoriale ni une vérification. Les balises publicitaires tierces ne se chargent qu’après votre acceptation des cookies : si vous refusez, aucun script et aucun cookie publicitaire n’atteint votre navigateur.',
+    adDisclosureConsent:
+      'Si vous acceptez, les partenaires ci-dessous peuvent déposer leurs propres cookies ou identifiants similaires pour mesurer, limiter et cibler la publicité. Votre choix est stocké uniquement sur cet appareil ; effacer les données enregistrées par ce site vous ramène à l’état sans réponse et la question vous sera reposée.',
+    adDisclosurePartners: 'Partenaires publicitaires actuellement activés',
+    adDisclosureNone:
+      'Aucun partenaire publicitaire tiers n’est activé pour le moment. Si l’un est ajouté, il est nommé ici avec un lien vers sa propre politique de confidentialité.',
+    adDisclosureContact:
+      'Les demandes relatives aux données publicitaires suivent le même formulaire et les mêmes règles de conservation que toute autre demande, ci-dessous.',
     guidelinesMetaDesc: 'Ce qui a sa place dans l’enregistrement communautaire — et ce qui n’en a pas.',
     copyrightMetaDesc: 'Comment nous protégeons les créateurs et traitons les demandes de retrait.',
     contactMetaDesc: 'Contactez l’équipe éditoriale — infos, corrections, partenariats.',
@@ -1062,7 +1072,7 @@ about: {
       errorCaptcha: 'Veuillez compléter la vérification humaine puis réessayer.',
     },
     cookie: {
-      body: 'Nous utilisons un seul cookie de préférence plus ceux requis par l’authentification. Aucun traqueur publicitaire.',
+      body: 'Les cookies essentiels permettent la connexion. Des partenaires publicitaires peuvent utiliser des cookies ou technologies similaires. Votre choix et nos réglages publicitaires déterminent le chargement des balises tierces ; consultez la politique de confidentialité pour en savoir plus.',
       accept: 'Accepter',
       decline: 'Refuser',
       learnMore: 'Politique de confidentialité',

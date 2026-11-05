@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Camera, Eye, Images, MapPin } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
+import { AD_PLACEMENTS } from "@/lib/ads/networks";
 import { PlaceRail } from "@/components/place/place-rail";
 import { SectionHeader } from "@/components/home/section-header";
 import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
@@ -437,6 +438,7 @@ export default async function PhotoStoriesPage({
 
                     <AdSlot
                         ad={null}
+                        slotKey={AD_PLACEMENTS.photoStoryIndexRail}
                         dict={dict}
                         variant="rail"
                         className="lg:sticky lg:top-24"

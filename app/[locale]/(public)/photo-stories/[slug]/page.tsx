@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
+import { AD_PLACEMENTS } from "@/lib/ads/networks";
 import { SectionHeader } from "@/components/home/section-header";
 import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
 import { SaveButton } from "@/components/system/save-button";
@@ -446,6 +447,7 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
 
                     <AdSlot
                         ad={railAd}
+                        slotKey={AD_PLACEMENTS.photoStoryRail}
                         dict={dict}
                         variant="rail"
                         className="lg:sticky lg:top-24"

@@ -24,6 +24,14 @@
  *
  * Revisit nonces when the public content routes move to dynamic rendering.
  *
+ * ## Third-party ad tags
+ * Remnant-network origins are never hardcoded per network: `cspFromEnv()` asks
+ * `adNetworkOrigins()` (lib/ads/networks.ts) for the origins of the tags the
+ * deployment configured, plus `CSP_AD_EXTRA_HOSTS`. One reviewed exception is
+ * the always-on Google ad-selling group (`GOOGLE_AD_HOSTS`): the admin can turn
+ * AdSense on from /admin/ads without a rebuild, and a policy baked without those
+ * hosts would silently block the unit's frames and creatives.
+ *
  * ## Third-party challenge origins
  * Cloudflare Turnstile's origins are only emitted when the caller passes
  * `turnstileEnabled` (`NEXT_PUBLIC_HUMAN_MODE=turnstile`). The default
@@ -31,6 +39,8 @@
  * (`lib/security/human-gate.ts`), which needs no CDN entry at all — so the
  * policy stays as tight as the active mode allows.
  */
+
+import { adNetworkOrigins } from "../ads/networks";
 
 export type CspOptions = {
   isProduction: boolean;
@@ -42,6 +52,14 @@ export type CspOptions = {
   cloudinaryCloudName?: string;
   /** Comma/space separated extra image hosts (custom CDNs). */
   extraImageHosts?: string;
+  /**
+   * Third-party ad-tag origins (PropellerAds/Monetag, AdSense, Adsterra, …),
+   * derived from `NEXT_PUBLIC_AD_SLOTS` by `adNetworkOrigins()`, plus any manual
+   * `CSP_AD_EXTRA_HOSTS` entries. Applied to `script-src`, `frame-src`,
+   * `img-src` and `connect-src`. Empty when no remnant network is configured, so
+   * a site without ad tags keeps a policy that names no ad host at all.
+   */
+  adHosts?: string[];
   /** Comma/space separated extra connect (fetch/XHR/WebSocket) hosts. */
   extraConnectHosts?: string;
   /**
@@ -62,6 +80,16 @@ export type CspOptions = {
   /** Optional CSP violation reporting endpoint. */
   reportUri?: string;
 };
+
+/** Google ad-serving origins that every publisher tag needs. */
+const GOOGLE_AD_HOSTS = [
+  "https://pagead2.googlesyndication.com",
+  "https://googleads.g.doubleclick.net",
+  "https://tpc.googlesyndication.com",
+  "https://securepubads.g.doubleclick.net",
+  "https://adservice.google.com",
+  "https://www.google.com",
+];
 
 const TURNSTILE = "https://challenges.cloudflare.com";
 const GOOGLE_FONTS_CSS = "https://fonts.googleapis.com";
@@ -127,6 +155,26 @@ export function parseHostList(raw: string | undefined): string[] {
     .filter((value): value is string => value !== null);
 }
 
+/**
+ * Whether an admin-configured tag's entry-point origin is covered by the CSP
+ * emitted at build time. Database-backed tags are runtime-editable, but CSP
+ * remains deployment configuration; reject a tag that would silently be
+ * blocked by the browser.
+ */
+export function isAdTagOriginAllowed(
+  rawUrl: string,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const origin = originOf(rawUrl);
+  if (!origin) return false;
+  const allowed = unique([
+    ...GOOGLE_AD_HOSTS,
+    ...adNetworkOrigins(env),
+    ...parseHostList(env.CSP_AD_EXTRA_HOSTS),
+  ].map((host) => originOf(host)));
+  return allowed.includes(origin);
+}
+
 /** Dedupes while preserving first-seen order, so output CSPs are stable. */
 function unique(values: (string | null)[]): string[] {
   const seen = new Set<string>();
@@ -147,6 +195,7 @@ export function buildCsp(options: CspOptions): string {
     cloudinaryCloudName,
     extraImageHosts,
     extraConnectHosts,
+    adHosts = [],
     turnstileEnabled = false,
     allowAnyImageHost = false,
     reportUri,
@@ -154,6 +203,21 @@ export function buildCsp(options: CspOptions): string {
 
   /** Turnstile is a third-party origin — allowlisted only in turnstile mode. */
   const turnstile = turnstileEnabled ? TURNSTILE : null;
+
+  /**
+   * Ad-network origins. `adNetworkOrigins()` returns `URL.origin` values, but
+   * re-validating through `originOf` means a hand-built `CspOptions.adHosts`
+   * can never smuggle `javascript:`/`data:` into the policy.
+   *
+   * The Google group is always present: the admin can enable an AdSense unit at
+   * any time from /admin/ads, and this policy is baked at build time, so making
+   * it conditional would mean "enable AdSense, then discover the console
+   * blocked half the creative until the next rebuild". The marginal exposure is
+   * a set of Google ad-serving origins in a policy that already allows
+   * `'unsafe-inline'` scripts; the sanitizer, not this directive, is what
+   * prevents injected markup in the first place.
+   */
+  const adOrigins = unique([...GOOGLE_AD_HOSTS, ...adHosts.map((host) => originOf(host))]);
 
   // Supabase storage serves public media from the project origin, which the
   // REST/auth endpoints share. Realtime surfaces upgrade to WebSocket, so both
@@ -174,6 +238,7 @@ export function buildCsp(options: CspOptions): string {
     BLOGGER_IMAGES,
     MAP_TILES,
     VIDEO_THUMBNAILS,
+    ...adOrigins,
     ...parseHostList(extraImageHosts),
   ]);
 
@@ -186,6 +251,7 @@ export function buildCsp(options: CspOptions): string {
     ...supabaseWildcard,
     ...supabaseConnect,
     turnstile,
+    ...adOrigins,
     ...parseHostList(extraConnectHosts),
   ]);
 
@@ -194,6 +260,7 @@ export function buildCsp(options: CspOptions): string {
     "'unsafe-inline'",
     isProduction ? null : "'unsafe-eval'",
     turnstile,
+    ...adOrigins,
   ]);
 
   const directives = [
@@ -212,7 +279,7 @@ export function buildCsp(options: CspOptions): string {
     `img-src ${imgSrc.join(" ")}`,
     `media-src ${unique(["'self'", "blob:", ...mediaHosts]).join(" ")}`,
     `connect-src ${connectSrc.join(" ")}`,
-    `frame-src ${unique(["'self'", turnstile, ...MEDIA_FRAMES, ...LIVE_FRAMES]).join(" ")}`,
+    `frame-src ${unique(["'self'", turnstile, ...adOrigins, ...MEDIA_FRAMES, ...LIVE_FRAMES]).join(" ")}`,
     ...(isProduction ? ["upgrade-insecure-requests"] : []),
     ...(reportUri ? [`report-uri ${reportUri}`, `report-to ${reportUri}`] : []),
   ];
@@ -229,6 +296,10 @@ export function cspFromEnv(env: NodeJS.ProcessEnv = process.env): string {
     cloudinaryCloudName: env.CLOUDINARY_CLOUD_NAME,
     extraImageHosts: env.CSP_EXTRA_IMAGE_HOSTS,
     extraConnectHosts: env.CSP_EXTRA_CONNECT_HOSTS,
+    // Derived from the same `NEXT_PUBLIC_AD_SLOTS` config the renderer reads, plus
+    // the documented escape hatch for a tag that also pulls creatives from a
+    // second CDN (the browser console names it).
+    adHosts: [...adNetworkOrigins(env), ...parseHostList(env.CSP_AD_EXTRA_HOSTS)],
     turnstileEnabled: env.NEXT_PUBLIC_HUMAN_MODE === "turnstile",
     allowAnyImageHost: env.CSP_ALLOW_ANY_IMAGE_HOST === "1",
     reportUri: env.CSP_REPORT_URI,

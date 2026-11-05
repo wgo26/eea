@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
+import { AD_PLACEMENTS } from "@/lib/ads/networks";
 import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
 import { SaveButton } from "@/components/system/save-button";
 import { ReportButton } from "@/components/system/report-dialog";
@@ -492,6 +493,7 @@ export default async function NoticePage({ params }: NoticePageProps) {
 
                     <AdSlot
                         ad={null}
+                        slotKey={AD_PLACEMENTS.noticeRail}
                         dict={dict}
                         variant="rail"
                         className="lg:sticky lg:top-24"

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { CalendarDays, Landmark, Music, Palette, Video, Utensils } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
+import { AD_PLACEMENTS } from "@/lib/ads/networks";
 import { SectionHeader } from "@/components/home/section-header";
 import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 import { Button } from "@/components/ui/button";
@@ -465,6 +466,7 @@ export default async function CulturePage({
                     {/* Ad slot */}
                     <AdSlot
                         ad={null}
+                        slotKey={AD_PLACEMENTS.cultureRail}
                         dict={dict}
                         variant="rail"
                         className="lg:sticky lg:top-24"

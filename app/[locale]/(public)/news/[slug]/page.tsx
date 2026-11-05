@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
+import { AD_PLACEMENTS } from "@/lib/ads/networks";
 import { SectionHeader } from "@/components/home/section-header";
 import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
 import { ArticleActionRow } from "@/components/system/article-actions";
@@ -639,6 +640,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
 
                     <AdSlot
                         ad={railAd}
+                        slotKey={AD_PLACEMENTS.newsRail}
                         dict={dict}
                         variant="rail"
                         className="lg:sticky lg:top-24"

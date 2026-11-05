@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
+import { AD_PLACEMENTS } from "@/lib/ads/networks";
 import { SectionHeader } from "@/components/home/section-header";
 import { ContentBreadcrumb } from "@/components/system/content-breadcrumb";
 import { RecordRecentView } from "@/components/system/record-recent-view";
@@ -366,6 +367,7 @@ export default async function ListingPage({ params }: ListingPageProps) {
 
             <AdSlot
                 ad={inlineAd}
+                slotKey={AD_PLACEMENTS.buySellInline}
                 dict={dict}
                 variant="inline-bottom"
                 className="mt-12"

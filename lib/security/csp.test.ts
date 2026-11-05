@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildCsp, originOf, parseHostList, cspFromEnv } from "./csp";
+import { buildCsp, isAdTagOriginAllowed, originOf, parseHostList, cspFromEnv } from "./csp";
 
 const __here = dirname(fileURLToPath(import.meta.url));
 
@@ -75,6 +75,24 @@ describe("parseHostList", () => {
 
   it("returns an empty array for unset input", () => {
     expect(parseHostList(undefined)).toEqual([]);
+  });
+});
+
+describe("isAdTagOriginAllowed", () => {
+  it("allows origins already emitted from env config or CSP_AD_EXTRA_HOSTS", () => {
+    const env = {
+      NEXT_PUBLIC_AD_SLOTS: JSON.stringify({
+        "homepage-banner": { format: "banner", url: "https://ads.example.com/tag.js" },
+      }),
+      CSP_AD_EXTRA_HOSTS: "cdn.example.net",
+    } as unknown as NodeJS.ProcessEnv;
+    expect(isAdTagOriginAllowed("https://ads.example.com/tag.js", env)).toBe(true);
+    expect(isAdTagOriginAllowed("https://cdn.example.net/zone.js", env)).toBe(true);
+  });
+
+  it("rejects database-configured tag hosts absent from the deployed CSP", () => {
+    expect(isAdTagOriginAllowed("https://new-network.example/tag.js", {} as NodeJS.ProcessEnv)).toBe(false);
+    expect(isAdTagOriginAllowed("https://pagead2.googlesyndication.com/adsbygoogle.js", {} as NodeJS.ProcessEnv)).toBe(true);
   });
 });
 
@@ -274,6 +292,30 @@ describe("cspFromEnv", () => {
     expect(directive(turnstile, "connect-src")).toContain("https://challenges.cloudflare.com");
     expect(directive(turnstile, "frame-src")).toContain("https://challenges.cloudflare.com");
     expect(directive(turnstile, "script-src")).toContain("https://challenges.cloudflare.com");
+  });
+
+  it("adds configured ad-network origins to script/frame-src, plus the manual escape hatch", () => {
+    const csp = cspFromEnv({
+      NODE_ENV: "production",
+      NEXT_PUBLIC_AD_SLOTS: JSON.stringify({
+        "homepage-banner": { format: "banner", url: "https://tag.example.net/invoke.js" },
+      }),
+      CSP_AD_EXTRA_HOSTS: "creatives.example.org",
+    } as unknown as NodeJS.ProcessEnv);
+
+    expect(directive(csp, "script-src")).toContain("https://tag.example.net");
+    expect(directive(csp, "frame-src")).toContain("https://tag.example.net");
+    expect(directive(csp, "img-src")).toContain("https://tag.example.net");
+    expect(directive(csp, "script-src")).toContain("https://creatives.example.org");
+  });
+
+  it("always allows the Google ad-serving origins so AdSense needs no rebuild", () => {
+    const strict = cspFromEnv({ NODE_ENV: "production" } as unknown as NodeJS.ProcessEnv);
+    expect(directive(strict, "script-src")).toContain("https://pagead2.googlesyndication.com");
+    expect(directive(strict, "frame-src")).toContain("https://googleads.g.doubleclick.net");
+    expect(directive(strict, "connect-src")).toContain("https://securepubads.g.doubleclick.net");
+    // Still an explicit allowlist: the blanket https: escape hatch stays out.
+    expect(directive(strict, "img-src")!.split(" ")).not.toContain("https:");
   });
 
   it("omits the blanket image source unless explicitly opted in", () => {

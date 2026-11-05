@@ -5,45 +5,31 @@ import Link from "next/link";
 
 import type { Dictionary, Locale } from "@/lib/i18n";
 import { localePath } from "@/lib/i18n/urls";
-
-const STORAGE_KEY = "eea-consent";
+import { readConsent, subscribeConsent, writeConsent, type ConsentValue } from "@/lib/consent";
 
 /**
  * Consent flag as a tiny external store read via `useSyncExternalStore`.
  * The server snapshot reports "answered", so the banner never ships in the
  * SSR HTML; the real value is picked up right after hydration — the same
  * timing the old mount-effect had, without setState-in-effect.
+ *
+ * The storage key, the read/write helpers and the change event live in
+ * `lib/consent.ts`: the third-party ad renderer gates on the exact same flag,
+ * so "declined" means no network tag anywhere on the site.
  */
-const consentListeners = new Set<() => void>();
-
-function hasStoredConsent(): boolean {
-    try {
-        return localStorage.getItem(STORAGE_KEY) !== null;
-    } catch {
-        return false;
-    }
-}
-
-function subscribeConsent(listener: () => void) {
-    consentListeners.add(listener);
-    return () => {
-        consentListeners.delete(listener);
-    };
-}
-
-function notifyConsentListeners() {
-    for (const listener of consentListeners) listener();
-}
 
 /**
- * Cookie consent banner (features.md Gap-Fill §19). A single preference flag
- * in localStorage — no ad trackers. Links into /about/privacy for the full
- * retention story.
+ * Cookie consent banner. The visitor's choice is stored locally and is
+ * reusable from the public footer; network tags consult the same preference, so
+ * declining is honoured permanently. The banner copy and the /about/privacy
+ * advertising section (`components/about/advertising-disclosure.tsx`) are the
+ * reader-facing half of that contract — the section names the partners that are
+ * actually enabled.
  */
 export function CookieBanner({ locale, dict }: { locale: Locale; dict: Dictionary }) {
     const unanswered = useSyncExternalStore(
         subscribeConsent,
-        () => !hasStoredConsent(),
+        () => readConsent() === null,
         () => false,
     );
     const [dismissed, setDismissed] = useState(false);
@@ -55,13 +41,8 @@ export function CookieBanner({ locale, dict }: { locale: Locale; dict: Dictionar
         return () => window.clearTimeout(t);
     }, []);
 
-    function choose(value: "accepted" | "declined") {
-        try {
-            localStorage.setItem(STORAGE_KEY, value);
-            notifyConsentListeners();
-        } catch {
-            /* storage unavailable — banner just hides for the session */
-        }
+    function choose(value: ConsentValue) {
+        writeConsent(value);
         setDismissed(true);
     }
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ShoppingBag, Search, MapPin, Tag, DollarSign, Plus } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
+import { AD_PLACEMENTS } from "@/lib/ads/networks";
 import { SectionHeader } from "@/components/home/section-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -455,6 +456,7 @@ export default async function BuySellPage({
 
                     <AdSlot
                         ad={null}
+                        slotKey={AD_PLACEMENTS.buySellIndexRail}
                         dict={dict}
                         variant="rail"
                         className="lg:sticky lg:top-24"

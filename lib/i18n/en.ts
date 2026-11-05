@@ -842,6 +842,16 @@ valuesTitle: 'What we stand for',
     closingCta: 'Start a submission',
     termsMetaDesc: 'The agreement between Eagle Eye Africa and everyone who uses it.',
     privacyMetaDesc: 'What we collect, what we never do, and how your data is protected.',
+    adDisclosureTitle: 'Advertising and cookies',
+    adDisclosureBody:
+      'Eagle Eye Africa is paid for in part by advertising. Paid placements are labelled as advertising, they never appear inside a story, and buying space never buys editorial coverage or verification. Third-party ad tags load only after you accept cookies: if you decline, no advertising script and no advertising cookie reaches your browser.',
+    adDisclosureConsent:
+      'If you accept, the partners listed below may set their own cookies or similar identifiers to measure, cap and target advertising. Your choice is stored on this device only; clearing this site’s stored data returns you to the unanswered state and you will be asked again.',
+    adDisclosurePartners: 'Advertising partners currently enabled',
+    adDisclosureNone:
+      'No third-party advertising partner is enabled at the moment. If one is added, it is named here with a link to its own privacy policy.',
+    adDisclosureContact:
+      'Requests about advertising data use the same form and the same retention rules as any other data request, below.',
     guidelinesMetaDesc: 'What belongs on the community record — and what does not.',
     copyrightMetaDesc: 'How we protect creators and handle takedown requests.',
     contactMetaDesc: 'Reach the editorial team — tips, corrections, partnerships.',
@@ -918,7 +928,7 @@ valuesTitle: 'What we stand for',
       errorCaptcha: 'Please complete the human-verification step and try again.',
     },
     cookie: {
-      body: 'We use a single preference cookie plus the cookies auth needs. No ad trackers.',
+      body: 'Essential cookies support sign-in. Advertising partners may use cookies or similar technologies. Your choice and our advertising settings determine whether third-party ad tags load; see the privacy policy for details.',
       accept: 'Accept',
       decline: 'Decline',
       learnMore: 'Privacy policy',

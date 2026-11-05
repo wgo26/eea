@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Clock, ExternalLink, Mic, Play } from "lucide-react";
 import type { Dictionary } from "@/lib/i18n";
 import type { AdCreative } from "@/lib/queries/ads";
+import { NetworkAdSlot } from "@/components/ads/network-ad";
 import { formatDuration } from "@/lib/media/attachments";
 import { SmartImage } from "@/components/media/smart-image";
 import { cn } from "@/lib/utils";
@@ -15,13 +16,30 @@ type AdSlotProps = {
   /** "banner" = main leaderboard; "strip" = slim inline band; "rail" = tall sidebar; "inline-bottom" = bottom-of-section placement. */
   variant: "banner" | "rail" | "strip" | "inline-bottom";
   className?: string;
+  /**
+   * Placement key (an `AD_PLACEMENTS` value). When the direct campaign slot is
+   * empty this is what lets the remnant-network waterfall fill it — omit it and
+   * an empty slot stays invisible, exactly as before.
+   */
+  slotKey?: string;
 };
+
+let anonymousSessionHash: string | null = null;
+
+function getAnonymousSessionHash(): string | null {
+  if (anonymousSessionHash) return anonymousSessionHash;
+  if (typeof window === "undefined" || !window.crypto?.getRandomValues) return null;
+  const bytes = new Uint8Array(16);
+  window.crypto.getRandomValues(bytes);
+  anonymousSessionHash = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return anonymousSessionHash;
+}
 
 function beacon(campaignId: string, slotKey: string, eventType: "impression" | "click") {
   try {
     // Respect Do Not Track; best-effort — a failed beacon never breaks nav.
     if (typeof navigator !== "undefined" && (navigator as Navigator & { doNotTrack?: string }).doNotTrack === "1") return;
-    const payload = JSON.stringify({ campaignId, slotKey, eventType });
+    const payload = JSON.stringify({ campaignId, slotKey, eventType, sessionHash: getAnonymousSessionHash() });
     if (navigator.sendBeacon) {
       const blob = new Blob([payload], { type: "application/json" });
       navigator.sendBeacon("/api/ads/event", blob);
@@ -53,7 +71,7 @@ function AdTracker({ ad, children }: { ad: AdCreative; children: (trackClick: ()
     if (!el || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((e) => e.isIntersecting) && !seen.current) {
+        if (entries.some((e) => e.isIntersecting && e.intersectionRatio >= 0.5) && !seen.current) {
           seen.current = true;
           beacon(ad.id, ad.slotKey, "impression");
           observer.disconnect();
@@ -96,14 +114,30 @@ function DestinationLink({
 }
 
 /**
- * Ad placement (spec §11). Renders nothing while inventory is empty — a
- * repeated "your ad here" placeholder makes the site read as unfinished.
+ * Ad placement (spec §11). Sold inventory first, remnant network second.
+ *
+ * A direct campaign always wins the slot. With no campaign, a placement that
+ * carries a `slotKey` falls through to `NetworkAdSlot` (a third-party tag
+ * configured in `NEXT_PUBLIC_AD_SLOTS`); a placement without a key renders
+ * nothing at all, because a repeated "your ad here" placeholder makes the site
+ * read as unfinished.
  */
-export function AdSlot({ ad, dict, variant, className }: AdSlotProps) {
-  // Empty inventory is intentionally invisible. A repeated "your ad here"
-  // placeholder makes the reader experience feel unfinished and competes with
-  // editorial content before there is a real campaign to show.
-  if (!ad) return null;
+export function AdSlot({ ad, dict, variant, className, slotKey }: AdSlotProps) {
+  if (!ad) {
+    if (!slotKey) return null;
+    return (
+      <NetworkAdSlot
+        slotKey={slotKey}
+        variant={variant}
+        copy={{
+          label: dict.home.advertisement,
+          title: dict.home.advertiseWithUs,
+          body: dict.advertise.tagline,
+        }}
+        className={className}
+      />
+    );
+  }
 
   return (
     <div className={cn("w-full", className)}>

@@ -8,6 +8,7 @@ import { personJsonLd, breadcrumbJsonLd, renderJsonLd } from "@/lib/seo/jsonld";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AdSlot } from "@/components/home/ad-slot";
+import { AD_PLACEMENTS } from "@/lib/ads/networks";
 import { SectionHeader } from "@/components/home/section-header";
 import { CARD_SIZES, SmartImage } from "@/components/media/smart-image";
 import { FollowButton } from "@/components/system/follow-button";
@@ -222,6 +223,7 @@ export default async function ContributorProfilePage({ params }: Props) {
 
             <AdSlot
                 ad={null}
+                slotKey={AD_PLACEMENTS.contributorRail}
                 dict={dict}
                 variant="inline-bottom"
                 className="mt-12"

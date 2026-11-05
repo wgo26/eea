@@ -3,6 +3,7 @@ import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
 import { requireCapability } from '@/lib/auth/guards'
 import { getAdSlots, getAdvertisers, getPendingAdInquiries, getCampaigns } from '@/lib/admin/queries'
+import { getAdNetworkOverview } from '@/lib/admin/queries/ad-networks'
 import { PageHeader } from '@/components/admin/page-header'
 import { EmptyState } from '@/components/admin/empty-state'
 import { SearchBar } from '@/components/admin/filter-pills'
@@ -17,6 +18,7 @@ import { InquiryActions } from './inquiry-actions'
 import { AdvertiserActions } from './advertiser-actions'
 import { CampaignActions } from './campaign-actions'
 import { BillingActions } from './billing-actions'
+import { NetworkTab } from './network-tab'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -31,18 +33,20 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
   const tc = dict.admin.common
 
   const sp = await searchParams
-  const tab = sp.tab === 'inquiries' ? 'inquiries' : 'operations'
+  const tab: 'inquiries' | 'operations' | 'network' =
+    sp.tab === 'inquiries' ? 'inquiries' : sp.tab === 'network' ? 'network' : 'operations'
   const search = sp.q?.trim() || undefined
   const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1)
   const PAGE_SIZE = 20
   const base = localePath(locale, '/admin/ads')
   const qs = search ? `&q=${encodeURIComponent(search)}` : ''
 
-  const [slotRes, advertiserRes, inquiryRes, campaignRes] = await Promise.all([
+  const [slotRes, advertiserRes, inquiryRes, campaignRes, networkOverview] = await Promise.all([
     getAdSlots({ search, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
     getAdvertisers({ search, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
     getPendingAdInquiries({ search, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
     getCampaigns({ search, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
+    getAdNetworkOverview(),
   ])
   const slots = slotRes.rows
   const advertisers = advertiserRes.rows
@@ -81,12 +85,21 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
         tabs={[
           { key: 'inquiries', label: t.inquiriesTab, count: inquiryRes.total },
           { key: 'operations', label: t.operationsTab },
+          { key: 'network', label: t.networkTab },
         ]}
         active={tab}
         hrefFor={(key) => `${base}?tab=${key}${qs}`}
       />
 
-      {tab !== 'inquiries' && (
+      {tab === 'network' && (
+        <NetworkTab
+          settings={networkOverview.settings}
+          rows={networkOverview.rows}
+          copy={t}
+        />
+      )}
+
+      {tab === 'operations' && (
         <AdCreateForms
           copy={t}
           slots={slots}
@@ -116,7 +129,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
         </section>
       )}
 
-      {tab !== 'inquiries' && <><section>
+      {tab === 'operations' && <><section>
         <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{t.slotsHeading}</h2>
         {slots.length === 0 ? (
           <EmptyState message={t.emptySlots} />

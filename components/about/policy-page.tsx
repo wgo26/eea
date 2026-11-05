@@ -3,6 +3,7 @@ import { ArrowLeft, Languages } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { PolicyContent } from "@/components/about/policy-content";
+import { AdvertisingDisclosure } from "@/components/about/advertising-disclosure";
 import { TakedownForm } from "@/components/about/takedown-form";
 import { DataRequestForm } from "@/components/about/data-request-form";
 import { PolicyAcceptButton } from "@/components/about/policy-accept-button";
@@ -106,9 +107,12 @@ export async function PolicyPage({
                 ) : null}
 
                 {policyType === "privacy" ? (
-                    <section aria-label={dict.about.dataForm.title}>
-                        <DataRequestForm dict={dict} />
-                    </section>
+                    <>
+                        <AdvertisingDisclosure locale={locale} />
+                        <section aria-label={dict.about.dataForm.title}>
+                            <DataRequestForm dict={dict} />
+                        </section>
+                    </>
                 ) : null}
             </div>
         </div>

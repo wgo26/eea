@@ -5,6 +5,7 @@ import { HomeHero } from "@/components/home/home-hero";
 import { StoryCard } from "@/components/home/story-card";
 import { SectionHeader } from "@/components/home/section-header";
 import { AdSlot } from "@/components/home/ad-slot";
+import { AD_PLACEMENTS } from "@/lib/ads/networks";
 import { ListingCard } from "@/components/home/listing-card";
 import { NoticesList } from "@/components/home/notices-list";
 import { ExploreTiles } from "@/components/home/explore-tiles";
@@ -111,7 +112,9 @@ export async function HomeHeroSection({ locale, dict }: SectionProps) {
 /** Banner ad directly under the hero. */
 export async function HomeBannerAd({ locale, dict }: SectionProps) {
     const data = await getHomeData(locale);
-    return <AdSlot ad={data.ads.banner} dict={dict} variant="banner" />;
+    return (
+        <AdSlot ad={data.ads.banner} slotKey={AD_PLACEMENTS.homeBanner} dict={dict} variant="banner" />
+    );
 }
 
 /** Newest-first ordering for mixed-type rivers (same rule as /stories). */
@@ -178,6 +181,7 @@ export async function HomeStoriesRiver({ locale, dict }: SectionProps) {
                 <TrendingList stories={data.trending} dict={dict} locale={locale} />
                 <AdSlot
                     ad={data.ads.rail}
+                    slotKey={AD_PLACEMENTS.homeRail}
                     dict={dict}
                     variant="rail"
                     className="lg:sticky lg:top-24"
@@ -190,8 +194,14 @@ export async function HomeStoriesRiver({ locale, dict }: SectionProps) {
 /** Mid-page inline ad strip. */
 export async function HomeInlineMidAd({ locale, dict }: SectionProps) {
     const data = await getHomeData(locale);
-    if (!data.ads.inlineMid) return null;
-    return <AdSlot ad={data.ads.inlineMid} dict={dict} variant="strip" />;
+    return (
+        <AdSlot
+            ad={data.ads.inlineMid}
+            slotKey={AD_PLACEMENTS.homeInlineMid}
+            dict={dict}
+            variant="strip"
+        />
+    );
 }
 
 /** Notices + buy & sell board. */

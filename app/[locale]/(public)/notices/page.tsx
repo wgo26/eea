@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AlertTriangle, Landmark, MapPin, PackageCheck, PackageSearch, Search, UserSearch } from "lucide-react";
 
 import { AdSlot } from "@/components/home/ad-slot";
+import { AD_PLACEMENTS } from "@/lib/ads/networks";
 import { SectionHeader } from "@/components/home/section-header";
 import { SmartImage, THUMB_SIZES } from "@/components/media/smart-image";
 import { TrustBadge } from "@/components/system/trust-badge";
@@ -541,6 +542,7 @@ export default async function NoticesPage({
 
                     <AdSlot
                         ad={null}
+                        slotKey={AD_PLACEMENTS.noticeIndexRail}
                         dict={dict}
                         variant="rail"
                         className="lg:sticky lg:top-24"
