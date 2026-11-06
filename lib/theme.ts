@@ -11,7 +11,7 @@ export const THEME_COOKIE_KEY = "eea-theme";
 export const THEME_ORDER: Theme[] = ["light", "dark"];
 
 /** True when the stored value is an explicit user choice (not the automatic default). */
-export function isExplicitTheme(value: string | null): value is Theme {
+export function isExplicitTheme(value: string | null | undefined): value is Theme {
   return value === "light" || value === "dark";
 }
 
