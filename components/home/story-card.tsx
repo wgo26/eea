@@ -43,6 +43,8 @@ function saveLabels(dict: Dictionary) {
 /**
  * Editorial story card (spec §1A): image, headline, category, date,
  * location where relevant, plus the trust-layer verification badge.
+ *
+ * Signature: card-lift hover + category-pill/place-pill + display-serif title.
  */
 export function StoryCard({
   story,
@@ -59,7 +61,7 @@ export function StoryCard({
       <div className={cn("relative", className)}>
       <CardShell
         href={story.href}
-        className="flex gap-3 p-2"
+        className="card-lift flex gap-3 p-2 focus-lens"
       >
       <div
         className="relative h-20 w-28 shrink-0 overflow-hidden rounded-xl bg-muted"
@@ -72,7 +74,7 @@ export function StoryCard({
             width={112}
             height={80}
             sizes="112px"
-            className="h-20 w-28 object-cover"
+            className="h-20 w-28 object-cover transition-transform duration-300 ease-standard group-hover:scale-[1.02]"
           />
         ) : null}
       </div>
@@ -83,12 +85,12 @@ export function StoryCard({
             dict={dict}
             locale={locale}
           />
-          <CardTitle size="sm" className="mt-1 font-semibold">
+          <CardTitle size="sm" className="mt-1 font-semibold font-display">
             {story.title}
           </CardTitle>
           <CardMeta className="mt-1">
             {story.location ? (
-              <CardMetaItem icon={MapPin}>{story.location}</CardMetaItem>
+              <CardMetaItem icon={MapPin}><span className="place-pill">{story.location}</span></CardMetaItem>
             ) : null}
             {story.publishedAt ? (
               <CardMetaItem icon={Clock}>{timeAgo(story.publishedAt, locale)}</CardMetaItem>
@@ -111,7 +113,7 @@ export function StoryCard({
     <div className={cn("relative", className)}>
     <CardShell
       href={story.href}
-      className="flex flex-col"
+      className="card-lift flex flex-col focus-lens"
     >
       <CardCover aspect="aspect-[16/10]">
         {story.imageUrl ? (
@@ -119,7 +121,7 @@ export function StoryCard({
             src={story.imageUrl}
             alt={story.title}
             sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
-            className="object-cover transition-transform duration-300 ease-standard group-hover:scale-[1.02]"
+            className="object-cover transition-transform duration-500 ease-expo group-hover:scale-[1.03]"
           />
         ) : null}
         <TrustBadge
@@ -150,7 +152,7 @@ export function StoryCard({
             </span>
           ) : null}
         </div>
-        <CardTitle className="mt-2">
+        <CardTitle className="mt-2 font-display">
           {story.title}
         </CardTitle>
         {story.excerpt ? (
@@ -167,7 +169,7 @@ export function StoryCard({
             </span>
           ) : null}
           {story.location ? (
-            <CardMetaItem icon={MapPin}>{story.location}</CardMetaItem>
+            <CardMetaItem icon={MapPin}><span className="place-pill">{story.location}</span></CardMetaItem>
           ) : null}
           {story.publishedAt ? (
             <CardMetaItem icon={Clock}>{formatDate(story.publishedAt, locale)}</CardMetaItem>
@@ -189,14 +191,14 @@ export function StoryCard({
 /** Empty-state tile shown when a section has no published content yet. */
 export function EmptySection({ dict, href, label }: { dict: Dictionary; href: string; label: string }) {
   return (
-    <div className="flex flex-col items-start justify-between gap-3 rounded-2xl border border-dashed p-6 sm:flex-row sm:items-center">
+    <div className="card-lift flex flex-col items-start justify-between gap-3 rounded-2xl border border-dashed p-6 sm:flex-row sm:items-center">
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
         <Camera className="h-4 w-4" aria-hidden />
         {dict.common.comingSoon}
       </p>
       <Link
         href={href}
-        className="inline-flex items-center gap-1 text-sm font-medium text-link hover:underline"
+        className="focus-lens inline-flex items-center gap-1 text-sm font-medium text-link hover:underline"
       >
         {label}
         <ArrowRight className="h-4 w-4" aria-hidden />

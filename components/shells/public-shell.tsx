@@ -86,12 +86,14 @@ export async function PublicShell({ children, locale }: { children: ReactNode; l
        * a submission. Bottom-LEFT on purpose — BackToTop owns bottom-right
        * (and the article reader toolbar stacks there too), so the two never
        * collide. Desktop keeps the header button; this renders `lg:hidden`.
+       *
+       * Signature: lens-ring focus + shadow-lift hover.
        */}
       <Link
         href={`/${locale}/submit`}
         aria-label={getChromeStrings(locale).nav.post}
         title={getChromeStrings(locale).nav.post}
-        className="no-print fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-[max(1rem,env(safe-area-inset-left))] z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lift transition-transform hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+        className="no-print fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-[max(1rem,env(safe-area-inset-left))] z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lift transition-transform hover:scale-105 active:scale-95 focus-lens lg:hidden"
       >
         <Plus className="h-6 w-6" aria-hidden />
       </Link>

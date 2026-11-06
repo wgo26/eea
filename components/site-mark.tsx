@@ -25,6 +25,8 @@ type SiteMarkProps = {
  * footer, focused shell (submit/auth) and the admin/account shells all render
  * through this, so "which icon do we show" has exactly one answer. URL safety
  * follows `lib/site-icon` (same rules as the tab icon route).
+ *
+ * Signature: lens-ring accent on the built-in eye badge.
  */
 export function SiteMark({
   logoUrl,
@@ -51,7 +53,12 @@ export function SiteMark({
   return (
     <span
       aria-hidden
-      className={cn('inline-flex shrink-0 items-center justify-center bg-primary text-primary-foreground', badgeClassName, className)}
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center relative bg-primary text-primary-foreground',
+        'before:absolute before:inset-0 before:rounded-xl before:ring-2 before:ring-lens-ring before:ring-offset-2 before:ring-offset-background',
+        badgeClassName,
+        className,
+      )}
     >
       <Eye className={iconClassName} />
     </span>

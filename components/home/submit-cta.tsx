@@ -12,20 +12,20 @@ export function SubmitCta({ dict, submitHref }: { dict: Dictionary; submitHref: 
     { icon: Tag, label: dict.nav.buySell },
   ];
   return (
-    <section className="rounded-3xl bg-neutral-900 p-8 text-neutral-50 ring-1 ring-white/10 md:p-12">
+    <section className="rounded-3xl bg-foreground p-8 text-background ring-1 ring-lens/20 md:p-12">
       <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
         <div className="max-w-xl">
-          <h2 className="text-2xl font-bold tracking-tight md:text-3xl">
+          <h2 className="font-display font-bold tracking-tight text-display-base">
             {dict.home.submitCtaTitle}
           </h2>
-          <p className="mt-2 text-sm leading-relaxed text-neutral-50/80 md:text-base">
+          <p className="mt-2 text-sm leading-relaxed text-background/80 md:text-base">
             {dict.home.submitCtaBody}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {chips.map(({ icon: Icon, label }) => (
               <span
                 key={label}
-                className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium"
+                className="category-pill"
               >
                 <Icon className="h-3.5 w-3.5" aria-hidden />
                 {label}
@@ -33,7 +33,7 @@ export function SubmitCta({ dict, submitHref }: { dict: Dictionary; submitHref: 
             ))}
           </div>
         </div>
-        <Button size="lg" render={<Link href={submitHref} />}>
+        <Button size="lg" render={<Link href={submitHref} />} className="focus-lens">
           {dict.home.submitCtaButton}
         </Button>
       </div>

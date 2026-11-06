@@ -12,13 +12,15 @@ type TrendingListProps = {
 /**
  * Numbered "Trending now" rail (spec §1A): a scannable ranked list of recent
  * stories that are not already displayed in a homepage section.
+ *
+ * Signature: trending-number with lens identity + card-lift list items.
  */
 export function TrendingList({ stories, dict, locale }: TrendingListProps) {
   if (stories.length === 0) return null;
 
   return (
     <div className="rounded-2xl border bg-card p-4">
-      <div className="border-b pb-3">
+      <div className="divide-lens pb-3">
         <h3 className="text-sm font-extrabold uppercase tracking-tight">
           {dict.home.trending}
         </h3>
@@ -26,10 +28,10 @@ export function TrendingList({ stories, dict, locale }: TrendingListProps) {
       </div>
       <ol className="divide-y">
         {stories.map((story, index) => (
-          <li key={story.id}>
-            <Link href={story.href} className="group flex gap-3 py-3">
+          <li key={story.id} className="group">
+            <Link href={story.href} className="group flex gap-3 py-3 focus-lens rounded-xl -mx-2 px-2 transition-colors hover:bg-muted/50">
               <span
-                className="text-xl font-extrabold leading-none text-primary/40 transition-colors group-hover:text-primary"
+                className="trending-number shrink-0 self-start mt-0.5"
                 aria-hidden
               >
                 {index + 1}

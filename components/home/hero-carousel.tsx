@@ -17,7 +17,7 @@ type HeroCarouselProps = {
 };
 
 const controlClasses =
-    "z-10 flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-black/35 text-white backdrop-blur transition-colors hover:bg-black/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white";
+    "z-10 flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-black/35 text-white backdrop-blur transition-colors hover:bg-black/60 focus-lens";
 
 /**
  * Hero crossfade (spec §1A): the featured stories fade in/out over a fixed
@@ -29,6 +29,8 @@ const controlClasses =
  * its height without measuring — every slide has the same fixed height.
  * Off-screen slides are inert + aria-hidden so keyboard focus and screen
  * readers only ever see the visible story.
+ *
+ * Signature: lens-colored pagination dots with spring animation.
  */
 export function HeroCarousel({ stories, dict, locale }: HeroCarouselProps) {
     const slides = stories.slice(0, FEATURED_LIMIT);
@@ -173,26 +175,21 @@ export function HeroCarousel({ stories, dict, locale }: HeroCarouselProps) {
                         >
                             {selected + 1} / {slides.length}
                         </span>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5" role="tablist" aria-label={dict.hero.featured}>
                             {slides.map((story, index) => (
                                 <button
                                     key={story.id}
                                     type="button"
+                                    role="tab"
                                     onClick={() => goTo(index)}
                                     aria-label={story.title}
+                                    aria-selected={index === selected}
                                     aria-current={index === selected ? "true" : undefined}
-                                    // 44px hit floor: the visual dot stays small
-                                    // but the tap target never drops below it.
-                                    className="flex h-11 min-w-11 items-center justify-center px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white rounded-full"
+                                    className="flex h-11 min-w-11 items-center justify-center px-1 focus-lens rounded-full"
                                 >
                                     <span
+                                        className={cn("hero-dot", index === selected && "hero-dot-active")}
                                         aria-hidden
-                                        className={cn(
-                                            "h-1.5 rounded-full transition-all",
-                                            index === selected
-                                                ? "w-6 bg-primary"
-                                                : "w-1.5 bg-white/50 hover:bg-white/80"
-                                        )}
                                     />
                                 </button>
                             ))}

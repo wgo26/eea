@@ -27,6 +27,8 @@ type ExploreTilesProps = {
  * culture fold into the single Stories river (same merge as the homepage
  * river and the /stories feed), so the tiles sell four destinations, not six
  * — the header's five-item model minus Home, which the visitor is already on.
+ *
+ * Signature: explore-tile utility with lens-ring accent bar on hover.
  */
 export function ExploreTiles({ dict, hrefs, available }: ExploreTilesProps) {
   const tiles = [
@@ -50,7 +52,7 @@ export function ExploreTiles({ dict, hrefs, available }: ExploreTilesProps) {
           <Link
             key={href}
             href={href}
-            className="group flex flex-col gap-3 rounded-2xl border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-muted/40"
+            className="explore-tile focus-lens"
           >
             <Icon className="h-5 w-5 text-primary" aria-hidden />
             <span className="flex items-center justify-between gap-2 text-sm font-semibold leading-snug">

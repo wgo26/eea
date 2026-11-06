@@ -77,6 +77,8 @@ export type SiteBranding = {
  * A2: all user-visible strings arrive via the `chrome` prop from the server
  * shell — this component must not import getDictionary (see
  * scripts/verify-client-dictionary.mjs).
+ *
+ * Signature: lens-ring accent on active nav + submit button.
  */
 export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chrome: ChromeStrings }) {
     const locale = useLocaleFromPath();
@@ -130,13 +132,20 @@ export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chro
                                 // Public "you are here" keeps brand blue on purpose:
                                 // the admin shell uses gold instead, so the hue
                                 // itself tells visitors which mode they are in.
-                                className={`rounded-md px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                                // Signature: lens-ring underline on active.
+                                className={`relative rounded-md px-2.5 py-2 text-sm font-medium transition-colors focus-lens ${
                                     isActive
-                                        ? "bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
+                                        ? "font-semibold text-foreground hover:text-foreground"
                                         : "text-muted-foreground hover:bg-accent hover:text-foreground"
                                 }`}
                             >
                                 {item.label}
+                                {isActive && (
+                                    <span
+                                        aria-hidden
+                                        className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-3/4 rounded-full bg-lens"
+                                    />
+                                )}
                             </Link>
                         );
                     })}
@@ -153,7 +162,7 @@ export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chro
                     <span className="hidden lg:inline-flex"><ContrastToggle label={dict.theme.contrast} /></span>
                     <Button
                         size="sm"
-                        className="hidden lg:inline-flex"
+                        className="hidden lg:inline-flex focus-lens"
                         render={<Link href={localeHref(locale, "/submit")} />}
                     >
                         {dict.nav.post}

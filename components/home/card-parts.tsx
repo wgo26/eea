@@ -72,7 +72,7 @@ export function CardBadgeRow({
     return (
         <div className="flex flex-wrap items-center gap-1.5">
             {category ? (
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                <span className="category-pill">
                     {category}
                 </span>
             ) : null}
@@ -94,7 +94,7 @@ export function CardTitle({
     return (
         <h3
             className={cn(
-                "line-clamp-2 font-bold leading-snug tracking-tight group-hover:underline",
+                "line-clamp-2 font-display font-bold leading-snug tracking-tight group-hover:underline",
                 size === "md" ? "text-base" : "text-sm",
                 className,
             )}

@@ -29,6 +29,49 @@
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.06), 0 4px 16px -4px rgb(0 0 0 / 0.12);
   --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.08), 0 12px 32px -8px rgb(0 0 0 / 0.22);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /**
+   * Editorial type scale — fluid, clamped, derived from display serif rhythm.
+   * Used via `text-display-*` utilities for headlines that carry the page's voice.
+   */
+  --text-display-2xs: clamp(0.875rem, 0.82rem + 0.28vw, 1rem);
+  --text-display-xs: clamp(1rem, 0.92rem + 0.4vw, 1.25rem);
+  --text-display-sm: clamp(1.25rem, 1.1rem + 0.75vw, 1.75rem);
+  --text-display-base: clamp(1.5rem, 1.25rem + 1.25vw, 2.25rem);
+  --text-display-lg: clamp(2rem, 1.5rem + 2.5vw, 3.5rem);
+  --text-display-xl: clamp(2.5rem, 1.75rem + 3.75vw, 5rem);
+  --text-display-2xl: clamp(3rem, 2rem + 5vw, 7rem);
+
+  /**
+   * Signature accent tokens — the "lens" motif color family.
+   * Derived from the brand gold but calibrated for UI affordances.
+   */
+  --lens: oklch(0.72 0.18 85);
+  --lens-strong: oklch(0.58 0.22 85);
+  --lens-muted: oklch(0.88 0.12 85);
+  --lens-glow: oklch(0.82 0.25 85);
+  --lens-ring: oklch(0.65 0.2 85);
+
+  /**
+   * Earth-tone supporting palette — calibrated for African landscape warmth
+   * without sacrificing contrast or accessibility. Used sparingly as
+   * atmospheric accents (section dividers, hover states, badges).
+   */
+  --ochre: oklch(0.68 0.16 65);
+  --ochre-strong: oklch(0.52 0.2 60);
+  --terracotta: oklch(0.55 0.18 35);
+  --terracotta-strong: oklch(0.42 0.22 30);
+  --savanna: oklch(0.48 0.1 110);
+  --savanna-strong: oklch(0.35 0.14 115);
+  --dusk: oklch(0.38 0.08 260);
+  --dusk-strong: oklch(0.28 0.12 265);
+
+  /**
+   * Focus ring that carries the lens identity — replaces generic ring.
+   */
+  --focus-ring: var(--lens-ring);
 }
 
 @theme inline {
@@ -137,6 +180,23 @@
   --admin-active: oklch(0.8 0.22 82);
   --admin-active-foreground: oklch(0.2 0.08 225);
   --admin-rail: oklch(0.55 0.18 82);
+
+  /* Signature lens tokens — warm gold family for interactive accents. */
+  --lens: oklch(0.72 0.18 85);
+  --lens-strong: oklch(0.58 0.22 85);
+  --lens-muted: oklch(0.88 0.12 85);
+  --lens-glow: oklch(0.82 0.25 85);
+  --lens-ring: oklch(0.65 0.2 85);
+
+  /* Earth-tone atmospheric accents — used sparingly for warmth. */
+  --ochre: oklch(0.68 0.16 65);
+  --ochre-strong: oklch(0.52 0.2 60);
+  --terracotta: oklch(0.55 0.18 35);
+  --terracotta-strong: oklch(0.42 0.22 30);
+  --savanna: oklch(0.48 0.1 110);
+  --savanna-strong: oklch(0.35 0.14 115);
+  --dusk: oklch(0.38 0.08 260);
+  --dusk-strong: oklch(0.28 0.12 265);
 }
 
 .dark {
@@ -177,6 +237,23 @@
   --admin-active: oklch(0.84 0.22 82);
   --admin-active-foreground: oklch(0.2 0.08 225);
   --admin-rail: oklch(0.84 0.22 82);
+
+  /* Signature lens tokens — darker mode adjusts for contrast. */
+  --lens: oklch(0.78 0.2 85);
+  --lens-strong: oklch(0.65 0.24 85);
+  --lens-muted: oklch(0.28 0.08 85);
+  --lens-glow: oklch(0.75 0.28 85);
+  --lens-ring: oklch(0.72 0.22 85);
+
+  /* Earth tones in dark mode — muted for atmosphere. */
+  --ochre: oklch(0.62 0.14 65);
+  --ochre-strong: oklch(0.72 0.18 65);
+  --terracotta: oklch(0.55 0.16 35);
+  --terracotta-strong: oklch(0.65 0.2 35);
+  --savanna: oklch(0.52 0.08 110);
+  --savanna-strong: oklch(0.62 0.12 110);
+  --dusk: oklch(0.45 0.06 260);
+  --dusk-strong: oklch(0.55 0.1 260);
 }
 
 @layer base {
@@ -198,6 +275,311 @@
     background: var(--primary);
     color: var(--primary-foreground);
   }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Signature utilities — the "lens" motif and editorial accents
+   These are the design system's distinctive tokens, used with
+   intention (not as generic utilities) to create a memorable identity.
+   ────────────────────────────────────────────────────────────── */
+
+/**
+ * Lens accent ring — the signature interactive affordance.
+ * Used on: primary buttons (focus), featured cards, hero indicators.
+ * Never used as a generic border — it carries the brand's "watching" metaphor.
+ */
+.lens-ring {
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--lens-ring);
+}
+
+/**
+ * Lens glow — subtle atmospheric highlight for hover/focus states.
+ * Used sparingly: hero slide overlay, featured badge, CTA buttons.
+ */
+.lens-glow {
+  box-shadow: 0 0 32px -8px var(--lens-glow), 0 0 64px -16px var(--lens-glow);
+}
+
+/**
+ * Lens focus — replaces generic focus-visible:ring for primary actions.
+ * Carries the "eye" identity into keyboard navigation.
+ */
+.lens-focus:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--lens-ring);
+}
+
+/**
+ * Editorial display type utilities — fluid, clamp-based scale for
+ * headlines that carry the page's voice. Used ONLY for editorial
+ * headlines (detail h1s, section heroes); UI/body text stays Inter.
+ */
+.text-display-2xs { font-size: var(--text-display-2xs); }
+.text-display-xs { font-size: var(--text-display-xs); }
+.text-display-sm { font-size: var(--text-display-sm); }
+.text-display-base { font-size: var(--text-display-base); }
+.text-display-lg { font-size: var(--text-display-lg); }
+.text-display-xl { font-size: var(--text-display-xl); }
+.text-display-2xl { font-size: var(--text-display-2xl); }
+
+/**
+ * Signature divider — a hairline with lens-color center accent.
+ * Used between major editorial sections, never as generic HR.
+ */
+.divide-lens {
+  position: relative;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.divide-lens::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  translate: -50% 0;
+  width: 64px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--lens), transparent);
+  border-radius: 9999px;
+}
+
+/**
+ * Lens badge — the "watching" indicator for live/developing content.
+ * Distinct from verification badges; carries the active lens metaphor.
+ */
+.badge-lens {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.625rem;
+  font-size: var(--text-floor);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--lens-muted);
+  color: var(--lens-strong);
+  border-radius: 9999px;
+}
+.badge-lens::before {
+  content: "";
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: var(--lens);
+  animation: lens-pulse 2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .badge-lens::before { animation: none; }
+}
+@keyframes lens-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.85); }
+}
+
+/**
+ * Card lift — the signature hover elevation for editorial cards.
+ * Uses the design token shadows + lens-ring accent on hover.
+ */
+.card-lift {
+  transition: transform 200ms var(--ease-standard),
+              box-shadow 200ms var(--ease-standard),
+              border-color 200ms var(--ease-standard);
+  border: 1px solid var(--border);
+}
+.card-lift:hover,
+.card-lift:focus-within {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
+  border-color: var(--lens-ring);
+}
+
+/**
+ * Hero scrim — bottom-anchored gradient that preserves the upper
+ * two-thirds of the photograph. The lens-glow accent on the scrim
+ * edge creates a subtle "lens flare" at the text boundary.
+ */
+.hero-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    oklch(0 0 0 / 0.85),
+    oklch(0 0 0 / 0.35) 40%,
+    oklch(0 0 0 / 0.08) 65%,
+    transparent 85%
+  );
+  pointer-events: none;
+}
+.hero-scrim::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 25%,
+    var(--lens-glow) 50%,
+    transparent 75%
+  );
+  opacity: 0.6;
+}
+
+/**
+ * Section eyebrow — the small uppercase label above editorial headlines.
+ * Uses tracking and weight for hierarchy, not size reduction.
+ */
+.section-eyebrow {
+  font-size: var(--text-floor);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--lens-strong);
+}
+
+/**
+ * Place pill — location badge with earth-tone warmth.
+ * Distinct from category pills; carries geographic identity.
+ */
+.place-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.1875rem 0.625rem;
+  font-size: var(--text-floor);
+  font-weight: 600;
+  background: var(--ochre);
+  color: var(--background);
+  border-radius: 9999px;
+}
+.dark .place-pill {
+  background: var(--ochre-strong);
+  color: var(--foreground);
+}
+
+/**
+ * Category pill — editorial category with brand-blue identity.
+ * Used in story cards, section headers, filters.
+ */
+.category-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.1875rem 0.625rem;
+  font-size: var(--text-floor);
+  font-weight: 600;
+  background: color-mix(in oklch, var(--primary) 12%, var(--card));
+  color: var(--primary);
+  border: 1px solid color-mix(in oklch, var(--primary) 25%, var(--border));
+  border-radius: 9999px;
+}
+
+/**
+ * Explore tile — the homepage navigation tiles with signature hover.
+ * The lens-ring appears as a bottom accent bar on hover/focus.
+ */
+.explore-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  transition: border-color 180ms var(--ease-standard),
+              box-shadow 180ms var(--ease-standard),
+              transform 180ms var(--ease-standard);
+}
+.explore-tile:hover,
+.explore-tile:focus-within {
+  border-color: var(--lens-ring);
+  box-shadow: var(--shadow-card);
+  transform: translateY(-1px);
+}
+.explore-tile::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 1.25rem;
+  right: 1.25rem;
+  height: 3px;
+  border-radius: 0 0 1.25rem 1.25rem;
+  background: linear-gradient(90deg, var(--lens), var(--lens-glow));
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 250ms var(--ease-spring);
+}
+.explore-tile:hover::after,
+.explore-tile:focus-within::after {
+  transform: scaleX(1);
+}
+
+/**
+ * Trending number — the ranked list counter with lens identity.
+ * Not a generic numbered list; the number carries the "watching" metaphor.
+ */
+.trending-number {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 1.25rem + 1.25vw, 2.25rem);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--lens-strong);
+  opacity: 0.5;
+  transition: opacity 150ms var(--ease-standard), color 150ms var(--ease-standard);
+}
+.group:hover .trending-number,
+.group:focus-within .trending-number {
+  opacity: 1;
+  color: var(--lens);
+}
+
+/**
+ * Hero carousel dot — the lens-colored indicator dots.
+ * Replaces generic pagination dots with the signature color.
+ */
+.hero-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--lens-muted);
+  transition: width 250ms var(--ease-spring),
+              background-color 250ms var(--ease-standard);
+}
+.hero-dot[aria-current="true"] {
+  width: 24px;
+  background: var(--lens);
+}
+
+/**
+ * Focus ring replacement for primary interactive elements.
+ * Uses the lens-ring token so keyboard navigation carries identity.
+ */
+.focus-lens:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--lens-ring);
+}
+
+/**
+ * Elevated surface — for modals, dropdowns, tooltips that need
+ * to feel like they're "above" the page with lens identity.
+ */
+.surface-elevated {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lift);
+}
+.surface-elevated::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% -50%;
+  width: 48px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--lens), transparent);
+  border-radius: 9999px;
 }
 
 /* Content Protection Layer — deterrence against casual copying.

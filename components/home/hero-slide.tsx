@@ -19,6 +19,8 @@ type HeroSlideProps = {
  * (kicker pill + title + one badge) so the image is never buried behind
  * text. Excerpt, location/date/credit and the CTA live on the story page
  * and the rail cards — not on top of the picture.
+ *
+ * Signature: lens-glow scrim edge + display-serif headline + lens-ring focus.
  */
 export function HeroSlide({
     story,
@@ -30,10 +32,7 @@ export function HeroSlide({
     return (
         <Link
             href={story.href}
-            // Responsive fixed height: a long story must never stretch the hero
-            // (and break the rail alignment) — text clamps + word-wrapping below
-            // keep the overlay in check on small screens.
-            className="group relative flex h-[400px] min-w-0 flex-col justify-end overflow-hidden rounded-3xl sm:h-[440px] lg:h-[560px]"
+            className="group relative flex h-[400px] min-w-0 flex-col justify-end overflow-hidden rounded-3xl sm:h-[440px] lg:h-[560px] focus-lens"
             aria-label={story.title}
         >
             {story.imageUrl ? (
@@ -42,25 +41,25 @@ export function HeroSlide({
                     alt={story.title}
                     sizes="100vw"
                     priority={priority}
-                    className="absolute inset-0 bg-muted object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    className="absolute inset-0 bg-muted object-cover transition-transform duration-700 ease-expo group-hover:scale-[1.04]"
                 />
             ) : (
                 <div className="absolute inset-0 bg-muted" aria-hidden />
             )}
-            {/* Bottom-anchored scrim only — the upper two-thirds of the photo stay clear. */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" aria-hidden />
+            {/* Signature hero scrim — bottom-anchored with lens-glow accent line. */}
+            <div className="hero-scrim" aria-hidden />
             <div className="relative min-w-0 p-5 sm:p-6 md:p-8">
-                <span className="inline-flex w-fit items-center rounded-full bg-primary px-3 py-1 text-xs font-extrabold uppercase tracking-[0.18em] text-primary-foreground shadow-sm">
+                <span className="section-eyebrow">
                     {dict.hero.featured}
                 </span>
-                <Heading className="mt-2.5 line-clamp-2 max-w-3xl break-words text-xl font-extrabold leading-tight tracking-tight text-white sm:text-2xl md:text-4xl">
+                <Heading className="mt-2.5 line-clamp-2 max-w-3xl break-words font-display font-extrabold leading-tight tracking-tight text-white sm:text-display-sm md:text-display-base">
                     {story.title}
                 </Heading>
                 {story.verification ?? story.category ? (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
                         <TrustBadge verification={story.verification} dict={dict} locale={locale} link={false} />
                         {!story.verification && story.category ? (
-                            <span className="rounded-full bg-black/40 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-white backdrop-blur">
+                            <span className="category-pill">
                                 {story.category}
                             </span>
                         ) : null}

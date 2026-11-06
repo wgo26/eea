@@ -21,25 +21,27 @@ type HomeHeroProps = {
  * Hero section (per hero.png): the featured stories crossfade with a minimal
  * overlay (kicker + headline + one badge) so the photography leads, and a
  * rail of further stories alongside.
+ *
+ * Signature: lens-colored accent on empty state + display-serif headlines.
  */
 export function HomeHero({ featured, secondary, dict, locale, submitHref, photoStoriesHref }: HomeHeroProps) {
     if (featured.length === 0) {
         return (
             <section className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/10 via-background to-muted p-6 sm:p-8 md:p-14">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-link">
+                <p className="section-eyebrow text-lens-strong">
                     {dict.home.kicker}
                 </p>
-                <h1 className="mt-3 max-w-2xl break-words text-2xl font-extrabold tracking-tight sm:text-3xl md:text-5xl">
+                <h1 className="mt-3 max-w-2xl break-words font-display font-extrabold tracking-tight text-display-base">
                     {dict.meta.title}
                 </h1>
                 <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground md:text-base">
                     {dict.meta.description}
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3">
-                    <Button size="lg" render={<Link href={submitHref} />}>
+                    <Button size="lg" render={<Link href={submitHref} />} className="focus-lens">
                         {dict.nav.submit}
                     </Button>
-                    <Button size="lg" variant="outline" render={<Link href={photoStoriesHref} />}>
+                    <Button size="lg" variant="outline" render={<Link href={photoStoriesHref} />} className="focus-lens">
                         {dict.nav.photoStories}
                     </Button>
                 </div>
@@ -59,7 +61,7 @@ export function HomeHero({ featured, secondary, dict, locale, submitHref, photoS
                     <HeroSlide story={featured[0]} dict={dict} locale={locale} headingLevel="h1" priority />
                 )}
                 <aside className="flex min-w-0 flex-col gap-3">
-                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                    <p className="section-eyebrow text-muted-foreground">
                         {dict.home.kicker}
                     </p>
                     {secondary.length > 0 ? (
