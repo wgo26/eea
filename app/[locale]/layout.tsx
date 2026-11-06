@@ -7,6 +7,7 @@ import { loadBrandIdentity, siteNameFor } from "@/lib/branding/identity";
 import { CookieBanner } from "@/components/system/cookie-banner";
 import { BackToTop } from "@/components/system/back-to-top";
 import { ServiceWorkerRegister } from "@/components/system/sw-register";
+import { ContentProtection } from "@/components/system/content-protection";
 
 type LocaleLayoutProps = {
     children: ReactNode;
@@ -65,6 +66,7 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
             <BackToTop label={dict.common.backToTop} />
             {/* Phase 4 — offline PWA: registers /sw.js on load (production only). */}
             <ServiceWorkerRegister />
+            <ContentProtection />
         </>
     );
 }
