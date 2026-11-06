@@ -24,7 +24,7 @@ export function resolveAutomaticTheme(): Theme {
 /** Reads theme from cookie (server-side) or localStorage (client-side), falling back to OS preference. */
 export function readThemeSource(cookieValue: string | null | undefined): Theme | null {
   // Explicit cookie value wins
-  if (isExplicitTheme(cookieValue)) return cookieValue;
+  if (cookieValue === "light" || cookieValue === "dark") return cookieValue;
   // No explicit choice — null means "follow OS" (handled by caller)
   return null;
 }
