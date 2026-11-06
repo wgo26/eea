@@ -92,7 +92,7 @@ export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chro
 
     return (
         <header className="no-print sticky top-0 z-50 w-full border-b bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/80">
-            <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-3 px-4 md:px-6">
+            <div className="mx-auto grid h-16 w-full max-w-7xl grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-4 md:px-6">
                 <Link
                     href={localeHref(locale, "/")}
                     className="flex shrink-0 items-center gap-2"
@@ -113,7 +113,7 @@ export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chro
                     </span>
                 </Link>
 
-                <nav className="ml-4 hidden items-center gap-0.5 lg:flex" aria-label={chrome.nav.main}>
+                <nav className="hidden items-center gap-0.5 lg:flex" aria-label={chrome.nav.main}>
                     {items.map((item) => {
                         const canonical = (item as { path?: string }).path ?? stripLocalePrefix(item.href)
                         const stripped = stripLocalePrefix(pathname)
@@ -147,7 +147,7 @@ export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chro
                     })}
                 </nav>
 
-                <div className="ml-auto flex items-center gap-1.5">
+                <div className="flex items-center justify-self-end gap-1.5">
                     <PlaceSelector locale={locale} dict={chrome.locations} />
                     <PlacePrompt locale={locale} dict={chrome.locations} />
                     <Button
