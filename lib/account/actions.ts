@@ -16,6 +16,8 @@ export async function updateOwnProfile(input: {
   isPublic?: boolean
   preferredLocale?: string | null
   preferredVoice?: string | null
+  preferredTheme?: string | null
+  preferredContrast?: string | null
   contributorHandle?: string | null
 }): Promise<Result> {
   const { supabase, user } = await getSessionUser()
@@ -54,6 +56,14 @@ export async function updateOwnProfile(input: {
     const v = (input.preferredVoice?.trim() ?? 'formal').toLowerCase()
     if (!['formal', 'pidgin', 'camfranglais'].includes(v)) return { ok: false, error: 'Pick a valid voice.' }
     patch.preferred_voice = v
+  }
+  if (input.preferredTheme !== undefined) {
+    const v = input.preferredTheme === 'dark' ? 'dark' : 'light'
+    patch.preferred_theme = v
+  }
+  if (input.preferredContrast !== undefined) {
+    const v = input.preferredContrast === 'high' ? 'high' : 'normal'
+    patch.preferred_contrast = v
   }
   if (input.avatarUrl !== undefined) {
     const v = input.avatarUrl?.trim() ?? ''

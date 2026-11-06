@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { Menu, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ContrastToggle } from "@/components/system/contrast-toggle";
 
 type MobileNavProps = {
   items: { href: string; label: string; path?: string }[];
@@ -17,7 +16,6 @@ type MobileNavProps = {
   menuLabel: string;
   submitHref: string;
   submitLabel: string;
-  contrastLabel?: string;
 };
 
 const SUPPORTED_LOCALES = ["en", "fr"] as const;
@@ -42,7 +40,6 @@ export function MobileNav({
   menuLabel,
   submitHref,
   submitLabel,
-  contrastLabel,
 }: MobileNavProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname() ?? "/";
@@ -81,7 +78,7 @@ export function MobileNav({
                   href={item.href}
                   onClick={() => setOpen(false)}
                   aria-current={isActive ? "page" : undefined}
-                  className={`min-h-11 rounded-md px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  className={`min-h-11 rounded-md px-3 py-2.5 text-sm font-medium transition-colors focus-lens ${
                     isActive
                       ? "bg-primary font-semibold text-primary-foreground"
                       : "text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -95,12 +92,6 @@ export function MobileNav({
           <Button className="mt-3 w-full" render={<Link href={submitHref} onClick={() => setOpen(false)} />}>
             {submitLabel}
           </Button>
-          {contrastLabel ? (
-            <div className="mt-3 flex min-h-[44px] items-center justify-between rounded-md border px-3 py-1.5">
-              <span className="text-sm font-medium text-muted-foreground">{contrastLabel}</span>
-              <ContrastToggle label={contrastLabel} />
-            </div>
-          ) : null}
         </div>
       ) : null}
     </div>

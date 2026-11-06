@@ -24,7 +24,7 @@ export default async function Page() {
     createAdminClient()
       .from("profiles")
       .select(
-        "display_name, full_name, bio, phone, email, avatar_url, location_id, is_verified, is_public, preferred_locale, preferred_voice, contributor_handle",
+        "display_name, full_name, bio, phone, email, avatar_url, location_id, is_verified, is_public, preferred_locale, preferred_voice, preferred_theme, preferred_contrast, contributor_handle",
       )
       .eq("id", user.id)
       .maybeSingle(),
@@ -44,6 +44,8 @@ export default async function Page() {
     is_public?: boolean | null
     preferred_locale?: string | null
     preferred_voice?: string | null
+    preferred_theme?: string | null
+    preferred_contrast?: string | null
     contributor_handle?: string | null
   } | null
 
@@ -59,6 +61,8 @@ export default async function Page() {
     isVerified: !!p?.is_verified,
     preferredLocale: p?.preferred_locale ?? locale,
     preferredVoice: p?.preferred_voice ?? "formal",
+    preferredTheme: p?.preferred_theme ?? "light",
+    preferredContrast: p?.preferred_contrast ?? "normal",
     contributorHandle: p?.contributor_handle ?? "",
   }
 

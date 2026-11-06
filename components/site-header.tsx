@@ -4,11 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { SiteMark } from "@/components/site-mark";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { LanguageSwitcher } from "@/components/language-switcher";
 import { MobileNav } from "@/components/mobile-nav";
-import { CommandPaletteButton } from "@/components/system/command-palette";
-import { ContrastToggle } from "@/components/system/contrast-toggle";
 import { PlaceSelector } from "@/components/locations/place-selector";
 import { PlacePrompt } from "@/components/locations/place-prompt";
 import type { ChromeStrings } from "@/lib/i18n/chrome";
@@ -154,12 +150,6 @@ export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chro
                 <div className="ml-auto flex items-center gap-1.5">
                     <PlaceSelector locale={locale} dict={chrome.locations} />
                     <PlacePrompt locale={locale} dict={chrome.locations} />
-                    <span className="hidden sm:inline-flex">
-                        <CommandPaletteButton locale={locale} chrome={{ nav: chrome.nav, command: chrome.command }} />
-                    </span>
-                    <LanguageSwitcher locale={locale} />
-                    <ThemeToggle labels={chrome.theme} />
-                    <span className="hidden lg:inline-flex"><ContrastToggle label={dict.theme.contrast} /></span>
                     <Button
                         size="sm"
                         className="hidden lg:inline-flex focus-lens"
@@ -176,7 +166,6 @@ export function SiteHeader({ branding, chrome }: { branding?: SiteBranding; chro
                         menuLabel={dict.header.menu}
                         submitHref={localeHref(locale, "/submit")}
                         submitLabel={dict.nav.post}
-                        contrastLabel={dict.theme.contrast}
                     />
                 </div>
             </div>

@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Camera, Globe, MapPin, UserRound } from 'lucide-react'
+import { Camera, Globe, MapPin, Monitor, Sun, UserRound, Contrast } from 'lucide-react'
 import { removeOwnAvatar, updateOwnProfile, uploadOwnAvatar } from '@/lib/account/actions'
 import { useToast } from '@/components/admin/toast'
 import { Input } from '@/components/ui/input'
@@ -25,6 +25,8 @@ export type ProfileInitial = {
   isVerified: boolean
   preferredLocale: string
   preferredVoice: string
+  preferredTheme: string
+  preferredContrast: string
   contributorHandle: string
 }
 
@@ -75,6 +77,8 @@ export function ProfileForm({
   const [isPublic, setIsPublic] = useState(initial.isPublic)
   const [locale, setLocale] = useState(initial.preferredLocale === 'fr' ? 'fr' : 'en')
   const [voice, setVoice] = useState(initial.preferredVoice || 'formal')
+  const [theme, setTheme] = useState(initial.preferredTheme === 'dark' ? 'dark' : 'light')
+  const [contrast, setContrast] = useState(initial.preferredContrast === 'high' ? 'high' : 'normal')
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
 
@@ -99,8 +103,10 @@ export function ProfileForm({
       locationId !== initial.locationId ||
       isPublic !== initial.isPublic ||
       locale !== initial.preferredLocale ||
-      voice !== initial.preferredVoice,
-    [displayName, fullName, bio, handle, phone, avatarUrl, locationId, isPublic, locale, voice, initial],
+      voice !== initial.preferredVoice ||
+      theme !== initial.preferredTheme ||
+      contrast !== initial.preferredContrast,
+    [displayName, fullName, bio, handle, phone, avatarUrl, locationId, isPublic, locale, voice, theme, contrast, initial],
   )
 
   const score = useMemo(() => {
@@ -126,6 +132,8 @@ export function ProfileForm({
       isPublic,
       preferredLocale: locale,
       preferredVoice: voice,
+      preferredTheme: theme,
+      preferredContrast: contrast,
     })
     setSaving(false)
     if (result.ok) {
@@ -364,6 +372,45 @@ export function ProfileForm({
           </span>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">{copy.verifiedHint}</p>
+      </section>
+
+      {/* Appearance: theme & contrast */}
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <h2 className="flex items-center gap-2 text-sm font-bold">
+          <Monitor className="h-4 w-4 text-primary" aria-hidden />
+          {copy.sectionAppearance}
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">{copy.sectionAppearanceBody}</p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="profile-theme">{copy.themeLabel}</Label>
+            <div className="flex items-center justify-between">
+              <select
+                id="profile-theme"
+                value={theme}
+                onChange={(e) => setTheme(e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="light">{copy.themeLight}</option>
+                <option value="dark">{copy.themeDark}</option>
+              </select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="profile-contrast">{copy.contrastLabel}</Label>
+            <div className="flex items-center justify-between">
+              <select
+                id="profile-contrast"
+                value={contrast}
+                onChange={(e) => setContrast(e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="normal">{copy.contrastNormal}</option>
+                <option value="high">{copy.contrastHigh}</option>
+              </select>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* Language & voice */}
