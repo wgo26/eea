@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import { cookies } from "next/headers";
 import localFont from "next/font/local";
 import "./globals.css";
 import { cn } from "@/lib/utils";
@@ -10,6 +11,7 @@ import { DEFAULT_OG_IMAGE, TWITTER_CARD } from "@/lib/seo/og";
 import { loadBrandIdentity } from "@/lib/branding/identity";
 import { BrandThemeStyle } from "@/components/brand-theme-style";
 import { SiteJsonLd } from "@/components/system/site-jsonld";
+import { isExplicitTheme, readThemeSource, type Theme } from "@/lib/theme";
 
 // Self-hosted via next/font/local (app/fonts/*.woff2) so dev/build never
 // hits fonts.googleapis.com — no network dependency, no proxy config needed.
@@ -141,10 +143,19 @@ export async function generateMetadata(): Promise<Metadata> {
  * owns the locale param), and per-page canonical/hreflang metadata
  * (buildAlternates) carries the language signal for the static shell.
  * ISR pages under [locale] can now actually prerender.
+ *
+ * Theme: read the `eea-theme` cookie to apply the correct initial theme
+ * class for explicit choices, avoiding a flash. The pre-paint script handles
+ * the first-visit case (no cookie → follow OS preference).
  */
 type RootLayoutProps = Readonly<{ children: React.ReactNode }>
 
 export default async function RootLayout({ children }: RootLayoutProps) {
+    // Read theme cookie for SSR theme application (explicit choices only)
+    const cookieStore = await cookies()
+    const themeCookie = cookieStore.get("eea-theme")?.value
+    const initialTheme: Theme | null = readThemeSource(themeCookie)
+    const isDark = initialTheme === "dark"
 
     // Phase 1 font budget: anonymous public readers get Inter only. The
     // GeistMono variable is NOT attached here (it was 58 KB of unused font
@@ -161,7 +172,8 @@ export default async function RootLayout({ children }: RootLayoutProps) {
                 "antialiased",
                 "font-sans",
                 inter.variable,
-                newsreader.variable
+                newsreader.variable,
+                isDark ? "dark" : ""
             )}
         >
             <body className="flex min-h-full flex-col">

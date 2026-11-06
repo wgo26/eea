@@ -1,6 +1,7 @@
 export type Theme = "light" | "dark";
 
 export const THEME_STORAGE_KEY = "eea-theme";
+export const THEME_COOKIE_KEY = "eea-theme";
 
 /**
  * Cycle order for the theme toggle: light → dark → light. There is no
@@ -18,6 +19,14 @@ export function isExplicitTheme(value: string | null): value is Theme {
 export function resolveAutomaticTheme(): Theme {
   if (typeof window === "undefined") return "light";
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+/** Reads theme from cookie (server-side) or localStorage (client-side), falling back to OS preference. */
+export function readThemeSource(cookieValue: string | null | undefined): Theme | null {
+  // Explicit cookie value wins
+  if (isExplicitTheme(cookieValue)) return cookieValue;
+  // No explicit choice — null means "follow OS" (handled by caller)
+  return null;
 }
 
 /** Applies the theme to <html>. Client-side only. */

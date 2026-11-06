@@ -5,6 +5,7 @@ import { Moon, Sun } from 'lucide-react'
 import {
   applyTheme,
   isExplicitTheme,
+  readThemeSource,
   resolveAutomaticTheme,
   THEME_ORDER,
   THEME_STORAGE_KEY,
@@ -13,7 +14,7 @@ import {
 import type { ChromeStrings } from '@/lib/i18n/chrome'
 
 /**
- * The persisted theme is an external store (localStorage + prefers-color-scheme),
+ * The persisted theme is an external store (localStorage + cookie + prefers-color-scheme),
  * so it is read with useSyncExternalStore instead of being mirrored into React
  * state inside an effect (rejected by react-hooks/set-state-in-effect).
  * As in language-switcher.tsx, DOM side effects live at module scope.
@@ -22,11 +23,10 @@ import type { ChromeStrings } from '@/lib/i18n/chrome'
  * "system" value remains), the toggle follows the OS preference automatically.
  */
 
-/** In-memory mirror of the persisted theme, keeping the UI consistent even when storage is unavailable. */
 let snapshot: Theme | null = null
 const listeners = new Set<() => void>()
 
-/** Reads the persisted theme, falling back to the OS preference when unset or storage is unavailable. */
+/** Reads the persisted theme from localStorage, falling back to the OS preference when unset. */
 function readStoredTheme(): Theme {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY)
@@ -41,16 +41,25 @@ function getSnapshot(): Theme {
   return snapshot ?? readStoredTheme()
 }
 
-/** Matches the pre-paint script's resolution so the server HTML and hydration agree. */
+/** Reads the theme cookie on the server (via initial script) for SSR hydration match. */
 function getServerSnapshot(): Theme {
-  return 'light'
+  if (typeof window === "undefined") return "light"
+  try {
+    const cookie = document.cookie.split("; ").find((c) => c.startsWith("eea-theme="))?.split("=")[1]
+    const fromCookie = readThemeSource(cookie)
+    if (fromCookie) return fromCookie
+    return resolveAutomaticTheme()
+  } catch {
+    return "light"
+  }
 }
 
-/** Persists the theme, applies it to <html> and notifies every mounted toggle. */
+/** Persists the theme to localStorage + cookie, applies it to <html> and notifies every mounted toggle. */
 function writeTheme(next: Theme) {
   snapshot = next
   try {
     localStorage.setItem(THEME_STORAGE_KEY, next)
+    document.cookie = `eea-theme=${next}; max-age=31536000; path=/; SameSite=Lax`
   } catch {
     // Storage unavailable (e.g. private mode) — the in-memory theme still applies.
   }
@@ -73,7 +82,7 @@ function subscribe(onChange: () => void): () => void {
       // Storage unavailable — treat as automatic.
     }
     if (!isExplicitTheme(stored)) {
-      snapshot = null // force re-resolution from the OS preference
+      snapshot = null
       applyTheme(resolveAutomaticTheme())
       for (const listener of listeners) listener()
     }
@@ -116,7 +125,7 @@ export function ThemeToggle({ labels }: { labels: ChromeStrings['theme'] }) {
       onClick={cycle}
       aria-label={label}
       title={label}
-      className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-lens"
     >
       <Icon className="h-[18px] w-[18px]" aria-hidden />
     </button>
