@@ -512,36 +512,47 @@ export function FlagsForm({
   )
 }
 /**
- * Footer social links: two optional URL fields. Saving persists both
- * (server-validated absolute http(s) only); an emptied field removes the
- * setting so the footer icon hides until a link is set again.
+ * Official social profiles feed Organization.sameAs. Facebook and YouTube
+ * also drive the footer icons; empty fields remove the corresponding links.
  */
 export function SiteLinksForm({
   copy,
   settings,
 }: {
   copy: Copy
-  settings: { social_facebook_url: string | null; social_youtube_url: string | null }
+  settings: {
+    social_facebook_url: string | null
+    social_youtube_url: string | null
+    social_twitter_url: string | null
+    social_linkedin_url: string | null
+    social_instagram_url: string | null
+  }
 }) {
   const { addToast } = useToast()
   const [facebook, setFacebook] = useState(settings.social_facebook_url ?? '')
   const [youtube, setYoutube] = useState(settings.social_youtube_url ?? '')
+  const [x, setX] = useState(settings.social_twitter_url ?? '')
+  const [linkedin, setLinkedin] = useState(settings.social_linkedin_url ?? '')
+  const [instagram, setInstagram] = useState(settings.social_instagram_url ?? '')
   const [loading, setLoading] = useState(false)
 
   async function handleSave() {
     setLoading(true)
-    const fb = await saveSiteSetting({ key: 'social_facebook_url', value: facebook || null })
-    if (!fb.ok) {
-      setLoading(false)
-      addToast(fb.error, 'error')
-      return
+    for (const [key, value] of [
+      ['social_facebook_url', facebook || null],
+      ['social_youtube_url', youtube || null],
+      ['social_twitter_url', x || null],
+      ['social_linkedin_url', linkedin || null],
+      ['social_instagram_url', instagram || null],
+    ] as const) {
+      const result = await saveSiteSetting({ key, value })
+      if (!result.ok) {
+        setLoading(false)
+        addToast(result.error, 'error')
+        return
+      }
     }
-    const yt = await saveSiteSetting({ key: 'social_youtube_url', value: youtube || null })
     setLoading(false)
-    if (!yt.ok) {
-      addToast(yt.error, 'error')
-      return
-    }
     addToast(copy.toastSettingSaved, 'success')
   }
 
@@ -590,6 +601,63 @@ export function SiteLinksForm({
           />
           <span className="text-xs">{copy.urlHint}</span>
         </label>
+
+        <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+          <span className="flex items-center justify-between">
+            {copy.xLabel}
+            {settings.social_twitter_url ? null : (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                {copy.notSet}
+              </span>
+            )}
+          </span>
+          <input
+            type="url"
+            value={x}
+            onChange={(e) => setX(e.target.value)}
+            placeholder={copy.urlPlaceholder}
+            className={input}
+          />
+          <span className="text-xs">{copy.urlHint}</span>
+        </label>
+
+        <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+          <span className="flex items-center justify-between">
+            {copy.linkedinLabel}
+            {settings.social_linkedin_url ? null : (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                {copy.notSet}
+              </span>
+            )}
+          </span>
+          <input
+            type="url"
+            value={linkedin}
+            onChange={(e) => setLinkedin(e.target.value)}
+            placeholder={copy.urlPlaceholder}
+            className={input}
+          />
+          <span className="text-xs">{copy.urlHint}</span>
+        </label>
+
+        <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+          <span className="flex items-center justify-between">
+            {copy.instagramLabel}
+            {settings.social_instagram_url ? null : (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                {copy.notSet}
+              </span>
+            )}
+          </span>
+          <input
+            type="url"
+            value={instagram}
+            onChange={(e) => setInstagram(e.target.value)}
+            placeholder={copy.urlPlaceholder}
+            className={input}
+          />
+          <span className="text-xs">{copy.urlHint}</span>
+        </label>
       </div>
 
       <div className="mt-4 flex justify-end">
@@ -607,20 +675,36 @@ export function SiteLinksForm({
 }
 
 /**
- * Public contact channels: the email + WhatsApp + SMS the guide and help
- * surfaces show when set (mailto: / wa.me / sms: links). Empty = hidden
- * everywhere — the newsroom publishes no contact it has not configured.
- */export function ContactChannelsForm({
+ * Public contact details are opt-in. The configured values feed site-wide
+ * JSON-LD and the public agent-readable site summary.
+ */
+export function ContactChannelsForm({
   copy,
   settings,
 }: {
   copy: Copy
-  settings: { contact_email: string | null; contact_whatsapp: string | null; contact_sms: string | null }
+  settings: {
+    contact_email: string | null
+    contact_whatsapp: string | null
+    contact_sms: string | null
+    contact_phone: string | null
+    contact_address_street: string | null
+    contact_address_city: string | null
+    contact_address_region: string | null
+    contact_address_postal_code: string | null
+    contact_address_country: string | null
+  }
 }) {
   const { addToast } = useToast()
   const [email, setEmail] = useState(settings.contact_email ?? '')
   const [whatsapp, setWhatsapp] = useState(settings.contact_whatsapp ?? '')
   const [sms, setSms] = useState(settings.contact_sms ?? '')
+  const [phone, setPhone] = useState(settings.contact_phone ?? '')
+  const [street, setStreet] = useState(settings.contact_address_street ?? '')
+  const [city, setCity] = useState(settings.contact_address_city ?? '')
+  const [region, setRegion] = useState(settings.contact_address_region ?? '')
+  const [postalCode, setPostalCode] = useState(settings.contact_address_postal_code ?? '')
+  const [country, setCountry] = useState(settings.contact_address_country ?? '')
   const [loading, setLoading] = useState(false)
 
   async function handleSave() {
@@ -629,6 +713,12 @@ export function SiteLinksForm({
       ['contact_email', email || null],
       ['contact_whatsapp', whatsapp || null],
       ['contact_sms', sms || null],
+      ['contact_phone', phone || null],
+      ['contact_address_street', street || null],
+      ['contact_address_city', city || null],
+      ['contact_address_region', region || null],
+      ['contact_address_postal_code', postalCode || null],
+      ['contact_address_country', country || null],
     ] as const) {
       const result = await saveSiteSetting({ key, value: val })
       if (!result.ok) {
@@ -705,6 +795,50 @@ export function SiteLinksForm({
           />
           <span className="text-xs">{copy.contactSmsHint}</span>
         </label>
+
+        <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+          <span className="flex items-center justify-between">
+            {copy.contactPhoneLabel}
+            {settings.contact_phone ? null : (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                {copy.notSet}
+              </span>
+            )}
+          </span>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder={copy.contactWhatsappPlaceholder}
+            className={input}
+          />
+          <span className="text-xs">{copy.contactPhoneHint}</span>
+        </label>
+
+        {([
+          [copy.addressStreetLabel, street, setStreet, settings.contact_address_street],
+          [copy.addressCityLabel, city, setCity, settings.contact_address_city],
+          [copy.addressRegionLabel, region, setRegion, settings.contact_address_region],
+          [copy.addressPostalCodeLabel, postalCode, setPostalCode, settings.contact_address_postal_code],
+          [copy.addressCountryLabel, country, setCountry, settings.contact_address_country],
+        ] as const).map(([label, value, setValue, savedValue]) => (
+          <label key={label} className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+            <span className="flex items-center justify-between">
+              {label}
+              {savedValue ? null : (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                  {copy.notSet}
+                </span>
+              )}
+            </span>
+            <input
+              type="text"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              className={input}
+            />
+          </label>
+        ))}
       </div>
 
       <div className="mt-4 flex justify-end">

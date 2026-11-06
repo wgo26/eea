@@ -12,9 +12,18 @@ import { db, hasDatabase, safe } from './shared'
 export const SITE_SETTING_KEYS = [
   'social_facebook_url',
   'social_youtube_url',
+  'social_twitter_url',
+  'social_linkedin_url',
+  'social_instagram_url',
   'contact_email',
   'contact_whatsapp',
   'contact_sms',
+  'contact_phone',
+  'contact_address_street',
+  'contact_address_city',
+  'contact_address_region',
+  'contact_address_country',
+  'contact_address_postal_code',
   'site_logo_url',
   'site_name',
   'site_tagline',
@@ -37,6 +46,9 @@ export type SiteSettingKey = (typeof SITE_SETTING_KEYS)[number]
 export type SiteSettings = {
   facebookUrl: string | null
   youtubeUrl: string | null
+  twitterUrl: string | null
+  linkedinUrl: string | null
+  instagramUrl: string | null
   /** Public contact email (mailto) — shown in the guide/help only when set. */
   contactEmail: string | null
   /** Public WhatsApp number in international format — wa.me link, only when set. */
@@ -44,6 +56,18 @@ export type SiteSettings = {
   /** Public SMS intake number in international format — sms: link for
    * feature-phone / zero-data reporters, only when set. */
   contactSms: string | null
+  /** Public telephone number in international format — tel: link. */
+  contactPhone: string | null
+  /** Street address for LocalBusiness/Organization schema. */
+  contactAddressStreet: string | null
+  /** City for LocalBusiness/Organization schema. */
+  contactAddressCity: string | null
+  /** Region/state for LocalBusiness/Organization schema. */
+  contactAddressRegion: string | null
+  /** Country for LocalBusiness/Organization schema. */
+  contactAddressCountry: string | null
+  /** Postal code for LocalBusiness/Organization schema. */
+  contactAddressPostalCode: string | null
   logoUrl: string | null
   siteName: string | null
   siteTagline: string | null
@@ -64,9 +88,18 @@ export type SiteSettings = {
 const EMPTY_SITE_SETTINGS: SiteSettings = {
   facebookUrl: null,
   youtubeUrl: null,
+  twitterUrl: null,
+  linkedinUrl: null,
+  instagramUrl: null,
   contactEmail: null,
   contactWhatsapp: null,
   contactSms: null,
+  contactPhone: null,
+  contactAddressStreet: null,
+  contactAddressCity: null,
+  contactAddressRegion: null,
+  contactAddressCountry: null,
+  contactAddressPostalCode: null,
   logoUrl: null,
   siteName: null,
   siteTagline: null,
@@ -89,9 +122,18 @@ function toSiteSettings(rows: { key: string; value: string | null }[]): SiteSett
   for (const row of rows) {
     if (row.key === 'social_facebook_url') map.facebookUrl = row.value?.trim() || null
     if (row.key === 'social_youtube_url') map.youtubeUrl = row.value?.trim() || null
+    if (row.key === 'social_twitter_url') map.twitterUrl = row.value?.trim() || null
+    if (row.key === 'social_linkedin_url') map.linkedinUrl = row.value?.trim() || null
+    if (row.key === 'social_instagram_url') map.instagramUrl = row.value?.trim() || null
     if (row.key === 'contact_email') map.contactEmail = row.value?.trim() || null
     if (row.key === 'contact_whatsapp') map.contactWhatsapp = row.value?.trim() || null
     if (row.key === 'contact_sms') map.contactSms = row.value?.trim() || null
+    if (row.key === 'contact_phone') map.contactPhone = row.value?.trim() || null
+    if (row.key === 'contact_address_street') map.contactAddressStreet = row.value?.trim() || null
+    if (row.key === 'contact_address_city') map.contactAddressCity = row.value?.trim() || null
+    if (row.key === 'contact_address_region') map.contactAddressRegion = row.value?.trim() || null
+    if (row.key === 'contact_address_country') map.contactAddressCountry = row.value?.trim() || null
+    if (row.key === 'contact_address_postal_code') map.contactAddressPostalCode = row.value?.trim() || null
     if (row.key === 'site_logo_url') map.logoUrl = row.value?.trim() || null
     if (row.key === 'site_name') map.siteName = row.value?.trim() || null
     if (row.key === 'site_tagline') map.siteTagline = row.value?.trim() || null
@@ -122,9 +164,18 @@ export async function getSiteSettingsAdmin(): Promise<
   const result: Record<SiteSettingKey, string | null> = {
     social_facebook_url: null,
     social_youtube_url: null,
+    social_twitter_url: null,
+    social_linkedin_url: null,
+    social_instagram_url: null,
     contact_email: null,
     contact_whatsapp: null,
     contact_sms: null,
+    contact_phone: null,
+    contact_address_street: null,
+    contact_address_city: null,
+    contact_address_region: null,
+    contact_address_country: null,
+    contact_address_postal_code: null,
     site_logo_url: null,
     site_name: null,
     site_tagline: null,
@@ -150,6 +201,12 @@ export async function getSiteSettingsAdmin(): Promise<
     if (row.key === 'contact_email') result.contact_email = row.value
     if (row.key === 'contact_whatsapp') result.contact_whatsapp = row.value
     if (row.key === 'contact_sms') result.contact_sms = row.value
+    if (row.key === 'contact_phone') result.contact_phone = row.value
+    if (row.key === 'contact_address_street') result.contact_address_street = row.value
+    if (row.key === 'contact_address_city') result.contact_address_city = row.value
+    if (row.key === 'contact_address_region') result.contact_address_region = row.value
+    if (row.key === 'contact_address_country') result.contact_address_country = row.value
+    if (row.key === 'contact_address_postal_code') result.contact_address_postal_code = row.value
     if (row.key === 'site_logo_url') result.site_logo_url = row.value
     if (row.key === 'site_name') result.site_name = row.value
     if (row.key === 'site_tagline') result.site_tagline = row.value

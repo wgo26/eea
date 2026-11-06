@@ -54,6 +54,11 @@ const nextConfig: NextConfig = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
           },
+          // Agent discovery: llms.txt and Markdown alternate (RFC 8288)
+          {
+            key: "Link",
+            value: '</llms.txt>; rel="alternate"; type="text/plain"; title="LLMs.txt"',
+          },
         ],
       },
     ];

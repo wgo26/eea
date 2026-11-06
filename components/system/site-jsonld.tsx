@@ -19,6 +19,16 @@ export async function SiteJsonLd() {
         logoUrl: identity.logoUrl,
         facebookUrl: settings.facebookUrl,
         youtubeUrl: settings.youtubeUrl,
+        twitterUrl: settings.twitterUrl,
+        linkedinUrl: settings.linkedinUrl,
+        instagramUrl: settings.instagramUrl,
+        contactEmail: settings.contactEmail,
+        contactPhone: settings.contactPhone,
+        contactAddressStreet: settings.contactAddressStreet,
+        contactAddressCity: settings.contactAddressCity,
+        contactAddressRegion: settings.contactAddressRegion,
+        contactAddressCountry: settings.contactAddressCountry,
+        contactAddressPostalCode: settings.contactAddressPostalCode,
     });
     return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html }} />;
 }

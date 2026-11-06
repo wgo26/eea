@@ -15,6 +15,8 @@ import { createClient } from "@supabase/supabase-js";
  * 2. Refreshes the Supabase auth session cookie on every request.
  * 3. Resolves the active locale and exposes it via the x-locale header.
  *    (Shells are static route-group decisions — no runtime shell header.)
+ * 4. Content negotiation for Markdown alternate — serves Markdown when
+ *    agents request Accept: text/markdown on the homepage.
  *
  * Exemptions (never locale-redirected): /api/*, /auth/callback (Supabase
  * email links — the route handler redirects into the cookie's locale itself),
@@ -77,7 +79,10 @@ function isExemptFromLocaleRedirect(pathname: string): boolean {
         pathname.startsWith("/auth/callback") ||
         pathname === "/sitemap.xml" ||
         pathname === "/robots.txt" ||
+        pathname === "/llms.txt" ||
         pathname === "/favicon.ico" ||
+        pathname.startsWith("/.well-known/") ||
+        pathname.startsWith("/md") || // Markdown alternate
         /\.[a-zA-Z0-9]+$/.test(pathname)
     );
 }
@@ -101,6 +106,15 @@ function iaConsolidationTarget(pathname: string): string | null {
         return null;
     }
     return null;
+}
+
+function acceptsMarkdown(acceptHeader: string): boolean {
+    return acceptHeader.split(",").some((entry) => {
+        const [mediaType, ...parameters] = entry.trim().split(";");
+        if (mediaType.toLowerCase() !== "text/markdown") return false;
+        const quality = parameters.find((parameter) => parameter.trim().startsWith("q="));
+        return quality ? Number(quality.trim().slice(2)) > 0 : true;
+    });
 }
 
 export async function proxy(request: NextRequest) {
@@ -175,7 +189,15 @@ export async function proxy(request: NextRequest) {
         }
     }
 
-    // 2./3. Session refresh + locale/shell headers for the matched route.
+    // 1c. Content negotiation: serve Markdown for homepage when agents
+    // request Accept: text/markdown. This avoids the heavy HTML payload
+    // and cuts token cost dramatically. Only applies to the localized
+    // homepage paths (/en/, /fr/).
+    const acceptHeader = request.headers.get("accept") ?? "";
+    const wantsMarkdown = acceptsMarkdown(acceptHeader);
+    const isHomepage = /^\/(en|fr)\/?$/.test(pathname);
+
+    // Session refresh + locale/shell headers for the matched route.
     const prefix = /^\/(en|fr)(?=\/|$)/.exec(pathname);
     const locale: Locale = prefix ? (prefix[1] as Locale) : negotiated;
 
@@ -188,9 +210,20 @@ export async function proxy(request: NextRequest) {
     const hasSessionCookie = request.cookies
         .getAll()
         .some((c) => c.name.startsWith("sb-") && c.name.includes("auth-token"));
-    const response = hasSessionCookie
+    let response = hasSessionCookie
         ? await updateSession(request)
         : NextResponse.next({ request });
+
+    if (wantsMarkdown && isHomepage) {
+        const url = request.nextUrl.clone();
+        url.pathname = `/${locale}/md`;
+        const rewriteResponse = NextResponse.rewrite(url);
+        for (const cookie of response.cookies.getAll()) {
+            rewriteResponse.cookies.set(cookie);
+        }
+        response = rewriteResponse;
+    }
+
     response.headers.set("x-locale", locale);
 
     // Content Protection Headers — defense in depth

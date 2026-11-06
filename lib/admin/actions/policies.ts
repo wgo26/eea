@@ -275,9 +275,18 @@ export async function saveAdvertiseSection(input: {
 const SITE_SETTING_KEYS = [
   'social_facebook_url',
   'social_youtube_url',
+  'social_twitter_url',
+  'social_linkedin_url',
+  'social_instagram_url',
   'contact_email',
   'contact_whatsapp',
   'contact_sms',
+  'contact_phone',
+  'contact_address_street',
+  'contact_address_city',
+  'contact_address_region',
+  'contact_address_country',
+  'contact_address_postal_code',
   'site_logo_url',
   'site_name',
   'site_tagline',
@@ -310,6 +319,14 @@ const CONTACT_WHATSAPP_KEYS = ['contact_whatsapp'] as const
 
 /** Public SMS intake number: international format — rendered as an sms: link. */
 const CONTACT_SMS_KEYS = ['contact_sms'] as const
+const CONTACT_PHONE_KEYS = ['contact_phone'] as const
+const CONTACT_ADDRESS_KEYS = [
+  'contact_address_street',
+  'contact_address_city',
+  'contact_address_region',
+  'contact_address_country',
+  'contact_address_postal_code',
+] as const
 
 function validateContactEmail(value: string): string | null {
   if (value.length > 160) return null
@@ -322,6 +339,12 @@ function validateWhatsappNumber(value: string): string | null {
   const clean = value.trim().replace(/[\s-]/g, '')
   if (!/^\+\d{7,15}$/.test(clean)) return null
   return value.trim()
+}
+
+function validateContactAddress(value: string): string | null {
+  const clean = value.trim()
+  if (clean.length > 160 || /[<>]/.test(clean)) return null
+  return clean
 }
 
 function validateFeatureFlag(value: string): string | null {
@@ -370,9 +393,7 @@ function validateImageUrl(value: string): string | null {
   return validatePublicUrl(value)
 }
 
-/** Upsert one site setting (footer social links + site branding). An empty
- *  value deletes the row — the footer hides that icon, the header falls back
- *  to the built-in wordmark, and the defaults return. */
+/** Upsert one public site setting. Empty values delete the row. */
 export async function saveSiteSetting(input: {
   key: string
   value: string | null
@@ -403,6 +424,12 @@ export async function saveSiteSetting(input: {
       } else if ((CONTACT_SMS_KEYS as readonly string[]).includes(input.key)) {
         valid = validateWhatsappNumber(value)
         if (!valid) return { ok: false, error: 'Enter the SMS number in international format, e.g. +XXX XXX XXX XXX.' }
+      } else if ((CONTACT_PHONE_KEYS as readonly string[]).includes(input.key)) {
+        valid = validateWhatsappNumber(value)
+        if (!valid) return { ok: false, error: 'Enter the telephone number in international format, e.g. +XXX XXX XXX XXX.' }
+      } else if ((CONTACT_ADDRESS_KEYS as readonly string[]).includes(input.key)) {
+        valid = validateContactAddress(value)
+        if (!valid) return { ok: false, error: 'Enter plain address text (max 160 characters, no markup).' }
       } else if (input.key === 'site_logo_url') {
         valid = validateImageUrl(value)
         if (!valid) return { ok: false, error: 'Enter a full https:// URL or a site path starting with /.' }

@@ -1,18 +1,7 @@
 import type { Metadata } from "next";
 import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import Link from "next/link";
-import {
-    ArrowRight,
-    BadgeCheck,
-    BookOpen,
-    Copyright,
-    FileText,
-    Globe,
-    Mail,
-    Scale,
-    ShieldCheck,
-    Users,
-} from "lucide-react";
+import { ArrowRight, BadgeCheck, BookOpen, Copyright, FileText, Globe, Mail, Scale, ShieldCheck, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +16,8 @@ import { getCorrectionRegister, type RegisterEntry } from "@/lib/queries/correct
 import { getAboutOverrides } from "@/lib/admin/queries";
 import { formatMoneyCompact } from "@/lib/format";
 import { ApertureMark } from "@/components/system/page-skeletons";
+import { itemListJsonLd, renderJsonLd, webPageJsonLd } from "@/lib/seo/jsonld";
+import { SITE } from "@/lib/constants";
 
 /**
  * A3 — ISR: editorial content, revalidated every 5 minutes (or on demand).
@@ -96,8 +87,33 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
     const closingBody = text("closing", "body", a.closingBody);
     const closingCta = text("closing", "ctaLabel", a.closingCta);
 
+    const policyLabels = {
+        terms: dict.footer.terms,
+        privacy: dict.footer.privacy,
+        guidelines: dict.footer.guidelines,
+        copyright: dict.footer.copyright,
+        contact: dict.footer.contact,
+    };
+    const webPageSchema = webPageJsonLd({
+        name: a.title,
+        description: a.tagline,
+        url: `${SITE.url}${localePath(locale, "/about")}`,
+        breadcrumbs: [
+            { name: a.title, url: `${SITE.url}${localePath(locale, "/about")}` },
+        ],
+    });
+    const policyListSchema = itemListJsonLd({
+        items: POLICY_LINKS.map((link) => ({
+            name: policyLabels[link.labelKey],
+            url: `${SITE.url}${localePath(locale, link.href)}`,
+        })),
+    });
+
+    const jsonLd = renderJsonLd([webPageSchema, policyListSchema]);
+
     return (
         <div className="mx-auto w-full max-w-6xl space-y-16 px-4 py-10 md:px-6 md:py-14">
+            <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
             {/* ------------------------------------------------ Hero — the eye */}
             <section className="relative overflow-hidden rounded-[2rem] bg-foreground px-6 py-14 text-background md:px-12 md:py-20">
                 {/* Aperture rings — the brand motif, oversized and cropped */}

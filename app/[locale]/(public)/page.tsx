@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
-import { buildAlternates } from "@/lib/i18n/urls";
+import type { Locale } from "@/lib/i18n";
+import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { getHomeData } from "@/lib/queries/home";
 import { DEFAULT_OG_IMAGE } from "@/lib/seo/og";
+import { itemListJsonLd, renderJsonLd, webPageJsonLd } from "@/lib/seo/jsonld";
+import { SITE } from "@/lib/constants";
 import { SubmitCta } from "@/components/home/submit-cta";
 import { DigestCta } from "@/components/home/digest-cta";
 import {
@@ -30,6 +33,36 @@ type LocaleHomePageProps = { params: Promise<{ locale: string }> };
  * The literal is required by the static-analyzability rule for segment config.
  */
 export const revalidate = 300;
+
+async function HomeStructuredData({ locale }: { locale: Locale }) {
+    const dict = getDictionary(locale);
+    const data = await getHomeData(locale);
+    const siteUrl = SITE.url.replace(/\/$/, "");
+    const pageUrl = `${siteUrl}${localePath(locale, "/")}`;
+    const pageSchema = webPageJsonLd({
+        name: dict.meta.title,
+        description: dict.meta.description,
+        url: pageUrl,
+    });
+    const items = [
+        ...data.photoStories,
+        ...data.news,
+        ...data.notices,
+        ...data.culture,
+        ...data.listings,
+    ]
+        .slice(0, 12)
+        .map((item) => ({
+            name: item.title,
+            url: `${siteUrl}${item.href}`,
+        }));
+    const jsonLd = renderJsonLd([
+        pageSchema,
+        ...(items.length > 0 ? [itemListJsonLd({ items })] : []),
+    ]);
+
+    return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />;
+}
 
 /**
  * Homepage metadata: the page's own localized canonical + hreflang pair
@@ -84,6 +117,9 @@ export default async function LocaleHomePage({ params }: LocaleHomePageProps) {
 
     return (
         <div className="mx-auto w-full max-w-7xl space-y-12 px-4 py-6 md:px-6 md:py-10">
+            <Suspense fallback={null}>
+                <HomeStructuredData locale={locale} />
+            </Suspense>
             <Suspense fallback={null}>
                 <HomeDegradedNotice locale={locale} dict={dict} />
             </Suspense>

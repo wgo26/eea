@@ -48,7 +48,9 @@ Companion docs: `features.md` (what we build), `sitemap.md` (where it lives), th
   (cached request-locale helper).
 - **Metadata/SEO** — `buildAlternates` per public page (canonical + hreflang),
   `noindex` on `(app)`/`(focused)` layouts, locale-aware `sitemap.ts` +
-  `robots.ts`.
+  `robots.ts`. Agent discovery is provided by `/llms.txt`, an Accept-negotiated
+  Markdown homepage, RFC 8288 `Link` metadata, and the read-only MCP endpoint
+  advertised at `/.well-known/mcp/server-card.json`.
 
 ### 0.3 P0 breaks — status
 
@@ -1730,7 +1732,6 @@ below.*
   - **Tests** — `lib/storage/validate.test.ts` pins the re-encode contract
     with real sharp buffers (WebP output + 2560 cap + no upscale + PNG
     lossless + executable rejection).
-
 
 
 

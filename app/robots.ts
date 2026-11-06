@@ -25,8 +25,12 @@ export default function robots(): MetadataRoute.Robots {
                     "/en/auth",
                     "/fr/auth",
                 ],
+                other: {
+                    "Content-Signal": "search=yes, ai-train=no",
+                },
             },
         ],
         sitemap: `${SITE.url}/sitemap.xml`,
+        host: SITE.url.replace(/^https?:\/\//, ""),
     };
 }

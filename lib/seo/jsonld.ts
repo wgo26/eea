@@ -186,6 +186,84 @@ export function placeJsonLd(input: PlaceJsonLdInput): Record<string, unknown> {
     };
 }
 
+/** FAQPage schema for pages with Q&A content. */
+export type FAQJsonLdInput = {
+    questions: { question: string; answer: string }[];
+};
+
+export function faqJsonLd(input: FAQJsonLdInput): Record<string, unknown> {
+    return {
+        "@type": "FAQPage",
+        mainEntity: input.questions.map((q) => ({
+            "@type": "Question",
+            name: q.question,
+            acceptedAnswer: {
+                "@type": "Answer",
+                text: q.answer,
+            },
+        })),
+    };
+}
+
+/** Service schema for service offerings. */
+export type ServiceJsonLdInput = {
+    name: string;
+    description?: string | null;
+    url: string;
+    providerName?: string | null;
+    areaServed?: string | null;
+};
+
+export function serviceJsonLd(input: ServiceJsonLdInput): Record<string, unknown> {
+    return {
+        "@type": "Service",
+        name: input.name,
+        description: input.description ?? undefined,
+        url: input.url,
+        provider: input.providerName
+            ? { "@type": "Organization", name: input.providerName }
+            : publisher(),
+        areaServed: input.areaServed
+            ? { "@type": "Place", name: input.areaServed }
+            : undefined,
+    };
+}
+
+/** WebPage schema for general pages. */
+export type WebPageJsonLdInput = {
+    name: string;
+    description?: string | null;
+    url: string;
+    breadcrumbs?: Crumb[];
+};
+
+export function webPageJsonLd(input: WebPageJsonLdInput): Record<string, unknown> {
+    return {
+        "@type": "WebPage",
+        name: input.name,
+        description: input.description ?? undefined,
+        url: input.url,
+        breadcrumb: input.breadcrumbs ? breadcrumbJsonLd(input.breadcrumbs) : undefined,
+        publisher: publisher(),
+    };
+}
+
+export type ItemListJsonLdInput = {
+    items: { name: string; url: string }[];
+};
+
+export function itemListJsonLd(input: ItemListJsonLdInput): Record<string, unknown> {
+    return {
+        "@type": "ItemList",
+        itemListElement: input.items.map((item, index) => ({
+            "@type": "ListItem",
+            position: index + 1,
+            name: item.name,
+            item: item.url,
+        })),
+    };
+}
+
 /** Serializes a JSON-LD graph for dangerouslySetInnerHTML (XSS-safe). */
 export function renderJsonLd(graph: Record<string, unknown>[]): string {
     return escapeJsonForLd({ "@context": "https://schema.org", "@graph": graph });

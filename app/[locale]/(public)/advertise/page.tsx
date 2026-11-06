@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
-import { buildAlternates } from "@/lib/i18n/urls";
+import { buildAlternates, localePath } from "@/lib/i18n/urls";
 import { Megaphone, Users, BadgeDollarSign, LayoutPanelTop } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdvertiseForm } from "@/components/advertise/advertise-form";
 import { getDictionary, resolveLocale } from "@/lib/i18n";
 import { getAdvertiseOverrides } from "@/lib/admin/queries";
+import { serviceJsonLd, renderJsonLd } from "@/lib/seo/jsonld";
+import { SITE } from "@/lib/constants";
 
 /**
  * Phase 1 — ISR. Locale comes from params (no headers()/cookies() read) and
@@ -56,8 +58,19 @@ export default async function AdvertisePage({ params }: { params: Promise<{ loca
         },
     ];
 
+    // Service schema for advertising offerings
+    const serviceSchema = serviceJsonLd({
+        name: title,
+        description: intro,
+        url: `${SITE.url}${localePath(locale, "/advertise")}`,
+        providerName: SITE.name,
+    });
+
+    const jsonLd = renderJsonLd([serviceSchema]);
+
     return (
         <div className="mx-auto w-full max-w-5xl px-4 py-8 md:px-6 lg:px-8">
+            <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
             <header className="mb-8 max-w-2xl">
                 <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
                     <Megaphone className="h-4 w-4" aria-hidden />

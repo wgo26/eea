@@ -5,6 +5,7 @@ import {
     breadcrumbJsonLd,
     eventJsonLd,
     imageGalleryJsonLd,
+    itemListJsonLd,
     personJsonLd,
     placeJsonLd,
     productJsonLd,
@@ -127,6 +128,20 @@ describe("JSON-LD rich-results eligibility", () => {
                 placeJsonLd({ name: "Mankon", url: `${SITE}/en/locations/mankon`, parentName: "Bamenda" }),
             ]),
         ).toBe(true);
+    });
+
+    it("builds an ItemList from visible page links", () => {
+        expect(itemListJsonLd({
+            items: [{ name: "Community news", url: `${SITE}/en/news` }],
+        })).toEqual({
+            "@type": "ItemList",
+            itemListElement: [{
+                "@type": "ListItem",
+                position: 1,
+                name: "Community news",
+                item: `${SITE}/en/news`,
+            }],
+        });
     });
 
     it("rejects graphs missing required fields", () => {
