@@ -4432,6 +4432,8 @@ export type Database = {
             is_public: boolean;
             preferred_locale: string;
             preferred_voice: string;
+            preferred_theme: string;
+            preferred_contrast: string;
             created_at: string;
             updated_at: string;
             is_suspended: boolean;
@@ -4455,6 +4457,8 @@ export type Database = {
             is_public?: boolean;
             preferred_locale?: string;
             preferred_voice?: string;
+            preferred_theme?: string;
+            preferred_contrast?: string;
             created_at?: string;
             updated_at?: string;
             is_suspended?: boolean;
@@ -4478,6 +4482,8 @@ export type Database = {
             is_public?: boolean | null;
             preferred_locale?: string | null;
             preferred_voice?: string | null;
+            preferred_theme?: string | null;
+            preferred_contrast?: string | null;
             created_at?: string | null;
             updated_at?: string | null;
             is_suspended?: boolean | null;
