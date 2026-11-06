@@ -250,7 +250,7 @@ export default async function PhotoStoryPage({ params }: PhotoStoryPageProps) {
             {/* Essay prose */}
             {/* Essay prose (plain drafts) or sanitized sections (built/imports). */}
             {story.body ? (
-                <section id="article-body" className="mt-12" aria-label={story.title}>
+                <section id="article-body" className="mt-12 protect-content" aria-label={story.title}>
                     <StoryBody body={story.body} bodyHtml={bodyHtml} />
                 </section>
             ) : null}

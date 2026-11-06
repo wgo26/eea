@@ -395,7 +395,7 @@ export default async function NewsArticlePage({ params }: NewsPageProps) {
             ) : null}
 
             {/* Body */}
-            <div id="article-body" className="scroll-mt-24">
+            <div id="article-body" className="scroll-mt-24 protect-content">
                 {bodyHtml ? (
                     <div
                         className="article-body max-w-none"

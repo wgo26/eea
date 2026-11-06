@@ -250,7 +250,7 @@ export default async function NoticePage({ params }: NoticePageProps) {
             {bodyHtml ? (
                 <section className="mt-10 max-w-4xl">
                     <div
-                        className="prose prose-neutral dark:prose-invert max-w-none text-base leading-relaxed"
+                        className="prose prose-neutral dark:prose-invert max-w-none text-base leading-relaxed protect-content"
                         dangerouslySetInnerHTML={{ __html: bodyHtml }}
                     />
                 </section>

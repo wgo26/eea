@@ -258,7 +258,7 @@ export default async function EventDetailPage({ params }: Props) {
                 {/* Event description / body */}
                 {bodyHtml ? (
                     <div
-                        className="prose prose-neutral dark:prose-invert max-w-none"
+                        className="prose prose-neutral dark:prose-invert max-w-none protect-content"
                         dangerouslySetInnerHTML={{ __html: bodyHtml }}
                     />
                 ) : null}
