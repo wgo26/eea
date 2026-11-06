@@ -5,8 +5,8 @@ import { ContentProtectionProvider } from "@/components/content-protection/provi
 
 /**
  * SensitiveRouteProtection — client wrapper that enables content protection
- * on sensitive routes (photo-stories, culture events, notices, buy-sell, submit).
- * Reads pathname from next/navigation to determine if protection should be active.
+ * on all public routes (since it's used in PublicShell which wraps all public pages).
+ * Reads pathname from next/navigation for potential future route-specific logic.
  */
 export function SensitiveRouteProtection({
   children,
@@ -17,19 +17,8 @@ export function SensitiveRouteProtection({
 }) {
   const pathname = usePathname();
 
-  // Define sensitive route patterns
-  const sensitivePatterns = [
-    /\/photo-stories/,
-    /\/culture\/events/,
-    /\/notices/,
-    /\/buy-sell/,
-    /\/submit/,
-    /\/stories/,
-    /\/street/,
-    /\/map/,
-  ];
-
-  const isSensitive = sensitivePatterns.some((pattern) => pattern.test(pathname));
+  // Protection enabled for all public routes (PublicShell wraps all public pages)
+  const isSensitive = true;
 
   return (
     <ContentProtectionProvider locale={locale} enabled={isSensitive}>
