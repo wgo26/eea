@@ -24,6 +24,9 @@ export type LocationData = {
     parentId: string | null;
     parentName?: string | null;
     contentCount?: number;
+    // Phase 3 — tier + hierarchy fields
+    depth?: number;
+    locationTypeId?: string | null;
 };
 
 export type LocationContent = {
@@ -74,6 +77,8 @@ type RawLocationRow = {
     latitude: number | null;
     longitude: number | null;
     parent_id: string | null;
+    depth: number | null;
+    location_type_id: string | null;
     parent?: { name: string | null } | { name: string | null }[] | null;
 };
 
@@ -103,6 +108,8 @@ function mapLocation(raw: RawLocationRow): LocationData | null {
         longitude: raw.longitude,
         parentId: raw.parent_id,
         parentName: parent?.name ?? null,
+        depth: raw.depth ?? null,
+        locationTypeId: raw.location_type_id ?? null,
     };
 }
 
@@ -131,6 +138,7 @@ function mapContent(row: RawContentRow, locale: Locale): LocationContent | null 
 }
 
 const LOCATION_SELECT = `id, name, slug, latitude, longitude, parent_id,
+    depth, location_type_id,
     parent:locations!parent_id(name)`;
 
 /**
@@ -586,6 +594,428 @@ export async function getLocationsByContentType(
         return await getCachedLocationsByContentType(contentType);
     } catch (err) {
         logCacheFailure("locations", "getLocationsByContentType", err);
+        return [];
+    }
+}
+
+/* ============================================================================
+   Phase 3 — Hierarchy queries (ancestors / descendants / aggregated content)
+   ============================================================================ */
+
+export type LocationAncestor = {
+    id: string;
+    name: string;
+    nameFr: string | null;
+    slug: string;
+    depth: number;
+    locationTypeName: string | null;
+};
+
+export type LocationChild = {
+    id: string;
+    name: string;
+    nameFr: string | null;
+    slug: string;
+    depth: number;
+    latitude: number | null;
+    longitude: number | null;
+    isActive: boolean;
+    isFeatured: boolean;
+    contentCount: number;
+    altNames: string[] | null;
+    locationTypeName: string | null;
+};
+
+export type HierarchyContent = LocationContent & {
+    locationDepth: number;
+    locationPath: string[];
+};
+
+type RawLocationTreeRow = {
+    id: string;
+    name: string;
+    slug: string;
+    depth: number;
+    location_type_id: string | null;
+    location_type_name: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    is_active: boolean;
+    is_featured: boolean;
+    alt_names: string[] | null;
+    translations: {
+        locale: string;
+        name: string | null;
+    }[] | { locale: string; name: string | null } | null;
+};
+
+function mapTreeRow(raw: RawLocationTreeRow, locale: Locale): LocationChild | null {
+    if (!raw.name || !raw.slug) return null;
+    const translations = Array.isArray(raw.translations) ? raw.translations : raw.translations ? [raw.translations] : [];
+    const fr = translations.find((t) => t.locale === "fr");
+    return {
+        id: raw.id,
+        name: raw.name,
+        nameFr: fr?.name ?? null,
+        slug: raw.slug,
+        depth: raw.depth,
+        latitude: raw.latitude,
+        longitude: raw.longitude,
+        isActive: raw.is_active,
+        isFeatured: raw.is_featured ?? false,
+        contentCount: 0,
+        altNames: raw.alt_names ?? null,
+        locationTypeName: raw.location_type_name ?? null,
+    };
+}
+
+/** Breadcrumb chain from the root tier down to (and including) the location.
+ * Uses the materialized `path` column — one query, no recursion. */
+const getCachedLocationAncestors = unstable_cache(
+    async (slug: string, locale: Locale): Promise<LocationAncestor[]> => {
+        const supabase = createAdminClient();
+        const { data: location, error: locError } = await safe("locations",
+            supabase
+                .from("locations")
+                .select("id, path, depth")
+                .eq("slug", slug)
+                .limit(1),
+        );
+        if (locError) throw new Error(locError.message);
+        const row = asOne(location);
+        if (!row) return [];
+
+        const pathIds = (row as { path: string[] | null }).path;
+        if (!pathIds || pathIds.length === 0) return [];
+
+        const { data, error } = await safe("locations",
+            supabase
+                .from("locations")
+                .select(
+                    `id, name, slug, depth, location_type_id,
+                    location_types(name_en),
+                    translations:location_translations(locale, name)`,
+                )
+                .in("id", pathIds)
+                .order("depth", { ascending: true }),
+        );
+        if (error) throw new Error(error.message);
+
+        return ((data ?? []) as RawLocationTreeRow[]).map((raw) => {
+            const translations = Array.isArray(raw.translations)
+                ? raw.translations
+                : raw.translations
+                    ? [raw.translations]
+                    : [];
+            const locTrans = translations.find((t) => t.locale === locale);
+            const locType = Array.isArray(raw.location_types)
+                ? raw.location_types[0]
+                : raw.location_types;
+            return {
+                id: raw.id,
+                name: locTrans?.name ?? raw.name,
+                nameFr: translations.find((t) => t.locale === "fr")?.name ?? null,
+                slug: raw.slug,
+                depth: raw.depth,
+                locationTypeName: locType?.name_en ?? null,
+            };
+        });
+    },
+    ["location-ancestors"],
+    { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getLocationAncestors(
+    slug: string,
+    locale: Locale = "en",
+): Promise<LocationAncestor[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedLocationAncestors(slug, locale);
+    } catch (err) {
+        logCacheFailure("locations", "getLocationAncestors", err);
+        return [];
+    }
+}
+
+/** All active descendant locations of a place (any depth), ordered by depth then name.
+ * Uses the materialized `path` column — `path cs '{id}'` means path contains the id. */
+const getCachedLocationDescendants = unstable_cache(
+    async (slug: string): Promise<LocationChild[]> => {
+        const supabase = createAdminClient();
+        const { data: location, error: locError } = await safe("locations",
+            supabase
+                .from("locations")
+                .select("id")
+                .eq("slug", slug)
+                .limit(1),
+        );
+        if (locError) throw new Error(locError.message);
+        const row = asOne(location);
+        if (!row) return [];
+
+        const locationId = row.id;
+        const { data, error } = await safe("locations",
+            supabase
+                .from("locations")
+                .select(
+                    `id, name, slug, depth, location_type_id, latitude, longitude,
+                    is_active, is_featured, alt_names,
+                    location_types(name_en),
+                    translations:location_translations(locale, name)`,
+                )
+                .filter("path", "cs", `{${locationId}}`)
+                .neq("id", locationId)
+                .eq("is_active", true)
+                .order("depth", { ascending: true })
+                .order("name", { ascending: true }),
+        );
+        if (error) throw new Error(error.message);
+
+        return ((data ?? []) as RawLocationTreeRow[])
+            .map((raw) => mapTreeRow(raw, "en"))
+            .filter((c): c is LocationChild => c !== null);
+    },
+    ["location-descendants"],
+    { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getLocationDescendants(slug: string): Promise<LocationChild[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedLocationDescendants(slug);
+    } catch (err) {
+        logCacheFailure("locations", "getLocationDescendants", err);
+        return [];
+    }
+}
+
+/** Published content for a location and all its descendants (aggregated up the tree).
+ * A region page shows stories from its divisions, cities, towns and quarters. */
+const getCachedLocationContentByHierarchy = unstable_cache(
+    async (
+        slug: string,
+        locale: Locale,
+        type: string | null,
+    ): Promise<HierarchyContent[]> => {
+        const supabase = createAdminClient();
+
+        // Resolve self + all descendant ids
+        const { data: location, error: locError } = await safe("locations",
+            supabase
+                .from("locations")
+                .select("id, path, depth")
+                .eq("slug", slug)
+                .limit(1),
+        );
+        if (locError) throw new Error(locError.message);
+        const row = asOne(location);
+        if (!row) return [];
+
+        const selfId = row.id;
+        const pathIds = ((row as { path: string[] | null }).path ?? []).filter(Boolean);
+        const descendantIdSet = new Set<string>();
+        for (const pid of pathIds) {
+            if (pid && pid !== selfId) descendantIdSet.add(pid);
+        }
+
+        // Query descendants' location ids via path containment
+        const { data: descendants, error: descError } = await safe("locations",
+            supabase
+                .from("locations")
+                .select("id")
+                .filter("path", "cs", `{${selfId}}`)
+                .neq("id", selfId),
+        );
+        if (descError) throw new Error(descError.message);
+
+        const allIds = new Set([selfId, ...descendantIdSet]);
+        for (const d of (descendants ?? [])) {
+            allIds.add((d as { id: string }).id);
+        }
+        const idArray = [...allIds];
+
+        let query = supabase
+            .from("content_items")
+            .select(CONTENT_SELECT_WITH_LOCATION)
+            .in("location_id", idArray)
+            .eq("status", "published")
+            .eq("is_archived", false)
+            .not("published_at", "is", null)
+            .order("published_at", { ascending: false })
+            .limit(100);
+
+        if (type) {
+            query = query.eq("type", type as "photo_story" | "news" | "notice" | "culture" | "listing" | "fundraiser");
+        }
+
+        const { data, error } = await safe("locations", query);
+        if (error) throw new Error(error.message);
+
+        // Attach depth info by re-reading locations
+        const { data: locRows, error: locError2 } = await safe("locations",
+            supabase
+                .from("locations")
+                .select("id, depth")
+                .in("id", idArray),
+        );
+        if (locError2) throw new Error(locError2.message);
+        const depthById = new Map<string, number>();
+        for (const lr of (locRows ?? [])) {
+            depthById.set((lr as { id: string; depth: number }).id, (lr as { id: string; depth: number }).depth);
+        }
+
+        return ((data ?? []) as RawContentRow[]).flatMap((row) => {
+            const item = mapContent(row, locale);
+            if (!item) return [];
+            const loc = asOne(
+                (row as unknown as { location?: { depth?: number } | { depth?: number }[] | null }).location,
+            );
+            const contentId = row.id as string;
+            return [
+                {
+                    ...item,
+                    locationDepth: loc?.depth ?? depthById.get(contentId) ?? 0,
+                    locationPath: [],
+                },
+            ];
+        });
+    },
+    ["location-content-hierarchy"],
+    { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getLocationContentByHierarchy(
+    slug: string,
+    locale: Locale = "en",
+    type?: string,
+): Promise<HierarchyContent[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedLocationContentByHierarchy(slug, locale, type ?? null);
+    } catch (err) {
+        logCacheFailure("locations", "getLocationContentByHierarchy", err);
+        return [];
+    }
+}
+
+/** Featured places (is_featured) with localized names, for homepage rails. */
+const getCachedFeaturedLocations = unstable_cache(
+    async (locale: Locale, limit = 12): Promise<LocationChild[]> => {
+        const supabase = createAdminClient();
+        const { data, error } = await safe("locations",
+            supabase
+                .from("locations")
+                .select(
+                    `id, name, slug, depth, latitude, longitude, is_active, is_featured, alt_names,
+                    location_types(name_en),
+                    translations:location_translations(locale, name)`,
+                )
+                .eq("is_featured", true)
+                .eq("is_active", true)
+                .order("name", { ascending: true })
+                .limit(limit),
+        );
+        if (error) throw new Error(error.message);
+        return ((data ?? []) as RawLocationTreeRow[])
+            .map((raw) => mapTreeRow(raw, locale))
+            .filter((c): c is LocationChild => c !== null);
+    },
+    ["featured-locations"],
+    { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getFeaturedLocations(
+    locale: Locale = "en",
+    limit = 12,
+): Promise<LocationChild[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedFeaturedLocations(locale, limit);
+    } catch (err) {
+        logCacheFailure("locations", "getFeaturedLocations", err);
+        return [];
+    }
+}
+
+/** All top-level locations (continents / countries) with localized names, for the directory index. */
+const getCachedTopLevelLocations = unstable_cache(
+    async (locale: Locale): Promise<LocationChild[]> => {
+        const supabase = createAdminClient();
+        const { data, error } = await safe("locations",
+            supabase
+                .from("locations")
+                .select(
+                    `id, name, slug, depth, latitude, longitude, is_active, is_featured, alt_names,
+                    location_types(name_en),
+                    translations:location_translations(locale, name)`,
+                )
+                .is("parent_id", null)
+                .eq("is_active", true)
+                .order("name", { ascending: true }),
+        );
+        if (error) throw new Error(error.message);
+        return ((data ?? []) as RawLocationTreeRow[])
+            .map((raw) => mapTreeRow(raw, locale))
+            .filter((c): c is LocationChild => c !== null);
+    },
+    ["top-level-locations"],
+    { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getTopLevelLocations(locale: Locale = "en"): Promise<LocationChild[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedTopLevelLocations(locale);
+    } catch (err) {
+        logCacheFailure("locations", "getTopLevelLocations", err);
+        return [];
+    }
+}
+
+/** Direct children of a location (one tier down), ordered by name. */
+const getCachedLocationChildren = unstable_cache(
+    async (slug: string): Promise<LocationChild[]> => {
+        const supabase = createAdminClient();
+        const { data: location, error: locError } = await safe("locations",
+            supabase
+                .from("locations")
+                .select("id, depth")
+                .eq("slug", slug)
+                .limit(1),
+        );
+        if (locError) throw new Error(locError.message);
+        const row = asOne(location);
+        if (!row) return [];
+
+        const { data, error } = await safe("locations",
+            supabase
+                .from("locations")
+                .select(
+                    `id, name, slug, depth, latitude, longitude, is_active, is_featured, alt_names,
+                    location_types(name_en),
+                    translations:location_translations(locale, name)`,
+                )
+                .eq("parent_id", row.id)
+                .eq("is_active", true)
+                .order("name", { ascending: true }),
+        );
+        if (error) throw new Error(error.message);
+
+        return ((data ?? []) as RawLocationTreeRow[])
+            .map((raw) => mapTreeRow(raw, "en"))
+            .filter((c): c is LocationChild => c !== null);
+    },
+    ["location-children"],
+    { tags: [CACHE_TAGS.locations], revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS },
+);
+
+export async function getLocationChildren(slug: string): Promise<LocationChild[]> {
+    if (!hasDatabase()) return [];
+    try {
+        return await getCachedLocationChildren(slug);
+    } catch (err) {
+        logCacheFailure("locations", "getLocationChildren", err);
         return [];
     }
 }

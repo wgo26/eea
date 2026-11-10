@@ -3,13 +3,15 @@ import { getDictionary } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/urls'
 import { requireCapability } from '@/lib/auth/guards'
 import { isAdminRoles } from '@/lib/auth/roles'
-import { getCategoriesAdmin, getLocationsAdmin } from '@/lib/admin/queries'
+import { getCategoriesAdmin, getLocationsAdmin, getLocationTypesAdmin, getLocationTagsAdmin } from '@/lib/admin/queries'
 import { PageHeader } from '@/components/admin/page-header'
 import { Tabs } from '@/components/admin/tabs'
 import { DataTable } from '@/components/admin/data-table'
 import { SearchBar } from '@/components/admin/filter-pills'
 import { CategoryCreateForm, CategoryRowActions } from './category-client'
 import { LocationCreateForm, LocationRowActions } from './location-client'
+import { LocationTypeCreateForm, LocationTypeRowActions } from './location-type-client'
+import { LocationTagCreateForm, LocationTagRowActions } from './location-tag-client'
 
 export async function generateMetadata(): Promise<{ title: string }> {
   const locale = await getRequestLocale()
@@ -38,12 +40,14 @@ export default async function Page({
   const common = dict.admin.common
 
   const params = await searchParams
-  const activeTab = params.tab === 'locations' ? 'locations' : 'categories'
+  const activeTab = params.tab === 'locations' ? 'locations' : params.tab === 'location-types' ? 'location-types' : params.tab === 'location-tags' ? 'location-tags' : 'categories'
   const search = params.q?.trim() || undefined
 
-  const [categories, locations] = await Promise.all([
+  const [categories, locations, types, tags] = await Promise.all([
     getCategoriesAdmin(search),
     getLocationsAdmin(search),
+    getLocationTypesAdmin(),
+    getLocationTagsAdmin(),
   ])
 
   const base = localePath(locale, '/admin/taxonomy')
@@ -65,6 +69,8 @@ export default async function Page({
           tabs={[
             { key: 'categories', label: t.tabCategories, count: categories.length },
             { key: 'locations', label: t.tabLocations, count: locations.length },
+            { key: 'location-types', label: t.locationTypes, count: types.length },
+            { key: 'location-tags', label: t.locationTags, count: tags.length },
           ]}
           active={activeTab}
           hrefFor={(key) => `${base}?tab=${key}${qs}`}
@@ -150,9 +156,9 @@ export default async function Page({
             ]}
           />
         </div>
-      ) : (
+      ) : activeTab === 'locations' ? (
         <div className="space-y-5">
-          <LocationCreateForm copy={t} common={common} locations={locations} />
+          <LocationCreateForm copy={t} common={common} locations={locations} types={types} tags={tags} />
 
           <DataTable
             rows={locations}
@@ -216,6 +222,129 @@ export default async function Page({
                   <LocationRowActions
                     location={r}
                     locations={locations}
+                    types={types}
+                    tags={tags}
+                    copy={t}
+                    common={common}
+                    canDelete={canDelete}
+                  />
+                ),
+                className: 'text-right',
+              },
+            ]}
+          />
+        </div>
+      ) : activeTab === 'location-types' ? (
+        <div className="space-y-5">
+          <LocationTypeCreateForm copy={t} common={common} />
+
+          <DataTable
+            rows={types}
+            rowKey={(r) => r.id}
+            emptyMessage={search ? common.emptyFiltered : t.locationsEmpty}
+            columns={[
+              {
+                key: 'name',
+                header: t.colTypeName,
+                render: (r) => (
+                  <div className="min-w-[140px] max-w-[240px]">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium truncate">{r.nameEn}</span>
+                      <span className="text-xs text-muted-foreground truncate">{r.nameFr}</span>
+                    </div>
+                    <span className="mt-1 inline-flex items-center rounded-full border border-border/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      {r.slug}
+                    </span>
+                  </div>
+                ),
+              },
+              {
+                key: 'icon',
+                header: t.locationTypeIcon,
+                render: (r) => <span className="text-xs text-muted-foreground whitespace-nowrap">{r.icon ?? '—'}</span>,
+                headerClassName: 'hidden sm:table-cell',
+                className: 'hidden sm:table-cell whitespace-nowrap',
+              },
+              {
+                key: 'color',
+                header: t.locationTypeColor,
+                render: (r) => (
+                  <span className="inline-flex items-center gap-1.5 text-xs">
+                    <span className="h-4 w-4 rounded-full border border-border" style={{ backgroundColor: r.color ?? '#000000' }} />
+                    {r.color ?? '—'}
+                  </span>
+                ),
+                headerClassName: 'hidden sm:table-cell',
+                className: 'hidden sm:table-cell whitespace-nowrap',
+              },
+              {
+                key: 'sortOrder',
+                header: t.locationTypeSortOrder,
+                render: (r) => <span className="text-xs tabular-nums whitespace-nowrap">{r.sortOrder}</span>,
+                headerClassName: 'hidden sm:table-cell',
+                className: 'hidden sm:table-cell whitespace-nowrap',
+              },
+              {
+                key: 'actions',
+                header: '',
+                stickyRight: true,
+                render: (r) => (
+                  <LocationTypeRowActions
+                    type={r}
+                    types={types}
+                    copy={t}
+                    common={common}
+                    canDelete={canDelete}
+                  />
+                ),
+                className: 'text-right',
+              },
+            ]}
+          />
+        </div>
+      ) : (
+        <div className="space-y-5">
+          <LocationTagCreateForm copy={t} common={common} />
+
+          <DataTable
+            rows={tags}
+            rowKey={(r) => r.id}
+            emptyMessage={search ? common.emptyFiltered : t.locationsEmpty}
+            columns={[
+              {
+                key: 'name',
+                header: t.colTagName,
+                render: (r) => (
+                  <div className="min-w-[140px] max-w-[240px]">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium truncate">{r.nameEn}</span>
+                      <span className="text-xs text-muted-foreground truncate">{r.nameFr}</span>
+                    </div>
+                    <span className="mt-1 inline-flex items-center rounded-full border border-border/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      {r.slug}
+                    </span>
+                  </div>
+                ),
+              },
+              {
+                key: 'color',
+                header: t.locationTagColor,
+                render: (r) => (
+                  <span className="inline-flex items-center gap-1.5 text-xs">
+                    <span className="h-4 w-4 rounded-full border border-border" style={{ backgroundColor: r.color ?? '#000000' }} />
+                    {r.color ?? '—'}
+                  </span>
+                ),
+                headerClassName: 'hidden sm:table-cell',
+                className: 'hidden sm:table-cell whitespace-nowrap',
+              },
+              {
+                key: 'actions',
+                header: '',
+                stickyRight: true,
+                render: (r) => (
+                  <LocationTagRowActions
+                    tag={r}
                     copy={t}
                     common={common}
                     canDelete={canDelete}

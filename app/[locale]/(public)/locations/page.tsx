@@ -12,7 +12,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { LocationMap } from "@/components/locations/location-map";
-import { getLocationsWithCounts } from "@/lib/queries/locations";
+import { getLocationsWithCounts, getTopLevelLocations } from "@/lib/queries/locations";
 
 /**
  * A3 — ISR: editorial content, revalidated every 5 minutes (or on demand).
@@ -35,15 +35,16 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
     const { locale: rawLocale } = await params;
     const locale = resolveLocale(rawLocale);
     const dict = getDictionary(locale);
-    const locations = await getLocationsWithCounts();
-    const ranked = [...locations].sort(
+    const [allLocations, topLevel] = await Promise.all([
+        getLocationsWithCounts(),
+        getTopLevelLocations(locale),
+    ]);
+    const ranked = [...allLocations].sort(
         (a, b) => (b.contentCount ?? 0) - (a.contentCount ?? 0),
     );
 
     // Featured/most-active/map are coverage claims — only places that
-    // actually have published stories may appear in them. The directory
-    // grid below still lists every registered place (people follow and
-    // claim them), with an honest "awaiting first story" label.
+    // actually have published stories may appear in them.
     const featured = ranked.filter((l) => (l.contentCount ?? 0) > 0).slice(0, 3);
     const totalCoverage = ranked.reduce((sum, item) => sum + (item.contentCount ?? 0), 0);
     const activePlaces = ranked.filter((item) => (item.contentCount ?? 0) > 0).length;
@@ -56,6 +57,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
             latitude: Number(l.latitude),
             longitude: Number(l.longitude),
             href: localePath(locale, `/locations/${l.slug}`),
+            depth: l.depth ?? 0,
         }));
 
     return (
@@ -141,7 +143,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                     </div>
                 </div>
                 {mappedHubs.length > 0 ? (
-                    <LocationMap hubs={mappedHubs} copy={dict.map} />
+                    <LocationMap hubs={mappedHubs} copy={dict.map} tieredClustering />
                 ) : (
                     <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
                         {dict.map.noMapped}
@@ -162,8 +164,43 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                     </Badge>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {ranked.map((location) => (
+                {/* Phase 4 — tiered directory: continents / countries first, then drill down. */}
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {topLevel.map((place) => (
+                        <Link
+                            key={place.slug}
+                            href={localePath(locale, `/locations/${place.slug}`)}
+                            className="group rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-md"
+                        >
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <h3 className="text-lg font-semibold tracking-tight">{place.name}</h3>
+                                    <span className="mt-1 inline-flex items-center rounded-full border border-border/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                        {place.locationTypeName}
+                                    </span>
+                                </div>
+                                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                                    <MapPin className="h-4 w-4" aria-hidden />
+                                </span>
+                            </div>
+
+                            <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+                                <span>
+                                    {(place.contentCount ?? 0) > 0
+                                        ? `${place.contentCount ?? 0} ${dict.locations.items}`
+                                        : dict.locations.awaitingFirst}
+                                </span>
+                                <span className="inline-flex items-center gap-1 font-medium text-primary">
+                                    {dict.locations.explore}
+                                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" aria-hidden />
+                                </span>
+                            </div>
+                        </Link>
+                    ))}
+                </div>
+
+                <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {ranked.filter((l) => l.depth && l.depth > 0).map((location) => (
                         <Link
                             key={location.slug}
                             href={localePath(locale, `/locations/${location.slug}`)}

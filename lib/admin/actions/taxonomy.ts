@@ -235,13 +235,17 @@ export async function deleteCategory(categoryId: string, reassignToId?: string):
   }
 }
 
-/** Create a location (place hub + content geography). Slug auto-derives. */
+/** Create a location (place hub + content geography). Slug auto-derives.
+ * Writes both EN and FR rows into location_translations so the place is
+ * bilingual from day one. `name` is the English name; `nameFr` the French. */
 export async function createLocation(input: {
   name: string
+  nameFr?: string
   slug?: string
-  locale?: string
   locationType?: string
+  locationTypeId?: string | null
   description?: string
+  descriptionFr?: string
   latitude?: number | null
   longitude?: number | null
   parentId?: string | null
@@ -263,18 +267,34 @@ export async function createLocation(input: {
       if (!parent?.length) return { ok: false, error: 'Parent location not found.' }
     }
 
-    const { error } = await supabase.from('locations').insert({
+    const locationTypeId: string | null = input.locationTypeId ?? null
+    if (locationTypeId) {
+      const { data: type } = await supabase.from('location_types').select('id').eq('id', locationTypeId).limit(1)
+      if (!type?.length) return { ok: false, error: 'Location type not found.' }
+    }
+
+    const { data: created, error } = await supabase.from('locations').insert({
       name,
       slug,
-      locale: input.locale === 'fr' ? 'fr' : 'en',
+      locale: 'en',
       location_type: input.locationType?.trim() || null,
+      location_type_id: locationTypeId,
       description: input.description?.trim() || null,
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
       parent_id: parentId,
       is_active: input.isActive ?? true,
-    })
-    if (error) return { ok: false, error: error.message }
+    }).select('id').single()
+    if (error || !created) return { ok: false, error: error?.message ?? 'Could not create the location.' }
+
+    const nameFr = input.nameFr?.trim() || null
+    const descriptionFr = input.descriptionFr?.trim() || null
+    const transRows = [
+      { location_id: created.id, locale: 'en', name, description: input.description?.trim() || null },
+      ...(nameFr ? [{ location_id: created.id, locale: 'fr', name: nameFr, description: descriptionFr }] : []),
+    ]
+    const { error: transErr } = await supabase.from('location_translations').insert(transRows)
+    if (transErr) return { ok: false, error: transErr.message }
 
     await audit(supabase, user.id, { action: 'taxonomy:location:create', notes: slug })
     revalidateTaxonomy()
@@ -302,15 +322,18 @@ async function locationCreatesCycle(
   return true
 }
 
-/** Edit a location. Slug renames preserve the old public URL as a redirect. */
+/** Edit a location. Slug renames preserve the old public URL as a redirect.
+ * Writes / upserts both EN and FR translation rows. */
 export async function updateLocation(
   locationId: string,
   input: {
     name?: string
+    nameFr?: string | null
     slug?: string
-    locale?: string
     locationType?: string | null
+    locationTypeId?: string | null
     description?: string | null
+    descriptionFr?: string | null
     latitude?: number | null
     longitude?: number | null
     parentId?: string | null
@@ -348,8 +371,15 @@ export async function updateLocation(
       if (clash?.length) return { ok: false, error: 'A location with that slug already exists.' }
     }
     if (input.locationType !== undefined) patch.location_type = input.locationType?.trim() || null
+    if (input.locationTypeId !== undefined) {
+      const locationTypeId: string | null = input.locationTypeId
+      if (locationTypeId) {
+        const { data: type } = await supabase.from('location_types').select('id').eq('id', locationTypeId).limit(1)
+        if (!type?.length) return { ok: false, error: 'Location type not found.' }
+      }
+      patch.location_type_id = locationTypeId
+    }
     if (input.description !== undefined) patch.description = input.description?.trim() || null
-    if (input.locale !== undefined) patch.locale = input.locale === 'fr' ? 'fr' : 'en'
     if (input.latitude !== undefined) patch.latitude = input.latitude
     if (input.longitude !== undefined) patch.longitude = input.longitude
     if (input.isActive !== undefined) patch.is_active = input.isActive
@@ -365,9 +395,39 @@ export async function updateLocation(
       patch.parent_id = input.parentId
     }
 
-    if (Object.keys(patch).length === 0) return { ok: true }
-    const { error } = await supabase.from('locations').update(patch as UpdateOf<'locations'>).eq('id', locationId)
-    if (error) return { ok: false, error: error.message }
+    if (Object.keys(patch).length > 0) {
+      const { error } = await supabase.from('locations').update(patch as UpdateOf<'locations'>).eq('id', locationId)
+      if (error) return { ok: false, error: error.message }
+    }
+
+    // Translations: upsert EN + FR, deleting FR when cleared to null.
+    const nameEn = input.name !== undefined ? input.name.trim() : null
+    const nameFr = input.nameFr !== undefined ? (input.nameFr?.trim() || null) : null
+    const descEn = input.description !== undefined ? (input.description?.trim() || null) : null
+    const descFr = input.descriptionFr !== undefined ? (input.descriptionFr?.trim() || null) : null
+
+    if (nameEn !== null || descEn !== null) {
+      const { error } = await supabase.from('location_translations').upsert({
+        location_id: locationId,
+        locale: 'en',
+        name: nameEn ?? row.name,
+        description: descEn ?? null,
+      }, { onConflict: 'location_id,locale' })
+      if (error) return { ok: false, error: error.message }
+    }
+    if (nameFr !== null || descFr !== null) {
+      if (nameFr) {
+        const { error } = await supabase.from('location_translations').upsert({
+          location_id: locationId,
+          locale: 'fr',
+          name: nameFr,
+          description: descFr ?? null,
+        }, { onConflict: 'location_id,locale' })
+        if (error) return { ok: false, error: error.message }
+      } else {
+        await supabase.from('location_translations').delete().eq('location_id', locationId).eq('locale', 'fr')
+      }
+    }
 
     const newSlug = (patch.slug as string | undefined) ?? row.slug
     if (newSlug !== row.slug) {
@@ -495,6 +555,256 @@ export async function deleteLocationRedirect(redirectId: string): Promise<Action
     await audit(supabase, user.id, {
       action: 'taxonomy:location_redirect:delete',
       notes: `old_slug=${row.old_slug}`,
+    })
+    revalidateTaxonomy()
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Location types (tier registry: continent, country, region, …)     */
+/* ------------------------------------------------------------------ */
+
+/** Create a location tier (continent, country, region, division, …). */
+export async function createLocationType(input: {
+  slug: string
+  nameEn: string
+  nameFr: string
+  icon?: string
+  color?: string
+  sortOrder?: number
+  isActive?: boolean
+}): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageContent')
+    const slug = (input.slug?.trim() ? slugify(input.slug) : '') || ''
+    if (!slug || !validSlug(slug)) return { ok: false, error: 'Enter a valid slug (lowercase letters, numbers, hyphens).' }
+    const nameEn = input.nameEn.trim()
+    if (!nameEn) return { ok: false, error: 'An English name is required.' }
+    const nameFr = input.nameFr.trim()
+    if (!nameFr) return { ok: false, error: 'A French name is required.' }
+
+    const { data: clash } = await supabase.from('location_types').select('id').eq('slug', slug).limit(1)
+    if (clash?.length) return { ok: false, error: 'A location type with that slug already exists.' }
+
+    const { error } = await supabase.from('location_types').insert({
+      slug,
+      name_en: nameEn,
+      name_fr: nameFr,
+      icon: input.icon?.trim() || null,
+      color: input.color?.trim() || null,
+      sort_order: input.sortOrder ?? 0,
+    })
+    if (error) return { ok: false, error: error.message }
+
+    await audit(supabase, user.id, { action: 'taxonomy:location_type:create', notes: slug })
+    revalidateTaxonomy()
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/** Update a location tier. */
+export async function updateLocationType(
+  typeId: string,
+  input: {
+    slug?: string
+    nameEn?: string
+    nameFr?: string | null
+    icon?: string | null
+    color?: string | null
+    sortOrder?: number
+  },
+): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageContent')
+    const { data: current } = await supabase.from('location_types').select('id, slug').eq('id', typeId).limit(1)
+    const row = (current ?? [])[0] as { id: string; slug: string } | undefined
+    if (!row) return { ok: false, error: 'Location type not found.' }
+
+    const patch: Record<string, unknown> = {}
+    if (input.slug !== undefined) {
+      const slug = slugify(input.slug.trim())
+      if (!slug || !validSlug(slug)) return { ok: false, error: 'Enter a valid slug (lowercase letters, numbers, hyphens).' }
+      patch.slug = slug
+    }
+    if (patch.slug !== undefined && patch.slug !== row.slug) {
+      const { data: clash } = await supabase.from('location_types').select('id').eq('slug', patch.slug as string).neq('id', typeId).limit(1)
+      if (clash?.length) return { ok: false, error: 'A location type with that slug already exists.' }
+    }
+    if (input.nameEn !== undefined) {
+      const nameEn = input.nameEn.trim()
+      if (!nameEn) return { ok: false, error: 'An English name is required.' }
+      patch.name_en = nameEn
+    }
+    if (input.nameFr !== undefined) patch.name_fr = input.nameFr.trim() || null
+    if (input.icon !== undefined) patch.icon = input.icon?.trim() || null
+    if (input.color !== undefined) patch.color = input.color?.trim() || null
+    if (input.sortOrder !== undefined) patch.sort_order = input.sortOrder
+
+    if (Object.keys(patch).length > 0) {
+      const { error } = await supabase.from('location_types').update(patch as UpdateOf<'location_types'>).eq('id', typeId)
+      if (error) return { ok: false, error: error.message }
+    }
+
+    await audit(supabase, user.id, { action: 'taxonomy:location_type:update', notes: row.slug })
+    revalidateTaxonomy()
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/** Delete a location type (admin only). Blocked while locations reference it. */
+export async function deleteLocationType(typeId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertAdmin()
+    const { data: current } = await supabase.from('location_types').select('id, slug').eq('id', typeId).limit(1)
+    const row = (current ?? [])[0] as { id: string; slug: string } | undefined
+    if (!row) return { ok: false, error: 'Location type not found.' }
+
+    const { count } = await supabase.from('locations').select('id', { count: 'exact', head: true }).eq('location_type_id', typeId)
+    if ((count ?? 0) > 0) {
+      return { ok: false, error: `Cannot delete: ${count} location${(count ?? 0) === 1 ? '' : 's'} still use this type.` }
+    }
+
+    const { error } = await supabase.from('location_types').delete().eq('id', typeId)
+    if (error) return { ok: false, error: error.message }
+
+    await audit(supabase, user.id, { action: 'taxonomy:location_type:delete', notes: row.slug })
+    revalidateTaxonomy()
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Location tags (independent place tagging)                         */
+/* ------------------------------------------------------------------ */
+
+/** Create a location tag (market, historical, fondom, …). */
+export async function createLocationTag(input: {
+  slug: string
+  nameEn: string
+  nameFr: string
+  color?: string
+}): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageContent')
+    const slug = (input.slug?.trim() ? slugify(input.slug) : '') || ''
+    if (!slug || !validSlug(slug)) return { ok: false, error: 'Enter a valid slug (lowercase letters, numbers, hyphens).' }
+    const nameEn = input.nameEn.trim()
+    if (!nameEn) return { ok: false, error: 'An English name is required.' }
+    const nameFr = input.nameFr.trim()
+    if (!nameFr) return { ok: false, error: 'A French name is required.' }
+
+    const { data: clash } = await supabase.from('location_tags').select('id').eq('slug', slug).limit(1)
+    if (clash?.length) return { ok: false, error: 'A location tag with that slug already exists.' }
+
+    const { error } = await supabase.from('location_tags').insert({
+      slug,
+      name_en: nameEn,
+      name_fr: nameFr,
+      color: input.color?.trim() || null,
+    })
+    if (error) return { ok: false, error: error.message }
+
+    await audit(supabase, user.id, { action: 'taxonomy:location_tag:create', notes: slug })
+    revalidateTaxonomy()
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/** Update a location tag. */
+export async function updateLocationTag(
+  tagId: string,
+  input: {
+    slug?: string
+    nameEn?: string
+    nameFr?: string | null
+    color?: string | null
+  },
+): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageContent')
+    const { data: current } = await supabase.from('location_tags').select('id, slug').eq('id', tagId).limit(1)
+    const row = (current ?? [])[0] as { id: string; slug: string } | undefined
+    if (!row) return { ok: false, error: 'Location tag not found.' }
+
+    const patch: Record<string, unknown> = {}
+    if (input.slug !== undefined) {
+      const slug = slugify(input.slug.trim())
+      if (!slug || !validSlug(slug)) return { ok: false, error: 'Enter a valid slug (lowercase letters, numbers, hyphens).' }
+      patch.slug = slug
+    }
+    if (patch.slug !== undefined && patch.slug !== row.slug) {
+      const { data: clash } = await supabase.from('location_tags').select('id').eq('slug', patch.slug as string).neq('id', tagId).limit(1)
+      if (clash?.length) return { ok: false, error: 'A location tag with that slug already exists.' }
+    }
+    if (input.nameEn !== undefined) {
+      const nameEn = input.nameEn.trim()
+      if (!nameEn) return { ok: false, error: 'An English name is required.' }
+      patch.name_en = nameEn
+    }
+    if (input.nameFr !== undefined) patch.name_fr = input.nameFr.trim() || null
+    if (input.color !== undefined) patch.color = input.color?.trim() || null
+
+    if (Object.keys(patch).length > 0) {
+      const { error } = await supabase.from('location_tags').update(patch as UpdateOf<'location_tags'>).eq('id', tagId)
+      if (error) return { ok: false, error: error.message }
+    }
+
+    await audit(supabase, user.id, { action: 'taxonomy:location_tag:update', notes: row.slug })
+    revalidateTaxonomy()
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/** Delete a location tag (admin only). Taggings cascade. */
+export async function deleteLocationTag(tagId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertAdmin()
+    const { data: current } = await supabase.from('location_tags').select('id, slug').eq('id', tagId).limit(1)
+    const row = (current ?? [])[0] as { id: string; slug: string } | undefined
+    if (!row) return { ok: false, error: 'Location tag not found.' }
+
+    const { error } = await supabase.from('location_tags').delete().eq('id', tagId)
+    if (error) return { ok: false, error: error.message }
+
+    await audit(supabase, user.id, { action: 'taxonomy:location_tag:delete', notes: row.slug })
+    revalidateTaxonomy()
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/** Tag or untag a location. */
+export async function setLocationTag(locationId: string, tagId: string, add: boolean): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await assertCapability('manageContent')
+    if (add) {
+      const { error } = await supabase.from('location_taggings').upsert({
+        location_id: locationId,
+        tag_id: tagId,
+      }, { onConflict: 'location_id,tag_id' })
+      if (error) return { ok: false, error: error.message }
+    } else {
+      const { error } = await supabase.from('location_taggings').delete().eq('location_id', locationId).eq('tag_id', tagId)
+      if (error) return { ok: false, error: error.message }
+    }
+
+    await audit(supabase, user.id, {
+      action: `taxonomy:location_tag:${add ? 'add' : 'remove'}`,
+      notes: `location=${locationId} tag=${tagId}`,
     })
     revalidateTaxonomy()
     return { ok: true }

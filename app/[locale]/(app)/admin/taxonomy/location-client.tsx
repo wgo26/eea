@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { createLocation, updateLocation, deleteLocation, getLocationRedirects, deleteLocationRedirect } from '@/lib/admin/actions/taxonomy'
+import { createLocation, updateLocation, deleteLocation, getLocationRedirects, deleteLocationRedirect, createLocationType, updateLocationType, deleteLocationType, createLocationTag, updateLocationTag, deleteLocationTag, setLocationTag } from '@/lib/admin/actions/taxonomy'
+import { getLocationTagIds } from '@/lib/admin/queries'
 import { ConfirmDialog, useAdminMutation } from '@/components/admin/confirm-dialog'
 import { useToast } from '@/components/admin/toast'
 import {
@@ -12,7 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { Dictionary } from '@/lib/i18n'
-import type { AdminLocationRow } from '@/lib/admin/queries'
+import type { AdminLocationRow, AdminLocationType, AdminLocationTag } from '@/lib/admin/queries'
 
 type Copy = Dictionary['admin']['taxonomy']
 type CommonCopy = Dictionary['admin']['common']
@@ -29,10 +30,11 @@ const btnDanger =
 
 type LocationFormState = {
   name: string
+  nameFr: string
   slug: string
-  locale: string
-  locationType: string
+  locationTypeId: string
   description: string
+  descriptionFr: string
   latitude: string
   longitude: string
   parentId: string
@@ -41,23 +43,25 @@ type LocationFormState = {
 
 const emptyForm: LocationFormState = {
   name: '',
+  nameFr: '',
   slug: '',
-  locale: 'en',
-  locationType: '',
+  locationTypeId: '',
   description: '',
+  descriptionFr: '',
   latitude: '',
   longitude: '',
   parentId: '',
   isActive: true,
 }
 
-function formFromRow(row: AdminLocationRow): LocationFormState {
+function formFromRow(row: AdminLocationRow, types: AdminLocationType[], tags: AdminLocationTag[]): LocationFormState {
   return {
     name: row.name,
+    nameFr: '',
     slug: row.slug,
-    locale: row.locale === 'fr' ? 'fr' : 'en',
-    locationType: row.locationType ?? '',
+    locationTypeId: row.locationTypeId ?? '',
     description: row.description ?? '',
+    descriptionFr: '',
     latitude: row.latitude === null ? '' : String(row.latitude),
     longitude: row.longitude === null ? '' : String(row.longitude),
     parentId: row.parentId ?? '',
@@ -75,6 +79,10 @@ function LocationFields({
   form,
   setForm,
   copy,
+  types,
+  tags,
+  locationTagIds,
+  setLocationTagIds,
   locations,
   excludeId,
   showSlugWarning,
@@ -82,11 +90,21 @@ function LocationFields({
   form: LocationFormState
   setForm: (f: LocationFormState) => void
   copy: Copy
+  types: AdminLocationType[]
+  tags: AdminLocationTag[]
+  locationTagIds: string[]
+  setLocationTagIds: (ids: string[]) => void
   locations: AdminLocationRow[]
   excludeId?: string
   showSlugWarning: boolean
 }) {
   const set = (patch: Partial<LocationFormState>) => setForm({ ...form, ...patch })
+  const toggleTag = (tagId: string) => {
+    setLocationTagIds(prev =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId],
+    )
+  }
+
   return (
     <div className="grid gap-3">
       <div className="grid gap-3 sm:grid-cols-2">
@@ -95,54 +113,48 @@ function LocationFields({
           <input value={form.name} onChange={(e) => set({ name: e.target.value })} className={inputCls} required />
         </div>
         <div>
-          <label className={labelCls}>{copy.slug}</label>
-          <input value={form.slug} onChange={(e) => set({ slug: e.target.value })} className={inputCls} placeholder="auto" />
+          <label className={labelCls}>{copy.nameFr}</label>
+          <input value={form.nameFr} onChange={(e) => set({ nameFr: e.target.value })} className={inputCls} />
         </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className={labelCls}>{copy.localeLabel}</label>
-          <select value={form.locale} onChange={(e) => set({ locale: e.target.value })} className={inputCls}>
-            <option value="en">{copy.localeEn}</option>
-            <option value="fr">{copy.localeFr}</option>
+          <label className={labelCls}>{copy.slug}</label>
+          <input value={form.slug} onChange={(e) => set({ slug: e.target.value })} className={inputCls} placeholder="auto" />
+        </div>
+        <div>
+          <label className={labelCls}>{copy.locationTypeField}</label>
+          <select value={form.locationTypeId} onChange={(e) => set({ locationTypeId: e.target.value })} className={inputCls}>
+            <option value="">{copy.noParent}</option>
+            {types.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.nameEn} · {t.nameFr}
+              </option>
+            ))}
           </select>
         </div>
-        <p className="text-xs text-muted-foreground self-end">{copy.sharedValueNotice}</p>
       </div>
       {showSlugWarning && <p className="text-xs text-amber-700 dark:text-amber-400">{copy.slugRenameWarning}</p>}
       {!showSlugWarning && <p className="-mt-1 text-xs text-muted-foreground">{copy.slugAutoHint}</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className={labelCls}>{copy.locationType}</label>
-          <input
-            value={form.locationType}
-            onChange={(e) => set({ locationType: e.target.value })}
+          <label className={labelCls}>{copy.descriptionLabel}</label>
+          <textarea
+            value={form.description}
+            onChange={(e) => set({ description: e.target.value })}
+            rows={2}
             className={inputCls}
-            placeholder={copy.locationTypePh}
           />
         </div>
         <div>
-          <label className={labelCls}>{copy.parent}</label>
-          <select value={form.parentId} onChange={(e) => set({ parentId: e.target.value })} className={inputCls}>
-            <option value="">{copy.noParent}</option>
-            {locations
-              .filter((l) => l.id !== excludeId)
-              .map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name} ({l.slug})
-                </option>
-              ))}
-          </select>
+          <label className={labelCls}>{copy.descriptionFr}</label>
+          <textarea
+            value={form.descriptionFr}
+            onChange={(e) => set({ descriptionFr: e.target.value })}
+            rows={2}
+            className={inputCls}
+          />
         </div>
-      </div>
-      <div>
-          <label className={labelCls}>{copy.descriptionLabel}</label>
-        <textarea
-          value={form.description}
-          onChange={(e) => set({ description: e.target.value })}
-          rows={2}
-          className={inputCls}
-        />
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <div>
@@ -158,6 +170,42 @@ function LocationFields({
           {copy.isActive}
         </label>
       </div>
+      <div>
+        <label className={labelCls}>{copy.parent}</label>
+        <select value={form.parentId} onChange={(e) => set({ parentId: e.target.value })} className={inputCls}>
+          <option value="">{copy.noParent}</option>
+          {locations
+            .filter((l) => l.id !== excludeId)
+            .map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name} ({l.slug})
+              </option>
+            ))}
+        </select>
+      </div>
+      <div>
+        <label className={labelCls}>{copy.tags}</label>
+        <div className="flex flex-wrap gap-1.5">
+          {tags.map((tag) => {
+            const active = locationTagIds.includes(tag.id)
+            return (
+              <button
+                key={tag.id}
+                type="button"
+                onClick={() => toggleTag(tag.id)}
+                className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+                  active
+                    ? 'bg-primary border-primary text-primary-foreground'
+                    : 'border-border bg-background text-muted-foreground hover:bg-accent'
+                }`}
+              >
+                {tag.nameEn} · {tag.nameFr}
+              </button>
+            )
+          })}
+        </div>
+        <p className="-mt-2 text-xs text-muted-foreground">{copy.noTags && tags.length === 0 ? copy.noTags : ''}</p>
+      </div>
     </div>
   )
 }
@@ -166,15 +214,20 @@ export function LocationCreateForm({
   copy,
   common,
   locations,
+  types,
+  tags,
 }: {
   copy: Copy
   common: CommonCopy
   locations: AdminLocationRow[]
+  types: AdminLocationType[]
+  tags: AdminLocationTag[]
 }) {
   const { run, loading } = useAdminMutation()
   const { addToast } = useToast()
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<LocationFormState>(emptyForm)
+  const [tagIds, setTagIds] = useState<string[]>([])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -188,10 +241,11 @@ export function LocationCreateForm({
       () =>
         createLocation({
           name: form.name,
+          nameFr: form.nameFr || undefined,
           slug: form.slug.trim() || undefined,
-          locale: form.locale,
-          locationType: form.locationType.trim() || undefined,
+          locationTypeId: form.locationTypeId || null,
           description: form.description.trim() || undefined,
+          descriptionFr: form.descriptionFr.trim() || undefined,
           latitude,
           longitude,
           parentId: form.parentId || null,
@@ -201,6 +255,7 @@ export function LocationCreateForm({
     )
     if (ok) {
       setForm(emptyForm)
+      setTagIds([])
       setOpen(false)
     }
   }
@@ -223,6 +278,10 @@ export function LocationCreateForm({
               form={form}
               setForm={setForm}
               copy={copy}
+              types={types}
+              tags={tags}
+              locationTagIds={tagIds}
+              setLocationTagIds={setTagIds}
               locations={locations}
               showSlugWarning={false}
             />
@@ -244,12 +303,16 @@ export function LocationCreateForm({
 export function LocationRowActions({
   location,
   locations,
+  types,
+  tags,
   copy,
   common,
   canDelete,
 }: {
   location: AdminLocationRow
   locations: AdminLocationRow[]
+  types: AdminLocationType[]
+  tags: AdminLocationTag[]
   copy: Copy
   common: CommonCopy
   canDelete: boolean
@@ -257,15 +320,18 @@ export function LocationRowActions({
   const { run, loading } = useAdminMutation()
   const { addToast } = useToast()
   const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState<LocationFormState>(() => formFromRow(location))
+  const [form, setForm] = useState<LocationFormState>(() => formFromRow(location, types, tags))
+  const [tagIds, setTagIds] = useState<string[]>([])
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [reassignTo, setReassignTo] = useState('')
 
   const usage = location.contentCount + location.profileCount
   const targets = locations.filter((l) => l.id !== location.id)
 
-  function openEditor() {
-    setForm(formFromRow(location))
+  async function openEditor() {
+    setForm(formFromRow(location, types, tags))
+    const existing = await getLocationTagIds(location.id)
+    setTagIds(existing)
     setEditing(true)
   }
 
@@ -281,10 +347,11 @@ export function LocationRowActions({
       () =>
         updateLocation(location.id, {
           name: form.name,
+          nameFr: form.nameFr || null,
           slug: form.slug,
-          locale: form.locale,
-          locationType: form.locationType.trim() || null,
+          locationTypeId: form.locationTypeId || null,
           description: form.description.trim() || null,
+          descriptionFr: form.descriptionFr.trim() || null,
           latitude,
           longitude,
           parentId: form.parentId || null,
@@ -292,7 +359,23 @@ export function LocationRowActions({
         }),
       copy.toastUpdated,
     )
-    if (ok) setEditing(false)
+    if (ok) {
+      // Sync tags to match the selection: remove unselected, add new.
+      const existing = await getLocationTagIds(location.id)
+      const existingSet = new Set(existing)
+      const selectedSet = new Set(tagIds)
+      for (const tagId of existing) {
+        if (!selectedSet.has(tagId)) {
+          await run(() => setLocationTag(location.id, tagId, false))
+        }
+      }
+      for (const tagId of tagIds) {
+        if (!existingSet.has(tagId)) {
+          await run(() => setLocationTag(location.id, tagId, true))
+        }
+      }
+      setEditing(false)
+    }
   }
 
   async function handleDelete() {
@@ -329,6 +412,10 @@ export function LocationRowActions({
               form={form}
               setForm={setForm}
               copy={copy}
+              types={types}
+              tags={tags}
+              locationTagIds={tagIds}
+              setLocationTagIds={setTagIds}
               locations={locations}
               excludeId={location.id}
               showSlugWarning={form.slug.trim() !== location.slug}
@@ -499,4 +586,3 @@ export function LocationRedirectsButton({ copy, common }: { copy: Copy; common: 
     </>
   )
 }
-

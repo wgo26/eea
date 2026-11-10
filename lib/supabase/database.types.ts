@@ -3546,8 +3546,13 @@ export type Database = {
             latitude: number | null;
             longitude: number | null;
             location_type: string | null;
+            location_type_id: string | null;
+            depth: number;
+            path: string[];
+            alt_names: string[] | null;
             description: string | null;
             is_active: boolean;
+            is_featured: boolean;
             created_at: string;
             updated_at: string;
             };
@@ -3560,8 +3565,13 @@ export type Database = {
             latitude?: number | null;
             longitude?: number | null;
             location_type?: string | null;
+            location_type_id?: string | null;
+            depth?: number;
+            path?: string[];
+            alt_names?: string[] | null;
             description?: string | null;
             is_active?: boolean;
+            is_featured?: boolean;
             created_at?: string;
             updated_at?: string;
             };
@@ -3574,8 +3584,13 @@ export type Database = {
             latitude?: number | null;
             longitude?: number | null;
             location_type?: string | null;
+            location_type_id?: string | null;
+            depth?: number | null;
+            path?: string[] | null;
+            alt_names?: string[] | null;
             description?: string | null;
             is_active?: boolean | null;
+            is_featured?: boolean | null;
             created_at?: string | null;
             updated_at?: string | null;
             };
@@ -3585,6 +3600,135 @@ export type Database = {
                     columns: ["parent_id"],
                     isOneToOne: false,
                     referencedRelation: "locations",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_locations_location_type_id_fkey",
+                    columns: ["location_type_id"],
+                    isOneToOne: false,
+                    referencedRelation: "location_types",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        location_types: {
+            Row: {
+            id: string;
+            slug: string;
+            name_en: string;
+            name_fr: string;
+            icon: string | null;
+            color: string | null;
+            sort_order: number;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            slug: string;
+            name_en: string;
+            name_fr: string;
+            icon?: string | null;
+            color?: string | null;
+            sort_order?: number;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            slug?: string | null;
+            name_en?: string | null;
+            name_fr?: string | null;
+            icon?: string | null;
+            color?: string | null;
+            sort_order?: number;
+            created_at?: string | null;
+            };
+            Relationships: [];
+        }
+        location_tags: {
+            Row: {
+            id: string;
+            slug: string;
+            name_en: string;
+            name_fr: string;
+            color: string | null;
+            created_at: string;
+            };
+            Insert: {
+            id?: string;
+            slug: string;
+            name_en: string;
+            name_fr: string;
+            color?: string | null;
+            created_at?: string;
+            };
+            Update: {
+            id?: string | null;
+            slug?: string | null;
+            name_en?: string | null;
+            name_fr?: string | null;
+            color?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [];
+        }
+        location_translations: {
+            Row: {
+            location_id: string;
+            locale: string;
+            name: string;
+            description: string | null;
+            };
+            Insert: {
+            location_id: string;
+            locale: string;
+            name: string;
+            description?: string | null;
+            };
+            Update: {
+            location_id?: string | null;
+            locale?: string | null;
+            name?: string | null;
+            description?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_location_translations_location_id_fkey",
+                    columns: ["location_id"],
+                    isOneToOne: false,
+                    referencedRelation: "locations",
+                    referencedColumns: ["id"],
+                },
+            ];
+        }
+        location_taggings: {
+            Row: {
+            location_id: string;
+            tag_id: string;
+            created_at: string;
+            };
+            Insert: {
+            location_id: string;
+            tag_id: string;
+            created_at?: string;
+            };
+            Update: {
+            location_id?: string | null;
+            tag_id?: string | null;
+            created_at?: string | null;
+            };
+            Relationships: [
+                {
+                    foreignKeyName: "public_location_taggings_location_id_fkey",
+                    columns: ["location_id"],
+                    isOneToOne: false,
+                    referencedRelation: "locations",
+                    referencedColumns: ["id"],
+                },
+                {
+                    foreignKeyName: "public_location_taggings_tag_id_fkey",
+                    columns: ["tag_id"],
+                    isOneToOne: false,
+                    referencedRelation: "location_tags",
                     referencedColumns: ["id"],
                 },
             ];

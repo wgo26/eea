@@ -15,6 +15,9 @@ export type MappedHub = {
     latitude: number;
     longitude: number;
     href: string;
+    /** Materialized depth (0 = continent, 1 = country, …). Used for tiered zoom clustering. */
+    depth: number;
+    locationTypeName?: string | null;
 };
 
 export type MappedContent = {
@@ -32,9 +35,23 @@ export type MappedContent = {
     locationSlug?: string;
 };
 
+/** Max depth shown at each zoom level. Deeper tiers appear as you zoom in. */
+function maxDepthForZoom(zoom: number): number {
+    if (zoom < 5) return 0;      // continents only
+    if (zoom < 7) return 1;      // + countries
+    if (zoom < 9) return 2;      // + regions
+    if (zoom < 11) return 3;     // + divisions
+    if (zoom < 13) return 4;     // + cities / towns
+    return 5;                    // + quarters, landmarks
+}
+
 /**
  * Enhanced community map with clustering support.
  * Shows different content types as clustered markers.
+ *
+ * When `tieredClustering` is true, hubs are filtered by zoom level so the map
+ * stays readable at any scale: continents at zoom 4, countries at 5-6, regions
+ * at 7-8, divisions at 9-10, cities/towns at 11-12, quarters at 13+.
  */
 export function LocationMap({
     hubs,
@@ -42,16 +59,19 @@ export function LocationMap({
     copy,
     showClustering = true,
     initialView,
+    tieredClustering = false,
 }: {
     hubs: MappedHub[];
     content?: MappedContent[];
     copy: Dictionary["map"];
     showClustering?: boolean;
     initialView?: { lat: number; lng: number; zoom: number };
+    tieredClustering?: boolean;
 }) {
     const containerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<{ remove: () => void } | null>(null);
     const [markerClusterGroup, setMarkerClusterGroup] = useState<{ remove: () => void } | null>(null);
+    const [visibleHubs, setVisibleHubs] = useState<MappedHub[]>(hubs);
 
     useEffect(() => {
         if (!containerRef.current || mapRef.current) return;
@@ -75,25 +95,46 @@ export function LocationMap({
                 attribution: copy.tilesCredit,
             }).addTo(map);
 
-            const points: [number, number][] = [];
-
-            // Add location hubs (DivIcon pins — no image assets needed).
+            // Hub markers, tracked so they can be added/removed on zoom changes.
+            const hubMarkers = new Map<string, L.Marker>();
             const hubIcon = L.divIcon({
                 html: `<div class="content-marker" title="">📍</div>`,
                 className: "content-marker-icon",
                 iconSize: [28, 28],
                 iconAnchor: [14, 14],
             });
-            for (const hub of hubs) {
-                const marker = L.marker([hub.latitude, hub.longitude], { icon: hubIcon }).addTo(map);
-                marker.bindPopup(`<a href="${hub.href}">${hub.name}</a>`);
-                marker.bindTooltip(hub.name);
-                points.push([hub.latitude, hub.longitude]);
-            }
+            const addHubMarkers = (hubsToShow: MappedHub[]) => {
+                for (const hub of hubsToShow) {
+                    if (hubMarkers.has(hub.slug)) continue;
+                    const marker = L.marker([hub.latitude, hub.longitude], { icon: hubIcon }).addTo(map);
+                    marker.bindPopup(`<a href="${hub.href}">${hub.name}</a>`);
+                    marker.bindTooltip(hub.name);
+                    hubMarkers.set(hub.slug, marker);
+                }
+            };
+            const removeHubMarkers = (slugs: string[]) => {
+                for (const slug of slugs) {
+                    const m = hubMarkers.get(slug);
+                    if (m) {
+                        map.removeLayer(m);
+                        hubMarkers.delete(slug);
+                    }
+                }
+            };
+
+            // Initial render based on current zoom
+            const currentZoom = map.getZoom();
+            const maxDepth = tieredClustering ? maxDepthForZoom(currentZoom) : Infinity;
+            const filtered = tieredClustering
+                ? hubs.filter((h) => (h.depth ?? 0) <= maxDepth)
+                : hubs;
+            setVisibleHubs(filtered);
+            addHubMarkers(filtered);
+
+            const points: [number, number][] = filtered.map((h) => [h.latitude, h.longitude]);
 
             // Add content items with clustering if enabled
             if (showClustering && content.length > 0) {
-                // Use L.MarkerClusterGroup from the globally loaded leaflet.markercluster
                 const clusterGroup = new L.MarkerClusterGroup({
                     chunkedLoading: true,
                     spiderfyOnMaxZoom: true,
@@ -113,7 +154,6 @@ export function LocationMap({
                     },
                 });
 
-                // Content type icons
                 const typeIcons: Record<string, string> = {
                     news: "📰",
                     photo_story: "📸",
@@ -154,7 +194,6 @@ export function LocationMap({
                 map.addLayer(clusterGroup);
                 setMarkerClusterGroup(clusterGroup);
             } else {
-                // Add content without clustering (same asset-free pin).
                 const pinIcon = L.divIcon({
                     html: `<div class="content-marker" title="">📍</div>`,
                     className: "content-marker-icon",
@@ -175,8 +214,30 @@ export function LocationMap({
                 map.setView(points[0], 8);
             }
 
+            // Tiered clustering: re-filter hubs when zoom changes.
+            if (tieredClustering) {
+                let pending: ReturnType<typeof setTimeout> | null = null;
+                const onZoomEnd = () => {
+                    if (pending) clearTimeout(pending);
+                    pending = setTimeout(() => {
+                        if (cancelled) return;
+                        const z = map.getZoom();
+                        const md = maxDepthForZoom(z);
+                        const next = hubs.filter((h) => (h.depth ?? 0) <= md);
+                        const nextSlugs = new Set(next.map((h) => h.slug));
+                        const currentSlugs = new Set(hubMarkers.keys());
+                        const toAdd = next.filter((h) => !currentSlugs.has(h.slug));
+                        const toRemove = [...currentSlugs].filter((s) => !nextSlugs.has(s));
+                        removeHubMarkers(toRemove);
+                        addHubMarkers(toAdd);
+                        setVisibleHubs(next);
+                    }, 150);
+                };
+                map.on("zoomend", onZoomEnd);
+                map.on("zoomend", onZoomEnd);
+            }
+
             mapRef.current = map;
-            // Re-enable scroll zoom once the user interacts (page scroll wins).
             map.on("focus", () => map.scrollWheelZoom.enable());
             map.on("blur", () => map.scrollWheelZoom.disable());
             map.on("click", () => map.scrollWheelZoom.enable());
@@ -187,7 +248,13 @@ export function LocationMap({
             mapRef.current = null;
             markerClusterGroup?.remove();
         };
-    }, [hubs, content, copy.tilesCredit, showClustering, initialView]);
+    }, [hubs, content, copy.tilesCredit, showClustering, initialView, tieredClustering]);
+
+    // Re-filter visible hubs when the hub list changes (e.g. new locations added).
+    useEffect(() => {
+        if (!tieredClustering) return;
+        setVisibleHubs(hubs);
+    }, [hubs, tieredClustering]);
 
     return (
         <div

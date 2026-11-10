@@ -183,12 +183,17 @@ export type AdminLocationRow = {
   slug: string
   locale: string | null
   locationType: string | null
+  locationTypeId: string | null
+  locationTypeName: string | null
   description: string | null
   latitude: number | null
   longitude: number | null
   isActive: boolean
   parentId: string | null
   parentName: string | null
+  depth: number
+  altNames: string[] | null
+  isFeatured: boolean
   contentCount: number
   profileCount: number
 }
@@ -199,11 +204,16 @@ type RawLocationAdminRow = {
   slug: string
   locale: string | null
   location_type: string | null
+  location_type_id: string | null
+  location_type_name: string | null
   description: string | null
   latitude: number | string | null
   longitude: number | string | null
   is_active: boolean
   parent_id: string | null
+  depth: number
+  alt_names: string[] | null
+  is_featured: boolean
   items: { count: number }[] | { count: number } | null
   residents: { count: number }[] | { count: number } | null
 }
@@ -216,7 +226,7 @@ export async function getLocationsAdmin(search?: string): Promise<AdminLocationR
       let query = db()
         .from('locations')
         .select(
-          'id, name, slug, locale, location_type, description, latitude, longitude, is_active, parent_id, items:content_items(count), residents:profiles(count)',
+          'id, name, slug, locale, location_type, location_type_id, description, latitude, longitude, is_active, parent_id, depth, alt_names, is_featured, location_types(name_en), items:content_items(count), residents:profiles(count)',
         )
         .order('name', { ascending: true })
       if (term) query = query.or(`name.ilike.%${term}%,slug.ilike.%${term}%,description.ilike.%${term}%`)
@@ -229,22 +239,108 @@ export async function getLocationsAdmin(search?: string): Promise<AdminLocationR
   return rows.map((row) => {
     const items = Array.isArray(row.items) ? row.items[0] : row.items
     const residents = Array.isArray(row.residents) ? row.residents[0] : row.residents
+    const locType = Array.isArray(row.location_types) ? row.location_types[0] : row.location_types
     return {
       id: row.id,
       name: row.name,
       slug: row.slug,
       locale: row.locale ?? null,
       locationType: row.location_type,
+      locationTypeId: row.location_type_id ?? null,
+      locationTypeName: locType?.name_en ?? null,
       description: row.description,
       latitude: row.latitude === null ? null : Number(row.latitude),
       longitude: row.longitude === null ? null : Number(row.longitude),
       isActive: row.is_active,
       parentId: row.parent_id,
       parentName: row.parent_id ? (nameById.get(row.parent_id) ?? null) : null,
+      depth: row.depth ?? 0,
+      altNames: row.alt_names ?? null,
+      isFeatured: row.is_featured ?? false,
       contentCount: items?.count ?? 0,
       profileCount: residents?.count ?? 0,
     }
   })
+}
+
+/** Location types (tier registry) for admin dropdowns. */
+export type AdminLocationType = {
+  id: string
+  slug: string
+  nameEn: string
+  nameFr: string
+  icon: string | null
+  color: string | null
+  sortOrder: number
+}
+
+export async function getLocationTypesAdmin(): Promise<AdminLocationType[]> {
+  const { data } = await safe(
+    db()
+      .from('location_types')
+      .select('id, slug, name_en, name_fr, icon, color, sort_order')
+      .order('sort_order', { ascending: true })
+      .order('name_en', { ascending: true }),
+  )
+  return ((data ?? []) as Array<{
+    id: string
+    slug: string
+    name_en: string
+    name_fr: string
+    icon: string | null
+    color: string | null
+    sort_order: number
+  }>).map((r) => ({
+    id: r.id,
+    slug: r.slug,
+    nameEn: r.name_en,
+    nameFr: r.name_fr,
+    icon: r.icon,
+    color: r.color,
+    sortOrder: r.sort_order,
+  }))
+}
+
+/** Location tags for admin tag manager. */
+export type AdminLocationTag = {
+  id: string
+  slug: string
+  nameEn: string
+  nameFr: string
+  color: string | null
+}
+
+export async function getLocationTagsAdmin(): Promise<AdminLocationTag[]> {
+  const { data } = await safe(
+    db()
+      .from('location_tags')
+      .select('id, slug, name_en, name_fr, color')
+      .order('name_en', { ascending: true }),
+  )
+  return ((data ?? []) as Array<{
+    id: string
+    slug: string
+    name_en: string
+    name_fr: string
+    color: string | null
+  }>).map((r) => ({
+    id: r.id,
+    slug: r.slug,
+    nameEn: r.name_en,
+    nameFr: r.name_fr,
+    color: r.color,
+  }))
+}
+
+/** Tags currently assigned to a location (ids). */
+export async function getLocationTagIds(locationId: string): Promise<string[]> {
+  const { data } = await safe(
+    db()
+      .from('location_taggings')
+      .select('tag_id')
+      .eq('location_id', locationId),
+  )
+  return ((data ?? []) as Array<{ tag_id: string }>).map((r) => r.tag_id)
 }
 
 /* ------------------------------------------------------------------ */
