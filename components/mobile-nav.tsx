@@ -63,7 +63,7 @@ export function MobileNav({
             />
             <Input type="search" name="q" placeholder={searchPlaceholder} className="pl-9" />
           </form>
-          <nav aria-label={navigationLabel} className="mt-3 flex flex-col">
+          <nav aria-label={navigationLabel} className="mt-3 flex flex-col items-start w-full">
             {items.map((item) => {
               const canonical = item.path ?? stripLocalePrefix(item.href);
               const stripped = stripLocalePrefix(pathname);
@@ -78,7 +78,7 @@ export function MobileNav({
                   href={item.href}
                   onClick={() => setOpen(false)}
                   aria-current={isActive ? "page" : undefined}
-                  className={`min-h-11 rounded-md px-3 py-2.5 text-sm font-medium transition-colors focus-lens ${
+                  className={`block w-full text-left min-h-11 rounded-md px-3 py-2.5 text-sm font-medium transition-colors focus-lens ${
                     isActive
                       ? "bg-primary font-semibold text-primary-foreground"
                       : "text-muted-foreground hover:bg-accent hover:text-foreground"
