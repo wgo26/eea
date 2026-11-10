@@ -146,7 +146,15 @@ export function validateSubmissionContent(
             ) {
                 return "missing_content";
             }
-            return payload.item && payload.message ? null : "missing_content";
+            if (payload.noticeType === "missing_person") {
+                return payload.personName && payload.personDescription && payload.message
+                    ? null
+                    : "missing_content";
+            }
+            if (payload.noticeType === "lost_found") {
+                return payload.item && payload.message ? null : "missing_content";
+            }
+            return payload.message ? null : "missing_content";
         case "buy_sell":
             if (
                 !payload.category ||

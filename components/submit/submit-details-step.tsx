@@ -33,9 +33,6 @@ export function SubmitDetailsStep(props: {
             <LocationField
                 label={f.location}
                 placeholder={f.locationPlaceholder}
-                detectLabel={s.detect}
-                detectedLabel={s.detected}
-                resolvingLabel={s.resolving}
                 resolveFailedLabel={s.resolveFailed}
                 keepAsSuggestionLabel={s.keepSuggestion}
                 initialText={initial?.locationText}

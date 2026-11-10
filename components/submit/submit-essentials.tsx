@@ -108,9 +108,32 @@ export function SubmitEssentials(props: {
                             ))}
                         </select>
                     </Field>
-                    <Field label={f.item} htmlFor="item">
-                        <Input id="item" name="item" required placeholder={f.itemPlaceholder} />
-                    </Field>
+                    {selectedNoticeType === "lost_found" ? (
+                        <>
+                            <Field label={f.item} htmlFor="item">
+                                <Input id="item" name="item" required placeholder={f.itemPlaceholder} />
+                            </Field>
+                        </>
+                    ) : selectedNoticeType === "missing_person" ? (
+                        <>
+                            <Field label={f.personName} htmlFor="personName">
+                                <Input
+                                    id="personName"
+                                    name="personName"
+                                    required
+                                    placeholder={f.personNamePlaceholder}
+                                />
+                            </Field>
+                            <Field label={f.personDescription} htmlFor="personDescription">
+                                <Textarea
+                                    id="personDescription"
+                                    name="personDescription"
+                                    required
+                                    placeholder={f.personDescriptionPlaceholder}
+                                />
+                            </Field>
+                        </>
+                    ) : null}
                     <Field label={f.message} htmlFor="message" help={s.messageHelp}>
                         <Textarea id="message" name="message" required placeholder={f.messagePlaceholder} />
                     </Field>
