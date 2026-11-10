@@ -111,3 +111,23 @@ export async function requireAnyCapability(
   if (!capabilities.some((c) => caps.has(c))) await denyAccess(nextPath)
   return { supabase, user, roles, adminRoles: resolveAdminRoles(roles, adminRoles) }
 }
+
+/**
+ * Member-focused MFA step-up: requires authentication, then if the user has
+ * a verified TOTP factor, requires an aal2 session before proceeding.
+ *
+ * Used on /account/security for data export, account deletion and sign-out
+ * everywhere — actions a stolen password (without TOTP) should not be able
+ * to perform. Members without a verified factor proceed normally.
+ */
+export async function requireMemberMfaIfEnrolled(
+  nextPath = '/account/security',
+) {
+  const { supabase, user } = await requireUser(nextPath)
+  if (await isMfaChallengeRequired(supabase)) {
+    const locale = await getRequestLocale()
+    const target = safeNextPath(nextPath, locale) ?? localePath(locale, '/account/security')
+    redirect(localePath(locale, `/account/mfa-challenge?next=${encodeURIComponent(target)}`))
+  }
+  return { supabase, user }
+}

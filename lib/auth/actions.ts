@@ -155,8 +155,26 @@ export async function signInWithPassword(
   }
 
   const supabase = await createClient()
+  const admin = createAdminClient()
+
+  // Progressive lockout: check per-email lockout before attempting password.
+  const { data: locked, error: lockError } = await admin.rpc(
+    'check_login_lock',
+    { p_email: email },
+  )
+  if (lockError || locked === false) {
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.loginBlocked,
+      identifier: email,
+      detail: { reason: 'account_locked' },
+    })
+    return { ok: false, error: 'account_locked' }
+  }
+
   const { data: auth, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) {
+    // Record the failed attempt (increments counter, may lock).
+    await admin.rpc('record_login_attempt', { p_email: email, p_succeeded: false })
     const code = mapSupabaseError(error.message)
     // The mapped code, not Supabase's raw (sometimes user-enumerating) message.
     await recordAuthEvent({
@@ -166,6 +184,9 @@ export async function signInWithPassword(
     })
     return { ok: false, error: code }
   }
+
+  // Successful login: clear the failed-attempt counter.
+  await admin.rpc('record_login_attempt', { p_email: email, p_succeeded: true })
 
   const userId = auth.user?.id ?? null
   const { data: profile, error: profileError } = await createAdminClient()
@@ -369,6 +390,59 @@ export async function requestPasswordReset(
   await recordAuthEvent({
     action: AUTH_AUDIT_ACTIONS.passwordResetRequested,
     identifier: email,
+  })
+  return { ok: true }
+}
+
+/**
+ * Update the authenticated user's password. Called from the
+ * /account/reset-password/update page after an email-reset flow, or from
+ * the security page when changing password. Runs as a Server Action so the
+ * call is audited, rate-limited and human-gated — never a direct client
+ * call to Supabase Auth.
+ */
+export async function updateUserPassword(
+  _prev: PasswordResetState,
+  formData: FormData,
+): Promise<PasswordResetState> {
+  const password = typeof formData.get('password') === 'string'
+    ? formData.get('password') as string
+    : ''
+
+  if (password.length < 8 || password.length > 72) {
+    return { ok: false, error: 'invalid' }
+  }
+
+  // Human gate — same fail-closed policy as other public write surfaces.
+  if (!(await verifyHumanGate(formData))) {
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.passwordResetBlocked,
+      detail: { reason: 'captcha' },
+    })
+    return { ok: false, error: 'captcha' }
+  }
+
+  const supabase = await createClient()
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) {
+    return { ok: false, error: 'invalid' }
+  }
+
+  const { error } = await supabase.auth.updateUser({ password })
+  if (error) {
+    await recordAuthEvent({
+      action: AUTH_AUDIT_ACTIONS.passwordResetFailed,
+      actorId: user.id,
+      identifier: user.email,
+      detail: { reason: 'provider_error' },
+    })
+    return { ok: false, error: 'provider_error' }
+  }
+
+  await recordAuthEvent({
+    action: AUTH_AUDIT_ACTIONS.passwordUpdated,
+    actorId: user.id,
+    identifier: user.email,
   })
   return { ok: true }
 }

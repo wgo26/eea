@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getDictionary } from "@/lib/i18n";
 import { getRequestLocale } from "@/lib/i18n/server";
 import { localePath } from "@/lib/i18n/urls";
-import { requireUser } from "@/lib/auth/guards";
+import { requireMemberMfaIfEnrolled } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { accountPageBreadcrumb } from "@/lib/account/nav";
 import { AccountPageShell } from "@/components/account/account-page-shell";
@@ -18,7 +18,7 @@ export default async function Page() {
     const locale = await getRequestLocale();
     const dict = getDictionary(locale);
     const t = dict.account.security;
-    const { user } = await requireUser("/account/security");
+    const { supabase, user } = await requireMemberMfaIfEnrolled("/account/security");
 
     const supabase = await createClient();
     const { data: { user: fullUser } } = await supabase.auth.getUser();
