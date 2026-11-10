@@ -34,6 +34,7 @@ export const AUTH_AUDIT_ACTIONS = {
   passwordResetFailed: 'auth.password_reset.failed',
   passwordResetBlocked: 'auth.password_reset.blocked',
   passwordUpdated: 'auth.password.updated',
+  emailChangeRequested: 'auth.email_change.requested',
 } as const
 export type AuthAuditAction = (typeof AUTH_AUDIT_ACTIONS)[keyof typeof AUTH_AUDIT_ACTIONS]
 

@@ -9,6 +9,27 @@
  * "Server Actions must be async functions". `scripts/verify-server-actions.mjs`
  * (wired into `npm run check`) guards this invariant for every such file.
  *
+ * Adding a new provider (three steps):
+ *
+ *  1. Add the provider slug to `OAUTH_PROVIDERS` below (must match a Supabase
+ *     provider name, e.g. 'github', 'apple', 'azure', 'linkedin').
+ *
+ *  2. Create the OAuth app in the provider's developer console with the
+ *     redirect callback URL set to:
+ *        https://<your-domain>/auth/callback
+ *     Record the Client ID and Client Secret.
+ *
+ *  3. Enable the provider in the Supabase Dashboard
+ *     (Authentication → Providers → <provider>), entering the Client ID and
+ *     Client Secret. Supabase handles the OAuth flow end-to-end.
+ *
+ *  4. Set `NEXT_PUBLIC_OAUTH_PROVIDERS` to a comma- or space-separated list
+ *     of the provider slugs you want to render buttons for, e.g.:
+ *        NEXT_PUBLIC_OAUTH_PROVIDERS=google,github,apple
+ *     Only providers that appear in both `OAUTH_PROVIDERS` and the env list
+ *     will render sign-in buttons. Env-gating here only controls rendering;
+ *     an unconfigured dashboard provider never shows a dead button.
+ *
  * Providers must ALSO be enabled in the Supabase dashboard
  * (Authentication → Providers) with this app's `/auth/callback` URL
  * allow-listed — env-gating here only controls whether the buttons render, so

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ShieldCheck, ShieldOff, Download, LogOut, Trash2 } from 'lucide-react';
 import { enrollMfa, getMfaFactors, unenrollMfa, verifyMfaEnrollment, type MfaFactor } from '@/lib/auth/mfa';
-import { signOutEverywhere, exportMyData, deleteMyAccount } from '@/lib/account/security';
+import { signOutEverywhere, exportMyData, deleteMyAccount, revokeAllSessions } from '@/lib/account/security';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
 import type { Dictionary } from '@/lib/i18n';
 
@@ -195,12 +195,21 @@ export function MfaSection({ copy, initial }: { copy: SecurityCopy; initial: Mfa
 export function SessionsSection({ copy, email }: { copy: SecurityCopy; email: string }) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [revoking, setRevoking] = useState(false);
+  const [revoked, setRevoked] = useState(false);
 
   async function handleSignOutEverywhere() {
     setBusy(true);
     const result = await signOutEverywhere();
     setBusy(false);
     if (result.ok) setDone(true);
+  }
+
+  async function handleRevokeAllSessions() {
+    setRevoking(true);
+    const result = await revokeAllSessions();
+    setRevoking(false);
+    if (result.ok) setRevoked(true);
   }
 
   return (
@@ -219,12 +228,23 @@ export function SessionsSection({ copy, email }: { copy: SecurityCopy; email: st
         <button
           type="button"
           onClick={handleSignOutEverywhere}
-          disabled={busy || done}
+          disabled={busy || done || revoking || revoked}
           className="inline-flex items-center rounded-md border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
         >
           {done ? copy.signedOutEverywhere : copy.signOutEverywhere}
         </button>
+        <button
+          type="button"
+          onClick={handleRevokeAllSessions}
+          disabled={revoking || revoked || busy || done}
+          className="inline-flex items-center rounded-md border border-destructive/40 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+        >
+          {revoked ? copy.revokedAllSessions : copy.revokeAllSessions}
+        </button>
       </div>
+      {revoked ? (
+        <p className="mt-3 text-sm text-destructive">{copy.revokeAllSessionsBody}</p>
+      ) : null}
     </section>
   );
 }

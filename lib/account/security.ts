@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getRequestLocale } from '@/lib/i18n/server'
 import { localePath } from '@/lib/i18n/urls'
+import { AUTH_AUDIT_ACTIONS, recordAuthEvent } from '@/lib/security/auth-audit'
+import { identifierHash } from '@/lib/security/auth-audit'
 
 type SecurityResult = { ok: true } | { ok: false; error: string }
 
@@ -16,6 +18,54 @@ export async function signOutEverywhere(): Promise<SecurityResult> {
   const { error } = await supabase.auth.signOut({ scope: 'global' })
   if (error) return { ok: false, error: error.message }
   return { ok: true }
+}
+
+/**
+ * Revoke every session for the current user, forcing re-login on all
+ * devices including the current one. Uses the service-role admin client
+ * so the current session is included in the revocation.
+ */
+export async function revokeAllSessions(): Promise<SecurityResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Not authenticated.' }
+  const admin = createAdminClient()
+  const { error } = await admin.auth.admin.signOut({ uuid: user.id })
+  if (error) return { ok: false, error: error.message }
+  await supabase.auth.signOut()
+  return { ok: true }
+}
+
+/**
+ * Request an email change. Supabase sends a confirmation link to the new
+ * address; the email only flips once the user clicks it. Returns the new
+ * (unconfirmed) email so the UI can show a pending state.
+ */
+export async function requestEmailChange(
+  newEmail: string,
+): Promise<{ ok: true; newEmail: string } | { ok: false; error: string }> {
+  if (!newEmail.trim()) return { ok: false, error: 'Enter an email address.' }
+  const normalized = newEmail.trim().toLowerCase()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized))
+    return { ok: false, error: 'Enter a valid email address.' }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Not authenticated.' }
+  if (normalized === (user.email ?? '').toLowerCase()) {
+    return { ok: false, error: 'That is already your email address.' }
+  }
+
+  const { error } = await supabase.auth.updateUser({ email: normalized })
+  if (error) return { ok: false, error: 'Could not send confirmation email.' }
+
+  await recordAuthEvent({
+    action: AUTH_AUDIT_ACTIONS.emailChangeRequested,
+    actorId: user.id,
+    identifier: user.email,
+    detail: { newEmail: identifierHash(normalized) },
+  })
+  return { ok: true, newEmail: normalized }
 }
 
 /**

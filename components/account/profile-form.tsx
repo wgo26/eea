@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Camera, Globe, MapPin, Monitor, Sun, UserRound, Contrast } from 'lucide-react'
 import { removeOwnAvatar, updateOwnProfile, uploadOwnAvatar } from '@/lib/account/actions'
+import { requestEmailChange } from '@/lib/account/security'
 import { useToast } from '@/components/admin/toast'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -81,6 +82,9 @@ export function ProfileForm({
   const [contrast, setContrast] = useState(initial.preferredContrast === 'high' ? 'high' : 'normal')
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [emailChanging, setEmailChanging] = useState(false)
+  const [emailPending, setEmailPending] = useState<string | null>(null)
 
   function handleTabChange(value: ProfileTab) {
     const params = new URLSearchParams(searchParams.toString())
@@ -105,8 +109,9 @@ export function ProfileForm({
       locale !== initial.preferredLocale ||
       voice !== initial.preferredVoice ||
       theme !== initial.preferredTheme ||
-      contrast !== initial.preferredContrast,
-    [displayName, fullName, bio, handle, phone, avatarUrl, locationId, isPublic, locale, voice, theme, contrast, initial],
+      contrast !== initial.preferredContrast ||
+      newEmail !== '',
+    [displayName, fullName, bio, handle, phone, avatarUrl, locationId, isPublic, locale, voice, theme, contrast, newEmail, initial],
   )
 
   const score = useMemo(() => {
@@ -139,6 +144,20 @@ export function ProfileForm({
     if (result.ok) {
       addToast(copy.saved, 'success')
       router.refresh()
+    } else {
+      addToast(result.error, 'error')
+    }
+  }
+
+  async function handleChangeEmail() {
+    setEmailChanging(true)
+    setEmailPending(null)
+    const result = await requestEmailChange(newEmail.trim())
+    setEmailChanging(false)
+    if (result.ok) {
+      setEmailPending(result.newEmail)
+      setNewEmail('')
+      addToast(copy.emailChangePending.replace('{email}', result.newEmail), 'success')
     } else {
       addToast(result.error, 'error')
     }
@@ -307,8 +326,32 @@ export function ProfileForm({
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="profile-email">{copy.emailLabel}</Label>
-            <Input id="profile-email" value={initial.email} readOnly disabled />
-            <p className="text-xs text-muted-foreground">{copy.emailHint}</p>
+            {emailPending ? (
+              <div className="space-y-1.5">
+                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">
+                  <Globe className="h-3 w-3" aria-hidden />
+                  {copy.emailChangePending.replace('{email}', emailPending)}
+                </span>
+              </div>
+            ) : (
+              <>
+                <Input
+                  id="profile-email"
+                  value={newEmail}
+                  placeholder={copy.emailChangePlaceholder}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={handleChangeEmail}
+                  disabled={emailChanging || !newEmail.trim()}
+                  className="inline-flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                >
+                  {emailChanging ? copy.emailUpdating : copy.emailChangeButton}
+                </button>
+                <p className="text-xs text-muted-foreground">{copy.emailHint}</p>
+              </>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="profile-phone">{copy.phone}</Label>
